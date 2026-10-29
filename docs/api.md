@@ -61,3 +61,13 @@ All JSON. Errors: non-2xx with `ErrorBody`.
 - Volumes: bind mounts under `/var/lib/atoll/volumes/<service_id>/<volume_name>`.
 - Env references: `${KEY}` resolves own vars then exposed vars of other services in project; `${SERVICE.KEY}` for explicit; built-ins: `${<SERVICE>_HOST}` (service name), `${<PORTNAME>_PORT}`, `${ATOLL_<PORTNAME>_DOMAIN}`, `${ATOLL_<PORTNAME>_URL}`, `PORT` = first port, `PASSWORD` random 32 chars for db templates.
 - Times UTC RFC3339.
+
+## In-place Zeabur takeover (primary import path)
+Target user: their OWN VPS registered to Zeabur (unmanaged, single-node k3s), services built by Zeabur, data on that VPS. Atoll takes the same machine over — no server-to-server move.
+1. Install atoll-agent on that VPS (join command). Agent detects k3s (`k3s kubectl`), `GET /servers/{id}/zeabur` shows Zeabur projects/services found locally (types `ZeaburInventory`).
+2. `POST /imports/zeabur-local` creates an Atoll project on that server with services mapped 1:1: env from pod spec (expanded), `<x>.zeabur.internal` → service name, Zeabur built-ins translated, ZEABUR_* ids dropped, ports, volumes, configmaps, custom domains (zeabur.app → warning).
+3. Rehearse: agent exports Zeabur-built images from containerd (`k3s ctr -n k8s.io images export` | `docker load`, tag `atoll-import/<svc>:<digest12>`), pulls public images pinned to running digest, copies PVC dirs locally (apps) and dump/restore DBs (same major version), starts containers WITHOUT public ingress, verifies row counts. Zeabur keeps serving.
+4. Cutover (user confirms): scale Zeabur app workloads to 0 (DBs keep running until final dump), final DB sync + volume rsync, park Zeabur ingress-controller DaemonSet, start atoll-caddy on 80/443 with the same hostnames. DNS unchanged (same IP) — custom domain A records already point here; only *.zeabur.app URLs die.
+5. Rollback: stop atoll services, restore ingress-controller, scale Zeabur workloads back to recorded replicas.
+6. Later, after user approval: remove Zeabur components / k3s (`/usr/local/bin/k3s-uninstall.sh`) to free RAM — explicit confirmation, never automatic.
+Risk: both stacks run side by side during rehearsal (RAM/disk) — scan reports free mem/disk; refuse rehearsal if disk free < 1.2× data size.

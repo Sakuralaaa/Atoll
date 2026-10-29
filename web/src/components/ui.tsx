@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { Copy } from 'lucide-react'
 import * as si from 'simple-icons'
 export { si }
-import type { Service, Status } from '../mock'
+import type { IconSpec } from '../api/view'
 
 export const cx = clsx
 
@@ -38,7 +38,7 @@ export function Avatar({ size = 24 }: { size?: number }) {
 export function Button({ children, variant = 'secondary', size = 'md', className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline'; size?: 'sm' | 'md' | 'lg' }) {
   return (
     <button {...p} className={cx(
-      'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap',
+      'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none',
       size === 'sm' && 'h-8 px-3 text-[12.5px]', size === 'md' && 'h-9 px-3.5 text-[13px]', size === 'lg' && 'h-10 px-5 text-[13.5px]',
       variant === 'primary' && 'btn-primary text-white',
       variant === 'secondary' && 'btn-secondary text-fg',
@@ -74,14 +74,17 @@ export function Segment({ items, value }: { items: { k: string; l: string; icon?
   )
 }
 
-export function Dot({ status }: { status: Status | 'online' | 'offline' }) {
-  const c = { running: 'bg-emerald-400 text-emerald-400', online: 'bg-emerald-400 text-emerald-400', deploying: 'bg-amber-400 text-amber-400', stopped: 'bg-zinc-500 text-zinc-500', offline: 'bg-zinc-600 text-zinc-600', failed: 'bg-rose-500 text-rose-500' }[status]
-  const glow = status !== 'stopped' && status !== 'offline'
+const DOT: Record<string, string> = { running: 'bg-emerald-400 text-emerald-400', online: 'bg-emerald-400 text-emerald-400', active: 'bg-emerald-400 text-emerald-400', done: 'bg-emerald-400 text-emerald-400', deploying: 'bg-amber-400 text-amber-400', pending: 'bg-amber-400 text-amber-400', draining: 'bg-amber-400 text-amber-400', stopped: 'bg-zinc-500 text-zinc-500', unknown: 'bg-zinc-500 text-zinc-500', offline: 'bg-zinc-600 text-zinc-600', failed: 'bg-rose-500 text-rose-500', error: 'bg-rose-500 text-rose-500' }
+export function Dot({ status }: { status: string }) {
+  const c = DOT[status] ?? DOT.unknown
+  const glow = !['stopped', 'offline', 'unknown'].includes(status) && !!DOT[status]
   return <span className={cx('inline-block h-[7px] w-[7px] rounded-full shrink-0', c, glow && 'dot-glow')} />
 }
-export const statusText: Record<string, string> = { running: '运行中', deploying: '部署中', stopped: '已停止', failed: '崩溃', online: '在线', offline: '离线' }
+export const statusText: Record<string, string> = { running: '运行中', deploying: '部署中', stopped: '已停止', failed: '崩溃', unknown: '未知', online: '在线', offline: '离线', pending: '等待连接', draining: '迁出中' }
 
 export function Spark({ data, color, w = 72, h = 26 }: { data: number[]; color: string; w?: number; h?: number }) {
+  if (data.length < 2) return <svg width={w} height={h}><path d={`M0,${h - 1} L${w},${h - 1}`} stroke={color} strokeWidth="1.5" strokeDasharray="3 3" /></svg>
+  const mxRaw = Math.max(...data); if (!mxRaw) data = data.map(() => 0.0001)
   const mx = Math.max(...data) * 1.15, st = w / (data.length - 1)
   const d = smooth(data.map((v, i) => [i * st, h - (v / mx) * h]))
   return <svg width={w} height={h} className="overflow-visible"><path d={d} fill="none" stroke={color} strokeWidth="1.5" /></svg>
@@ -100,10 +103,10 @@ export function Ticks({ value, color, n = 44 }: { value: number; color?: string;
 function Glyph({ path, size, color }: { path: string; size: number; color: string }) {
   return <svg viewBox="0 0 24 24" width={size} height={size} fill={color}><path d={path} /></svg>
 }
-const DB = { postgres: si.siPostgresql, mysql: si.siMysql, redis: si.siRedis, mongo: si.siMongodb } as const
+const DB: Record<string, { path: string; hex: string }> = { postgres: si.siPostgresql, mysql: si.siMysql, redis: si.siRedis, mongo: si.siMongodb }
 
-export function ServiceIcon({ s, size = 28 }: { s: Pick<Service, 'kind' | 'letter' | 'color'>; size?: number }) {
-  if (s.kind !== 'image') {
+export function ServiceIcon({ s, size = 28 }: { s: IconSpec; size?: number }) {
+  if (DB[s.kind]) {
     const ic = DB[s.kind]
     return (
       <div style={{ width: size, height: size, background: `color-mix(in srgb, #${ic.hex} 22%, var(--card))` }} className="tile rounded-[8px] grid place-items-center shrink-0">
@@ -112,7 +115,7 @@ export function ServiceIcon({ s, size = 28 }: { s: Pick<Service, 'kind' | 'lette
     )
   }
   return (
-    <div style={{ width: size, height: size, background: `color-mix(in srgb, ${s.color} 38%, var(--card))` }} className="tile rounded-[8px] grid place-items-center shrink-0">
+    <div style={{ width: size, height: size, background: `color-mix(in srgb, ${s.color ?? '#8b5cf6'} 38%, var(--card))` }} className="tile rounded-[8px] grid place-items-center shrink-0">
       <span style={{ fontSize: size * 0.44 }} className="font-extrabold font-mono text-fg">{s.letter}</span>
     </div>
   )
@@ -152,7 +155,7 @@ export function Brand({ icon, size = 16, color }: { icon: { path: string; hex: s
 }
 
 export function CopyId({ v }: { v: string }) {
-  return <span className="inline-flex items-center gap-1.5 font-mono text-[12px] text-muted">{v}<Copy size={13} className="text-muted" /></span>
+  return <button type="button" title="复制" onClick={() => navigator.clipboard?.writeText(v)} className="inline-flex items-center gap-1.5 font-mono text-[12px] text-muted hover:text-fg">{v}<Copy size={13} className="text-muted" /></button>
 }
 
 export function Badge({ children, tone = 'amber' }: { children: React.ReactNode; tone?: 'amber' | 'green' | 'violet' | 'zinc' | 'red' }) {
@@ -176,7 +179,11 @@ function smooth(pts: number[][]) {
 
 export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels = ['12:24', '14:48', '17:12', '19:36', '22:00', '00:24'], h = 160, max }: { title: string; icon?: React.ReactNode; data: number[]; color?: string; unit?: string; labels?: string[]; h?: number; max?: number }) {
   const w = 600
-  const top = max ?? Math.ceil(Math.max(...data) * 1.3)
+  if (data.length < 2) return (
+    <Card className="overflow-hidden"><div className="px-5 pt-4 flex items-center gap-1.5 text-[12.5px] text-muted">{icon}{title}</div>
+      <div className="px-5 pb-5 pt-3"><div style={{ height: h + 50 }} className="rounded-lg border-2 border-dashed border-line2 grid place-items-center text-[13px] text-dim">暂无数据，Agent 每 15 秒上报一次</div></div></Card>
+  )
+  const top = max ?? (Math.ceil(Math.max(...data) * 1.3) || 1)
   const step = w / (data.length - 1)
   const pts = data.map((v, i) => [i * step, h - (v / top) * h * 0.92])
   const d = smooth(pts)
@@ -198,7 +205,7 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
             <path d={d} fill="none" stroke={color} strokeWidth="2.2" vectorEffect="non-scaling-stroke" />
           </svg>
         </div>
-        <div className="flex justify-between text-[11px] text-dim mt-2 tnum">{labels.map(l => <span key={l}>{l}</span>)}</div>
+        <div className="flex justify-between text-[11px] text-dim mt-2 tnum">{labels.map((l, i) => <span key={i}>{l}</span>)}</div>
       </div>
     </Card>
   )

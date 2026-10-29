@@ -93,6 +93,9 @@ type EnvVar struct {
 	Value   string `json:"value"` // masked as "" when Secret and not revealed
 	Secret  bool   `json:"secret"`
 	Exposed bool   `json:"exposed"` // shared with other services in the project as ${KEY}
+	// Source is set only in GET /services/{id}/env/references: the service name
+	// the var comes from (reference it explicitly as ${SOURCE.KEY}).
+	Source string `json:"source,omitempty"`
 }
 
 type Domain struct {
@@ -147,6 +150,38 @@ type Settings struct {
 	HasCloudflareToken bool   `json:"has_cloudflare_token"`
 	TLSMode            string `json:"tls_mode"`   // "cloudflare-origin" | "acme"
 	PublicURL          string `json:"public_url"` // panel URL agents/CLI use
+	// Cloudflare Origin CA certificate pushed to every agent (MsgTLS).
+	// Write-only like CloudflareToken: GET returns "" and HasOriginCert.
+	OriginCertPEM string `json:"origin_cert_pem,omitempty"`
+	OriginKeyPEM  string `json:"origin_key_pem,omitempty"`
+	HasOriginCert bool   `json:"has_origin_cert"`
+	ACMEEmail     string `json:"acme_email,omitempty"` // used when TLSMode == "acme"
+}
+
+// Template is a one-click database service (GET /api/v1/templates). Env values may
+// contain ${PASSWORD}, which the server fills with a random 32-char secret on create.
+type Template struct {
+	Kind        string   `json:"kind"` // "postgres" | "mysql" | "redis" | "mongo"
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Image       string   `json:"image"`
+	Command     []string `json:"command,omitempty"`
+	Ports       []Port   `json:"ports"`
+	Volumes     []Volume `json:"volumes"`
+	Env         []EnvVar `json:"env"`
+}
+
+// MigrationJob tracks POST /api/v1/projects/{id}/migrate (GET /api/v1/migrations/{id}).
+type MigrationJob struct {
+	ID         string       `json:"id"` // "mig_..."
+	ProjectID  string       `json:"project_id"`
+	FromServer string       `json:"from_server_id"`
+	ToServer   string       `json:"to_server_id"`
+	Status     string       `json:"status"` // "running" | "done" | "failed"
+	Steps      []ImportStep `json:"steps"`
+	Error      string       `json:"error,omitempty"`
+	CreatedAt  time.Time    `json:"created_at"`
+	FinishedAt *time.Time   `json:"finished_at,omitempty"`
 }
 
 type ErrorBody struct {
@@ -392,4 +427,106 @@ type ImportStep struct {
 	Name   string `json:"name"`
 	Status string `json:"status"` // "pending" | "running" | "done" | "failed" | "skipped"
 	Detail string `json:"detail,omitempty"`
+}
+
+// ---------- In-place takeover of a user's own VPS that Zeabur manages (primary import path) ----------
+// The user's VPS was registered to Zeabur (unmanaged server, single-node k3s). Atoll's agent is
+// installed on the SAME host, reads Zeabur's k3s objects locally, and moves each service into
+// plain Docker on that host: running image exported from containerd and `docker load`ed (no
+// registry needed), PVC dirs copied locally, databases dumped/restored with same-major tools.
+// Cutover scales Zeabur workloads to 0 and parks Zeabur's ingress-controller so atoll-caddy can
+// take 80/443. Rollback reverses both. Nothing on Zeabur is deleted.
+
+const (
+	MsgZeaburScan    = "zeabur.scan"    // no payload; result Output = JSON ZeaburInventory (contains secrets: server stores encrypted, API masks)
+	MsgZeaburImage   = "zeabur.image"   // ZeaburImagePayload; result Output = local docker image ref
+	MsgZeaburVolume  = "zeabur.volume"  // ZeaburVolumePayload: copy PVC dir -> /var/lib/atoll/volumes/<service_id>/<volume>
+	MsgZeaburDB      = "zeabur.db"      // ZeaburDBPayload: dump from k3s pod, restore into atoll container; result Output = JSON row counts
+	MsgZeaburScale   = "zeabur.scale"   // ZeaburScalePayload
+	MsgZeaburIngress = "zeabur.ingress" // ZeaburIngressPayload: park/restore zeabur ingress-controller DaemonSet
+)
+
+type ZeaburInventory struct {
+	K3s            bool            `json:"k3s"`
+	K3sVersion     string          `json:"k3s_version,omitempty"`
+	Projects       []ZeaburProject `json:"projects"`
+	IngressRunning bool            `json:"ingress_running"`
+	DiskFreeGB     float64         `json:"disk_free_gb"`
+	MemFreeMB      int             `json:"mem_free_mb"`
+	ScannedAt      time.Time       `json:"scanned_at"`
+}
+
+type ZeaburProject struct {
+	Namespace       string          `json:"namespace"` // environment-<envID>
+	ProjectID       string          `json:"project_id"`
+	ProjectName     string          `json:"project_name"`
+	EnvironmentName string          `json:"environment_name"`
+	Services        []ZeaburService `json:"services"`
+}
+
+type ZeaburService struct {
+	ServiceID      string         `json:"service_id"`
+	Name           string         `json:"name"`     // dnsName (app.kubernetes.io/name)
+	Workload       string         `json:"workload"` // "deployment/service-<id>" | "statefulset/..." | "" when suspended (PVC only)
+	Replicas       int            `json:"replicas"`
+	Role           string         `json:"role"` // "app" | "database" | "cache" | "other" (guessed from image)
+	Kind           string         `json:"kind"` // Atoll kind guess: image|postgres|mysql|redis|mongo
+	Image          string         `json:"image"`
+	ImageID        string         `json:"image_id"`        // running digest
+	ZeaburRegistry bool           `json:"zeabur_registry"` // built on Zeabur: must export from containerd
+	ImageCached    bool           `json:"image_cached"`
+	Command        []string       `json:"command,omitempty"`
+	Args           []string       `json:"args,omitempty"`
+	Ports          []Port         `json:"ports"`
+	NodePorts      []int          `json:"node_ports,omitempty"`
+	Env            []EnvVar       `json:"env"` // effective expanded values from pod spec
+	Volumes        []ZeaburVolume `json:"volumes"`
+	Configs        []ConfigFile   `json:"configs,omitempty"`
+	Domains        []string       `json:"domains"` // from Ingress objects (custom + *.zeabur.app)
+	Warnings       []string       `json:"warnings,omitempty"`
+}
+
+type ZeaburVolume struct {
+	PVC       string `json:"pvc"`
+	MountPath string `json:"mount_path"`
+	HostDir   string `json:"host_dir"` // /var/lib/rancher/k3s/storage/<pv>_<ns>_<pvc>
+	Bytes     int64  `json:"bytes"`
+}
+
+type ZeaburImagePayload struct {
+	Image     string `json:"image"`
+	ServiceID string `json:"service_id"` // atoll service id, used for local tag atoll-import/<id>:<digest12>
+}
+type ZeaburVolumePayload struct {
+	HostDir   string `json:"host_dir"`
+	ServiceID string `json:"service_id"`
+	Volume    string `json:"volume"`
+}
+type ZeaburDBPayload struct {
+	Namespace       string `json:"namespace"`
+	SourceServiceID string `json:"source_service_id"` // zeabur service id (pod label zeabur_service_id)
+	Kind            string `json:"kind"`              // postgres|mysql|mongo|redis
+	TargetServiceID string `json:"target_service_id"` // atoll service id
+}
+type ZeaburScalePayload struct {
+	Namespace string `json:"namespace"`
+	Workload  string `json:"workload"`
+	Replicas  int    `json:"replicas"`
+}
+type ZeaburIngressPayload struct {
+	Park bool `json:"park"` // true: stop zeabur ingress-controller (record original), false: restore
+}
+
+// REST additions (see docs/api.md "In-place Zeabur takeover"):
+//
+//	GET  /api/v1/servers/{id}/zeabur          -> ZeaburInventory (env values masked)
+//	POST /api/v1/imports/zeabur-local          ZeaburLocalImportRequest -> ImportJob
+//	POST /api/v1/imports/{id}/rehearse         start atoll copies without public ingress, copy data, verify
+//	POST /api/v1/imports/{id}/cutover          scale zeabur apps to 0, final data sync, park zeabur ingress, enable atoll ingress
+//	POST /api/v1/imports/{id}/rollback         reverse cutover
+type ZeaburLocalImportRequest struct {
+	ServerID    string   `json:"server_id"`
+	Namespace   string   `json:"namespace"`
+	ServiceIDs  []string `json:"service_ids"` // zeabur service ids; empty = all in namespace
+	ProjectName string   `json:"project_name"`
 }
