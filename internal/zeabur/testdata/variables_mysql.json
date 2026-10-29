@@ -1,0 +1,1 @@
+{"variables":[{"key":"PASSWORD","value":"Myp4ssw0rdMyp4ssw0rdMyp4ssw0rd12"},{"key":"MYSQL_ROOT_PASSWORD","value":"${PASSWORD}"},{"key":"MYSQL_HOST","value":"${CONTAINER_HOSTNAME}"}],"readonlyVariables":[]}

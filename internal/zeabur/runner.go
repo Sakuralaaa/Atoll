@@ -40,9 +40,9 @@ type CLI struct {
 	Timeout   time.Duration // per call, default 60s
 	// StreamTimeout bounds exec streams (dumps, tarballs, image exports), default 2h.
 	StreamTimeout time.Duration
-	Retries   int           // retries on 504 Gateway Timeout, default 3
-	Stderr    io.Writer     // where CLI stderr goes on failure (never contains our secrets)
-	Verbose   bool
+	Retries       int       // retries on 504 Gateway Timeout, default 3
+	Stderr        io.Writer // where CLI stderr goes on failure (never contains our secrets)
+	Verbose       bool
 }
 
 // NewCLI returns a runner with defaults.

@@ -565,3 +565,44 @@ func (c *Client) WaitImport(ctx context.Context, id string, every time.Duration,
 		}
 	}
 }
+
+// ---------- in-place Zeabur takeover (agent on the same host) ----------
+
+// ZeaburScan returns what the agent on serverID found in Zeabur's local k3s (env masked).
+func (c *Client) ZeaburScan(ctx context.Context, serverID string) (*api.ZeaburInventory, error) {
+	var v api.ZeaburInventory
+	return &v, c.do(ctx, http.MethodGet, "/servers/"+esc(serverID)+"/zeabur", nil, &v)
+}
+
+// ZeaburLocalImport creates the Atoll project + services for an in-place takeover.
+func (c *Client) ZeaburLocalImport(ctx context.Context, req api.ZeaburLocalImportRequest) (*api.ImportJob, error) {
+	var v api.ImportJob
+	return &v, c.do(ctx, http.MethodPost, "/imports/zeabur-local", req, &v)
+}
+
+// importStep POSTs /imports/{id}/{step}; the answer is the updated ImportJob (or a 202 Confirmation).
+func (c *Client) importStep(ctx context.Context, id, step string, body any) (*api.ImportJob, error) {
+	var v api.ImportJob
+	return &v, c.do(ctx, http.MethodPost, "/imports/"+esc(id)+"/"+step, body, &v)
+}
+
+// RehearseImport starts Atoll copies without public ingress, copies data and verifies. Zeabur keeps serving.
+func (c *Client) RehearseImport(ctx context.Context, id string) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "rehearse", nil)
+}
+
+// CutoverImport scales Zeabur apps to 0, final data sync, parks Zeabur's ingress, enables Atoll's.
+func (c *Client) CutoverImport(ctx context.Context, id string) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "cutover", nil)
+}
+
+// RollbackImport reverses a cutover.
+func (c *Client) RollbackImport(ctx context.Context, id string) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "rollback", nil)
+}
+
+// CleanupImport uninstalls Zeabur's k3s from the host (irreversible). req.Confirm must equal
+// the server's name. The server treats it as session-only; with a PAT expect a Confirmation.
+func (c *Client) CleanupImport(ctx context.Context, id string, req api.ZeaburCleanupRequest) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "cleanup", req)
+}

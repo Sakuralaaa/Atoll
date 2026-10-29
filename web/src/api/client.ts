@@ -1,6 +1,6 @@
 import type {
   APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, JoinToken, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, JoinToken, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
 } from './types'
 
 export const API = '/api/v1'
@@ -54,7 +54,7 @@ export async function request<T>(method: string, path: string, body?: unknown, o
     if (res.status === 401 && !o.noRedirect) toLogin()
     throw new ApiError(res.status, msg, code)
   }
-  return data as T
+  return (data === undefined ? {} : data) as T
 }
 
 const get = <T,>(p: string, o?: Opts) => request<T>('GET', p, undefined, o)
@@ -88,7 +88,7 @@ export const api = {
   createProject: (b: { name: string; server_id: string; description?: string }) => post<Project>('/projects', b),
   updateProject: (id: string, b: Partial<Pick<Project, 'name' | 'description'>>) => patch<Project>(`/projects/${e(id)}`, b),
   deleteProject: (id: string) => del<Confirmation | void>(`/projects/${e(id)}`),
-  migrateProject: (id: string, server_id: string) => post<Confirmation | void>(`/projects/${e(id)}/migrate`, { server_id }),
+  migrateProject: (id: string, server_id: string) => post<MigrationJob | Confirmation>(`/projects/${e(id)}/migrate`, { server_id }),
   /** /projects may omit services; fill them from /projects/{id} when missing. */
   projectsFull: async () => {
     const ps = await get<Project[]>('/projects')
@@ -126,6 +126,14 @@ export const api = {
   createImport: (plan: ImportPlan) => post<ImportJob>('/imports', plan),
   startImport: (id: string) => post<ImportJob>(`/imports/${e(id)}/start`),
   templates: () => get<Template[]>('/templates'),
+  migration: (id: string) => get<MigrationJob>(`/migrations/${e(id)}`),
+  // in-place Zeabur takeover
+  zeaburScan: (serverId: string) => get<ZeaburInventory>(`/servers/${e(serverId)}/zeabur`),
+  createZeaburLocal: (b: ZeaburLocalImportRequest) => post<ImportJob>('/imports/zeabur-local', b),
+  rehearse: (id: string) => post<ImportJob>(`/imports/${e(id)}/rehearse`),
+  cutover: (id: string) => post<ImportJob>(`/imports/${e(id)}/cutover`),
+  rollbackImport: (id: string) => post<ImportJob>(`/imports/${e(id)}/rollback`),
+  cleanupImport: (id: string, b: ZeaburCleanupRequest) => post<ImportJob>(`/imports/${e(id)}/cleanup`, b),
 }
 
 /** A PAT-style 202 Confirmation can come back from destructive calls; the panel session normally executes directly. */

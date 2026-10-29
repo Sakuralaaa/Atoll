@@ -393,9 +393,9 @@ func (d *DockerRuntime) Logs(ctx context.Context, name string, tail int, follow 
 	return err
 }
 
-func (d *DockerRuntime) Exec(ctx context.Context, name string, cmd []string, out io.Writer) (int, error) {
+func (d *DockerRuntime) Exec(ctx context.Context, name string, cmd []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	ex, err := d.cli.ContainerExecCreate(ctx, name, container.ExecOptions{
-		Cmd: cmd, AttachStdout: true, AttachStderr: true,
+		Cmd: cmd, AttachStdout: true, AttachStderr: true, AttachStdin: stdin != nil,
 	})
 	if err != nil {
 		return -1, mapErr(err)
@@ -405,15 +405,21 @@ func (d *DockerRuntime) Exec(ctx context.Context, name string, cmd []string, out
 		return -1, err
 	}
 	defer att.Close()
+	if stdin != nil {
+		go func() {
+			_, _ = io.Copy(att.Conn, stdin)
+			_ = att.CloseWrite()
+		}()
+	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := stdcopy.StdCopy(out, out, att.Reader)
+		_, err := stdcopy.StdCopy(stdout, stderr, att.Reader)
 		done <- err
 	}()
 	select {
 	case <-ctx.Done():
 		att.Close()
-		return -1, fmt.Errorf("exec timed out: %w", ctx.Err())
+		return -1, fmt.Errorf("exec: %w", ctx.Err())
 	case err := <-done:
 		if err != nil {
 			return -1, err
@@ -424,4 +430,44 @@ func (d *DockerRuntime) Exec(ctx context.Context, name string, cmd []string, out
 		return -1, err
 	}
 	return ins.ExitCode, nil
+}
+
+func (d *DockerRuntime) LoadImage(ctx context.Context, archive io.Reader) ([]string, error) {
+	resp, err := d.cli.ImageLoad(ctx, archive, client.ImageLoadWithQuiet(true))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var refs []string
+	dec := json.NewDecoder(resp.Body)
+	for {
+		var msg struct {
+			Stream string `json:"stream"`
+			Error  string `json:"error"`
+		}
+		if err := dec.Decode(&msg); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return refs, err
+		}
+		if msg.Error != "" {
+			return refs, errors.New(msg.Error)
+		}
+		for _, line := range strings.Split(msg.Stream, "\n") {
+			for _, pfx := range []string{"Loaded image: ", "Loaded image ID: "} {
+				if strings.HasPrefix(line, pfx) {
+					refs = append(refs, strings.TrimSpace(strings.TrimPrefix(line, pfx)))
+				}
+			}
+		}
+	}
+	if len(refs) == 0 {
+		return nil, errors.New("image load reported no images")
+	}
+	return refs, nil
+}
+
+func (d *DockerRuntime) TagImage(ctx context.Context, source, target string) error {
+	return mapErr(d.cli.ImageTag(ctx, source, target))
 }

@@ -66,6 +66,7 @@ export interface Confirmation {
 export interface Settings {
   base_domain: string; cloudflare_zone_id: string; cloudflare_token?: string
   has_cloudflare_token: boolean; tls_mode: 'cloudflare-origin' | 'acme' | string; public_url: string
+  /** write-only like cloudflare_token */ origin_cert_pem?: string; origin_key_pem?: string; has_origin_cert: boolean; acme_email?: string
 }
 
 export interface ErrorBody { error: string; code?: string }
@@ -89,15 +90,51 @@ export interface ImportPlan {
 export interface ImportStep { name: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped' | string; detail?: string }
 export interface ImportJob {
   id: string; plan: ImportPlan; project_id?: string
-  status: 'planned' | 'uploading' | 'deploying' | 'verifying' | 'done' | 'failed' | string
+  /** CLI plan: planned|uploading|deploying|verifying|done|failed. zeabur-local adds (assumed): rehearsing|rehearsed|cutting_over|live|rolling_back|rolled_back|cleaning|cleaned */
+  status: string
   steps: ImportStep[]; created_at: string
+  // ---- assumed additions for in-place takeover (not yet in types.go) ----
+  mode?: 'plan' | 'zeabur-local'
+  server_id?: string
+  namespace?: string
+  /** row counts from zeabur.db results, one row per table/keyspace */
+  verify?: ImportVerify[]
 }
+export interface ImportVerify { service: string; table: string; source_rows: number; target_rows: number }
+
+export interface MigrationJob {
+  id: string; project_id: string; from_server_id: string; to_server_id: string
+  status: 'running' | 'done' | 'failed' | string; steps: ImportStep[]; error?: string; created_at: string; finished_at?: string
+}
+
+// ---- in-place Zeabur takeover ----
+export interface ZeaburVolume { pvc: string; mount_path: string; host_dir: string; bytes: number }
+export interface ZeaburService {
+  service_id: string; name: string; workload: string; replicas: number
+  role: 'app' | 'database' | 'cache' | 'other' | string; kind: string
+  image: string; image_id: string; zeabur_registry: boolean; image_cached: boolean
+  command?: string[]; args?: string[]; ports: Port[]; node_ports?: number[]; env: EnvVar[]
+  volumes: ZeaburVolume[]; configs?: ConfigFile[]; domains: string[]; warnings?: string[]
+}
+export interface ZeaburProject { namespace: string; project_id: string; project_name: string; environment_name: string; services: ZeaburService[] }
+export interface ZeaburInventory {
+  k3s: boolean; k3s_version?: string; projects: ZeaburProject[]; ingress_running: boolean
+  disk_free_gb: number; mem_free_mb: number; scanned_at: string
+  /** assumed addition: RSS of k3s + Zeabur system pods, shown as "可释放约 X MB 内存" (UI estimates when absent) */
+  k3s_mem_mb?: number
+}
+export interface ZeaburLocalImportRequest {
+  server_id: string; namespace: string; service_ids: string[]; project_name: string
+  /** *.zeabur.app host -> new host ("" drops it) */
+  domain_map?: Record<string, string>
+}
+export interface ZeaburCleanupRequest { confirm: string; keep_backup: boolean }
 
 // ---- shapes not spelled out in types.go (assumed; see docs/api.md) ----
 export interface AuthStatus { setup_required: boolean }
 export interface Me { id?: string; username: string }
-/** GET /templates item. Create with POST /projects/{id}/services {name, kind}. */
-export interface Template { kind: string; name: string; image: string; description?: string; ports?: Port[]; volumes?: Volume[] }
+/** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
+export interface Template { kind: string; name: string; description: string; image: string; command?: string[]; ports: Port[]; volumes: Volume[]; env: EnvVar[] }
 /** GET /services/{id}/env/references item; `service` (name of the exposing service) is optional. */
 export interface EnvReference extends EnvVar { service?: string }
 /** /events frame */

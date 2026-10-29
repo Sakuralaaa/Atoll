@@ -232,3 +232,47 @@ func TestPreviousDeployment(t *testing.T) {
 		t.Fatalf("%+v %v", d, err)
 	}
 }
+
+func TestZeaburInPlace(t *testing.T) {
+	c := newFake(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/servers/srv_1/zeabur":
+			writeJSON(w, 200, api.ZeaburInventory{K3s: true, Projects: []api.ZeaburProject{{Namespace: "environment-x", ProjectName: "shop"}}})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/imports/zeabur-local":
+			var req api.ZeaburLocalImportRequest
+			json.NewDecoder(r.Body).Decode(&req)
+			if req.Namespace != "environment-x" || req.DomainMap["a.zeabur.app"] != "a.example.com" {
+				t.Errorf("req %+v", req)
+			}
+			writeJSON(w, 200, api.ImportJob{ID: "imp_9", Status: "planned"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/imports/imp_9/cutover":
+			writeJSON(w, 202, api.Confirmation{ID: "cfm_9", Action: "import.cutover", Status: "pending"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/imports/imp_9/cleanup":
+			var req api.ZeaburCleanupRequest
+			json.NewDecoder(r.Body).Decode(&req)
+			if req.Confirm != "vps-1" || !req.KeepBackup {
+				t.Errorf("cleanup %+v", req)
+			}
+			writeJSON(w, 200, api.ImportJob{ID: "imp_9", Status: "done"})
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+	ctx := context.Background()
+	inv, err := c.ZeaburScan(ctx, "srv_1")
+	if err != nil || !inv.K3s || inv.Projects[0].ProjectName != "shop" {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	job, err := c.ZeaburLocalImport(ctx, api.ZeaburLocalImportRequest{ServerID: "srv_1", Namespace: "environment-x", DomainMap: map[string]string{"a.zeabur.app": "a.example.com"}})
+	if err != nil || job.ID != "imp_9" {
+		t.Fatalf("%+v %v", job, err)
+	}
+	if _, err := c.CutoverImport(ctx, "imp_9"); err == nil {
+		t.Fatal("want confirmation")
+	} else if cf, ok := AsConfirmation(err); !ok || cf.ID != "cfm_9" {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := c.CleanupImport(ctx, "imp_9", api.ZeaburCleanupRequest{Confirm: "vps-1", KeepBackup: true}); err != nil {
+		t.Fatal(err)
+	}
+}

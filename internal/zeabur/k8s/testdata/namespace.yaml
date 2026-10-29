@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: environment-66500000000000000000e001
+    labels:
+      zeabur_project_id: 66500000000000000000b001
+      zeabur_project_name: shop
+      zeabur_environment_id: 66500000000000000000e001
+      zeabur_environment_name: production
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: service-66500000000000000000a001
+    namespace: environment-66500000000000000000e001
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 66500000000000000000a001
+          zeabur_type: user-service
+      spec:
+        containers:
+        - name: service-66500000000000000000a001
+          image: registry-oci.zeabur.cloud/e-66500000000000000000e001/s-66500000000000000000a001:d-66500000000000000000d001
+          imagePullPolicy: Always
+          ports:
+          - name: web
+            containerPort: 8080
+            protocol: TCP
+          env:
+          - name: DATABASE_URL
+            value: postgresql://root:S3cretPassw0rd@postgresql.zeabur.internal:5432/zeabur
+          - name: REDIS_HOST
+            value: service-66500000000000000000a003
+          - name: ZEABUR_WEB_URL
+            value: https://myshop.zeabur.app
+          - name: ZEABUR_WEB_DOMAIN
+            value: myshop.zeabur.app
+          - name: PUBLIC_URL
+            value: https://myshop.zeabur.app/api
+          - name: OAUTH_CALLBACK
+            value: https://myshop.zeabur.app/auth/callback
+          - name: ZEABUR_SERVICE_ID
+            value: 66500000000000000000a001
+          - name: ZEABUR_PROJECT_ID
+            value: 66500000000000000000b001
+          - name: CONTAINER_HOSTNAME
+            value: service-66500000000000000000a001
+          - name: PORT
+            value: "8080"
+          - name: WEB_PORT
+            value: "8080"
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          volumeMounts:
+          - name: uploads
+            mountPath: /app/uploads
+          - name: config-c001
+            mountPath: /app/config.json
+            subPath: config.json
+        volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: uploads-service-66500000000000000000a001
+        - name: config-c001
+          configMap:
+            name: config-66500000000000000000c001
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: service-66500000000000000000a002
+    namespace: environment-66500000000000000000e001
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 66500000000000000000a002
+      spec:
+        containers:
+        - name: postgresql
+          image: postgres:latest
+          ports:
+          - name: database
+            containerPort: 5432
+          env:
+          - name: POSTGRES_USER
+            value: root
+          - name: POSTGRES_PASSWORD
+            value: S3cretPassw0rd
+          - name: POSTGRES_DB
+            value: zeabur
+          - name: PGDATA
+            value: /var/lib/postgresql/data/pgdata
+          - name: POSTGRES_CONNECTION_STRING
+            value: postgresql://root:S3cretPassw0rd@service-66500000000000000000a002:5432/zeabur
+          - name: DATABASE_PORT_FORWARDED_PORT
+            value: "30123"
+          - name: PORT_FORWARDED_HOSTNAME
+            value: 203.0.113.7
+          volumeMounts:
+          - name: data
+            mountPath: /var/lib/postgresql/data
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-service-66500000000000000000a002
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: service-66500000000000000000a003
+    namespace: environment-66500000000000000000e001
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 66500000000000000000a003
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.2
+          args: ["--requirepass", "r3dispw"]
+          ports:
+          - name: database
+            containerPort: 6379
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-66500000000000000000a001
+    namespace: environment-66500000000000000000e001
+    labels:
+      app.kubernetes.io/name: web
+  spec:
+    type: ClusterIP
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-66500000000000000000a002
+    namespace: environment-66500000000000000000e001
+    labels:
+      app.kubernetes.io/name: postgresql
+  spec:
+    type: NodePort
+    ports:
+    - name: database
+      port: 5432
+      targetPort: 5432
+      nodePort: 30123
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-66500000000000000000a003
+    namespace: environment-66500000000000000000e001
+    labels:
+      app.kubernetes.io/name: redis
+  spec:
+    ports:
+    - name: database
+      port: 6379
+      targetPort: 6379
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: uploads-service-66500000000000000000a001
+    namespace: environment-66500000000000000000e001
+  spec:
+    volumeName: pvc-1111
+    resources:
+      requests:
+        storage: 1Gi
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: data-service-66500000000000000000a002
+    namespace: environment-66500000000000000000e001
+  spec:
+    volumeName: pvc-2222
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: data-service-66500000000000000000a009
+    namespace: environment-66500000000000000000e001
+  spec:
+    volumeName: pvc-9999
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: config-66500000000000000000c001
+    namespace: environment-66500000000000000000e001
+  data:
+    config.json: '{"api":"https://myshop.zeabur.app","cache":"redis.zeabur.internal:6379"}'
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: domain-66500000000000000000f001
+    namespace: environment-66500000000000000000e001
+  spec:
+    rules:
+    - host: myshop.zeabur.app
+      http:
+        paths:
+        - path: /
+          backend:
+            service:
+              name: service-66500000000000000000a001
+              port:
+                number: 8080
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: service-66500000000000000000a002-7d9f-abcde
+    namespace: environment-66500000000000000000e001
+    labels:
+      zeabur_service_id: 66500000000000000000a002
+  status:
+    phase: Running
+    containerStatuses:
+    - name: postgresql
+      image: docker.io/library/postgres:latest
+      imageID: docker.io/library/postgres@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      ready: true

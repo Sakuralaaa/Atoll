@@ -1,0 +1,2 @@
+{"variables":{"url":"https://${ZEABUR_WEB_DOMAIN}","database__client":"mysql","database__connection__host":"${MYSQL_HOST}","database__connection__password":"${MYSQL_PASSWORD}"},
+ "readonlyVariables":{"MYSQL_HOST":"mysql.zeabur.internal","MYSQL_PASSWORD":"${PASSWORD}","MYSQL_PORT":"3306","PASSWORD":"Myp4ssw0rdMyp4ssw0rdMyp4ssw0rd12"}}

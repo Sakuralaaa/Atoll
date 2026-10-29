@@ -1,0 +1,27 @@
+{
+  "admin": {
+    "config": {
+      "persist": false
+    },
+    "listen": "unix//run/caddy/admin.sock"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "atoll": {
+          "listen": [
+            ":443"
+          ],
+          "routes": []
+        }
+      }
+    }
+  },
+  "logging": {
+    "logs": {
+      "default": {
+        "level": "WARN"
+      }
+    }
+  }
+}

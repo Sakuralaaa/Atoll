@@ -406,6 +406,7 @@ type ImportService struct {
 	Image           string       `json:"image"`            // pinned; for zeabur-registry images: the ref after re-push
 	ImageNeedsPush  bool         `json:"image_needs_push"` // built on Zeabur, exported tar must be pushed to user's registry
 	Command         []string     `json:"command,omitempty"`
+	Args            []string     `json:"args,omitempty"` // added by CLI importer: Zeabur templates often set only args (e.g. redis --requirepass)
 	Ports           []Port       `json:"ports"`
 	Volumes         []Volume     `json:"volumes"`
 	Configs         []ConfigFile `json:"configs,omitempty"`
@@ -529,4 +530,22 @@ type ZeaburLocalImportRequest struct {
 	Namespace   string   `json:"namespace"`
 	ServiceIDs  []string `json:"service_ids"` // zeabur service ids; empty = all in namespace
 	ProjectName string   `json:"project_name"`
+	// DomainMap overrides the proposed replacement for each *.zeabur.app hostname
+	// (default "<same-prefix>.<settings.base_domain>"). Map a host to "" to drop it.
+	DomainMap map[string]string `json:"domain_map,omitempty"`
+}
+
+// ZeaburCleanupRequest is the body of POST /api/v1/imports/{id}/cleanup (session only).
+// Confirm must equal the server's name exactly.
+type ZeaburCleanupRequest struct {
+	Confirm    string `json:"confirm"`
+	KeepBackup bool   `json:"keep_backup"`
+}
+
+// MsgZeaburUninstall removes Zeabur's k3s from the host after a completed cutover
+// (runs /usr/local/bin/k3s-uninstall.sh). Result Output = uninstall log + verification summary.
+const MsgZeaburUninstall = "zeabur.uninstall"
+
+type ZeaburUninstallPayload struct {
+	KeepBackup bool `json:"keep_backup"` // tar.gz every PVC dir to /var/lib/atoll/zeabur-backup/<pvc>.tgz first
 }

@@ -39,8 +39,13 @@ type Runtime interface {
 	Stats(ctx context.Context, name string) (ContainerStats, error)
 	// Logs writes demultiplexed log lines to fn until ctx ends (follow) or the log is exhausted.
 	Logs(ctx context.Context, name string, tail int, follow bool, fn func(LogRecord)) error
-	// Exec runs cmd in the container and returns combined stdout+stderr and the exit code.
-	Exec(ctx context.Context, name string, cmd []string, out io.Writer) (exitCode int, err error)
+	// Exec runs cmd in the container. stdin may be nil. stdout/stderr may be the same writer.
+	Exec(ctx context.Context, name string, cmd []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode int, err error)
+
+	// LoadImage loads a docker/OCI image archive (as from `docker save` or `ctr images export`)
+	// and returns the image references it contained.
+	LoadImage(ctx context.Context, archive io.Reader) ([]string, error)
+	TagImage(ctx context.Context, source, target string) error
 }
 
 type ImageInfo struct {

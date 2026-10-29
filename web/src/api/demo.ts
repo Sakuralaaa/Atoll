@@ -5,7 +5,7 @@ import { series } from '../components/ui'
 import { ApiError } from './client'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, Server, Service, Settings, Template,
+  LogLine, NodeMetrics, Project, Server, Service, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
 } from './types'
 
 const now = Date.now()
@@ -82,12 +82,14 @@ const confirmations: Confirmation[] = [
   { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: '把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix', status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
   { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: '删除项目 old-blog（3 个服务）', status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
 ]
-const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com' }
+const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true }
+const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
+  ({ kind, name, image, description, ports: [{ name: kind, container_port: port, protocol: 'tcp' }], volumes: [{ name: 'data', mount_path: mount }], env: [] })
 const templates: Template[] = [
-  { kind: 'postgres', name: 'PostgreSQL', image: 'postgres:17-alpine', description: '自动生成密码，暴露 POSTGRES_CONNECTION_STRING' },
-  { kind: 'mysql', name: 'MySQL', image: 'mysql:8.4', description: '自动生成 root 密码与连接串' },
-  { kind: 'redis', name: 'Redis', image: 'redis:7-alpine', description: '带密码与持久化' },
-  { kind: 'mongo', name: 'MongoDB', image: 'mongo:8.0', description: '自动生成 root 账号' },
+  tpl('postgres', 'PostgreSQL', 'postgres:17-alpine', '自动生成密码，暴露 POSTGRES_CONNECTION_STRING', 5432, '/var/lib/postgresql/data'),
+  tpl('mysql', 'MySQL', 'mysql:8.4', '自动生成 root 密码与连接串', 3306, '/var/lib/mysql'),
+  tpl('redis', 'Redis', 'redis:7-alpine', '带密码与持久化', 6379, '/data'),
+  tpl('mongo', 'MongoDB', 'mongo:8.0', '自动生成 root 账号', 27017, '/data/db'),
 ]
 const mkPlan = (name: string, svcs: [string, string, string, number][], warnings: string[] = []): ImportPlan => ({
   source: 'zeabur', source_project: '7f00e1f2a9c3', project_name: name, target_server_id: 'phx', warnings,
@@ -105,6 +107,66 @@ const imports: ImportJob[] = [
     plan: mkPlan('blog-studio', [['blog-studio', 'image', 'ghcr.io/example/blog-studio:v1.0.3', 12e6], ['mysql', 'mysql', 'mysql:8.4', 640e6]]),
     steps: STEPS.map(name => ({ name, status: 'pending' })) },
 ]
+
+// ---------- in-place Zeabur takeover (wizard demo) ----------
+const zv = (pvc: string, mount_path: string, bytes: number, ns: string) => ({ pvc, mount_path, host_dir: `/var/lib/rancher/k3s/storage/pvc-${pvc}_${ns}_${pvc}`, bytes })
+const NS1 = 'environment-a1b2c3d4e5f6', NS2 = 'environment-e5f6a7b8c9d0'
+const zeabur: ZeaburInventory = {
+  k3s: true, k3s_version: 'v1.30.4+k3s1', ingress_running: true, disk_free_gb: 112.4, mem_free_mb: 9830, k3s_mem_mb: 1460, scanned_at: iso(20e3),
+  projects: [
+    { namespace: NS1, project_id: 'a1b2c3d4e5f6a', project_name: 'acme-api', environment_name: 'production', services: [
+      { service_id: 'a1b2d0e2f3', name: 'acme-api', workload: 'deployment/service-a1b2d0e2f3', replicas: 1, role: 'app', kind: 'image', image: 'registry.zeabur.cloud/a1b2c3d4/acme-api:9c1e7b2', image_id: 'sha256:4be1c09a7d2f', zeabur_registry: true, image_cached: true,
+        ports: [{ name: 'web', container_port: 8000, protocol: 'http' }], volumes: [zv('acme-api-data', '/app/data', 41e6, NS1)], domains: ['acme-api.zeabur.app'],
+        env: [{ key: 'PUBLIC_URL', value: 'https://acme-api.zeabur.app', secret: false, exposed: false }, { key: 'CALLBACK_URL', value: 'https://acme-api.zeabur.app/api/callback', secret: false, exposed: false }, { key: 'DATABASE_URL', value: '', secret: true, exposed: false }] },
+      { service_id: 'a1b2c1d0f7', name: 'postgresql', workload: 'statefulset/service-a1b2c1d0f7', replicas: 1, role: 'database', kind: 'postgres', image: 'postgres:16-alpine', image_id: 'sha256:9a07e3c1b4d8', zeabur_registry: false, image_cached: true,
+        ports: [{ name: 'database', container_port: 5432, protocol: 'tcp' }], env: [], volumes: [zv('postgresql-data', '/var/lib/postgresql/data', 182e6, NS1)], domains: [],
+        warnings: ['PostgreSQL 16：用 postgres:16 同主版本 pg_dump/pg_restore'] },
+      { service_id: 'a1b2c1d10a', name: 'redis', workload: 'statefulset/service-a1b2c1d10a', replicas: 1, role: 'cache', kind: 'redis', image: 'redis:7.2-alpine', image_id: 'sha256:1fd3a8b0c6e2', zeabur_registry: false, image_cached: true,
+        ports: [{ name: 'redis', container_port: 6379, protocol: 'tcp' }], env: [], volumes: [zv('redis-data', '/data', 3.1e6, NS1)], domains: [] },
+    ] },
+    { namespace: NS2, project_id: 'e5f6a7b8c9d0b', project_name: 'LinkProxy', environment_name: 'production', services: [
+      { service_id: 'e5f6aa0b31', name: 'linkproxy', workload: 'deployment/service-e5f6aa0b31', replicas: 1, role: 'app', kind: 'image', image: 'example/link-proxy:latest', image_id: 'sha256:c3e90f12aa47', zeabur_registry: false, image_cached: true,
+        ports: [{ name: 'web', container_port: 8317, protocol: 'http' }], node_ports: [30817], env: [{ key: 'MANAGEMENT_BASE', value: 'https://linkproxy-demo.zeabur.app/v0', secret: false, exposed: false }], volumes: [zv('auths', '/root/.link-proxy', 2.4e6, NS2)], domains: ['linkproxy-demo.zeabur.app'],
+        warnings: ['latest 标签：将固定到正在运行的摘要 sha256:c3e90f12aa47', 'NodePort 30817 迁移后改为 Caddy 反代'] },
+      { service_id: 'e5f6aa0c88', name: 'config-editor', workload: '', replicas: 0, role: 'other', kind: 'image', image: 'registry.zeabur.cloud/e5f6a7b8/config-editor:1a2b3c4', image_id: '', zeabur_registry: true, image_cached: false,
+        ports: [], env: [], volumes: [zv('config', '/data', 0.2e6, NS2)], domains: [], warnings: ['服务已暂停，本机没有镜像缓存，只能迁移数据卷'] },
+    ] },
+  ],
+}
+const LOCAL_STEPS = ['导出 Zeabur 构建的镜像', '拉取公共镜像（固定到运行中的摘要）', '复制数据卷', '导出并恢复数据库', '启动 Atoll 容器（不接公网）', '校验数据行数', '缩容 Zeabur 应用', '最终数据同步', '停用 Zeabur 入口', '启用 atoll-caddy 接管 80/443']
+const VERIFY: ImportVerify[] = [
+  { service: 'postgresql', table: 'public.tokens', source_rows: 1284, target_rows: 1284 },
+  { service: 'postgresql', table: 'public.request_logs', source_rows: 98213, target_rows: 98213 },
+  { service: 'postgresql', table: 'public.users', source_rows: 3, target_rows: 3 },
+  { service: 'postgresql', table: 'public.settings', source_rows: 27, target_rows: 27 },
+  { service: 'redis', table: 'db0 (keys)', source_rows: 412, target_rows: 412 },
+]
+const DETAIL: Record<number, string> = { 0: '1 个镜像 · registry.zeabur.cloud/…/acme-api → atoll-import/acme-api:4be1c09a7d2f', 1: 'postgres:16-alpine@sha256:9a07e3…, redis:7.2-alpine@sha256:1fd3a8…', 2: '3 个卷 · 226 MB', 3: 'pg_dump 16.4 → pg_restore · 4 张表', 4: '3/3 运行中 · 仅项目内网' }
+const localSteps = (done: number, running = -1): ImportStep[] => LOCAL_STEPS.map((name, i) => ({ name, status: i < done ? 'done' : i === running ? 'running' : 'pending', detail: i < done || i === running ? DETAIL[i] ?? (i === 5 && i < done ? '5/5 一致' : undefined) : undefined }))
+const acmePlan = (): ImportPlan => ({ source: 'zeabur', source_project: 'a1b2c3d4e5f6a', project_name: 'acme-api', target_server_id: 'phx', warnings: ['acme-api.zeabur.app 切换后失效，已映射到 acme-api.example.com'],
+  services: zeabur.projects[0].services.map(z => ({ source_service_id: z.service_id, name: z.name, kind: z.kind, image: z.image, image_needs_push: false, ports: z.ports, volumes: z.volumes.map(v => ({ name: v.pvc, mount_path: v.mount_path })), env: [], domains: z.domains.map(d => d.replace('.zeabur.app', '.example.com')), data_bytes: z.volumes.reduce((a, v) => a + v.bytes, 0) })) })
+const localJob = (id: string, status: string, steps: ImportStep[], verify: ImportVerify[], ago: number): ImportJob =>
+  ({ id, mode: 'zeabur-local', server_id: 'phx', namespace: NS1, project_id: 'acme', status, steps, verify, created_at: iso(ago), plan: acmePlan() })
+const started: Record<string, number> = {}
+function tickLocal(j: ImportJob) {
+  const t0 = started[j.id]; if (t0 === undefined) return
+  const k = Math.floor((Date.now() - t0) / 1800)
+  if (j.status === 'rehearsing') {
+    const done = Math.min(6, k); j.steps = localSteps(done, done < 6 ? done : -1)
+    j.verify = done >= 5 ? VERIFY : done >= 3 ? VERIFY.map((v, i) => ({ ...v, target_rows: i === 1 ? Math.round(v.source_rows * 0.6) : v.target_rows })) : []
+    if (done >= 6) j.status = 'rehearsed'
+  } else if (j.status === 'cutting_over') {
+    const done = Math.min(10, 6 + k); j.steps = localSteps(done, done < 10 ? done : -1)
+    if (done >= 10) j.status = 'live'
+  } else if (j.status === 'rolling_back' && k >= 2) { j.status = 'rolled_back'; j.steps = localSteps(6) }
+  else if (j.status === 'cleaning' && k >= 3) { j.status = 'cleaned'; zeabur.k3s = false }
+}
+
+imports.unshift(
+  localJob('imp_zl_rehearse', 'rehearsing', localSteps(3, 3), VERIFY.map((v, i) => ({ ...v, target_rows: i === 1 ? 61022 : i === 4 ? 0 : v.target_rows })), 3 * 60e3),
+  localJob('imp_zl_ready', 'rehearsed', localSteps(6), VERIFY, 12 * 60e3),
+  localJob('imp_zl_live', 'live', localSteps(10), VERIFY, 2 * H),
+)
 
 // ---------- fake container filesystem for exec ----------
 const CONFIG = `# mail-relay 配置
@@ -186,6 +248,7 @@ function route(method: string, path: string, body: any): unknown {
     const c = metrics(1, u.cpu_pct, u.cpu_pct * 0.4, q.get('range') ?? '24h'), mm = metrics(2, u.mem_used_mb, u.mem_total_mb * 0.04, q.get('range') ?? '24h'), dd = metrics(3, u.disk_used_gb, u.disk_total_gb * 0.006, q.get('range') ?? '24h')
     return c.map((x, i): NodeMetrics => ({ ...u, at: x.at, cpu_pct: Math.min(100, x.v), mem_used_mb: Math.min(u.mem_total_mb, mm[i].v), disk_used_gb: dd[i].v }))
   }
+  if ((a = m('servers/*/zeabur'))) { if (a[0] !== 'phx') fail(404, '这台服务器上没有检测到 Zeabur（k3s 未安装）'); return { ...zeabur, scanned_at: new Date().toISOString() } }
   if ((a = m('servers/*/containers'))) {
     const pids = projects.filter(p => p.server_id === a![0]).map(p => p.id)
     return services.filter(s => pids.includes(s.project_id)).map((s): ContainerState => ({ service_id: s.id, deployment_id: deployments[s.id]?.[0]?.id ?? '', state: s.status === 'running' ? 'running' : s.status === 'failed' ? 'restarting' : 'exited', restart_count: s.status === 'failed' ? 14 : 0, started_at: iso(2 * D) }))
@@ -252,12 +315,33 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('confirmations')) return confirmations.filter(c => !q.get('status') || c.status === q.get('status'))
   if ((a = m('confirmations/*/approve')) || (a = m('confirmations/*/reject'))) { const c = confirmations.find(x => x.id === a![0])!; c.status = seg[2] === 'approve' ? 'approved' : 'rejected'; return {} }
 
+  if (G && m('settings') && location.hash.includes('nocf=1')) return { ...settings, base_domain: '', has_cloudflare_token: false }
   if (m('settings')) { if (U) { const { cloudflare_token, ...rest } = body as Settings; Object.assign(settings, rest); if (cloudflare_token) settings.has_cloudflare_token = true } return settings }
   if (G && m('templates')) return templates
-  if (G && m('imports')) return imports
+  if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }
+  if (P && m('imports/zeabur-local')) {
+    const zp = zeabur.projects.find(x => x.namespace === body.namespace) ?? fail(404, '找不到 Zeabur 项目')
+    const pick = zp.services.filter(z => !body.service_ids?.length || body.service_ids.includes(z.service_id))
+    const j = localJob(nid('imp'), 'planned', localSteps(0), [], 0)
+    j.created_at = new Date().toISOString(); j.namespace = zp.namespace; j.server_id = body.server_id; j.project_id = undefined
+    j.plan = { ...acmePlan(), project_name: body.project_name, source_project: zp.project_id, services: acmePlan().services.filter(x => pick.some(z => z.service_id === x.source_service_id)) }
+    const dm: Record<string, string> = body.domain_map ?? {}
+    j.plan.services.forEach(x => { const z = pick.find(p => p.service_id === x.source_service_id)!; x.domains = z.domains.map(d => d in dm ? dm[d] : d).filter(Boolean) })
+    imports.unshift(j); return j
+  }
+  if ((a = m('imports/*/cleanup'))) {
+    const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
+    const srv = servers.find(x => x.id === j.server_id)
+    if (body?.confirm !== srv?.name) fail(400, '确认名称与服务器名称不一致')
+    j.status = 'cleaning'; started[j.id] = Date.now(); return j
+  }
+  if ((a = m('imports/*/rehearse')) || (a = m('imports/*/cutover')) || (a = m('imports/*/rollback'))) {
+    const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
+    j.status = { rehearse: 'rehearsing', cutover: 'cutting_over', rollback: 'rolling_back' }[seg[2]]!; started[j.id] = Date.now(); tickLocal(j); return j
+  }
   if ((a = m('imports/*/start'))) { const j = imports.find(x => x.id === a![0])!; j.status = 'deploying'; j.steps[0].status = 'done'; j.steps[1].status = 'running'; return j }
-  if ((a = m('imports/*'))) return imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
+  if ((a = m('imports/*'))) { const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在'); tickLocal(j); return j }
   fail(404, `demo: 未实现 ${method} ${path}`)
 }
 

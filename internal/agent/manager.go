@@ -147,7 +147,6 @@ func (m *Manager) prepareHost(ctx context.Context, spec api.ResolvedSpec) error 
 }
 
 func (m *Manager) writeConfigs(spec api.ResolvedSpec) error {
-	keep := map[string]bool{}
 	for _, c := range spec.Configs {
 		hp, err := configHostPath(m.paths, spec.ServiceID, c.Path)
 		if err != nil {
@@ -159,7 +158,6 @@ func (m *Manager) writeConfigs(spec api.ResolvedSpec) error {
 		if err := writeFileAtomic(hp, []byte(c.Content), 0o644); err != nil {
 			return err
 		}
-		keep[hp] = true
 	}
 	return nil
 }

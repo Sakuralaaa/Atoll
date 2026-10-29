@@ -1,57 +1,99 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, MoreVertical, AlertCircle, Server } from 'lucide-react'
+import { ArrowUpDown, LayoutGrid, List, MoreVertical, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, ProviderIcon, Segment, Ticks } from '../components/ui'
-import { servers } from '../mock'
+import { Badge, Button, ProviderIcon, Segment, Ticks, cx } from '../components/ui'
+import { CardSkeleton, CodeBlock, CopyButton, Empty, ErrorState, Modal } from '../components/feedback'
+import { api } from '../api/client'
+import { invalidate, useQuery } from '../api/hooks'
+import { flagFor, gb, needsAttention, usagePct } from '../api/view'
+import type { JoinToken } from '../api/types'
 
 export default function Servers() {
+  const q = useQuery('servers', api.servers, { interval: 30000 })
+  const [sort, setSort] = useState(false)
+  const [listView, setListView] = useState(false)
+  const [add, setAdd] = useState(false)
+  const list = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-14 pt-12 pb-16">
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的服务器</h1>
           <div className="flex items-center gap-3">
-            <button className="h-11 w-11 grid place-items-center text-fg2"><ArrowUpDown size={18} /></button>
-            <div className="flex rounded-lg field p-0.5"><span className="h-8 w-10 grid place-items-center rounded-md nav-active"><LayoutGrid size={16} /></span><span className="h-8 w-10 grid place-items-center text-muted"><List size={16} /></span></div>
-            <Button variant="primary" size="lg" className="w-[200px]">添加服务器</Button>
+            <button onClick={() => setSort(v => !v)} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
+            <div className="flex rounded-lg field p-0.5">
+              <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
+              <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
+            </div>
+            <Button variant="primary" size="lg" className="w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
           </div>
         </div>
         <Segment value="s" items={[{ k: 's', l: '服务器', icon: <Server size={15} /> }]} />
-        <div className="grid grid-cols-3 gap-4 mt-6">
-          {servers.map(s => (
-            <Link key={s.id} to={`/servers/${s.id}`} className="rounded-2xl surface surface-hover overflow-hidden relative">
-              <div className="absolute -right-6 top-6 w-48 h-36 dotgrid pointer-events-none" style={{ maskImage: 'radial-gradient(ellipse at 60% 50%, black 20%, transparent 70%)' }} />
-              <div className="p-6 pb-5">
-                <div className="flex items-start gap-3">
-                  <ProviderIcon provider={s.provider} online={s.status === 'online'} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2"><span className="text-[15px] font-semibold truncate">{s.name}</span>
-                      {s.attention && <Badge><AlertCircle size={12} />需要处理</Badge>}
-                      {s.role === 'control' && <Badge tone="violet">中控</Badge>}
+        <div className="mt-6">
+          {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
+          {!q.data && !q.error && <CardSkeleton n={3} h={220} />}
+          {q.data && !list.length && <Empty icon={<Server size={22} />} title="还没有服务器" desc="在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />添加服务器</Button>} />}
+        </div>
+        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-3')}>
+          {list.map(s => {
+            const u = usagePct(s), on = s.status === 'online'
+            return (
+              <Link key={s.id} to={`/servers/${s.id}`} className="rounded-2xl surface surface-hover overflow-hidden relative">
+                <div className="absolute -right-6 top-6 w-48 h-36 dotgrid pointer-events-none" style={{ maskImage: 'radial-gradient(ellipse at 60% 50%, black 20%, transparent 70%)' }} />
+                <div className="p-6 pb-5">
+                  <div className="flex items-start gap-3">
+                    <ProviderIcon provider={s.provider || '?'} online={on} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2"><span className="text-[15px] font-semibold truncate">{s.name}</span>
+                        {needsAttention(s) && <Badge><AlertCircle size={12} />需要处理</Badge>}
+                        {s.role === 'control' && <Badge tone="violet">中控</Badge>}
+                        {s.status === 'pending' && <Badge tone="zinc">等待连接</Badge>}
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2">
+                        <span>{s.os || '—'}</span>
+                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : '离线'}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2">
-                      <span>{s.os}</span>
-                      <span className="flex items-center gap-1.5"><span className={s.status === 'online' ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-zinc-500'} />{s.status === 'online' ? 'Docker' : '离线'}</span>
-                    </div>
+                    <MoreVertical size={16} className="text-dim" />
                   </div>
-                  <MoreVertical size={16} className="text-dim" />
+                  <div className="mt-6 grid grid-cols-2 text-[13px]">
+                    <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5">{s.public_ipv4 || '—'}</div></div>
+                    <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-center gap-2">{flagFor(s.region)} {s.region || '—'}</div></div>
+                  </div>
+                  <div className="mt-5 space-y-2.5 text-[13px]">
+                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">CPU 使用率</span><Ticks value={on ? u.cpu : 0} n={34} /></div>
+                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">内存使用率</span><Ticks value={on ? u.mem : 0} n={34} /></div>
+                  </div>
                 </div>
-                <div className="mt-6 grid grid-cols-2 text-[13px]">
-                  <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5">{s.ip}</div></div>
-                  <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-center gap-2">{s.flag} {s.region}</div></div>
+                <div className="border-t border-line bg-sunk/60 px-6 h-11 flex items-center text-[13.5px] text-muted">
+                  {s.role === 'control' ? '仅运行面板与调度，不承载项目' : `${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
                 </div>
-                <div className="mt-5 space-y-2.5 text-[13px]">
-                  <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">CPU 使用率</span><Ticks value={s.cpuUse} n={34} /></div>
-                  <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">内存使用率</span><Ticks value={s.memUse} n={34} /></div>
-                </div>
-              </div>
-              <div className="border-t border-line bg-sunk/60 px-6 h-11 flex items-center text-[13.5px] text-muted">
-                {s.role === 'control' ? '仅运行面板与调度，不承载项目' : `${s.cpu} vCPU · ${s.memGB} GB · ${s.diskGB} GB · ${s.arch}`}
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
         </div>
       </div>
+      {add && <AddServer onClose={() => { setAdd(false); invalidate('servers') }} />}
     </MainShell>
+  )
+}
+
+function AddServer({ onClose }: { onClose: () => void }) {
+  const [t, setT] = useState<JoinToken>(); const [err, setErr] = useState<string>()
+  useEffect(() => { api.joinToken().then(setT, e => setErr(e.message)) }, [])
+  return (
+    <Modal title="添加服务器" width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>完成</Button>}>
+      <div className="text-[13.5px] text-fg2 leading-6">在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。</div>
+      <div className="mt-4">
+        {err && <div className="text-[13px] text-[#ef4444]">{err}</div>}
+        {!t && !err && <div className="h-[76px] rounded-lg field grid place-items-center text-muted"><Loader2 className="animate-spin" size={18} /></div>}
+        {t && <>
+          <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{t.command}</CodeBlock></div>
+          <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />一次性令牌，{new Date(t.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} 前有效<span className="ml-auto"><CopyButton text={t.command} label="复制命令" /></span></div>
+        </>}
+      </div>
+      <div className="mt-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">支持 Debian 12+/Ubuntu 22.04+，amd64 与 arm64。80/443 默认只放行 Cloudflare IP。</div>
+    </Modal>
   )
 }

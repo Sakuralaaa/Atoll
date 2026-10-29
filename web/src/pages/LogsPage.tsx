@@ -1,65 +1,162 @@
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown } from 'lucide-react'
-import { CopyId, cx } from '../components/ui'
-import { projectById } from '../mock'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Loader2, Undo2 } from 'lucide-react'
+import { Button, CopyId, Dot, cx } from '../components/ui'
+import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
+import { api } from '../api/client'
+import { run, useBusy, useQuery } from '../api/hooks'
+import { useLogStream } from '../api/ws'
+import { dateTime, deployStatusText, triggerText } from '../api/view'
+import type { Deployment, LogLine, Service } from '../api/types'
+import { useProject } from './ServicePage'
+
+const level = (l: LogLine) => /\b(ERROR|FATAL|CRITICAL|panic)\b/i.test(l.line) ? 'ERROR' : /\bWARN(ING)?\b/i.test(l.line) ? 'WARN' : 'INFO'
+const fmt = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
+const WINDOWS = [{ k: 0, l: '全部时间' }, { k: 15, l: '最近 15 分钟' }, { k: 60, l: '最近 1 小时' }, { k: 360, l: '最近 6 小时' }]
 
 export default function LogsPage() {
   const { pid, sid } = useParams()
-  const p = projectById(pid)
-  const s = p.services.find(x => x.id === sid) ?? p.services[0]
-  const bars = Array.from({ length: 48 }, (_, i) => [4, 2, 2, 4, 2, 2, 4, 3, 2, 2, 4, 2][i % 12] + (i === 17 ? 10 : 0) + (i === 47 ? 4 : 0) + (i === 25 ? -1 : 0))
-  const logs: [string, string, string][] = [
-    ['INFO', '10/29 21:11:07', '[forward] skip job: no active channels configured'],
-    ['INFO', '10/29 21:11:07', '2026-10-29 21:11:07,454 INFO [apscheduler.executors.default] Job "邮件转发轮询 (trigger: interval[0:05:00])" executed successfully'],
-    ['INFO', '10/29 21:16:07', '2026-10-29 21:16:07,452 INFO [apscheduler.executors.default] Running job "邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:21:07 CST)"'],
-    ['INFO', '10/29 21:16:07', '[forward] skip job: no active channels configured'],
-    ['WARN', '10/29 21:18:42', 'token refresh for account #3 took 4.2s (threshold 3s)'],
-    ['INFO', '10/29 21:21:01', '104.28.158.90 - - [29/Oct/2026:21:21:01 +0800] "GET / HTTP/1.1" 302 199 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"'],
-    ['INFO', '10/29 21:21:01', '104.28.158.90 - - [29/Oct/2026:21:21:01 +0800] "GET /login HTTP/1.1" 200 8141 "-" "Mozilla/5.0 (X11; Linux x86_64)"'],
-    ['ERROR', '10/29 21:21:02', '104.28.158.90 - - [29/Oct/2026:21:21:02 +0800] "GET /favicon.ico HTTP/1.1" 404 240 "https://mail.example.com/login"'],
-    ['INFO', '10/29 21:21:07', '2026-10-29 21:21:07,452 INFO [apscheduler.executors.default] Running job "邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:26:07 CST)"'],
-    ['INFO', '10/29 21:21:07', '[forward] skip job: no active channels configured'],
-    ['INFO', '10/29 21:21:07', '2026-10-29 21:21:07,453 INFO [apscheduler.executors.default] Job "邮件转发轮询 (trigger: interval[0:05:00])" executed successfully'],
-    ['INFO', '10/29 21:26:07', '2026-10-29 21:26:07,451 INFO [apscheduler.executors.default] Running job "邮件转发轮询"'],
-  ]
+  const [sp, setSp] = useSearchParams()
+  const p = useProject(pid).data
+  const s = p?.services?.find(x => x.id === sid)
+  const view = sp.get('view') ?? 'logs'
   return (
     <div className="h-full flex flex-col topline bg-bg">
       <div className="px-10 pt-8 pb-5 flex items-end justify-between border-b border-line">
         <div>
-          <Link to={`/projects/${p.id}/services/${s.id}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2"><ArrowLeft size={15} />返回</Link>
-          <div className="text-[13px] text-muted mt-3">{s.name} · 服务 ID</div>
-          <div className="mt-1"><CopyId v="service-6ae031310ca070d4379490b1" /></div>
+          <Link to={`/projects/${pid}/services/${sid}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2"><ArrowLeft size={15} />返回</Link>
+          <div className="text-[13px] text-muted mt-3">{s?.name ?? '…'} · 服务 ID</div>
+          <div className="mt-1"><CopyId v={sid ?? ''} /></div>
           <div className="mt-4 inline-flex rounded-lg field p-0.5 gap-1">
-            <span className="h-9 px-4 rounded-md nav-active inline-flex items-center text-[13.5px] font-semibold">运行日志</span>
-            <span className="h-9 px-4 rounded-md inline-flex items-center text-[13.5px] text-muted">部署记录</span>
-            <span className="h-9 px-4 rounded-md inline-flex items-center text-[13.5px] text-muted">命令</span>
+            {[['logs', '运行日志'], ['deploys', '部署记录'], ['exec', '命令']].map(([k, l]) => (
+              <button key={k} onClick={() => setSp(k === 'logs' ? {} : { view: k })} className={cx('h-9 px-4 rounded-md inline-flex items-center text-[13.5px]', view === k ? 'nav-active font-semibold' : 'text-muted hover:text-fg')}>{l}</button>
+            ))}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />全部时间<ChevronDown size={15} /></button>
-          <button className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Download size={16} />导出</button>
-        </div>
+        {view === 'logs' && <div id="logs-actions" className="flex gap-2" />}
       </div>
+      {view === 'logs' && <Logs sid={sid} name={s?.name} />}
+      {view === 'deploys' && s && <Deploys s={s} />}
+      {view === 'exec' && sid && <Exec sid={sid} />}
+    </div>
+  )
+}
+
+function Logs({ sid, name }: { sid?: string; name?: string }) {
+  const { lines, live } = useLogStream(sid)
+  const [win, setWin] = useState(0); const [winOpen, setWinOpen] = useState(false)
+  const [open, setOpen] = useState<Set<number>>(new Set())
+  const [follow, setFollow] = useState(true)
+  const box = useRef<HTMLDivElement>(null)
+  const shown = useMemo(() => win ? lines.filter(l => new Date(l.at).getTime() >= Date.now() - win * 60e3) : lines, [lines, win])
+  const { bars, ticks, max } = useMemo(() => {
+    const n = 48
+    if (shown.length < 2) return { bars: Array(n).fill(0) as number[], ticks: [] as string[], max: 1 }
+    const t0 = new Date(shown[0].at).getTime(), t1 = new Date(shown[shown.length - 1].at).getTime(), span = Math.max(1, t1 - t0)
+    const b = Array(n).fill(0) as number[]
+    shown.forEach(l => { b[Math.min(n - 1, Math.floor(((new Date(l.at).getTime() - t0) / span) * n))]++ })
+    const mx = Math.max(...b)
+    return { bars: b, max: mx, ticks: Array.from({ length: 7 }, (_, i) => fmt(new Date(t0 + (span * i) / 6).toISOString()).slice(0, 11)) }
+  }, [shown])
+  useEffect(() => { if (follow && box.current) box.current.scrollTop = box.current.scrollHeight }, [shown, follow])
+  const exportLogs = () => {
+    const blob = new Blob([shown.map(l => `${l.at} ${l.stream} ${l.line}`).join('\n')], { type: 'text/plain' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name ?? sid}-logs.txt`; a.click(); URL.revokeObjectURL(a.href)
+  }
+  const top = Math.max(4, Math.ceil(max / 2) * 2)
+  return (
+    <>
+      <Portal>
+        <div className="relative">
+          <button onClick={() => setWinOpen(v => !v)} className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
+          {winOpen && <div className="absolute right-0 top-12 z-20 surface bg-pop p-1 w-44">{WINDOWS.map(w => <button key={w.k} onClick={() => { setWin(w.k); setWinOpen(false) }} className={cx('w-full text-left px-3 h-9 rounded-md text-[13px]', w.k === win ? 'nav-active' : 'hover:bg-ov/5')}>{w.l}</button>)}</div>}
+        </div>
+        <button onClick={exportLogs} className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Download size={16} />导出</button>
+      </Portal>
       <div className="px-10 pt-5 pb-3 border-b border-line">
         <div className="flex gap-3 h-[150px]">
-          <div className="flex flex-col justify-between text-[11.5px] text-dim pb-5"><span>14</span><span>8</span><span>4</span><span>0</span></div>
+          <div className="flex flex-col justify-between text-[11.5px] text-dim pb-5 tnum w-6 text-right"><span>{top}</span><span>{Math.round(top * 0.6)}</span><span>{Math.round(top * 0.3)}</span><span>0</span></div>
           <div className="flex-1 flex flex-col">
-            <div className="flex-1 flex items-end gap-[3px]">{bars.map((b, i) => <div key={i} className="flex-1 bg-[#8b5cf6] rounded-t-[2px]" style={{ height: `${(b / 14) * 100}%` }} />)}</div>
-            <div className="flex justify-between text-[11.5px] text-dim mt-1.5">{['10/29 16:11', '10/29 16:56', '10/29 17:41', '10/29 18:26', '10/29 19:11', '10/29 19:57', '10/29 20:42'].map(t => <span key={t}>{t}</span>)}</div>
+            <div className="flex-1 flex items-end gap-[3px]">{bars.map((b, i) => <div key={i} className="flex-1 bg-[#8b5cf6] rounded-t-[2px]" style={{ height: `${(b / top) * 100}%` }} />)}</div>
+            <div className="flex justify-between text-[11.5px] text-dim mt-1.5 tnum">{ticks.map((t, i) => <span key={i}>{t}</span>)}</div>
           </div>
         </div>
       </div>
       <div className="grid grid-cols-[130px_150px_1fr] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">SEVERITY</span><span>TIME</span><span>SUMMARY</span></div>
-      <div className="flex-1 overflow-auto font-mono text-[13px] relative">
-        {logs.map(([l, t, m], i) => (
-          <div key={i} className="grid grid-cols-[130px_150px_1fr] px-4 h-[33px] items-center border-b border-line/60 hover:bg-ov/[0.02]">
-            <span className="flex items-center gap-2"><ChevronRight size={14} className="text-dim" /><span className={cx('h-2 w-2 rounded-full', l === 'ERROR' ? 'bg-rose-500' : l === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{l}</span></span>
-            <span className="text-muted">{t}</span><span className="truncate text-fg2">{m}</span>
-          </div>
-        ))}
-        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />Streaming logs</div>
-        <button className="absolute right-6 bottom-4 h-10 w-10 rounded-full bg-card2 ring-1 ring-line2 grid place-items-center"><ArrowDown size={17} /></button>
+      <div ref={box} onScroll={e => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40) }} className="flex-1 overflow-auto font-mono text-[13px] relative">
+        {!lines.length && !live && <div className="p-4"><RowsSkeleton n={6} /></div>}
+        {!shown.length && live && <div className="h-24 grid place-items-center text-[13px] text-muted font-sans">{lines.length ? '这个时间段没有日志' : '还没有日志输出'}</div>}
+        {shown.map((l, i) => {
+          const lv = level(l), isOpen = open.has(i)
+          return (
+            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); n.has(i) ? n.delete(i) : n.add(i); return n })} className={cx('grid grid-cols-[130px_150px_1fr] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
+              <span className="flex items-center gap-2">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
+              <span className="text-muted">{fmt(l.at)}</span><span className={cx('text-fg2', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}>{l.line}{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
+            </div>
+          )
+        })}
+        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans"><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? 'Streaming logs' : '连接中…'}</div>
+        {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="sticky float-right right-6 bottom-4 mr-6 h-10 w-10 rounded-full bg-card2 ring-1 ring-line2 grid place-items-center"><ArrowDown size={17} /></button>}
       </div>
+    </>
+  )
+}
+
+/** Renders children into the header action slot. */
+function Portal({ children }: { children: React.ReactNode }) {
+  const [el, setEl] = useState<HTMLElement | null>(null)
+  useEffect(() => setEl(document.getElementById('logs-actions')), [])
+  if (!el) return null
+  return <PortalInner el={el}>{children}</PortalInner>
+}
+import { createPortal } from 'react-dom'
+function PortalInner({ el, children }: { el: HTMLElement; children: React.ReactNode }) { return createPortal(children, el) }
+
+function Deploys({ s }: { s: Service }) {
+  const q = useQuery(`deployments:${s.id}`, () => api.deployments(s.id), { interval: 10000 })
+  const [target, setTarget] = useState<Deployment>()
+  return (
+    <div className="flex-1 overflow-auto px-10 py-6">
+      {!q.data ? <RowsSkeleton n={4} /> : !q.data.length ? <div className="text-[13px] text-muted">还没有部署记录</div> : (
+        <div className="surface divide-y divide-line">
+          {q.data.map((d, i) => (
+            <div key={d.id} className="px-6 h-16 flex items-center gap-4 text-[13px]">
+              <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
+              <div className="flex-1 min-w-0"><div className="font-semibold">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span></div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+              <span className="text-muted tnum">{dateTime(d.started_at)}</span>
+              {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
+            </div>
+          ))}
+        </div>
+      )}
+      {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} name={s.name} onClose={() => setTarget(undefined)}
+        description={<>将用 {dateTime(target.started_at)} 的镜像摘要重新部署 {s.name}。</>}
+        onConfirm={() => run(() => api.rollback(s.id, target.id), { ok: '正在回滚', invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] })} />}
+    </div>
+  )
+}
+
+function Exec({ sid }: { sid: string }) {
+  const [cmd, setCmd] = useState('')
+  const [hist, setHist] = useState<{ cmd: string; out: string; ok: boolean }[]>([])
+  const [busy, wrap] = useBusy()
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => { box.current?.scrollTo({ top: box.current.scrollHeight }) }, [hist])
+  const go = () => wrap(async () => {
+    const c = cmd.trim(); if (!c) return
+    setCmd('')
+    try { const r = await api.exec(sid, ['sh', '-c', c]); setHist(h => [...h, { cmd: c, out: (r.output ?? '') + (r.error ? `\n${r.error}` : ''), ok: r.ok }]) }
+    catch (e) { setHist(h => [...h, { cmd: c, out: (e as Error).message, ok: false }]) }
+  })
+  return (
+    <div className="flex-1 flex flex-col px-10 py-6 min-h-0">
+      <div className="text-[13px] text-muted mb-3">在容器内用 <span className="font-mono">sh -c</span> 执行一次性命令（非交互，超时 30 秒）。</div>
+      <div ref={box} className="flex-1 surface bg-sunk overflow-auto p-5 font-mono text-[13px] leading-6 min-h-0">
+        {!hist.length && <div className="text-dim">例如：ls -la /app、env | sort、cat /etc/os-release</div>}
+        {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-[#ef4444]')}>{h.out || '(无输出)'}</pre></div>)}
+        {busy && <Loader2 size={14} className="animate-spin text-muted" />}
+      </div>
+      <div className="mt-4 flex gap-2"><input value={cmd} onChange={e => setCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="输入命令，回车执行" className="flex-1 h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none text-fg placeholder:text-dim" /><Button variant="primary" size="lg" disabled={busy || !cmd.trim()} onClick={go}><Play size={14} />执行</Button></div>
     </div>
   )
 }

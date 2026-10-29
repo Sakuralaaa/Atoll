@@ -1,0 +1,42 @@
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: blog
+spec:
+  services:
+    - name: ghost
+      template: PREBUILT
+      spec:
+        source:
+          image: ghost:5
+        ports:
+          - id: web
+            port: 2368
+            type: HTTP
+        volumes:
+          - id: content
+            dir: /var/lib/ghost/content
+        env:
+          url:
+            default: https://${ZEABUR_WEB_DOMAIN}
+    - name: mysql
+      template: PREBUILT
+      spec:
+        source:
+          image: mysql:8.0
+        ports:
+          - id: database
+            port: 3306
+            type: TCP
+        volumes:
+          - id: data
+            dir: /var/lib/mysql
+        env:
+          MYSQL_ROOT_PASSWORD:
+            default: ${PASSWORD}
+          MYSQL_PASSWORD:
+            default: ${PASSWORD}
+            expose: true
+          MYSQL_HOST:
+            default: ${CONTAINER_HOSTNAME}
+            expose: true

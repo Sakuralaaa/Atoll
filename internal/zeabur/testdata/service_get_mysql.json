@@ -1,0 +1,1 @@
+{"_id":"66500000000000000000a102","name":"mysql","template":"PREBUILT","spec":{"source":{"image":"mysql:8.0"}}}

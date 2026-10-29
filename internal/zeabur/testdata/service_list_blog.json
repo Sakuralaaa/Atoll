@@ -1,0 +1,5 @@
+INFO fetching services
+[
+  {"_id":"66500000000000000000a101","name":"ghost","template":"PREBUILT","status":"RUNNING"},
+  {"_id":"66500000000000000000a102","name":"mysql","template":"PREBUILT","status":"RUNNING"}
+]
