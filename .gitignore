@@ -5,3 +5,6 @@ web/dist/
 *.db
 *.db-*
 .env
+/atoll
+/atoll-agent
+/atoll-server
