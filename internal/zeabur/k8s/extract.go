@@ -69,26 +69,44 @@ type Namespace struct {
 	Objects []Object
 }
 
+// index holds the namespace's objects plus the reference-based attribution (attribution.go):
+// resources attach to the workloads that reference them; names are only a fallback for
+// objects no workload references.
 type index struct {
+	ns        string
 	workloads map[string]Object // service id → Deployment/StatefulSet
+	byRef     map[WorkloadRef]string
 	services  map[string]Object // k8s Service by name
 	pvcs      map[string]Object
 	cms       map[string]Object
 	ingresses []Object
-	pods      map[string]Object // service id → a pod
+	pods      map[string][]Object // service id → its pods
+	rels      map[WorkloadRef][]Relation
+	attr      NamespaceAttribution
+	all       []Object // every workload (Workloads order)
 }
 
-func buildIndex(objs []Object) index {
-	ix := index{workloads: map[string]Object{}, services: map[string]Object{}, pvcs: map[string]Object{}, cms: map[string]Object{}, pods: map[string]Object{}}
+func serviceIDOf(o Object) string {
+	if o.Kind != "Deployment" && o.Kind != "StatefulSet" {
+		return ""
+	}
+	if id := o.Spec.Template.Metadata.Labels["zeabur_service_id"]; id != "" {
+		return id
+	}
+	if m := workloadNameRe.FindStringSubmatch(o.Metadata.Name); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+func buildIndex(ns string, objs []Object) index {
+	ix := index{ns: ns, workloads: map[string]Object{}, byRef: map[WorkloadRef]string{}, services: map[string]Object{},
+		pvcs: map[string]Object{}, cms: map[string]Object{}, pods: map[string][]Object{}, rels: map[WorkloadRef][]Relation{}}
+	var pods []Object
 	for _, o := range objs {
 		switch o.Kind {
 		case "Deployment", "StatefulSet":
-			id := o.Spec.Template.Metadata.Labels["zeabur_service_id"]
-			if id == "" {
-				if m := workloadNameRe.FindStringSubmatch(o.Metadata.Name); m != nil {
-					id = m[1]
-				}
-			}
+			id := serviceIDOf(o)
 			if id == "" {
 				continue
 			}
@@ -105,50 +123,140 @@ func buildIndex(objs []Object) index {
 		case "Ingress":
 			ix.ingresses = append(ix.ingresses, o)
 		case "Pod":
-			if id := o.Metadata.Labels["zeabur_service_id"]; id != "" {
-				if prev, ok := ix.pods[id]; !ok || (prev.Status.Phase != "Running" && o.Status.Phase == "Running") {
-					ix.pods[id] = o
+			pods = append(pods, o)
+		}
+	}
+	for id, w := range ix.workloads {
+		ix.byRef[refOf(w)] = id
+	}
+	ix.all = Workloads(objs)
+	rels := relationsOf(objs, ix.all)
+	for _, r := range rels {
+		ix.rels[r.Workload] = append(ix.rels[r.Workload], r)
+	}
+	ix.attr = attributionOf(objs, ix.all, rels)
+	for _, p := range pods {
+		id := p.Metadata.Labels["zeabur_service_id"]
+		if id == "" {
+			for wid, w := range ix.workloads {
+				if matchesSelector(labelSelector(w.Spec.Selector), p.Metadata.Labels) {
+					id = wid
+					break
 				}
 			}
 		}
+		if id != "" {
+			ix.pods[id] = append(ix.pods[id], p)
+		}
+	}
+	for id, ps := range ix.pods {
+		// Running pods first: the image digest is read from the first one.
+		sort.SliceStable(ps, func(i, j int) bool { return ps[i].Status.Phase == "Running" && ps[j].Status.Phase != "Running" })
+		ix.pods[id] = ps
 	}
 	return ix
+}
+
+// k8sServices returns the Kubernetes Services of a Zeabur service: those whose selector matches
+// its pod template (by reference), plus — only for Services that select no workload — the
+// canonical service-<id> and NodePort Services named after the id (name fallback).
+func (ix index) k8sServices(id string, w Object) []string {
+	set := map[string]bool{}
+	for _, r := range ix.rels[refOf(w)] {
+		if r.Kind == RelSelector {
+			set[r.Object.Name] = true
+		}
+	}
+	unclaimed := func(name string) bool {
+		a, ok := ix.attr.Services[name]
+		return ok && a.Ownership == Orphan
+	}
+	if unclaimed("service-" + id) {
+		set["service-"+id] = true
+	}
+	for name, svc := range ix.services {
+		if svc.Spec.Type == "NodePort" && strings.Contains(name, id) && unclaimed(name) {
+			set[name] = true
+		}
+	}
+	out := make([]string, 0, len(set))
+	for n := range set {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Extract turns one namespace's objects into ZeaburServices (sorted by name). PVCs whose
 // service has no workload (suspended services) are returned as services with Workload "".
 func Extract(ns Namespace, facts HostFacts) []api.ZeaburService {
-	ix := buildIndex(ns.Objects)
+	out, _ := ExtractNamespace(ns, facts)
+	return out
+}
+
+// ExtractNamespace is Extract plus namespace-level warnings (orphan PVCs that belong to no
+// service, workloads that are not Zeabur services).
+func ExtractNamespace(ns Namespace, facts HostFacts) ([]api.ZeaburService, []string) {
+	ix := buildIndex(ns.Name, ns.Objects)
 	var out []api.ZeaburService
-	seen := map[string]bool{}
+	var nsWarnings []string
 	for id, w := range ix.workloads {
-		seen[id] = true
 		out = append(out, extractOne(ns.Name, id, w, ix, facts))
 	}
-	// Suspended services: PVC without workload.
+	for _, w := range ix.all {
+		if _, ok := ix.byRef[refOf(w)]; !ok {
+			nsWarnings = append(nsWarnings, fmt.Sprintf("%s/%s is not a Zeabur service (no zeabur_service_id label or service-<id> name); it is not imported", strings.ToLower(w.Kind), w.Metadata.Name))
+		}
+	}
+	// PVCs no workload references: suspended services (their workload was deleted), volumes
+	// detached from a live service, or leftovers.
 	orphans := map[string][]string{}
-	for name := range ix.pvcs {
-		if m := pvcNameRe.FindStringSubmatch(name); m != nil && !seen[m[2]] {
+	pvcNames := make([]string, 0, len(ix.attr.PersistentVolumeClaims))
+	for name, a := range ix.attr.PersistentVolumeClaims {
+		if a.Ownership == Orphan {
+			pvcNames = append(pvcNames, name)
+		}
+	}
+	sort.Strings(pvcNames)
+	for _, name := range pvcNames {
+		m := pvcNameRe.FindStringSubmatch(name)
+		switch {
+		case m == nil:
+			nsWarnings = append(nsWarnings, fmt.Sprintf("PVC %s is not mounted by any workload and does not follow Zeabur naming; its data is not migrated automatically", name))
+		case ix.workloads[m[2]].Kind != "":
+			for i := range out {
+				if out[i].ServiceID == m[2] {
+					out[i].Warnings = append(out[i].Warnings, fmt.Sprintf("PVC %s belongs to this service by name but is not mounted; its data is not migrated automatically", name))
+				}
+			}
+		default:
 			orphans[m[2]] = append(orphans[m[2]], name)
 		}
 	}
 	for id, pvcs := range orphans {
-		sort.Strings(pvcs)
-		s := api.ZeaburService{ServiceID: id, Name: dnsName(id, ix), Role: "other", Kind: "image", Ports: []api.Port{}, Env: []api.EnvVar{}, Domains: []string{}}
+		s := api.ZeaburService{ServiceID: id, Name: dnsName(id, ix), Role: "other", Kind: "image", Status: StatusSuspended, Ports: []api.Port{}, Env: []api.EnvVar{}, Domains: []string{}}
 		for _, p := range pvcs {
 			s.Volumes = append(s.Volumes, volumeFor(ns.Name, p, "", ix, facts))
 		}
 		s.Warnings = append(s.Warnings, "no workload found: the service is probably suspended (data kept in PVC). Restart it on Zeabur (`zeabur service restart --id "+id+"`) to inventory its spec, or migrate the data only")
 		out = append(out, s)
 	}
+	addReferences(out, ix)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return out, nsWarnings
 }
 
 func dnsName(id string, ix index) string {
 	if s, ok := ix.services["service-"+id]; ok {
 		if n := s.Metadata.Labels["app.kubernetes.io/name"]; n != "" {
 			return n
+		}
+	}
+	if w, ok := ix.workloads[id]; ok {
+		for _, name := range ix.k8sServices(id, w) {
+			if n := ix.services[name].Metadata.Labels["app.kubernetes.io/name"]; n != "" {
+				return n
+			}
 		}
 	}
 	return "service-" + id
@@ -179,6 +287,64 @@ func volumeFor(ns, pvcName, mount string, ix index, facts HostFacts) api.ZeaburV
 	return v
 }
 
+// resolveEnv returns the container's effective env: envFrom ConfigMap imports first, then env
+// (which wins), configMapKeyRef resolved from the ConfigMap. Secret-backed values are never
+// read; they and downward-API fields become warnings.
+func resolveEnv(c Container, ix index) ([]api.EnvVar, []string) {
+	var env []api.EnvVar
+	var warns []string
+	pos := map[string]int{}
+	set := func(k, v string) {
+		e := api.EnvVar{Key: k, Value: v, Secret: IsSecret(k, v)}
+		if i, ok := pos[k]; ok {
+			env[i] = e
+			return
+		}
+		pos[k] = len(env)
+		env = append(env, e)
+	}
+	for _, ef := range c.EnvFrom {
+		if ef.ConfigMapRef != nil {
+			cm, ok := ix.cms[ef.ConfigMapRef.Name]
+			if !ok {
+				warns = append(warns, fmt.Sprintf("envFrom ConfigMap %s not found", ef.ConfigMapRef.Name))
+				continue
+			}
+			keys := make([]string, 0, len(cm.Data))
+			for k := range cm.Data {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				if envNameRe.MatchString(ef.Prefix + k) {
+					set(ef.Prefix+k, cm.Data[k])
+				}
+			}
+		}
+		if ef.SecretRef != nil {
+			warns = append(warns, fmt.Sprintf("envFrom imports Secret %s; its values are not read — set those variables manually", ef.SecretRef.Name))
+		}
+	}
+	for _, e := range c.Env {
+		vs := e.Source()
+		switch {
+		case vs == nil:
+			set(e.Name, e.Value)
+		case vs.ConfigMapKeyRef != nil:
+			if v, ok := ix.cms[vs.ConfigMapKeyRef.Name].Data[vs.ConfigMapKeyRef.Key]; ok {
+				set(e.Name, v)
+			} else {
+				warns = append(warns, fmt.Sprintf("env %s uses valueFrom ConfigMap %s key %s, which was not found; set it manually", e.Name, vs.ConfigMapKeyRef.Name, vs.ConfigMapKeyRef.Key))
+			}
+		case vs.SecretKeyRef != nil:
+			warns = append(warns, fmt.Sprintf("env %s uses valueFrom Secret %s (key %s); its value is not read — set it manually", e.Name, vs.SecretKeyRef.Name, vs.SecretKeyRef.Key))
+		default:
+			warns = append(warns, fmt.Sprintf("env %s uses valueFrom (not a plain value); set it manually", e.Name))
+		}
+	}
+	return env, warns
+}
+
 func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburService {
 	s := api.ZeaburService{
 		ServiceID: id,
@@ -193,6 +359,9 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 	if w.Spec.Replicas != nil {
 		s.Replicas = *w.Spec.Replicas
 	}
+	s.Status = ScanStatus(&w, ix.pods[id])
+	svcNames := ix.k8sServices(id, w)
+	s.K8sServices = svcNames
 	pod := w.Spec.Template.Spec
 	if len(pod.Containers) == 0 {
 		s.Warnings = append(s.Warnings, "workload has no containers")
@@ -204,7 +373,8 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 	c := pod.Containers[0]
 	s.Image = c.Image
 	s.Command, s.Args = c.Command, c.Args
-	if p, ok := ix.pods[id]; ok {
+	if ps := ix.pods[id]; len(ps) > 0 {
+		p := ps[0]
 		for _, cs := range p.Status.ContainerStatuses {
 			if cs.Name == c.Name || len(p.Status.ContainerStatuses) == 1 {
 				s.ImageID = cs.ImageID
@@ -223,90 +393,91 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 		if !s.ImageCached && facts.CachedImages != nil {
 			s.Warnings = append(s.Warnings, "built image is not in the node's containerd cache; it cannot be exported and must be rebuilt from source")
 		}
-	} else if IsFloating(c.Image) && DigestOf(s.ImageID) == "" {
-		s.Warnings = append(s.Warnings, "image tag is floating and the running digest is unknown; pin a version")
+	} else {
+		ds := DataStoreOf(w)
+		s.DataStore = string(ds)
+		if ds == StoreOther && s.Role == "app" {
+			// StatefulSet with persistent storage: treat as a data store, no known dump.
+			s.Role = "database"
+		}
+		if IsFloating(c.Image) && DigestOf(s.ImageID) == "" {
+			s.Warnings = append(s.Warnings, "image tag is floating and the running digest is unknown; pin a version")
+		}
 	}
 
 	// env
-	for _, e := range c.Env {
-		if e.ValueFrom != nil {
-			s.Warnings = append(s.Warnings, fmt.Sprintf("env %s uses valueFrom (not a plain value); set it manually", e.Name))
-			continue
-		}
-		s.Env = append(s.Env, api.EnvVar{Key: e.Name, Value: e.Value, Secret: IsSecret(e.Name, e.Value)})
-	}
+	env, envWarns := resolveEnv(c, ix)
+	s.Env = append(s.Env, env...)
+	s.Warnings = append(s.Warnings, envWarns...)
 
-	// ports, matched to the k8s Service (NodePort) and Ingress (http)
+	// ports, matched to the k8s Services of this workload (NodePort) and Ingresses routing to
+	// them (http)
+	svcSet := map[string]bool{}
+	for _, n := range svcNames {
+		svcSet[n] = true
+	}
 	httpPorts := map[int]bool{}
-	ksvcName := "service-" + id
+	resolvePort := func(svcName string, be IngressBackend) int {
+		port := be.Service.Port.Number
+		if port == 0 {
+			port = targetPortInt(be.ServicePort)
+		}
+		ksvc, ok := ix.services[svcName]
+		if port == 0 && ok {
+			name := be.Service.Port.Name
+			if name == "" {
+				name = nodeString(be.ServicePort)
+			}
+			for _, sp := range ksvc.Spec.Ports {
+				if sp.Name == name {
+					port = sp.Port
+				}
+			}
+		}
+		if ok {
+			for _, sp := range ksvc.Spec.Ports {
+				if sp.Port == port {
+					if tp := targetPortInt(sp.TargetPort); tp > 0 {
+						port = tp
+					}
+				}
+			}
+		}
+		return port
+	}
 	for _, ing := range ix.ingresses {
+		if b := ing.Spec.DefaultBackend; b != nil && svcSet[b.ServiceNameAny()] {
+			httpPorts[resolvePort(b.ServiceNameAny(), *b)] = true
+			for _, t := range ing.Spec.TLS {
+				for _, h := range t.Hosts {
+					if h != "" && !contains(s.Domains, h) {
+						s.Domains = append(s.Domains, h)
+					}
+				}
+			}
+		}
 		for _, r := range ing.Spec.Rules {
 			for _, p := range r.HTTP.Paths {
-				be := p.Backend.Service.Name
-				if be == "" {
-					be = p.Backend.ServiceName
-				}
-				if be != ksvcName {
+				be := p.Backend.ServiceNameAny()
+				if !svcSet[be] {
 					continue
 				}
 				if r.Host != "" && !contains(s.Domains, r.Host) {
 					s.Domains = append(s.Domains, r.Host)
 				}
-				port := p.Backend.Service.Port.Number
-				if port == 0 {
-					port = targetPortInt(p.Backend.ServicePort)
-				}
-				if port == 0 {
-					name := p.Backend.Service.Port.Name
-					if name == "" {
-						name = nodeString(p.Backend.ServicePort)
-					}
-					if ksvc, ok := ix.services[ksvcName]; ok {
-						for _, sp := range ksvc.Spec.Ports {
-							if sp.Name == name {
-								port = sp.Port
-							}
-						}
-					}
-				}
-				if ksvc, ok := ix.services[ksvcName]; ok {
-					for _, sp := range ksvc.Spec.Ports {
-						if sp.Port == port {
-							if tp := targetPortInt(sp.TargetPort); tp > 0 {
-								port = tp
-							}
-						}
-					}
-				}
-				httpPorts[port] = true
+				httpPorts[resolvePort(be, p.Backend)] = true
 			}
 		}
 	}
 	sort.Strings(s.Domains)
 	nodePorts := map[int]int{}
-	if ksvc, ok := ix.services[ksvcName]; ok {
-		for _, sp := range ksvc.Spec.Ports {
+	for _, name := range svcNames {
+		for _, sp := range ix.services[name].Spec.Ports {
 			tp := targetPortInt(sp.TargetPort)
 			if tp == 0 {
 				tp = sp.Port
 			}
 			if sp.NodePort > 0 {
-				nodePorts[tp] = sp.NodePort
-				s.NodePorts = append(s.NodePorts, sp.NodePort)
-			}
-		}
-	}
-	// Some NodePort services are separate objects selecting the same pod.
-	for name, ksvc := range ix.services {
-		if name == ksvcName || ksvc.Spec.Type != "NodePort" || !strings.Contains(name, id) {
-			continue
-		}
-		for _, sp := range ksvc.Spec.Ports {
-			if sp.NodePort > 0 {
-				tp := targetPortInt(sp.TargetPort)
-				if tp == 0 {
-					tp = sp.Port
-				}
 				nodePorts[tp] = sp.NodePort
 				s.NodePorts = append(s.NodePorts, sp.NodePort)
 			}
@@ -337,19 +508,49 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 		s.Warnings = append(s.Warnings, "has public TCP/UDP NodePorts; decide whether they are still needed and add access control")
 	}
 
-	// volumes and config files
+	// volumes and config files, followed from the mounts to the referenced objects
 	vols := map[string]PodVolume{}
 	for _, v := range pod.Volumes {
 		vols[v.Name] = v
 	}
+	claimed := map[string][]string{} // claim template → PVCs it created
+	for _, r := range ix.rels[refOf(w)] {
+		if r.Kind == RelClaimTemplate {
+			for _, t := range w.Spec.VolumeClaimTemplates {
+				if CreatedByClaimTemplate(r.Object.Name, t.Metadata.Name, w.Metadata.Name) {
+					claimed[t.Metadata.Name] = append(claimed[t.Metadata.Name], r.Object.Name)
+				}
+			}
+		}
+	}
+	mountedPVC := map[string]bool{}
 	for _, m := range c.VolumeMounts {
 		v, ok := vols[m.Name]
 		if !ok {
+			// StatefulSet claim template: the controller adds the volume per pod.
+			for _, t := range w.Spec.VolumeClaimTemplates {
+				if t.Metadata.Name != m.Name {
+					continue
+				}
+				pvc := t.Metadata.Name + "-" + w.Metadata.Name + "-0"
+				if len(claimed[t.Metadata.Name]) > 1 {
+					s.Warnings = append(s.Warnings, fmt.Sprintf("claim template %s has %d PVCs (one per replica); only %s is migrated", t.Metadata.Name, len(claimed[t.Metadata.Name]), pvc))
+				}
+				if _, ok := ix.pvcs[pvc]; !ok {
+					s.Warnings = append(s.Warnings, fmt.Sprintf("claim template %s has no PVC %s yet (not provisioned); nothing to migrate for %s", t.Metadata.Name, pvc, m.MountPath))
+				}
+				s.Volumes = append(s.Volumes, volumeFor(ns, pvc, m.MountPath, ix, facts))
+				mountedPVC[pvc] = true
+			}
 			continue
 		}
 		switch {
 		case v.PersistentVolumeClaim != nil:
 			s.Volumes = append(s.Volumes, volumeFor(ns, v.PersistentVolumeClaim.ClaimName, m.MountPath, ix, facts))
+			mountedPVC[v.PersistentVolumeClaim.ClaimName] = true
+			if a := ix.attr.PersistentVolumeClaims[v.PersistentVolumeClaim.ClaimName]; a.Ownership == Shared {
+				s.Warnings = append(s.Warnings, fmt.Sprintf("PVC %s is shared by %d workloads; Atoll volumes are per service, so the data is copied, not shared", v.PersistentVolumeClaim.ClaimName, len(a.Owners)))
+			}
 		case v.ConfigMap != nil:
 			cm, ok := ix.cms[v.ConfigMap.Name]
 			if !ok {
@@ -379,6 +580,13 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 					s.Warnings = append(s.Warnings, fmt.Sprintf("config %s contains the Zeabur-only `zeaburextension` Caddy directive; the official caddy image fails with it — remove it", cf.Path))
 				}
 			}
+		case v.Secret != nil:
+			s.Warnings = append(s.Warnings, fmt.Sprintf("%s is mounted from Secret %s; its files are not read — recreate them as config files", m.MountPath, v.Secret.SecretName))
+		}
+	}
+	for _, r := range ix.rels[refOf(w)] {
+		if r.Object.Kind == "PersistentVolumeClaim" && !mountedPVC[r.Object.Name] && r.Kind == RelVolume {
+			s.Warnings = append(s.Warnings, fmt.Sprintf("PVC %s is referenced by the workload but not mounted in the imported container; its data is not migrated automatically", r.Object.Name))
 		}
 	}
 	sort.Slice(s.Configs, func(i, j int) bool { return s.Configs[i].Path < s.Configs[j].Path })
@@ -392,7 +600,87 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 			s.Warnings = append(s.Warnings, d+" is a Zeabur-generated domain and stops resolving at shutdown; update OAuth callbacks/webhooks that use it")
 		}
 	}
+	if !s.ZeaburRegistry {
+		s.Warnings = append(s.Warnings, DurabilityWarnings(w)...)
+	}
 	return s
+}
+
+// addReferences fills References: literal env values naming another service's k8s Service
+// (short or cluster DNS) or <dns>.zeabur.internal, and Secrets/ConfigMaps shared with a data
+// store (key-level, so the plan can write ${STORE.KEY}).
+func addReferences(svcs []api.ZeaburService, ix index) {
+	known := map[string]bool{}
+	byK8s := map[string]string{}
+	byDNS := map[string]string{}
+	for _, s := range svcs {
+		for _, n := range s.K8sServices {
+			known[n] = true
+			byK8s[n] = s.ServiceID
+		}
+		if s.Workload != "" {
+			byDNS[s.Name] = s.ServiceID
+		}
+	}
+	type store struct {
+		id   string
+		refs []configRef
+	}
+	var stores []store
+	for id, w := range ix.workloads {
+		if DataStoreOf(w) != "" {
+			stores = append(stores, store{id, configRefs(w)})
+		}
+	}
+	sort.Slice(stores, func(i, j int) bool { return stores[i].id < stores[j].id })
+	for i := range svcs {
+		s := &svcs[i]
+		seen := map[api.ZeaburReference]bool{}
+		add := func(r api.ZeaburReference) {
+			if r.Target != s.ServiceID && !seen[r] {
+				seen[r] = true
+				s.References = append(s.References, r)
+			}
+		}
+		for _, e := range s.Env {
+			for _, n := range MentionedServices(e.Value, ix.ns, known) {
+				add(api.ZeaburReference{Key: e.Key, Target: byK8s[n], Via: ViaEnvValue, Object: n, Inferred: true})
+			}
+			for _, m := range internalRe.FindAllStringSubmatch(e.Value, -1) {
+				if id, ok := byDNS[m[1]]; ok {
+					add(api.ZeaburReference{Key: e.Key, Target: id, Via: ViaZeaburInternal, Object: m[1] + ".zeabur.internal", Inferred: true})
+				}
+			}
+		}
+		w, ok := ix.workloads[s.ServiceID]
+		var mine []configRef
+		if ok && DataStoreOf(w) == "" {
+			mine = configRefs(w)
+		}
+		for _, r := range mine {
+			for _, st := range stores {
+				shared := false
+				for _, sr := range st.refs {
+					shared = shared || sr.Object == r.Object
+				}
+				if !shared {
+					continue
+				}
+				via := ViaSharedSecret
+				if r.Object.Kind == "ConfigMap" {
+					via = ViaSharedConfigMap
+				}
+				add(api.ZeaburReference{Key: r.Env, Target: st.id, TargetKey: targetKeyFor(st.refs, r.Object, r.Key), Via: via, Object: r.Object.String()})
+			}
+		}
+		sort.SliceStable(s.References, func(a, b int) bool {
+			x, y := s.References[a], s.References[b]
+			if x.Key != y.Key {
+				return x.Key < y.Key
+			}
+			return x.Target < y.Target
+		})
+	}
 }
 
 func contains(xs []string, x string) bool {
@@ -433,8 +721,8 @@ func ScanNamespaces(objs []Object, facts HostFacts) []api.ZeaburProject {
 			ProjectID:       m.Labels["zeabur_project_id"],
 			ProjectName:     m.Labels["zeabur_project_name"],
 			EnvironmentName: m.Labels["zeabur_environment_name"],
-			Services:        Extract(Namespace{Name: ns, Objects: list}, facts),
 		})
+		out[len(out)-1].Services, out[len(out)-1].Warnings = ExtractNamespace(Namespace{Name: ns, Objects: list}, facts)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Namespace < out[j].Namespace })
 	return out

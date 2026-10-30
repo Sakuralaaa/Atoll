@@ -1,0 +1,366 @@
+# A Zeabur-Cloud-shaped namespace (kubectl get ns,deploy,sts,cronjob,job,svc,pvc,cm,secret,ingress,pods -o yaml)
+# exercising reference-based attribution: selector-matched Services, Ingress → Service →
+# workload, StatefulSet claim-template PVCs, a Secret shared by the app and postgres, a
+# configMapKeyRef, cluster-DNS env values, machinery objects and a crash-looping pod.
+apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: environment-67000000000000000000e001
+    labels:
+      zeabur_project_id: 67000000000000000000b001
+      zeabur_project_name: blog
+      zeabur_environment_name: production
+# --- app: Deployment service-<id>, PVC, ConfigMap, Secret refs ---
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: service-67000000000000000000a001
+    namespace: environment-67000000000000000000e001
+    generation: 3
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        zeabur_service_id: 67000000000000000000a001
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 67000000000000000000a001
+          app.kubernetes.io/name: app
+      spec:
+        imagePullSecrets:
+        - name: zeabur-registry
+        initContainers:
+        - name: migrate
+          image: ghcr.io/acme/blog:1.4.2
+          envFrom:
+          - configMapRef:
+              name: migrate-settings
+        containers:
+        - name: app
+          image: ghcr.io/acme/blog:1.4.2
+          ports:
+          - name: web
+            containerPort: 3000
+          env:
+          - name: DB_HOST
+            value: service-67000000000000000000a002.environment-67000000000000000000e001.svc.cluster.local
+          - name: CACHE_URL
+            value: redis://cache.zeabur.internal:6379/0
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-credentials
+                key: password
+          - name: LOG_LEVEL
+            valueFrom:
+              configMapKeyRef:
+                name: app-settings
+                key: log_level
+          envFrom:
+          - configMapRef:
+              name: app-settings
+            prefix: APP_
+          volumeMounts:
+          - name: media
+            mountPath: /app/media
+        volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-service-67000000000000000000a001
+  status:
+    observedGeneration: 3
+    replicas: 1
+    readyReplicas: 1
+    updatedReplicas: 1
+    conditions:
+    - type: Progressing
+      status: "True"
+      reason: NewReplicaSetAvailable
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-67000000000000000000a001
+    namespace: environment-67000000000000000000e001
+    labels:
+      app.kubernetes.io/name: app
+  spec:
+    type: ClusterIP
+    selector:
+      zeabur_service_id: 67000000000000000000a001
+    ports:
+    - name: web
+      port: 80
+      targetPort: 3000
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: domain-67000000000000000000f001
+    namespace: environment-67000000000000000000e001
+  spec:
+    rules:
+    - host: myblog.zeabur.app
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: service-67000000000000000000a001
+              port:
+                number: 80
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: domain-67000000000000000000f002
+    namespace: environment-67000000000000000000e001
+  spec:
+    rules:
+    - host: blog.example.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: service-67000000000000000000a001
+              port:
+                name: web
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: media-service-67000000000000000000a001
+    namespace: environment-67000000000000000000e001
+  spec:
+    volumeName: pvc-aaaa
+    storageClassName: local-path
+    resources:
+      requests:
+        storage: 5Gi
+  status:
+    phase: Bound
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: app-settings
+    namespace: environment-67000000000000000000e001
+  data:
+    log_level: info
+    region: hkg
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: migrate-settings
+    namespace: environment-67000000000000000000e001
+  data:
+    MIGRATE: "true"
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: kube-root-ca.crt
+    namespace: environment-67000000000000000000e001
+  data:
+    ca.crt: "-----BEGIN CERTIFICATE-----"
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: pg-credentials
+    namespace: environment-67000000000000000000e001
+  type: Opaque
+  data:
+    password: c3VwZXItc2VjcmV0LXBhc3N3b3Jk # must never be read
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: default-token-abcde
+    namespace: environment-67000000000000000000e001
+  type: kubernetes.io/service-account-token
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: zeabur-registry
+    namespace: environment-67000000000000000000e001
+  type: kubernetes.io/dockerconfigjson
+# --- postgres: StatefulSet with a claim template, envFrom the shared Secret ---
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: service-67000000000000000000a002
+    namespace: environment-67000000000000000000e001
+    generation: 1
+  spec:
+    replicas: 1
+    serviceName: service-67000000000000000000a002
+    selector:
+      matchLabels:
+        zeabur_service_id: 67000000000000000000a002
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 67000000000000000000a002
+      spec:
+        containers:
+        - name: postgresql
+          image: postgres:16
+          ports:
+          - name: database
+            containerPort: 5432
+          env:
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-credentials
+                key: password
+          volumeMounts:
+          - name: data
+            mountPath: /var/lib/postgresql/data
+    volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        resources:
+          requests:
+            storage: 10Gi
+  status:
+    observedGeneration: 1
+    replicas: 1
+    readyReplicas: 1
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: data-service-67000000000000000000a002-0
+    namespace: environment-67000000000000000000e001
+  spec:
+    volumeName: pvc-bbbb
+    resources:
+      requests:
+        storage: 10Gi
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-67000000000000000000a002
+    namespace: environment-67000000000000000000e001
+    labels:
+      app.kubernetes.io/name: postgresql
+  spec:
+    selector:
+      zeabur_service_id: 67000000000000000000a002
+    ports:
+    - name: database
+      port: 5432
+      targetPort: 5432
+# --- redis (dnsName "cache"): Deployment without a volume, crash-looping pod ---
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: service-67000000000000000000a003
+    namespace: environment-67000000000000000000e001
+    generation: 1
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        zeabur_service_id: 67000000000000000000a003
+    template:
+      metadata:
+        labels:
+          zeabur_service_id: 67000000000000000000a003
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.4
+          ports:
+          - name: database
+            containerPort: 6379
+  status:
+    observedGeneration: 1
+    replicas: 1
+    readyReplicas: 0
+    updatedReplicas: 1
+    conditions:
+    - type: Progressing
+      status: "True"
+      reason: NewReplicaSetAvailable
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: service-67000000000000000000a003
+    namespace: environment-67000000000000000000e001
+    labels:
+      app.kubernetes.io/name: cache
+  spec:
+    selector:
+      zeabur_service_id: 67000000000000000000a003
+    ports:
+    - name: database
+      port: 6379
+      targetPort: 6379
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: service-67000000000000000000a003-5c9d-xyz12
+    namespace: environment-67000000000000000000e001
+    labels:
+      zeabur_service_id: 67000000000000000000a003
+  status:
+    phase: Running
+    containerStatuses:
+    - name: redis
+      image: docker.io/library/redis:7.4
+      imageID: docker.io/library/redis@sha256:1111111111111111111111111111111111111111111111111111111111111111
+      ready: false
+      restartCount: 7
+      state:
+        waiting:
+          reason: CrashLoopBackOff
+# --- machinery and leftovers ---
+- apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: backup
+    namespace: environment-67000000000000000000e001
+  spec:
+    schedule: "0 3 * * *"
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: backup
+              image: ghcr.io/acme/pg-backup:1
+              envFrom:
+              - secretRef:
+                  name: pg-credentials
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: backup-29001
+    namespace: environment-67000000000000000000e001
+    ownerReferences:
+    - apiVersion: batch/v1
+      kind: CronJob
+      name: backup
+      controller: true
+  spec:
+    template:
+      spec:
+        containers:
+        - name: backup
+          image: ghcr.io/acme/pg-backup:1
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: old-uploads
+    namespace: environment-67000000000000000000e001
+  spec:
+    volumeName: pvc-cccc
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: data-service-67000000000000000000a009
+    namespace: environment-67000000000000000000e001
+  spec:
+    volumeName: pvc-9999

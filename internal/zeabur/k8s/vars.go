@@ -76,11 +76,24 @@ func PinImage(image, imageID string) string {
 
 // DetectKind guesses the Atoll kind and role from an image reference. Kind is one of
 // image|postgres|mysql|redis|mongo; role app|database|cache|other.
+//
+// The exact repository-name table (DataStoreImage, ported from zeabur-oss) decides first;
+// the substring heuristics below only catch variants (postgis, timescaledb, pgvector, …) and
+// skip tools named after an engine (postgres-exporter, mongo-express, redis-commander, …).
 func DetectKind(image string) (kind, role string) {
+	switch ds := DataStoreImage(image); ds {
+	case StorePostgres, StoreMysql, StoreMongo, StoreRedis:
+		return AtollKind(ds, image)
+	}
 	repo, _, _ := SplitImage(strings.ToLower(image))
 	base := repo
 	if i := strings.LastIndex(repo, "/"); i >= 0 {
 		base = repo[i+1:]
+	}
+	for _, tool := range []string{"exporter", "express", "operator", "commander", "insight", "admin", "backup", "proxy", "bouncer", "sentinel-ui", "-ui", "web"} {
+		if strings.Contains(base, tool) {
+			return "image", "app"
+		}
 	}
 	switch {
 	case strings.Contains(base, "postgres") || strings.Contains(base, "postgis") || strings.Contains(base, "timescaledb") || base == "pgvector":
@@ -200,6 +213,56 @@ type Rewriter struct {
 	// Domains maps old public hosts (typically *.zeabur.app) to new hosts. Every occurrence of
 	// the old host in a value (bare host, URL, list) is replaced; "" entries are left alone.
 	Domains map[string]string
+	// ByK8sService maps Kubernetes Service names (api.ZeaburService.K8sServices) to Atoll
+	// service names. Hosts naming them by cluster DNS (name.<ns>[.svc[.cluster.local]]) are
+	// always rewritten; a bare short name only as a whole value or a URL host (after "://" or
+	// "@"), since a short word elsewhere in text is not necessarily a host.
+	ByK8sService map[string]string
+	// Namespace is the Zeabur namespace (environment-<id>); "" accepts any environment-<id>.
+	Namespace string
+}
+
+// rewriteServiceHosts replaces Kubernetes Service hosts (connections.go rules) in v.
+func (r Rewriter) rewriteServiceHosts(v string) string {
+	lookup := func(name string) (string, bool) {
+		if n, ok := r.ByK8sService[name]; ok {
+			return n, true
+		}
+		if m := serviceHostRe.FindStringSubmatch(name); m != nil && m[0] == name {
+			n, ok := r.ByServiceID[m[1]]
+			return n, ok
+		}
+		return "", false
+	}
+	if len(r.ByK8sService) == 0 && len(r.ByServiceID) == 0 {
+		return v
+	}
+	var b strings.Builder
+	i := 0
+	for i < len(v) {
+		if !hostChar(v[i]) {
+			b.WriteByte(v[i])
+			i++
+			continue
+		}
+		j := i
+		for j < len(v) && hostChar(v[j]) {
+			j++
+		}
+		tok := v[i:j]
+		out := tok
+		if name, suffix, ok := splitServiceHost(tok, r.Namespace); ok {
+			if n, ok := lookup(name); ok {
+				urlHost := strings.HasSuffix(v[:i], "://") || strings.HasSuffix(v[:i], "@")
+				if suffix != "" || urlHost || tok == v || strings.HasPrefix(name, "service-") {
+					out = n
+				}
+			}
+		}
+		b.WriteString(out)
+		i = j
+	}
+	return b.String()
 }
 
 // hostChar reports whether b can be part of a hostname (used for boundaries).
@@ -249,6 +312,7 @@ func (r Rewriter) Rewrite(v string) string {
 	for _, o := range olds {
 		v = ReplaceHost(v, o, r.Domains[o])
 	}
+	v = r.rewriteServiceHosts(v)
 	v = internalRe.ReplaceAllStringFunc(v, func(m string) string {
 		sub := internalRe.FindStringSubmatch(m)
 		if n, ok := r.ByDNSName[sub[1]]; ok {

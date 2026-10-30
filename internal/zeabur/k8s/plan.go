@@ -27,6 +27,9 @@ type PlanOptions struct {
 	// the service's domains.
 	BaseDomain string
 	DomainMap  map[string]string
+	// Namespace is the scanned environment-<id> namespace, used to recognise cluster DNS names
+	// (service-<id>.<ns>.svc.cluster.local); "" accepts any environment-<id>.
+	Namespace string
 }
 
 // BuildPlan converts scanned Zeabur services into an Atoll ImportPlan: env translated and
@@ -45,7 +48,7 @@ func BuildPlan(services []api.ZeaburService, opt PlanOptions) api.ImportPlan {
 		hosts = append(hosts, s.Domains...)
 	}
 	dm := DefaultDomainMap(hosts, opt.BaseDomain, opt.DomainMap)
-	rw := Rewriter{ByDNSName: map[string]string{}, ByServiceID: map[string]string{}, Domains: dm}
+	rw := Rewriter{ByDNSName: map[string]string{}, ByServiceID: map[string]string{}, ByK8sService: map[string]string{}, Domains: dm, Namespace: opt.Namespace}
 	used := map[string]bool{}
 	names := map[string]string{}
 	for _, s := range services {
@@ -58,6 +61,15 @@ func BuildPlan(services []api.ZeaburService, opt PlanOptions) api.ImportPlan {
 		names[s.ServiceID] = n
 		rw.ByDNSName[s.Name] = n
 		rw.ByServiceID[s.ServiceID] = n
+		for _, k := range s.K8sServices {
+			rw.ByK8sService[k] = n
+		}
+	}
+	// wanted[target zeabur id][key] = services whose env now references ${target.key}
+	wanted := map[string]map[string][]string{}
+	running := map[string]bool{}
+	for _, s := range services {
+		running[s.ServiceID] = s.Workload != ""
 	}
 	warn := func(f string, a ...any) { plan.Warnings = append(plan.Warnings, fmt.Sprintf(f, a...)) }
 
@@ -108,6 +120,21 @@ func BuildPlan(services []api.ZeaburService, opt PlanOptions) api.ImportPlan {
 		for _, e := range tr.Env {
 			e.Exposed = e.Exposed || exposed[e.Key]
 			is.Env = append(is.Env, e)
+			have[e.Key] = true
+		}
+		// A variable read from a Secret/ConfigMap key that a data store reads too becomes a
+		// reference to the store's variable: the value itself was never read.
+		for _, r := range s.References {
+			if r.Key == "" || r.TargetKey == "" || have[r.Key] || !running[r.Target] {
+				continue
+			}
+			have[r.Key] = true
+			is.Env = append(is.Env, api.EnvVar{Key: r.Key, Value: "${" + names[r.Target] + "." + r.TargetKey + "}", Secret: true})
+			if wanted[r.Target] == nil {
+				wanted[r.Target] = map[string][]string{}
+			}
+			wanted[r.Target][r.TargetKey] = append(wanted[r.Target][r.TargetKey], name)
+			warn("%s: %s now references ${%s.%s} (both read %s on Zeabur)", name, r.Key, names[r.Target], r.TargetKey, r.Object)
 		}
 		sort.SliceStable(is.Env, func(i, j int) bool { return is.Env[i].Key < is.Env[j].Key })
 		plan.Warnings = append(plan.Warnings, tr.Warnings...)
@@ -141,6 +168,29 @@ func BuildPlan(services []api.ZeaburService, opt PlanOptions) api.ImportPlan {
 			warn("%s: %s", name, w)
 		}
 		plan.Services = append(plan.Services, is)
+	}
+	for i := range plan.Services {
+		is := &plan.Services[i]
+		keys := wanted[is.SourceServiceID]
+		if len(keys) == 0 {
+			continue
+		}
+		have := map[string]int{}
+		for j, e := range is.Env {
+			have[e.Key] = j
+		}
+		var ks []string
+		for k := range keys {
+			ks = append(ks, k)
+		}
+		sort.Strings(ks)
+		for _, k := range ks {
+			if j, ok := have[k]; ok {
+				is.Env[j].Exposed = true
+				continue
+			}
+			warn("%s: %s comes from a Kubernetes Secret whose value was not read; set it on %s (referenced by %s)", is.Name, k, is.Name, strings.Join(keys[k], ", "))
+		}
 	}
 	return plan
 }

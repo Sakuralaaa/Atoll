@@ -463,6 +463,9 @@ type ZeaburProject struct {
 	ProjectName     string          `json:"project_name"`
 	EnvironmentName string          `json:"environment_name"`
 	Services        []ZeaburService `json:"services"`
+	// Warnings are namespace-level findings (orphan PVCs not tied to any service, workloads
+	// that are not Zeabur services). Never contain secret values.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type ZeaburService struct {
@@ -485,6 +488,26 @@ type ZeaburService struct {
 	Configs        []ConfigFile   `json:"configs,omitempty"`
 	Domains        []string       `json:"domains"` // from Ingress objects (custom + *.zeabur.app)
 	Warnings       []string       `json:"warnings,omitempty"`
+	// Status is the scan-time health: running|progressing|degraded|failed|suspended|unknown.
+	Status string `json:"status,omitempty"`
+	// DataStore is the data-store family detected from the image name (or StatefulSet with a
+	// persistent volume): postgres|mysql|redis|mongo|queue|search|other; "" for apps.
+	DataStore string `json:"data_store,omitempty"`
+	// K8sServices are the Kubernetes Services attributed to this workload (selector match, or
+	// service-<id> by name); env values may name them as hosts.
+	K8sServices []string `json:"k8s_services,omitempty"`
+	// References are connections to other services found in this service's env.
+	References []ZeaburReference `json:"references,omitempty"`
+}
+
+// ZeaburReference is one env-level connection from a service to another Zeabur service.
+type ZeaburReference struct {
+	Key       string `json:"key,omitempty"`        // env var of this service ("" = whole object shared)
+	Target    string `json:"target"`               // zeabur service id referenced
+	TargetKey string `json:"target_key,omitempty"` // env var of Target holding the same Secret/ConfigMap key
+	Via       string `json:"via"`                  // env-value | zeabur-internal | shared-secret | shared-configmap
+	Object    string `json:"object,omitempty"`     // "Secret/<name>", "ConfigMap/<name>" or the k8s Service / host named
+	Inferred  bool   `json:"inferred"`             // true when read from text
 }
 
 type ZeaburVolume struct {
