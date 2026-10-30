@@ -43,7 +43,7 @@ export interface Project {
   id: string; name: string; description?: string; server_id: string; created_at: string; services?: Service[]
 }
 
-export interface EnvVar { key: string; value: string; secret: boolean; exposed: boolean }
+export interface EnvVar { key: string; value: string; secret: boolean; exposed: boolean; /** only in /env/references: exposing service name */ source?: string }
 
 export interface Deployment {
   id: string; service_id: string; server_id: string; image_digest?: string
@@ -81,7 +81,7 @@ export interface ResultPayload { ok: boolean; error?: string; output?: string }
 
 export interface ImportService {
   source_service_id: string; name: string; kind: string; image: string; image_needs_push: boolean
-  command?: string[]; ports: Port[]; volumes: Volume[]; configs?: ConfigFile[]; env: EnvVar[]; domains: string[]; data_bytes: number
+  command?: string[]; args?: string[]; ports: Port[]; volumes: Volume[]; configs?: ConfigFile[]; env: EnvVar[]; domains: string[]; data_bytes: number
 }
 export interface ImportPlan {
   source: string; source_project: string; project_name: string; target_server_id: string
@@ -115,8 +115,24 @@ export interface ZeaburService {
   image: string; image_id: string; zeabur_registry: boolean; image_cached: boolean
   command?: string[]; args?: string[]; ports: Port[]; node_ports?: number[]; env: EnvVar[]
   volumes: ZeaburVolume[]; configs?: ConfigFile[]; domains: string[]; warnings?: string[]
+  /** scan-time health */
+  status?: 'running' | 'progressing' | 'degraded' | 'failed' | 'suspended' | 'unknown' | string
+  /** data-store family from image / StatefulSet+PV; "" for apps */
+  data_store?: 'postgres' | 'mysql' | 'redis' | 'mongo' | 'queue' | 'search' | 'other' | '' | string
+  k8s_services?: string[]
+  references?: ZeaburReference[]
 }
-export interface ZeaburProject { namespace: string; project_id: string; project_name: string; environment_name: string; services: ZeaburService[] }
+/** One env-level connection from a service to another Zeabur service. */
+export interface ZeaburReference {
+  key?: string; target: string; target_key?: string
+  via: 'env-value' | 'zeabur-internal' | 'shared-secret' | 'shared-configmap' | string
+  object?: string; inferred: boolean
+}
+export interface ZeaburProject {
+  namespace: string; project_id: string; project_name: string; environment_name: string; services: ZeaburService[]
+  /** namespace-level findings (orphan PVCs, non-Zeabur workloads); never secret values */
+  warnings?: string[]
+}
 export interface ZeaburInventory {
   k3s: boolean; k3s_version?: string; projects: ZeaburProject[]; ingress_running: boolean
   disk_free_gb: number; mem_free_mb: number; scanned_at: string

@@ -1,0 +1,20 @@
+[Unit]
+Description=Atoll agent (worker node daemon)
+Documentation=https://github.com/atoll-sh/atoll
+# Containers run in the Docker Engine (they are dockerd's children, not ours, so they keep
+# running when the agent stops). The agent also waits for dockerd on its own.
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+# Never give up restarting after a burst of failures.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/atoll-agent run --config /etc/atoll/agent.json
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

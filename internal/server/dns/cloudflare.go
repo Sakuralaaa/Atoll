@@ -184,3 +184,23 @@ func (c *Cloudflare) Delete(ctx context.Context, hostname, id string) error {
 	}
 	return nil
 }
+
+// FindA implements Finder.
+func (c *Cloudflare) FindA(ctx context.Context, hostname string) ([]Record, error) {
+	if c.Token == "" {
+		return nil, ErrNotConfigured
+	}
+	zone, err := c.zone(ctx)
+	if err != nil {
+		return nil, err
+	}
+	recs, err := c.find(ctx, zone, hostname)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Record, 0, len(recs))
+	for _, r := range recs {
+		out = append(out, Record{ID: r.ID, Content: r.Content, Proxied: r.Proxied})
+	}
+	return out, nil
+}

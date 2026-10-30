@@ -97,8 +97,8 @@ export function CodeBlock({ children }: { children: string }) {
 }
 
 // ---------- states ----------
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx('rounded-md bg-ov/[0.07] animate-pulse', className)} />
+export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div style={style} className={cx('rounded-md bg-ov/[0.07] animate-pulse', className)} />
 }
 export function CardSkeleton({ h = 180, n = 3, cols = 3 }: { h?: number; n?: number; cols?: number }) {
   return (

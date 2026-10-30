@@ -8,3 +8,4 @@ web/dist/
 /atoll
 /atoll-agent
 /atoll-server
+internal/server/webui/dist/assets/

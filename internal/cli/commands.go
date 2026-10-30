@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -859,5 +858,3 @@ func newMigrateCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "target server name or id")
 	return cmd
 }
-
-var _ = time.Second

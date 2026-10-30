@@ -26,3 +26,16 @@ func (Noop) UpsertA(context.Context, string, string, bool) (string, error) {
 	return "", ErrNotConfigured
 }
 func (Noop) Delete(context.Context, string, string) error { return ErrNotConfigured }
+
+// Record is an existing DNS record as reported by a Finder.
+type Record struct {
+	ID      string
+	Content string
+	Proxied bool
+}
+
+// Finder is implemented by providers that can look records up, so callers can
+// create only the records that are missing and leave existing ones untouched.
+type Finder interface {
+	FindA(ctx context.Context, hostname string) ([]Record, error)
+}

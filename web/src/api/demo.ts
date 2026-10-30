@@ -65,6 +65,7 @@ for (const p of mockProjects) {
     }))
   }
 }
+projects.push({ id: 'sandbox', name: 'sandbox', description: '空项目示例', server_id: 'fra', created_at: iso(D) })
 // image services in projects with a DB reference it
 for (const p of projects) {
   const ss = services.filter(s => s.project_id === p.id), db = ss.find(s => s.kind !== 'image')
@@ -117,20 +118,31 @@ const zeabur: ZeaburInventory = {
     { namespace: NS1, project_id: 'a1b2c3d4e5f6a', project_name: 'acme-api', environment_name: 'production', services: [
       { service_id: 'a1b2d0e2f3', name: 'acme-api', workload: 'deployment/service-a1b2d0e2f3', replicas: 1, role: 'app', kind: 'image', image: 'registry.zeabur.cloud/a1b2c3d4/acme-api:9c1e7b2', image_id: 'sha256:4be1c09a7d2f', zeabur_registry: true, image_cached: true,
         ports: [{ name: 'web', container_port: 8000, protocol: 'http' }], volumes: [zv('acme-api-data', '/app/data', 41e6, NS1)], domains: ['acme-api.zeabur.app'],
-        env: [{ key: 'PUBLIC_URL', value: 'https://acme-api.zeabur.app', secret: false, exposed: false }, { key: 'CALLBACK_URL', value: 'https://acme-api.zeabur.app/api/callback', secret: false, exposed: false }, { key: 'DATABASE_URL', value: '', secret: true, exposed: false }] },
+        env: [{ key: 'PUBLIC_URL', value: 'https://acme-api.zeabur.app', secret: false, exposed: false }, { key: 'CALLBACK_URL', value: 'https://acme-api.zeabur.app/api/callback', secret: false, exposed: false }, { key: 'DATABASE_URL', value: '', secret: true, exposed: false }, { key: 'REDIS_URL', value: 'redis://redis.zeabur.internal:6379', secret: false, exposed: false }],
+        status: 'running', data_store: '', k8s_services: ['service-a1b2d0e2f3'],
+        references: [
+          { key: 'DATABASE_URL', target: 'a1b2c1d0f7', target_key: 'POSTGRES_CONNECTION_STRING', via: 'shared-secret', object: 'Secret/postgresql-a1b2c1d0f7', inferred: false },
+          { key: 'REDIS_URL', target: 'a1b2c1d10a', via: 'zeabur-internal', object: 'redis.zeabur.internal', inferred: true },
+        ] },
       { service_id: 'a1b2c1d0f7', name: 'postgresql', workload: 'statefulset/service-a1b2c1d0f7', replicas: 1, role: 'database', kind: 'postgres', image: 'postgres:16-alpine', image_id: 'sha256:9a07e3c1b4d8', zeabur_registry: false, image_cached: true,
         ports: [{ name: 'database', container_port: 5432, protocol: 'tcp' }], env: [], volumes: [zv('postgresql-data', '/var/lib/postgresql/data', 182e6, NS1)], domains: [],
+        status: 'running', data_store: 'postgres', k8s_services: ['service-a1b2c1d0f7', 'postgresql'],
         warnings: ['PostgreSQL 16：用 postgres:16 同主版本 pg_dump/pg_restore'] },
       { service_id: 'a1b2c1d10a', name: 'redis', workload: 'statefulset/service-a1b2c1d10a', replicas: 1, role: 'cache', kind: 'redis', image: 'redis:7.2-alpine', image_id: 'sha256:1fd3a8b0c6e2', zeabur_registry: false, image_cached: true,
-        ports: [{ name: 'redis', container_port: 6379, protocol: 'tcp' }], env: [], volumes: [zv('redis-data', '/data', 3.1e6, NS1)], domains: [] },
-    ] },
+        ports: [{ name: 'redis', container_port: 6379, protocol: 'tcp' }], env: [], volumes: [zv('redis-data', '/data', 3.1e6, NS1)], domains: [],
+        status: 'degraded', data_store: 'redis', k8s_services: ['service-a1b2c1d10a'],
+        warnings: ['未开启 AOF：只有最后一次 RDB 快照会被迁移，快照之后写入的键可能丢失', '最近 1 小时重启 3 次（OOMKilled）'] },
+    ], warnings: ['孤立 PVC acme-api-uploads-old（112 MB）不属于任何服务，不会迁移；需要的话请先手动备份', 'postgresql 的 PVC 使用 local-path（hostPath），删除 k3s 会一并删除，切换后请勿提前清理'] },
     { namespace: NS2, project_id: 'e5f6a7b8c9d0b', project_name: 'LinkProxy', environment_name: 'production', services: [
       { service_id: 'e5f6aa0b31', name: 'linkproxy', workload: 'deployment/service-e5f6aa0b31', replicas: 1, role: 'app', kind: 'image', image: 'example/link-proxy:latest', image_id: 'sha256:c3e90f12aa47', zeabur_registry: false, image_cached: true,
         ports: [{ name: 'web', container_port: 8317, protocol: 'http' }], node_ports: [30817], env: [{ key: 'MANAGEMENT_BASE', value: 'https://linkproxy-demo.zeabur.app/v0', secret: false, exposed: false }], volumes: [zv('auths', '/root/.link-proxy', 2.4e6, NS2)], domains: ['linkproxy-demo.zeabur.app'],
+        status: 'running', data_store: '',
         warnings: ['latest 标签：将固定到正在运行的摘要 sha256:c3e90f12aa47', 'NodePort 30817 迁移后改为 Caddy 反代'] },
       { service_id: 'e5f6aa0c88', name: 'config-editor', workload: '', replicas: 0, role: 'other', kind: 'image', image: 'registry.zeabur.cloud/e5f6a7b8/config-editor:1a2b3c4', image_id: '', zeabur_registry: true, image_cached: false,
-        ports: [], env: [], volumes: [zv('config', '/data', 0.2e6, NS2)], domains: [], warnings: ['服务已暂停，本机没有镜像缓存，只能迁移数据卷'] },
-    ] },
+        ports: [], env: [], volumes: [zv('config', '/data', 0.2e6, NS2)], domains: [], status: 'suspended',
+        references: [{ target: 'e5f6aa0b31', via: 'shared-configmap', object: 'ConfigMap/linkproxy-config', inferred: false }],
+        warnings: ['服务已暂停，本机没有镜像缓存，只能迁移数据卷'] },
+    ], warnings: ['deployment/debug-shell 不是 Zeabur 服务，已忽略'] },
   ],
 }
 const LOCAL_STEPS = ['导出 Zeabur 构建的镜像', '拉取公共镜像（固定到运行中的摘要）', '复制数据卷', '导出并恢复数据库', '启动 Atoll 容器（不接公网）', '校验数据行数', '缩容 Zeabur 应用', '最终数据同步', '停用 Zeabur 入口', '启用 atoll-caddy 接管 80/443']
@@ -208,7 +220,16 @@ function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
     const f = FS[target]
     return typeof f === 'string' ? { ok: true, output: f } : { ok: true, output: `# ${target}\n` }
   }
-  if (script.startsWith('printf')) { FS[cmd[4]] = cmd[3]; return { ok: true, output: '' } }
+  if (script.startsWith('printf')) {
+    const path = cmd[5], dir = path.replace(/\/[^/]+$/, '') || '/', name = path.slice(dir.length + (dir === '/' ? 0 : 1))
+    if (!(path in FS) && Array.isArray(FS[dir])) (FS[dir] as string[]).push(name)
+    FS[path] = cmd[4]; return { ok: true, output: '' }
+  }
+  if (cmd[0] === 'mkdir') {
+    const path = target.replace(/\/$/, ''), dir = path.replace(/\/[^/]+$/, '') || '/', name = path.slice(dir.length + (dir === '/' ? 0 : 1))
+    if (!(path in FS)) { FS[path] = []; if (Array.isArray(FS[dir])) (FS[dir] as string[]).push(name + '/') }
+    return { ok: true, output: '' }
+  }
   return { ok: true, output: `$ ${cmd.join(' ')}\n(demo) ok\n` }
 }
 
@@ -237,7 +258,7 @@ function route(method: string, path: string, body: any): unknown {
   const G = method === 'GET', P = method === 'POST', U = method === 'PUT', X = method === 'PATCH', DEL = method === 'DELETE'
   let a: string[] | null
 
-  if (m('auth/status')) return { setup_required: false }
+  if (m('auth/status')) return { setup_required: location.hash.includes('setup=1') }
   if (m('auth/me') || m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: body?.username || 'demo' }
   if (m('auth/logout')) return {}
 

@@ -73,8 +73,10 @@ func SaveConfig(path string, c *Config) error {
 // Paths are the on-disk locations under the data dir.
 type Paths struct{ Root string }
 
-func (p Paths) StateDir() string                  { return filepath.Join(p.Root, "state") }
-func (p Paths) StateFile(serviceID string) string { return filepath.Join(p.Root, "state", serviceID+".json") }
+func (p Paths) StateDir() string { return filepath.Join(p.Root, "state") }
+func (p Paths) StateFile(serviceID string) string {
+	return filepath.Join(p.Root, "state", serviceID+".json")
+}
 func (p Paths) ConfigsDir(serviceID string) string {
 	return filepath.Join(p.Root, "configs", serviceID)
 }

@@ -1,0 +1,34 @@
+[Unit]
+Description=Atoll control server (REST API, web panel, agent hub)
+Documentation=https://github.com/atoll-sh/atoll
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=ATOLL_LISTEN=:7300
+Environment=ATOLL_DATA=/var/lib/atoll
+# Optional overrides (ATOLL_LISTEN, ATOLL_PUBLIC_URL, ATOLL_LOG_LEVEL) live here.
+EnvironmentFile=-/etc/atoll/server.env
+ExecStart=/usr/local/bin/atoll-server serve
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+LimitNOFILE=65536
+# The server only needs its data dir; keep the rest of the system read-only.
+StateDirectory=atoll
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/atoll
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -197,3 +197,26 @@ func (s *Store) NodeByToken(ctx context.Context, hash string) (string, error) {
 	err := s.DB.QueryRowContext(ctx, `SELECT node_id FROM node_tokens WHERE token_hash=?`, hash).Scan(&id)
 	return id, mapErr(err)
 }
+
+// SetPassword replaces a user's password hash and signs out all of their sessions.
+// An empty username picks the owner (lowest id).
+func (s *Store) SetPassword(ctx context.Context, username, hash string) (*User, error) {
+	var u *User
+	var err error
+	if username == "" {
+		u, err = scanUser(s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, created_at FROM users ORDER BY id LIMIT 1`))
+	} else {
+		u, err = s.UserByName(ctx, username)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.DB.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hash, u.ID); err != nil {
+		return nil, err
+	}
+	if _, err := s.DB.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, u.ID); err != nil {
+		return nil, err
+	}
+	u.PasswordHash = hash
+	return u, nil
+}

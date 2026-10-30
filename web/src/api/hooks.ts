@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ApiError, isConfirmation } from './client'
 import { toast } from '../components/feedback'
 
@@ -19,7 +19,8 @@ export function useQuery<T>(key: string | null, fn: () => Promise<T>, opts: { in
   const [data, setData] = useState<T | undefined>(() => (key ? cache.get(key) as T | undefined : undefined))
   const [loading, setLoading] = useState(key !== null && !cache.has(key))
   const [error, setError] = useState<Error | undefined>()
-  const fnRef = useRef(fn); fnRef.current = fn
+  const fnRef = useRef(fn)
+  useLayoutEffect(() => { fnRef.current = fn })
   const seq = useRef(0)
 
   const load = useCallback((quiet = false) => {

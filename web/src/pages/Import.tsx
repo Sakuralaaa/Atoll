@@ -1,16 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowRightLeft, Server as ServerIcon, ScanSearch, ListChecks, FlaskConical, Power, Trash2, Check, Loader2, Circle, X, Minus,
-  HardDrive, MemoryStick, Cpu, Globe, AlertTriangle, ChevronRight, ChevronDown, Upload, RotateCcw, ShieldCheck, Box, Undo2, ArrowRight, Settings2, PartyPopper,
+  Server as ServerIcon, ScanSearch, ListChecks, FlaskConical, Power, Trash2, Check, Loader2, Circle, X, Minus,
+  HardDrive, MemoryStick, Cpu, Globe, AlertTriangle, Link2, Database, ChevronRight, ChevronDown, Upload, RotateCcw, ShieldCheck, Box, Undo2, ArrowRight, Settings2, PartyPopper,
 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, Dot, ProviderIcon, ServiceIcon, cx } from '../components/ui'
-import { CodeBlock, ConfirmDialog, CopyButton, Empty, ErrorState, Label, Load, RowsSkeleton, Select, Skeleton, TextInput, toast } from '../components/feedback'
+import { CodeBlock, ConfirmDialog, CopyButton, Empty, ErrorState, Label, Load, RowsSkeleton, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
-import { invalidate, run, useBusy, useQuery } from '../api/hooks'
-import { ago, bytes, colorFor, dateTime, flagFor, gb, letterFor, usagePct } from '../api/view'
-import type { ImportJob, ImportPlan, JoinToken, Server, ZeaburInventory, ZeaburProject, ZeaburService } from '../api/types'
+import { run, useBusy, useQuery } from '../api/hooks'
+import { ago, bytes, colorFor, flagFor, gb, letterFor, usagePct } from '../api/view'
+import type { ImportJob, ImportPlan, JoinToken, Server, ZeaburInventory, ZeaburProject, ZeaburReference, ZeaburService } from '../api/types'
 
 const STEPS = [
   { n: 1, l: '选择服务器', i: <ServerIcon size={15} /> },
@@ -22,6 +22,31 @@ const STEPS = [
 ]
 const ROLE: Record<string, [string, 'violet' | 'amber' | 'green' | 'zinc']> = { app: ['应用', 'violet'], database: ['数据库', 'amber'], cache: ['缓存', 'green'], other: ['其他', 'zinc'] }
 const isZeaburApp = (h: string) => h.endsWith('.zeabur.app')
+const ZSTATUS: Record<string, [string, 'green' | 'amber' | 'red' | 'zinc']> = {
+  running: ['运行中', 'green'], progressing: ['更新中', 'amber'], degraded: ['降级', 'amber'], failed: ['失败', 'red'], suspended: ['已暂停', 'zinc'], unknown: ['状态未知', 'zinc'],
+}
+const zStatus = (s: ZeaburService) => s.status || (!s.workload ? 'suspended' : s.replicas ? 'running' : 'unknown')
+const STORE: Record<string, string> = { postgres: 'PostgreSQL', mysql: 'MySQL', redis: 'Redis', mongo: 'MongoDB', queue: '消息队列', search: '搜索引擎', other: '其他数据存储' }
+const VIA: Record<string, string> = { 'env-value': '变量值', 'zeabur-internal': 'zeabur.internal', 'shared-secret': '共享 Secret', 'shared-configmap': '共享 ConfigMap' }
+function StatusBadge({ s }: { s: ZeaburService }) {
+  const [l, t] = ZSTATUS[zStatus(s)] ?? [zStatus(s), 'zinc']
+  return <Badge tone={t}>{l}</Badge>
+}
+function Refs({ refs, names }: { refs: ZeaburReference[]; names: Record<string, string> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[12px] text-muted flex items-center gap-1 mr-0.5"><Link2 size={13} />引用</span>
+      {refs.map((r, i) => (
+        <span key={i} title={[VIA[r.via] ?? r.via, r.object].filter(Boolean).join(' · ')} className={cx('chip px-2 h-6 inline-flex items-center gap-1 text-[11.5px] font-mono bg-card', r.inferred && 'border-dashed')}>
+          {r.key ? <span className="text-fg2">{r.key}</span> : <span className="text-muted">{r.object ?? '整体共享'}</span>}
+          <ArrowRight size={11} className="text-accent shrink-0" />
+          <span className="font-semibold text-fg">{names[r.target] ?? r.target}</span>{r.target_key && <span className="text-muted">.{r.target_key}</span>}
+          {r.inferred && <span className="font-sans not-italic text-[10.5px] text-muted">推断</span>}
+        </span>
+      ))}
+    </div>
+  )
+}
 const LIVE = ['rehearsing', 'cutting_over', 'rolling_back', 'cleaning', 'deploying', 'uploading', 'verifying']
 
 function jobStep(j: ImportJob, want: string | null) {
@@ -173,7 +198,12 @@ function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string
               <span className="text-[13px] text-muted">{p.services.length} 个服务 · {bytes(projBytes(p))}</span>
               <Button variant="primary" onClick={() => onPick(p.namespace)}>迁移这个项目<ArrowRight size={14} /></Button>
             </div>
-            <div className="divide-y divide-line">{p.services.map(s => <ZRow key={s.service_id} s={s} />)}</div>
+            {!!p.warnings?.length && (
+              <div className="px-6 py-3 border-b border-line bg-[#fcd34d]/20 space-y-1">
+                {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
+              </div>
+            )}
+            <div className="divide-y divide-line">{p.services.map(s => <ZRow key={s.service_id} s={s} names={Object.fromEntries(p.services.map(x => [x.service_id, x.name]))} />)}</div>
           </Card>
         ))}
       </div>
@@ -184,27 +214,32 @@ function ImageBadge({ s }: { s: ZeaburService }) {
   if (s.zeabur_registry) return s.image_cached ? <Badge tone="violet">Zeabur 构建 · 将从本机导出</Badge> : <Badge tone="red">Zeabur 构建 · 本机无缓存</Badge>
   return <Badge tone="zinc">公共镜像 · 固定摘要</Badge>
 }
-function ZRow({ s }: { s: ZeaburService }) {
+function ZRow({ s, names }: { s: ZeaburService; names: Record<string, string> }) {
   const [rl, rt] = ROLE[s.role] ?? ROLE.other
   return (
-    <div className="px-6 py-4 grid grid-cols-[220px_minmax(0,1fr)_240px] gap-6 text-[13px]">
+    <div className="px-6 py-4 grid grid-cols-[230px_minmax(0,1fr)_240px] gap-6 text-[13px]">
       <div className="flex items-start gap-3 min-w-0">
         <ServiceIcon s={{ kind: s.kind, letter: letterFor(s.name), color: colorFor(s.name) }} size={30} />
-        <div className="min-w-0"><div className="font-semibold truncate flex items-center gap-2">{s.name}</div>
-          <div className="mt-1 flex items-center gap-1.5"><Badge tone={rt}>{rl}</Badge>{!s.workload ? <Badge tone="zinc">已暂停</Badge> : <span className="text-[12px] text-muted flex items-center gap-1"><Dot status={s.replicas ? 'running' : 'stopped'} />{s.replicas} 副本</span>}</div></div>
+        <div className="min-w-0">
+          <div className="font-semibold truncate">{s.name}</div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5"><Badge tone={rt}>{rl}</Badge><StatusBadge s={s} /></div>
+          <div className="mt-1.5 text-[12px] text-muted flex items-center gap-1.5">{s.workload ? <><Dot status={s.replicas ? 'running' : 'stopped'} />{s.replicas} 副本 · {s.workload.split('/')[0]}</> : '无工作负载（只有 PVC）'}</div>
+        </div>
       </div>
       <div className="min-w-0 space-y-2">
-        <div className="flex items-center gap-2 min-w-0"><span className="font-mono text-[12.5px] text-fg2 truncate">{s.image}</span><ImageBadge s={s} /></div>
+        <div className="flex flex-wrap items-center gap-2 min-w-0"><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full">{s.image}</span><ImageBadge s={s} /></div>
+        {s.data_store && <div className="flex items-center gap-1.5 text-[12.5px] text-fg2"><Database size={13} className="text-accent shrink-0" />数据存储 · <span className="font-semibold">{STORE[s.data_store] ?? s.data_store}</span>{['postgres', 'mysql', 'mongo', 'redis'].includes(s.data_store) ? <span className="text-muted">· 同主版本导出恢复</span> : <span className="text-muted">· 按目录复制</span>}</div>}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted">
           {s.ports.map(p => <span key={p.name} className="font-mono text-[12px]">{p.container_port}/{p.protocol}</span>)}
           {s.node_ports?.map(n => <span key={n} className="font-mono text-[12px] text-dim">NodePort {n}</span>)}
-          {s.domains.map(d => <span key={d} className="flex items-center gap-1.5"><Globe size={13} /><span className={cx('font-medium', isZeaburApp(d) ? 'text-[#ef4444] line-through decoration-2' : 'text-fg')}>{d}</span>{isZeaburApp(d) && <Badge tone="red">迁移后失效</Badge>}</span>)}
+          {s.domains.map(d => <span key={d} className="flex items-center gap-1.5 min-w-0"><Globe size={13} className="shrink-0" /><span className={cx('font-medium truncate', isZeaburApp(d) ? 'text-[#ef4444] line-through decoration-2' : 'text-fg')}>{d}</span>{isZeaburApp(d) && <Badge tone="red">迁移后失效</Badge>}</span>)}
         </div>
-        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" />{w}</div>)}
+        {!!s.references?.length && <Refs refs={s.references} names={names} />}
+        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 min-w-0">
         {!s.volumes.length && <span className="text-dim">无数据卷</span>}
-        {s.volumes.map(v => <div key={v.pvc} className="flex items-center gap-2"><HardDrive size={13} className="text-accent shrink-0" /><span className="font-mono text-[12px] truncate flex-1" title={v.host_dir}>{v.mount_path}</span><span className="tnum text-muted">{bytes(v.bytes)}</span></div>)}
+        {s.volumes.map(v => <div key={v.pvc} className="flex items-center gap-2 min-w-0"><HardDrive size={13} className="text-accent shrink-0" /><span className="font-mono text-[12px] truncate flex-1" title={v.host_dir}>{v.mount_path}</span><span className="tnum text-muted shrink-0">{bytes(v.bytes)}</span></div>)}
       </div>
     </div>
   )
@@ -233,6 +268,8 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
   const [busy, wrap] = useBusy()
   const toggle = (id: string) => setSel(v => { const n = new Set(v); n.has(id) ? n.delete(id) : n.add(id); return n })
   const needCf = zHosts.length > 0 && !cfReady
+  const names = Object.fromEntries(p.services.map(x => [x.service_id, x.name]))
+  const dangling = chosen.flatMap(s => (s.references ?? []).filter(r => !sel.has(r.target) && names[r.target]).map(r => ({ from: s.name, to: names[r.target], key: r.key })))
   const submit = () => wrap(async () => {
     const domain_map = Object.fromEntries(zHosts.map(h => [h, target(h).trim()]))
     const j = await run(() => api.createZeaburLocal({ server_id: serverId, namespace: p.namespace, service_ids: chosen.map(s => s.service_id), project_name: name.trim(), domain_map }))
@@ -253,13 +290,20 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
                 <button key={s.service_id} onClick={() => toggle(s.service_id)} className="w-full text-left px-5 h-16 flex items-center gap-4 hover:bg-ov/[0.02]">
                   <span className={cx('h-5 w-5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', on ? 'bg-[#8b5cf6] text-white' : 'bg-sunk')}>{on && <Check size={13} strokeWidth={3} />}</span>
                   <ServiceIcon s={{ kind: s.kind, letter: letterFor(s.name), color: colorFor(s.name) }} size={30} />
-                  <div className="flex-1 min-w-0"><div className="text-[13.5px] font-semibold flex items-center gap-2">{s.name}<Badge tone={rt}>{rl}</Badge></div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{s.image}</div></div>
+                  <div className="flex-1 min-w-0"><div className="text-[13.5px] font-semibold flex items-center gap-2">{s.name}<Badge tone={rt}>{rl}</Badge>{zStatus(s) !== 'running' && <StatusBadge s={s} />}</div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{s.image}</div></div>
                   <ImageBadge s={s} />
                   <span className="w-20 text-right text-[12.5px] text-muted tnum">{bytes(s.volumes.reduce((a, v) => a + v.bytes, 0))}</span>
                 </button>
               )
             })}
           </Card>
+          {dangling.length > 0 && (
+            <div className="mt-3 rounded-[4px] border-2 border-[var(--edge)] bg-[#fcd34d] text-[#141414] px-4 py-3 text-[12.5px]">
+              <div className="font-bold flex items-center gap-1.5"><AlertTriangle size={14} />有服务引用了没选中的服务</div>
+              {dangling.map((d, i) => <div key={i} className="mt-1 font-mono">{d.from}{d.key ? `.${d.key}` : ''} → {d.to}</div>)}
+              <div className="mt-1">迁移后这些连接会断开，除非你之后手动改成新地址。</div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -287,7 +331,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
             <div className="mt-4 rounded-xl border-2 border-dashed border-line2 px-5 py-4">
               <div className="text-[13px] font-semibold flex items-center gap-2">环境变量<Badge tone="green">将自动改写</Badge></div>
               <div className="text-[12.5px] text-muted mt-1 mb-3">这些变量的值引用了 zeabur.app，会改写成上面的新地址。</div>
-              <div className="flex flex-wrap gap-2">{rewrite.map(r => <span key={r.svc + r.key} className="chip px-2.5 h-7 inline-flex items-center gap-1.5 bg-card font-mono text-[12px]"><span className="text-dim">{r.svc}</span>{r.key}</span>)}</div>
+              <div className="flex flex-wrap gap-2">{rewrite.map(r => <span key={r.svc + r.key} className="chip px-2.5 h-7 inline-flex items-center gap-1.5 bg-card font-mono text-[12px]"><span className="text-muted">{r.svc}</span>{r.key}</span>)}</div>
             </div>
           )}
         </div>
@@ -322,7 +366,7 @@ function StepList({ job, from = 0, to }: { job: ImportJob; from?: number; to?: n
             s.status === 'done' && 'bg-[#86efac] text-[#141414]', s.status === 'running' && 'bg-[#fcd34d] text-[#141414]', s.status === 'failed' && 'bg-[#fca5a5] text-[#141414]', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
             {s.status === 'done' ? <Check size={13} strokeWidth={3} /> : s.status === 'running' ? <Loader2 size={13} className="animate-spin" /> : s.status === 'failed' ? <X size={13} strokeWidth={3} /> : s.status === 'skipped' ? <Minus size={13} /> : <Circle size={7} fill="currentColor" />}
           </span>
-          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{s.name}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 font-mono break-all">{s.detail}</div>}</div>
+          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{s.name}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 font-mono break-words">{s.detail}</div>}</div>
         </div>
       ))}
     </div>

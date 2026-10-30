@@ -270,5 +270,3 @@ func (s *Server) relayVolume(ctx context.Context, from, to, serviceID, volume, b
 	}
 	return fmt.Sprintf("%s transferred", humanBytes(size)), nil
 }
-
-

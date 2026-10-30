@@ -1,56 +1,172 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, ChevronDown, Folder, FileText, FolderPlus, FilePlus, RefreshCw } from 'lucide-react'
-import { projectById } from '../mock'
+import { ChevronLeft, ChevronRight, ChevronDown, Folder, FileText, FolderPlus, FilePlus, RefreshCw, Loader2, Save, AlertTriangle } from 'lucide-react'
+import { Button, cx } from '../components/ui'
+import { Empty, Skeleton, toast } from '../components/feedback'
+import { api } from '../api/client'
+import { useBusy } from '../api/hooks'
+import { bytes } from '../api/view'
+import { useProject } from './ServicePage'
 
-const tree: [number, 'd' | 'f', string, boolean?, boolean?][] = [
-  [0, 'd', 'app', true], [1, 'f', '.env.example'], [1, 'd', '.github'], [1, 'f', 'VERSION'], [1, 'd', 'data', false, true],
-  [1, 'f', 'docker-compose.yml'], [1, 'd', 'docs'], [1, 'd', 'static'], [1, 'f', 'main.py'], [1, 'f', 'config.yaml'],
-  [1, 'f', 'requirements.txt'], [1, 'd', 'scripts'], [1, 'f', 'start.sh'], [1, 'd', 'templates'], [0, 'd', 'logs', false, true],
-]
-const code = `# mail-relay 配置
-server:
-  host: 0.0.0.0
-  port: 5000
-  public_url: https://mail.example.com
+type Entry = { name: string; dir: boolean }
+type DirState = Entry[] | 'loading' | { error: string }
 
-database:
-  path: /app/data/mail.db
+const join = (dir: string, name: string) => (dir === '/' ? '' : dir) + '/' + name
+const parent = (p: string) => p.replace(/\/[^/]+\/?$/, '') || '/'
 
-scheduler:
-  forward_interval: 300   # 秒
-  timezone: Asia/Shanghai
-
-forward:
-  channels: []            # telegram / webhook
-
-log:
-  level: INFO
-  dir: /app/logs`
+/** Run one command in the container; throws on agent/command error. */
+async function sh(sid: string, cmd: string[]) {
+  const r = await api.exec(sid, cmd)
+  if (!r.ok) throw new Error(r.error || r.output || '命令执行失败')
+  return r.output ?? ''
+}
 
 export default function FilesPage() {
-  const { pid, sid } = useParams()
-  const p = projectById(pid)
+  const { pid, sid = '' } = useParams()
+  const s = useProject(pid).data?.services?.find(x => x.id === sid)
+  const vols = useMemo(() => (s?.volumes ?? []).map(v => v.mount_path.replace(/\/$/, '')), [s])
+  const isVol = (p: string) => vols.some(v => p === v || p.startsWith(v + '/'))
+
+  const [root, setRoot] = useState<string>()
+  const [rootErr, setRootErr] = useState<string>()
+  const [dirs, setDirs] = useState<Record<string, DirState>>({})
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [file, setFile] = useState<string>()
+  const [orig, setOrig] = useState<string>()
+  const [text, setText] = useState('')
+  const [fileErr, setFileErr] = useState<string>()
+  const [loadingFile, setLoadingFile] = useState(false)
+  const [creating, setCreating] = useState<'file' | 'dir'>()
+  const [newName, setNewName] = useState('')
+  const [saving, wrapSave] = useBusy()
+
+  const list = useCallback(async (dir: string) => {
+    setDirs(d => ({ ...d, [dir]: 'loading' }))
+    try {
+      const out = await sh(sid, ['ls', '-1Ap', dir])
+      const es = out.split('\n').filter(Boolean).map(n => ({ name: n.replace(/\/$/, ''), dir: n.endsWith('/') }))
+      es.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
+      setDirs(d => ({ ...d, [dir]: es }))
+    } catch (e) { setDirs(d => ({ ...d, [dir]: { error: (e as Error).message } })) }
+  }, [sid])
+
+  const start = useCallback(async () => {
+    setRootErr(undefined)
+    try {
+      const r = (await sh(sid, ['pwd'])).trim() || '/'
+      setRoot(r); setOpen(new Set([r])); list(r)
+    } catch (e) { setRootErr((e as Error).message) }
+  }, [sid, list])
+  useEffect(() => { if (sid) start() }, [sid, start])
+
+  const toggle = (p: string) => {
+    setOpen(o => { const n = new Set(o); if (n.has(p)) n.delete(p); else { n.add(p); if (!Array.isArray(dirs[p])) list(p) } return n })
+  }
+  const openFile = async (p: string) => {
+    if (dirty && !confirm('当前文件有未保存的修改，确定放弃？')) return
+    setFile(p); setFileErr(undefined); setLoadingFile(true)
+    try { const c = await sh(sid, ['cat', p]); setOrig(c); setText(c) }
+    catch (e) { setFileErr((e as Error).message); setOrig(undefined); setText('') }
+    finally { setLoadingFile(false) }
+  }
+  const dirty = orig !== undefined && text !== orig
+  const save = () => wrapSave(async () => {
+    if (!file || !dirty) return
+    try { await sh(sid, ['sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', text, file]); setOrig(text); toast('已保存', 'ok') }
+    catch (e) { toast(`保存失败：${(e as Error).message}`, 'error') }
+  })
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save() } }
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k)
+  })
+
+  const target = file ? parent(file) : root ?? '/'
+  const create = async () => {
+    const n = newName.trim(); if (!n || !creating) return
+    const p = join(target, n)
+    try {
+      await sh(sid, creating === 'dir' ? ['mkdir', '-p', p] : ['sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', '', p])
+      setCreating(undefined); setNewName(''); setOpen(o => new Set(o).add(target)); await list(target)
+      if (creating === 'file') openFile(p)
+    } catch (e) { toast((e as Error).message, 'error') }
+  }
+
+  const renderDir = (dir: string, depth: number): React.ReactNode => {
+    const st = dirs[dir]
+    if (st === 'loading' || st === undefined) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center"><Skeleton className="h-3 w-24" /></div>
+    if (!Array.isArray(st)) return <div style={{ paddingLeft: depth * 18 + 26 }} className="py-1 text-[12px] text-[#ef4444] break-all">{st.error}</div>
+    if (!st.length) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center text-[12px] text-dim">空目录</div>
+    return st.map(e => {
+      const p = join(dir, e.name), vol = isVol(p), isOpen = open.has(p)
+      return (
+        <div key={p}>
+          <button onClick={() => (e.dir ? toggle(p) : openFile(p))} title={p}
+            className={cx('w-full flex items-center gap-2 h-[30px] rounded-[4px] pr-2 text-left', file === p ? 'nav-active !shadow-none' : 'hover:bg-ov/5')} style={{ paddingLeft: depth * 18 + 4 }}>
+            {e.dir ? (isOpen ? <ChevronDown size={14} className="text-muted shrink-0" /> : <ChevronRight size={14} className="text-muted shrink-0" />) : <span className="w-[14px] shrink-0" />}
+            {e.dir ? <Folder size={15} className={cx('shrink-0', vol ? 'text-accent' : 'text-fg2')} fill="currentColor" /> : <FileText size={15} className="text-fg2 shrink-0" />}
+            <span className={cx('truncate', vol ? 'text-accent font-semibold' : 'text-fg')}>{e.name}</span>
+          </button>
+          {e.dir && isOpen && renderDir(p, depth + 1)}
+        </div>
+      )
+    })
+  }
+
+  const lines = text.split('\n').length
   return (
     <div className="h-full flex topline">
-      <aside className="w-[360px] shrink-0 bg-side border-r border-line flex flex-col px-6 pt-7">
-        <Link to={`/projects/${p.id}/services/${sid}`} className="flex items-center gap-1.5 text-[15px] text-fg2"><ChevronLeft size={16} />返回</Link>
-        <div className="flex items-center mt-5"><h1 className="text-[17px] font-semibold tracking-tight flex-1">文件管理</h1><span className="flex gap-3 text-muted"><FolderPlus size={16} /><FilePlus size={16} /><RefreshCw size={15} /></span></div>
-        <div className="text-[13px] text-muted mt-1 mb-4">已挂载的卷以<span className="text-accent">紫色</span>显示，重新部署后仍保留。</div>
-        <div className="font-mono text-[13.5px] overflow-auto">
-          {tree.map(([lv, t, n, open, vol], i) => (
-            <div key={i} className={`flex items-center gap-2 h-[34px] rounded-md px-1 ${n === 'config.yaml' ? 'bg-ov/[0.07]' : ''}`} style={{ paddingLeft: lv * 26 + 4 }}>
-              {t === 'd' ? (open ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />) : <span className="w-[14px]" />}
-              {t === 'd' ? <Folder size={15} className="text-fg2" fill="currentColor" /> : <FileText size={15} className="text-fg2" />}
-              <span className={vol ? 'text-accent' : 'text-fg'}>{n}</span>
-            </div>
-          ))}
+      <aside className="w-[340px] shrink-0 bg-side border-r border-line flex flex-col px-5 pt-7 min-h-0">
+        <Link to={`/projects/${pid}/services/${sid}`} className="flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ChevronLeft size={16} />返回 {s?.name ?? ''}</Link>
+        <div className="flex items-center mt-5">
+          <h1 className="text-[17px] font-extrabold italic tracking-[-0.02em] flex-1">文件管理</h1>
+          <span className="flex gap-1 text-muted">
+            <button title="新建文件夹" onClick={() => { setCreating('dir'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FolderPlus size={16} /></button>
+            <button title="新建文件" onClick={() => { setCreating('file'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FilePlus size={16} /></button>
+            <button title="刷新" onClick={() => { setDirs({}); [...open].forEach(list) }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><RefreshCw size={15} /></button>
+          </span>
+        </div>
+        <div className="text-[12.5px] text-muted mt-1 mb-3 leading-5">已挂载的卷以<span className="text-accent font-semibold">紫色</span>显示，重新部署后仍保留；其他位置的修改会在重新部署时丢失。</div>
+        {creating && (
+          <div className="mb-3">
+            <div className="text-[12px] text-dim mb-1.5 font-mono truncate">在 {target} 下新建{creating === 'dir' ? '文件夹' : '文件'}</div>
+            <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create(); if (e.key === 'Escape') setCreating(undefined) }}
+              placeholder={creating === 'dir' ? 'folder' : 'file.txt'} className="w-full h-9 rounded-lg field px-3 font-mono text-[13px] outline-none text-fg placeholder:text-dim" />
+          </div>
+        )}
+        <div className="font-mono text-[13px] overflow-auto flex-1 pb-6 -mx-1 px-1">
+          {rootErr ? <div className="text-[12.5px] text-[#ef4444] break-all font-sans">无法读取容器文件：{rootErr}<div className="mt-2"><Button size="sm" onClick={start}><RefreshCw size={13} />重试</Button></div></div>
+            : !root ? <div className="space-y-2.5 pt-1">{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} className="h-3.5" />)}</div>
+            : <>
+              <button onClick={() => toggle(root)} className="w-full flex items-center gap-2 h-[30px] px-1 rounded-[4px] hover:bg-ov/5 text-left">
+                {open.has(root) ? <ChevronDown size={14} className="text-muted" /> : <ChevronRight size={14} className="text-muted" />}<Folder size={15} className="text-fg2" fill="currentColor" /><span className="font-semibold">{root}</span>
+              </button>
+              {open.has(root) && renderDir(root, 1)}
+            </>}
         </div>
       </aside>
-      <main className="flex-1 flex flex-col bg-bg">
-        <div className="h-12 border-b border-line flex items-center px-5 text-[13.5px] gap-3"><span className="font-mono">/app/config.yaml</span><span className="text-dim">· 412 B</span><span className="ml-auto h-8 px-3 rounded-md bg-[#7c3aed] text-white text-[13px] font-semibold inline-flex items-center">保存</span></div>
-        <pre className="flex-1 p-5 font-mono text-[13.5px] leading-7 overflow-auto">
-          {code.split('\n').map((l, i) => <div key={i} className="flex"><span className="w-10 text-dim select-none text-right pr-4">{i + 1}</span><span className={l.trim().startsWith('#') ? 'text-dim' : l.includes(':') && !l.startsWith(' ') ? 'text-accent-soft' : 'text-fg2'}>{l}</span></div>)}
-        </pre>
+      <main className="flex-1 flex flex-col bg-bg min-w-0">
+        <div className="h-14 border-b-2 border-[var(--edge)] flex items-center px-5 text-[13.5px] gap-3 shrink-0">
+          {file ? <>
+            <span className="font-mono truncate">{file}</span>
+            {orig !== undefined && <span className="text-dim shrink-0 tnum">· {bytes(new TextEncoder().encode(text).length)}</span>}
+            {isVol(file) ? <span className="text-[12px] text-accent shrink-0">· 卷内文件</span> : <span className="text-[12px] text-dim shrink-0">· 不在卷内，重新部署后恢复原样</span>}
+            {dirty && <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" title="未保存" />}
+            <span className="ml-auto" />
+            <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}保存</Button>
+          </> : <span className="text-muted">从左侧选择一个文件</span>}
+        </div>
+        {!file ? <div className="flex-1 grid place-items-center p-10"><Empty icon={<FileText size={22} />} title="浏览容器里的文件" desc="通过容器内的 ls / cat 读取，保存时写回原路径。适合改配置文件，大文件和二进制文件请用命令行。" /></div>
+          : loadingFile ? <div className="p-5 space-y-3">{[60, 40, 75, 30, 55].map((w, i) => <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />)}</div>
+          : fileErr ? <div className="p-6 flex items-start gap-2 text-[13px] text-[#ef4444]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="break-all">{fileErr}</span></div>
+          : (
+            <div className="flex-1 overflow-auto">
+              <div className="flex min-h-full font-mono text-[13.5px] leading-7">
+                <div className="w-12 shrink-0 text-right pr-3 pt-4 text-dim select-none border-r border-line bg-sunk/40">{Array.from({ length: lines }, (_, i) => <div key={i}>{i + 1}</div>)}</div>
+                <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} wrap="off" rows={lines}
+                  className="flex-1 pt-4 px-4 bg-transparent outline-none resize-none overflow-hidden text-fg2 whitespace-pre" style={{ minHeight: '100%' }} />
+              </div>
+            </div>
+          )}
       </main>
     </div>
   )

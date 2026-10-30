@@ -83,7 +83,9 @@ func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	return s.requireConfirm(w, r, "server.delete", n.ID, fmt.Sprintf("Remove server %s (%s)", n.Name, n.PublicIPv4), nil,
-		func(ctx context.Context) (int, any, error) { return 204, nil, s.execDeleteServer(ctx, n.ID, principalFrom(r.Context()).actor()) })
+		func(ctx context.Context) (int, any, error) {
+			return 204, nil, s.execDeleteServer(ctx, n.ID, principalFrom(r.Context()).actor())
+		})
 }
 
 func (s *Server) checkServerEmpty(ctx context.Context, id string) error {
@@ -208,7 +210,9 @@ func (s *Server) handleAgentJoin(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *Server) blobPath(id string) string { return filepath.Join(s.cfg.DataDir, "blobs", id+".tar.gz") }
+func (s *Server) blobPath(id string) string {
+	return filepath.Join(s.cfg.DataDir, "blobs", id+".tar.gz")
+}
 
 // newBlob returns a blob id plus one-time put and get URLs.
 func (s *Server) newBlob(ctx context.Context, base string) (id, putURL, getURL string, err error) {

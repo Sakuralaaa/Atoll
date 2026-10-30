@@ -95,7 +95,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const loc = useLocation()
   const srv = useServers().data?.find(s => s.id === project.server_id)
   const services = project.services ?? []
-  const add = () => { const q = new URLSearchParams(loc.search); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : loc.pathname}?${q}`) }
+  const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
     <div className="h-full flex topline">
       <aside className="w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pt-6 pb-4">

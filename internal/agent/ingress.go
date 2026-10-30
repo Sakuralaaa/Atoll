@@ -77,7 +77,9 @@ func (in *Ingress) tlsPaths() (cert, key string) {
 	return filepath.Join(in.paths.TLSDir(), "origin.crt"), filepath.Join(in.paths.TLSDir(), "origin.key")
 }
 
-func (in *Ingress) configFile() string { return filepath.Join(in.paths.CaddyDir(), "etc", "caddy.json") }
+func (in *Ingress) configFile() string {
+	return filepath.Join(in.paths.CaddyDir(), "etc", "caddy.json")
+}
 
 // SaveTLS persists the origin cert/key and reloads Caddy if an ingress config exists.
 func (in *Ingress) SaveTLS(ctx context.Context, t api.TLSPayload) error {

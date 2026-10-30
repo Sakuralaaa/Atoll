@@ -40,21 +40,21 @@ type Agent struct {
 	Log *slog.Logger
 
 	// Intervals (overridable in tests).
-	StatusEvery     time.Duration // forced status frame
-	StatusCheck     time.Duration // change detection poll
-	MetricsEvery    time.Duration
-	MaxBackoff      time.Duration
-	HelloFunc       func(ctx context.Context) api.HelloPayload
-	sampler         NodeSampler
-	connMu          sync.Mutex
-	conn            *websocket.Conn
-	queue           []api.Envelope // deploy events waiting for a connection
-	streamsMu       sync.Mutex
-	streams         map[string]context.CancelFunc
-	statusKick      chan struct{}
-	lastStatus      []byte
-	lastStatusAt    time.Time
-	statusMu        sync.Mutex
+	StatusEvery  time.Duration // forced status frame
+	StatusCheck  time.Duration // change detection poll
+	MetricsEvery time.Duration
+	MaxBackoff   time.Duration
+	HelloFunc    func(ctx context.Context) api.HelloPayload
+	sampler      NodeSampler
+	connMu       sync.Mutex
+	conn         *websocket.Conn
+	queue        []api.Envelope // deploy events waiting for a connection
+	streamsMu    sync.Mutex
+	streams      map[string]context.CancelFunc
+	statusKick   chan struct{}
+	lastStatus   []byte
+	lastStatusAt time.Time
+	statusMu     sync.Mutex
 }
 
 // New wires an agent with the default components. fw may be nil (firewall disabled).
@@ -245,7 +245,12 @@ func wsURL(server string) (string, error) {
 }
 
 func (a *Agent) connectLoop(ctx context.Context) {
-	backoff := time.Second
+	maxBackoff := a.MaxBackoff
+	if maxBackoff <= 0 {
+		maxBackoff = 30 * time.Second
+	}
+	initial := min(time.Second, maxBackoff)
+	backoff := initial
 	for ctx.Err() == nil {
 		start := time.Now()
 		err := a.session(ctx)
@@ -253,7 +258,7 @@ func (a *Agent) connectLoop(ctx context.Context) {
 			return
 		}
 		if time.Since(start) > time.Minute {
-			backoff = time.Second
+			backoff = initial
 		}
 		// full jitter in [backoff/2, backoff]
 		sleep := backoff/2 + time.Duration(rand.Int64N(int64(backoff/2)+1))
@@ -263,7 +268,7 @@ func (a *Agent) connectLoop(ctx context.Context) {
 			return
 		case <-time.After(sleep):
 		}
-		backoff = min(backoff*2, a.MaxBackoff)
+		backoff = min(backoff*2, maxBackoff)
 	}
 }
 

@@ -31,13 +31,13 @@ type Fake struct {
 	seq        int
 
 	// Hooks / scripted behaviour.
-	PullErr     map[string]error           // image -> error
-	CreateErr   error                      // next CreateContainer fails
-	ExitOnStart map[string]int             // image -> exit code: container "exits" right after start
-	LogLines    []agent.LogRecord          // returned by Logs
+	PullErr     map[string]error  // image -> error
+	CreateErr   error             // next CreateContainer fails
+	ExitOnStart map[string]int    // image -> exit code: container "exits" right after start
+	LogLines    []agent.LogRecord // returned by Logs
 	ExecFunc    func(name string, cmd []string, stdin io.Reader, stdout io.Writer) int
-	Loaded      [][]byte                   // archives given to LoadImage
-	LoadRefs    []string                   // refs LoadImage reports
+	Loaded      [][]byte // archives given to LoadImage
+	LoadRefs    []string // refs LoadImage reports
 	StatsFunc   func(name string) agent.ContainerStats
 }
 

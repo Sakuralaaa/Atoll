@@ -41,7 +41,7 @@ type Takeover struct {
 	// PortsFree checks host ports (used for the "Zeabur ingress gone" verification).
 	PortsFree func(ctx context.Context) error
 	// ParkWait bounds how long to wait for parked ingress pods to disappear.
-	ParkWait time.Duration
+	ParkWait  time.Duration
 	PollEvery time.Duration
 }
 
@@ -211,7 +211,10 @@ func (t *Takeover) Scan(ctx context.Context) (api.ZeaburInventory, error) {
 	objs := []k8s.Object{}
 	for _, ns := range ZeaburNamespaces(nsObjs) {
 		objs = append(objs, ns)
-		out, err := t.kubectl(ctx, "get", "deploy,sts,svc,pvc,cm,ingress,pods", "-n", ns.Metadata.Name, "-o", "yaml")
+		// Secrets are listed for their names/keys only (k8s.Parse drops data): they attribute
+		// shared credentials to services. CronJobs/Jobs/DaemonSets are reported as non-service
+		// workloads.
+		out, err := t.kubectl(ctx, "get", ScanKinds, "-n", ns.Metadata.Name, "-o", "yaml")
 		if err != nil {
 			return inv, fmt.Errorf("list objects in %s: %w", ns.Metadata.Name, err)
 		}
@@ -248,6 +251,9 @@ func (t *Takeover) Scan(ctx context.Context) (api.ZeaburInventory, error) {
 	}
 	return inv, nil
 }
+
+// ScanKinds are the object kinds read from each Zeabur namespace.
+const ScanKinds = "deploy,sts,ds,cronjob,job,svc,pvc,cm,secret,ingress,pods"
 
 // ZeaburNamespaces returns namespaces carrying any zeabur_* label.
 func ZeaburNamespaces(objs []k8s.Object) []k8s.Object {

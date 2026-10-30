@@ -159,7 +159,7 @@ export function CopyId({ v }: { v: string }) {
 }
 
 export function Badge({ children, tone = 'amber' }: { children: React.ReactNode; tone?: 'amber' | 'green' | 'violet' | 'zinc' | 'red' }) {
-  return <span className={cx('inline-flex items-center gap-1 rounded-[3px] px-2 h-[22px] text-[11.5px] font-bold font-mono italic border-[1.5px] border-[var(--edge)] shadow-[2px_2px_0_0_var(--edge)]',
+  return <span className={cx('inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded-[3px] px-2 h-[22px] text-[11.5px] font-bold font-mono italic border-[1.5px] border-[var(--edge)] shadow-[2px_2px_0_0_var(--edge)]',
     tone === 'amber' && 'bg-[#fcd34d] text-[#141414]',
     tone === 'green' && 'bg-[#86efac] text-[#141414]',
     tone === 'violet' && 'bg-[#c4b5fd] text-[#141414]',

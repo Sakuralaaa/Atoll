@@ -90,7 +90,7 @@ type ContainerSpec struct {
 	Mounts        []Mount
 	Ports         []PortBinding // host-published ports
 	ExposedPorts  []PortBinding // container ports exposed without publishing
-	RestartPolicy string          // "unless-stopped"
+	RestartPolicy string        // "unless-stopped"
 	NanoCPUs      int64
 	MemoryBytes   int64
 	Health        *HealthSpec

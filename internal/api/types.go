@@ -422,6 +422,20 @@ type ImportJob struct {
 	Status    string       `json:"status"` // "planned" | "uploading" | "deploying" | "verifying" | "done" | "failed"
 	Steps     []ImportStep `json:"steps"`
 	CreatedAt time.Time    `json:"created_at"`
+	// In-place Zeabur takeover additions (zeabur-local status values: rehearsing | rehearsed |
+	// cutting_over | live | rolling_back | rolled_back | cleaning | cleaned, plus failed).
+	Mode      string         `json:"mode,omitempty"`      // "plan" | "zeabur-local"
+	ServerID  string         `json:"server_id,omitempty"` // host being taken over (zeabur-local)
+	Namespace string         `json:"namespace,omitempty"` // zeabur environment-<id> namespace
+	Verify    []ImportVerify `json:"verify,omitempty"`    // row counts from zeabur.db results
+}
+
+// ImportVerify is one table/keyspace row count compared after a zeabur.db dump/restore.
+type ImportVerify struct {
+	Service    string `json:"service"`
+	Table      string `json:"table"`
+	SourceRows int64  `json:"source_rows"`
+	TargetRows int64  `json:"target_rows"`
 }
 
 type ImportStep struct {

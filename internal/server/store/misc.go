@@ -230,6 +230,12 @@ func (s *Store) PruneMetrics(ctx context.Context, nodeTTL, ctrTTL time.Duration)
 
 // ---------- imports ----------
 
+// importExtra holds the non-secret job fields that have no column of their own.
+type importExtra struct {
+	Namespace string             `json:"namespace,omitempty"`
+	Verify    []api.ImportVerify `json:"verify,omitempty"`
+}
+
 // SaveImport upserts an import job; meta is stored encrypted (it may contain env values).
 func (s *Store) SaveImport(ctx context.Context, j api.ImportJob, kind string, meta any) error {
 	enc, err := s.encryptJSON(meta)
@@ -240,18 +246,19 @@ func (s *Store) SaveImport(ctx context.Context, j api.ImportJob, kind string, me
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.ExecContext(ctx, `INSERT INTO imports(id, plan, project_id, status, steps, kind, meta, created_at) VALUES(?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET plan=excluded.plan, project_id=excluded.project_id, status=excluded.status, steps=excluded.steps, meta=excluded.meta`,
-		j.ID, plan, j.ProjectID, j.Status, mustJSON(j.Steps), kind, enc, TS(j.CreatedAt))
+	extra := importExtra{Namespace: j.Namespace, Verify: j.Verify}
+	_, err = s.DB.ExecContext(ctx, `INSERT INTO imports(id, plan, project_id, status, steps, kind, meta, extra, created_at) VALUES(?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET plan=excluded.plan, project_id=excluded.project_id, status=excluded.status, steps=excluded.steps, meta=excluded.meta, extra=excluded.extra`,
+		j.ID, plan, j.ProjectID, j.Status, mustJSON(j.Steps), kind, enc, mustJSON(extra), TS(j.CreatedAt))
 	return err
 }
 
 // GetImport loads a job; meta (may be nil) is filled from the encrypted column.
 func (s *Store) GetImport(ctx context.Context, id string, meta any) (*api.ImportJob, string, error) {
 	var j api.ImportJob
-	var plan, steps, kind, m, at string
-	err := s.DB.QueryRowContext(ctx, `SELECT id, plan, project_id, status, steps, kind, meta, created_at FROM imports WHERE id=?`, id).
-		Scan(&j.ID, &plan, &j.ProjectID, &j.Status, &steps, &kind, &m, &at)
+	var plan, steps, kind, m, extra, at string
+	err := s.DB.QueryRowContext(ctx, `SELECT id, plan, project_id, status, steps, kind, meta, extra, created_at FROM imports WHERE id=?`, id).
+		Scan(&j.ID, &plan, &j.ProjectID, &j.Status, &steps, &kind, &m, &extra, &at)
 	if err != nil {
 		return nil, "", mapErr(err)
 	}
@@ -259,6 +266,11 @@ func (s *Store) GetImport(ctx context.Context, id string, meta any) (*api.Import
 		return nil, "", err
 	}
 	json.Unmarshal([]byte(steps), &j.Steps)
+	var ex importExtra
+	json.Unmarshal([]byte(extra), &ex)
+	j.Namespace, j.Verify = ex.Namespace, ex.Verify
+	j.Mode = kind
+	j.ServerID = j.Plan.TargetServer
 	j.CreatedAt = parseTS(at)
 	if meta != nil {
 		if err := s.decryptJSON(m, meta); err != nil {

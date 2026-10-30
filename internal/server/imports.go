@@ -101,7 +101,7 @@ func (s *Server) handleCreateImport(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	plan.TargetServer = p.ServerID
-	job := &api.ImportJob{ID: newID("imp"), Plan: plan, ProjectID: p.ID, Status: "planned", CreatedAt: time.Now().UTC()}
+	job := &api.ImportJob{ID: newID("imp"), Plan: plan, ProjectID: p.ID, Status: "planned", CreatedAt: time.Now().UTC(), Mode: importKindPlan, ServerID: plan.TargetServer}
 	meta := planMeta{ServiceIDs: map[string]string{}}
 	var created []string
 	for i, is := range plan.Services {
