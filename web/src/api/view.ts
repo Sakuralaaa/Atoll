@@ -4,8 +4,8 @@ import type { Deployment, Project, Server, Service } from './types'
 const PALETTE = ['#a855f7', '#22c55e', '#3b82f6', '#f59e0b', '#14b8a6', '#38bdf8', '#f97316', '#c084fc', '#60a5fa', '#e5e7eb', '#f43f5e', '#84cc16']
 // keep the demo/screenshot look stable for the original mock names
 const FIXED: Record<string, string> = {
-  'mail-relay': '#a855f7', acme-api: '#e5e7eb', LinkProxy: '#3b82f6', 'admin-panel': '#f59e0b', 'cron-worker': '#14b8a6',
-  file-share: '#38bdf8', 'chat-app': '#f97316', flaresolverr: '#60a5fa', qa-bot: '#e5e7eb', 'blog-studio': '#c084fc',
+  'mail-relay': '#a855f7', 'acme-api': '#e5e7eb', LinkProxy: '#3b82f6', 'admin-panel': '#f59e0b', 'cron-worker': '#14b8a6',
+  'file-share': '#38bdf8', 'chat-app': '#f97316', flaresolverr: '#60a5fa', 'qa-bot': '#e5e7eb', 'blog-studio': '#c084fc',
 }
 export function colorFor(name: string) {
   if (FIXED[name]) return FIXED[name]
