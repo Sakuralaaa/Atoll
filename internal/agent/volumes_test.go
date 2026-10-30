@@ -17,8 +17,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/atoll-sh/atoll/internal/agent"
-	"github.com/atoll-sh/atoll/internal/agent/agenttest"
+	"github.com/Sakuralaaa/Atoll/internal/agent"
+	"github.com/Sakuralaaa/Atoll/internal/agent/agenttest"
 )
 
 // blobRelay is a fake /agent/v1/blobs/{token} endpoint.

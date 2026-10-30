@@ -1,4 +1,4 @@
-module github.com/atoll-sh/atoll
+module github.com/Sakuralaaa/Atoll
 
 go 1.26.0
 

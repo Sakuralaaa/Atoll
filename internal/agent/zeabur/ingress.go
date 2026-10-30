@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/agent"
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/agent"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // ParkLabel is the nodeSelector key that no node carries; adding it unschedules a DaemonSet.

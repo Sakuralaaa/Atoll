@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/store"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
 func (s *Server) withUsage(ctx context.Context, n *api.Server) {
@@ -119,7 +119,7 @@ func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	base := s.publicURL(r.Context(), r)
-	cmd := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/atoll-sh/atoll/main/install/install-agent.sh | sudo sh -s -- --server %s --token %s", base, tok)
+	cmd := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server %s --token %s", base, tok)
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "server.join_token", "", nil)
 	writeJSON(w, 201, api.JoinToken{Token: tok, Command: cmd, ExpiresAt: exp})
 	return nil

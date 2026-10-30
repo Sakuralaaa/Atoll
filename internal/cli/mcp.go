@@ -11,8 +11,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/client"
 )
 
 const mcpInstructions = `Atoll manages services on the user's own servers. Read tools are safe. ` +

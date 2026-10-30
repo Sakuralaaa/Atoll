@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/dns"
-	"github.com/atoll-sh/atoll/internal/server/templates"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/dns"
+	"github.com/Sakuralaaa/Atoll/internal/server/templates"
 )
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) error {

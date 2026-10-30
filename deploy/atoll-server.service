@@ -1,6 +1,6 @@
 [Unit]
 Description=Atoll control server (REST API, web panel, agent hub)
-Documentation=https://github.com/atoll-sh/atoll
+Documentation=https://github.com/Sakuralaaa/Atoll
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0

@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/atoll-sh/atoll/internal/cli"
+	"github.com/Sakuralaaa/Atoll/internal/cli"
 )
 
 // version is set at build time: go build -ldflags "-X main.version=v0.1.0" ./cmd/atoll

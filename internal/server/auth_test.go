@@ -6,7 +6,7 @@ import (
 	"net/http/cookiejar"
 	"testing"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 func TestAuthFlow(t *testing.T) {

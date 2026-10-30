@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/secrets"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/secrets"
 )
 
 func openTest(t *testing.T, dir string) *Store {

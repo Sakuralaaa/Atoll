@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/client"
 )
 
 func ctxOf(cmd *cobra.Command) context.Context {

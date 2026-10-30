@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/dns"
-	"github.com/atoll-sh/atoll/internal/server/store"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/dns"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
 type domainRequest struct {

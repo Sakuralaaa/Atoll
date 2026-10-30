@@ -1,7 +1,7 @@
 #!/bin/sh
 # Atoll control server installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/atoll-sh/atoll/main/install/install-server.sh \
+#   curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh \
 #     | sudo sh -s -- [--public-url https://atoll.example.com] [--listen :7300] [--version v0.1.0]
 #
 # What it does (safe to re-run; upgrades in place):
@@ -28,7 +28,7 @@ BIN=${ATOLL_SERVER_BIN:-/usr/local/bin/atoll-server}
 ENV_FILE=${ATOLL_SERVER_ENV:-/etc/atoll/server.env}
 UNIT=${ATOLL_SERVER_UNIT:-/etc/systemd/system/atoll-server.service}
 DATA=${ATOLL_DATA:-/var/lib/atoll}
-REPO=https://github.com/atoll-sh/atoll
+REPO=https://github.com/Sakuralaaa/Atoll
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }

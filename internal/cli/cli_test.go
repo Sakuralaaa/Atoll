@@ -17,7 +17,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // fakePanel is a tiny in-memory Atoll API.

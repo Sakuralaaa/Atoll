@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // Service is one service of the project as seen by the resolver.

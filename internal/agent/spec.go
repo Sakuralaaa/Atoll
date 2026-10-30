@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // ContainerName is the docker container name of a service.

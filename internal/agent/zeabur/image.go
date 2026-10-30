@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/zeabur/k8s"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur/k8s"
 )
 
 // LocalTag is the docker tag given to an image exported from k3s' containerd.

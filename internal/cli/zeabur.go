@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/client"
-	"github.com/atoll-sh/atoll/internal/zeabur"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur"
 )
 
 // `atoll zeabur ...`: the in-place takeover of the user's own VPS that Zeabur manages

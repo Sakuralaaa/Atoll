@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/client"
-	"github.com/atoll-sh/atoll/internal/zeabur"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur"
 )
 
 // `atoll import zeabur ...`: the SECONDARY migration path, driven by the Zeabur CLI signed in

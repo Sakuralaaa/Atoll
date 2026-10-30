@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/server"
+	"github.com/Sakuralaaa/Atoll/internal/server"
 )
 
 func env(k, def string) string {

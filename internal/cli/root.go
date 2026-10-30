@@ -16,7 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/atoll-sh/atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/client"
 )
 
 // App carries global state for every command.

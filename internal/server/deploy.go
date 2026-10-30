@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/envresolve"
-	"github.com/atoll-sh/atoll/internal/server/store"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/envresolve"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
 // containerName is the docker container name for a service.

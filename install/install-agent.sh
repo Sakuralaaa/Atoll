@@ -1,7 +1,7 @@
 #!/bin/sh
 # Atoll agent installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/atoll-sh/atoll/main/install/install-agent.sh \
+#   curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh \
 #     | sudo sh -s -- --server https://atoll.example.com --token atl_join_XXXX [--tailscale-authkey tskey-...]
 #
 # What it does (safe to re-run):
@@ -30,7 +30,7 @@ LOCAL_BINARY=""
 BIN=${ATOLL_AGENT_BIN:-/usr/local/bin/atoll-agent}
 CONFIG=${ATOLL_AGENT_CONFIG:-/etc/atoll/agent.json}
 UNIT=${ATOLL_AGENT_UNIT:-/etc/systemd/system/atoll-agent.service}
-GITHUB_RELEASE=https://github.com/atoll-sh/atoll/releases/latest/download
+GITHUB_RELEASE=https://github.com/Sakuralaaa/Atoll/releases/latest/download
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -278,7 +278,7 @@ install_unit() {
 	cat >"$tmpunit" <<'EOF'
 [Unit]
 Description=Atoll agent (worker node daemon)
-Documentation=https://github.com/atoll-sh/atoll
+Documentation=https://github.com/Sakuralaaa/Atoll
 # Containers run in the Docker Engine (they are dockerd's children, not ours, so they keep
 # running when the agent stops). The agent also waits for dockerd on its own.
 After=network-online.target docker.service

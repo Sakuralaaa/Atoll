@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/atoll-sh/atoll/internal/server/secrets"
-	"github.com/atoll-sh/atoll/internal/server/store"
+	"github.com/Sakuralaaa/Atoll/internal/server/secrets"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 	"golang.org/x/crypto/bcrypt"
 )
 

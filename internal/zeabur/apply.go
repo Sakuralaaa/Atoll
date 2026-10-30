@@ -16,9 +16,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/client"
-	"github.com/atoll-sh/atoll/internal/zeabur/k8s"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/client"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur/k8s"
 )
 
 // importVolume is added to database services to carry logical dumps into the new container.

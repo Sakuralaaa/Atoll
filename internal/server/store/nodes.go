@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 const nodeCols = `id, name, role, status, public_ipv4, public_ipv6, tailnet_host, provider, region, os, arch,

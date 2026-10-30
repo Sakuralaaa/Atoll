@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // stepper keeps a []ImportStep up to date and persists it after each change.

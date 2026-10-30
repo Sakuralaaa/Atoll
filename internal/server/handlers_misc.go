@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/server/templates"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/templates"
 	"github.com/coder/websocket"
 )
 

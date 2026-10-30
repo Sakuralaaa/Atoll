@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/server/secrets"
+	"github.com/Sakuralaaa/Atoll/internal/server/secrets"
 	_ "modernc.org/sqlite"
 )
 

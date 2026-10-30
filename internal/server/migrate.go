@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {

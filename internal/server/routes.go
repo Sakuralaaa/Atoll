@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atoll-sh/atoll/internal/server/webui"
+	"github.com/Sakuralaaa/Atoll/internal/server/webui"
 )
 
 // Handler returns the full HTTP handler: REST API, agent endpoints, downloads and the web UI.

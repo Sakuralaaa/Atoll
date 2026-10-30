@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 func ev(k, v string, secret, exposed bool) api.EnvVar {

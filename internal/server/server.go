@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/server/dns"
-	"github.com/atoll-sh/atoll/internal/server/secrets"
-	"github.com/atoll-sh/atoll/internal/server/store"
+	"github.com/Sakuralaaa/Atoll/internal/server/dns"
+	"github.com/Sakuralaaa/Atoll/internal/server/secrets"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
-// Version is set at build time with -ldflags "-X github.com/atoll-sh/atoll/internal/server.Version=v1.2.3".
+// Version is set at build time with -ldflags "-X github.com/Sakuralaaa/Atoll/internal/server.Version=v1.2.3".
 var Version = "dev"
 
 // Config configures a Server. Zero durations get defaults.

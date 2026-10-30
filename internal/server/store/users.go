@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/atoll-sh/atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // User is an account that can log into the panel.

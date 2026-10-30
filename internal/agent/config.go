@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// Version is the agent version, set at build time with -ldflags "-X github.com/atoll-sh/atoll/internal/agent.Version=v1.2.3".
+// Version is the agent version, set at build time with -ldflags "-X github.com/Sakuralaaa/Atoll/internal/agent.Version=v1.2.3".
 var Version = "dev"
 
 const (

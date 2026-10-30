@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/atoll-sh/atoll/internal/api"
-	"github.com/atoll-sh/atoll/internal/zeabur/k8s"
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur/k8s"
 )
 
 // DataManifest lists exported data files (written as data/manifest.json, 0600).
