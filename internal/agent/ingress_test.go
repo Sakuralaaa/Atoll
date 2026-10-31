@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/agent"
 	"github.com/Sakuralaaa/Atoll/internal/agent/agenttest"
@@ -291,5 +292,63 @@ func TestIngressNoRoutesLeavesCaddyAlone(t *testing.T) {
 	}
 	if c, _ := f.Get(agent.CaddyContainer); c.Info.State != "exited" {
 		t.Fatalf("stopped caddy restarted: %s", c.Info.State)
+	}
+}
+
+// flakyLoads fails the first n admin loads (socket not there yet), then succeeds.
+type flakyLoads struct {
+	mu    sync.Mutex
+	n     int
+	calls int
+}
+
+func (l *flakyLoads) load(context.Context, []byte) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls++
+	if l.calls <= l.n {
+		return errors.New("dial unix admin.sock: connect: no such file or directory")
+	}
+	return nil
+}
+
+// After a reboot Docker starts atoll-caddy while the agent reconciles; the admin socket
+// appears a moment later. The agent must wait for it instead of restarting caddy.
+func TestIngressFreshCaddyGetsAdminGrace(t *testing.T) {
+	in, f, _, _, _ := newIngress(t)
+	ctx := context.Background()
+	if err := in.Apply(ctx, payload("a.example.com")); err != nil {
+		t.Fatal(err)
+	}
+	in.AdminGrace = 3 * time.Second
+	f.Containers[agent.CaddyContainer].Info.StartedAt = time.Now() // just started by Docker
+	fl := &flakyLoads{n: 2}
+	in.LoadConfig = fl.load
+	before := len(f.CallLog())
+	if err := in.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fl.calls != 3 {
+		t.Fatalf("admin load calls = %d, want 3 (two failures then success)", fl.calls)
+	}
+	for _, c := range f.CallLog()[before:] {
+		if strings.HasPrefix(c, "restart") {
+			t.Fatalf("fresh caddy restarted instead of waiting for its admin socket: %s", c)
+		}
+	}
+
+	// Restarting caddy whose socket never comes: fall back to a restart after the grace.
+	in.AdminGrace = 600 * time.Millisecond
+	f.SetState(agent.CaddyContainer, "restarting")
+	in.LoadConfig = (&flakyLoads{n: 1 << 30}).load
+	start := time.Now()
+	if err := in.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(f.CallLog()[before:], "restart "+agent.CaddyContainer) {
+		t.Fatal("expected restart fallback once the grace ran out")
+	}
+	if d := time.Since(start); d < 500*time.Millisecond {
+		t.Fatalf("restarted after %v, before the grace ran out", d)
 	}
 }

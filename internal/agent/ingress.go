@@ -38,6 +38,10 @@ type Ingress struct {
 	guards []PortGuard
 	// LoadConfig pushes config to a running Caddy; replaceable in tests.
 	LoadConfig func(ctx context.Context, cfg []byte) error
+	// AdminGrace is how long a freshly started (or restarting) atoll-caddy gets to open its
+	// admin socket before the agent falls back to restarting it. At boot Docker starts caddy
+	// at the same moment the agent reconciles, so the socket is often not there yet.
+	AdminGrace time.Duration
 
 	mu sync.Mutex
 }
@@ -46,7 +50,7 @@ func NewIngress(rt Runtime, p Paths, fw Firewall, log *slog.Logger) *Ingress {
 	if log == nil {
 		log = slog.Default()
 	}
-	in := &Ingress{rt: rt, paths: p, log: log, firewall: fw, Image: "caddy:2"}
+	in := &Ingress{rt: rt, paths: p, log: log, firewall: fw, Image: "caddy:2", AdminGrace: 20 * time.Second}
 	in.guards = []PortGuard{HostPortsFree(80, 443)}
 	admin := caddy.Admin{SocketPath: filepath.Join(p.CaddyDir(), "run", "admin.sock")}
 	in.LoadConfig = admin.Load
@@ -209,6 +213,32 @@ func (in *Ingress) checkGuards(ctx context.Context) error {
 	return nil
 }
 
+// loadWithGrace pushes cfg over the admin socket. A caddy that has only just started (or is
+// restarting) is given AdminGrace to open the socket instead of being restarted at once:
+// restarting it then only interrupts the start Docker already did, e.g. right after a reboot.
+func (in *Ingress) loadWithGrace(ctx context.Context, cfg []byte, info ContainerInfo) error {
+	err := in.LoadConfig(ctx, cfg)
+	if err == nil || in.AdminGrace <= 0 {
+		return err
+	}
+	fresh := info.State == "restarting" || (!info.StartedAt.IsZero() && time.Since(info.StartedAt) < in.AdminGrace)
+	if !fresh {
+		return err
+	}
+	deadline := time.Now().Add(in.AdminGrace)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+		if err = in.LoadConfig(ctx, cfg); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
 // ensureCaddy makes atoll-caddy run with cfg. With no routes a missing or stopped caddy is
 // left alone: there is nothing to serve, and 80/443 may belong to someone else (Zeabur's
 // ingress after a takeover rollback).
@@ -231,7 +261,7 @@ func (in *Ingress) ensureCaddy(ctx context.Context, cfg []byte, haveRoutes bool)
 	}
 	if err == nil && info.Labels[LabelSpecHash] == spec.Labels[LabelSpecHash] {
 		if info.State == "running" || info.State == "restarting" {
-			if lerr := in.LoadConfig(ctx, cfg); lerr != nil {
+			if lerr := in.loadWithGrace(ctx, cfg, info); lerr != nil {
 				in.log.Warn("caddy admin load failed; restarting container to pick up config file", "err", lerr)
 				return in.rt.RestartContainer(ctx, CaddyContainer, 10*time.Second)
 			}
