@@ -2,15 +2,19 @@
 # Atoll control server installer.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh \
-#     | sudo sh -s -- [--public-url https://atoll.example.com] [--listen :7300] [--version v0.1.0]
+#     | sudo sh -s -- [--domain atoll.example.com] [--public-url URL] [--listen :7300] [--version v0.1.0]
 #
 # What it does (safe to re-run; upgrades in place):
 #   1. detects the architecture (amd64 / arm64)
 #   2. downloads atoll-server (and atoll-agent binaries to serve to new nodes) from GitHub releases
 #   3. writes /etc/atoll/server.env and the atoll-server systemd unit (data dir /var/lib/atoll)
 #   4. (re)starts the service and waits for /healthz
+#   5. with --domain: installs Caddy and serves the panel on https://DOMAIN (automatic TLS)
 #
 # Options:
+#   --domain NAME      serve the panel on https://NAME through Caddy with an automatic
+#                      Let's Encrypt certificate (DNS for NAME must point here; ports 80/443
+#                      free). Implies --listen 127.0.0.1:7300 and --public-url https://NAME
 #   --public-url URL   URL agents and the CLI use to reach this server (ATOLL_PUBLIC_URL)
 #   --listen ADDR      listen address (default :7300)
 #   --version TAG      release tag to install (default: latest)
@@ -19,7 +23,9 @@
 set -eu
 
 PUBLIC_URL=""
+DOMAIN=""
 LISTEN=":7300"
+LISTEN_SET=0
 VERSION="latest"
 LOCAL_BINARY=""
 AGENT_BINARIES=1
@@ -38,7 +44,7 @@ die() {
 }
 
 usage() {
-	sed -n '2,20p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' >&2 || true
+	sed -n '2,/^set -eu/p' "$0" 2>/dev/null | grep '^#' | sed 's/^# \{0,1\}//' >&2 || true
 	exit 2
 }
 
@@ -48,8 +54,10 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 	--public-url) need_arg "$@"; PUBLIC_URL=$2; shift 2 ;;
 	--public-url=*) PUBLIC_URL=${1#*=}; shift ;;
-	--listen) need_arg "$@"; LISTEN=$2; shift 2 ;;
-	--listen=*) LISTEN=${1#*=}; shift ;;
+	--domain) need_arg "$@"; DOMAIN=$2; shift 2 ;;
+	--domain=*) DOMAIN=${1#*=}; shift ;;
+	--listen) need_arg "$@"; LISTEN=$2; LISTEN_SET=1; shift 2 ;;
+	--listen=*) LISTEN=${1#*=}; LISTEN_SET=1; shift ;;
 	--version) need_arg "$@"; VERSION=$2; shift 2 ;;
 	--version=*) VERSION=${1#*=}; shift ;;
 	--binary) need_arg "$@"; LOCAL_BINARY=$2; shift 2 ;;
@@ -59,6 +67,14 @@ while [ $# -gt 0 ]; do
 	*) die "unknown option: $1" ;;
 	esac
 done
+
+if [ -n "$DOMAIN" ]; then
+	DOMAIN=$(printf '%s' "$DOMAIN" | sed -e 's#^[a-zA-Z]*://##' -e 's#/.*$##')
+	case "$DOMAIN" in *[!A-Za-z0-9.-]* | "" | .* | *.) die "--domain needs a host name like atoll.example.com" ;; esac
+	[ -n "$PUBLIC_URL" ] || PUBLIC_URL="https://$DOMAIN"
+	[ "$LISTEN_SET" = 1 ] || LISTEN="127.0.0.1:7300"
+	LISTEN_SET=1
+fi
 
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
 [ "$(uname -s)" = Linux ] || die "atoll-server supports Linux only"
@@ -84,6 +100,48 @@ fetch() { # url dest
 	else
 		die "curl or wget is required"
 	fi
+}
+
+CADDYFILE=${ATOLL_CADDYFILE:-/etc/caddy/Caddyfile}
+
+# setup_caddy DOMAIN UPSTREAM: install Caddy (Debian/Ubuntu package, else Caddy's apt repo)
+# and add a site block for DOMAIN. An existing Caddyfile that is not the stock one is kept;
+# the block is appended once.
+setup_caddy() {
+	if ! command -v caddy >/dev/null 2>&1; then
+		command -v apt-get >/dev/null 2>&1 || die "--domain installs Caddy with apt; install Caddy yourself on this distribution and proxy $1 to $2"
+		log "installing Caddy"
+		export DEBIAN_FRONTEND=noninteractive
+		apt-get update -qq >/dev/null 2>&1 || true
+		if ! apt-get install -y -qq caddy >/dev/null 2>&1; then
+			apt-get install -y -qq --no-install-recommends debian-keyring debian-archive-keyring apt-transport-https gnupg curl >/dev/null 2>&1 || true
+			install -d -m 0755 /usr/share/keyrings
+			fetch https://dl.cloudsmith.io/public/caddy/stable/gpg.key "$TMP/caddy.key" || die "could not download Caddy's signing key"
+			gpg --dearmor <"$TMP/caddy.key" >/usr/share/keyrings/caddy-stable-archive-keyring.gpg || die "gpg is required to add Caddy's apt repository"
+			fetch https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt /etc/apt/sources.list.d/caddy-stable.list || die "could not add Caddy's apt repository"
+			apt-get update -qq >/dev/null 2>&1 || true
+			apt-get install -y -qq caddy >/dev/null || die "Caddy installation failed"
+		fi
+	fi
+	install -d -m 0755 "$(dirname "$CADDYFILE")"
+	block="# atoll panel (install-server.sh --domain)
+$1 {
+	reverse_proxy $2
+}"
+	if [ ! -s "$CADDYFILE" ] || grep -q '^# atoll-managed' "$CADDYFILE" || grep -q '/usr/share/caddy' "$CADDYFILE"; then
+		printf '# atoll-managed: rewritten by install-server.sh --domain\n%s\n' "$block" >"$CADDYFILE"
+	elif grep -Eq "^$1([ ,]|\$)" "$CADDYFILE"; then
+		log "$CADDYFILE already has a site block for $1; leaving it as is"
+	else
+		printf '\n%s\n' "$block" >>"$CADDYFILE"
+	fi
+	systemctl enable caddy >/dev/null 2>&1 || true
+	if systemctl is-active --quiet caddy; then
+		systemctl reload caddy || systemctl restart caddy || die "Caddy did not accept $CADDYFILE; see journalctl -u caddy"
+	else
+		systemctl restart caddy || die "Caddy did not start; see journalctl -u caddy"
+	fi
+	log "Caddy serves https://$1 -> $2 (certificate is issued on first request; DNS for $1 must point here)"
 }
 
 TMP=$(mktemp -d)
@@ -116,7 +174,14 @@ fi
 
 # 3. config + unit
 install -d -m 0755 "$(dirname "$ENV_FILE")"
-if [ ! -f "$ENV_FILE" ] || [ -n "$PUBLIC_URL" ]; then
+if [ ! -f "$ENV_FILE" ] || [ -n "$PUBLIC_URL" ] || [ "$LISTEN_SET" = 1 ]; then
+	if [ -z "$PUBLIC_URL" ] && [ -f "$ENV_FILE" ]; then
+		PUBLIC_URL=$(grep -E '^ATOLL_PUBLIC_URL=' "$ENV_FILE" | tail -1 | cut -d= -f2-)
+	fi
+	if [ "$LISTEN_SET" = 0 ] && [ -f "$ENV_FILE" ]; then
+		old_listen=$(grep -E '^ATOLL_LISTEN=' "$ENV_FILE" | tail -1 | cut -d= -f2-)
+		[ -z "$old_listen" ] || LISTEN=$old_listen
+	fi
 	umask 077
 	{
 		echo "# atoll-server environment (see atoll-server --help)"
@@ -179,12 +244,32 @@ until fetch "http://127.0.0.1:$port/healthz" "$TMP/health" 2>/dev/null; do
 	sleep 1
 done
 
-url=${PUBLIC_URL:-http://$(hostname -I 2>/dev/null | awk '{print $1}'):$port}
+# 5. optional Caddy in front (automatic TLS)
+if [ -n "$DOMAIN" ]; then
+	setup_caddy "$DOMAIN" "127.0.0.1:$port"
+fi
+
+listen=$(grep -E '^ATOLL_LISTEN=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
+[ -n "$listen" ] || listen=$LISTEN
+url=${PUBLIC_URL:-$(grep -E '^ATOLL_PUBLIC_URL=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)}
+local_only=0
+case "$listen" in 127.* | localhost:* | "[::1]:"*) local_only=1 ;; esac
+if [ -z "$url" ]; then
+	if [ "$local_only" = 1 ]; then
+		url="http://127.0.0.1:$port"
+	else
+		url="http://$(hostname -I 2>/dev/null | awk '{print $1}'):$port"
+	fi
+fi
 log "atoll-server is running"
-cat >&2 <<DONE
-
-  Open $url to create the owner account (first visit runs setup).
-  Put a TLS proxy (e.g. Cloudflare) in front before exposing it publicly.
-  Forgot the password?  sudo atoll-server reset-password --data $DATA
-
-DONE
+{
+	echo
+	echo "  Open $url to create the owner account (first visit runs setup)."
+	if [ "$local_only" = 1 ] && [ -z "$DOMAIN" ] && [ "$url" = "http://127.0.0.1:$port" ]; then
+		echo "  atoll-server listens on $listen only: reach it through your TLS proxy, or re-run with --domain NAME."
+	elif [ -z "$DOMAIN" ]; then
+		echo "  Put a TLS proxy in front before exposing it publicly (or re-run with --domain NAME)."
+	fi
+	echo "  Forgot the password?  sudo atoll-server reset-password --data $DATA"
+	echo
+} >&2

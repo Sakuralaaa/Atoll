@@ -39,11 +39,13 @@ go test ./...
 ## 安装（发布 Release 之后）
 
 ```bash
-# 中控
-curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh | sudo sh
+# 中控（--domain 时自动安装 Caddy 并签发 Let's Encrypt 证书，面板只监听 127.0.0.1；域名需先解析到本机）
+curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh | sudo sh -s -- --domain panel.example.com
 # 节点（在面板「服务器 → 添加」里复制带 token 的命令）
 curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server https://panel.example.com --token atl_join_xxx
 ```
+
+节点 agent 主动连出到中控：WebSocket over HTTPS（`wss://<面板域名>/agent/v1/connect`），用加入时换取的节点 token（Bearer）认证，节点无需开放任何入站端口。没有使用 mTLS，所以中控务必放在 HTTPS 后面（`--domain` 或你自己的 TLS 反代）。
 
 ## 发布 Release
 

@@ -66,7 +66,7 @@ atoll zeabur rehearse imp_xxxx
 atoll zeabur cutover imp_xxxx
 ```
 
-需要你确认（`--yes` 跳过提问）。步骤：Zeabur 应用缩容到 0（数据库保持运行直到最后一次 dump）→ 最终数据同步 → 停放 Zeabur 的 ingress-controller → atoll-caddy 接管 80/443，使用相同主机名。会有短暂停机。
+需要你确认（`--yes` 跳过提问）。步骤：Zeabur 应用缩容到 0（数据库保持运行直到最后一次 dump）→ 最终数据同步 → 暂停 Zeabur 的 operator（缩容到 0，否则它会把 ingress 改回去）并停放 ingress-controller → atoll-caddy 接管 80/443，使用相同主机名。会有短暂停机。
 
 ### 5. 验证
 
@@ -78,7 +78,7 @@ atoll zeabur cutover imp_xxxx
 atoll zeabur rollback imp_xxxx
 ```
 
-停止 Atoll 副本，恢复 Zeabur 的 ingress-controller，把 Zeabur 工作负载按记录的副本数恢复。Zeabur 上的对象从未被删除，所以回滚是完整的。
+停止 Atoll 副本，恢复 Zeabur 的 ingress-controller 和 operator，把 Zeabur 工作负载按记录的副本数恢复。Zeabur 上的对象从未被删除，所以回滚是完整的。
 
 ### 7. 清理（不可逆，稳定之后再做）
 

@@ -5,7 +5,8 @@
 #     | sudo sh -s -- --server https://atoll.example.com --token atl_join_XXXX [--tailscale-authkey tskey-...]
 #
 # What it does (safe to re-run):
-#   1. installs Docker via get.docker.com, only when Docker is missing. A Zeabur/k3s host keeps
+#   1. installs Docker via get.docker.com (falling back to docker-ce from Docker's apt repo on
+#      Debian/Ubuntu), only when Docker is missing. A Zeabur/k3s host keeps
 #      k3s running: Docker brings its own containerd, k3s uses its embedded one.
 #   2. optionally joins the tailnet (--tailscale-authkey)
 #   3. downloads atoll-agent from <server>/downloads/atoll-agent-linux-<arch>, falling back to
@@ -157,6 +158,32 @@ same_file() {
 
 docker_ok() { docker info >/dev/null 2>&1; }
 
+# install_docker_apt installs docker-ce from download.docker.com on Debian/Ubuntu without
+# upgrading unrelated packages (get.docker.com can fail when a distro mirror is broken,
+# e.g. a 404 on a security update it pulls in).
+install_docker_apt() {
+	command -v apt-get >/dev/null 2>&1 || return 1
+	[ -r /etc/os-release ] || return 1
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	case "${ID:-}" in
+	debian | ubuntu) distro=$ID ;;
+	*) case "${ID_LIKE:-}" in *ubuntu*) distro=ubuntu ;; *debian*) distro=debian ;; *) return 1 ;; esac ;;
+	esac
+	codename=${VERSION_CODENAME:-${UBUNTU_CODENAME:-}}
+	[ -n "$codename" ] || return 1
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update -qq >/dev/null 2>&1 || true
+	command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || apt-get install -y -qq --no-install-recommends curl >/dev/null || return 1
+	install -d -m 0755 /etc/apt/keyrings
+	fetch "https://download.docker.com/linux/$distro/gpg" /etc/apt/keyrings/docker.asc || return 1
+	chmod a+r /etc/apt/keyrings/docker.asc
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$distro $codename stable" \
+		>/etc/apt/sources.list.d/docker.list
+	apt-get update -qq >/dev/null 2>&1 || true
+	apt-get install -y -qq --no-install-recommends docker-ce docker-ce-cli containerd.io >/dev/null || return 1
+}
+
 install_docker() {
 	if command -v docker >/dev/null 2>&1; then
 		if docker_ok; then
@@ -172,8 +199,10 @@ install_docker() {
 		log "k3s found (Zeabur?): it keeps running; Docker is installed alongside with its own containerd"
 	fi
 	log "installing Docker via get.docker.com"
-	fetch https://get.docker.com "$TMP/get-docker.sh" || die "could not download get.docker.com"
-	sh "$TMP/get-docker.sh" || die "Docker installation failed"
+	if ! { fetch https://get.docker.com "$TMP/get-docker.sh" && sh "$TMP/get-docker.sh"; }; then
+		warn "get.docker.com failed; trying docker-ce from Docker's apt repository"
+		install_docker_apt || die "Docker installation failed (get.docker.com and the Docker apt repository both failed)"
+	fi
 	systemctl enable --now docker >/dev/null 2>&1 || true
 	i=0
 	until docker_ok; do
