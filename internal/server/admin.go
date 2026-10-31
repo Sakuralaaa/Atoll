@@ -54,3 +54,42 @@ func ResetPassword(dataDir, username, password string) (string, string, error) {
 	st.Audit(context.Background(), "cli", "auth.reset_password", u.Username, nil)
 	return u.Username, password, nil
 }
+
+// openDataStore opens the database in dataDir for offline admin commands.
+func openDataStore(dataDir string) (*store.Store, error) {
+	if _, err := os.Stat(filepath.Join(dataDir, "atoll.db")); err != nil {
+		return nil, fmt.Errorf("no database in %s: %w", dataDir, err)
+	}
+	key, err := secrets.LoadOrCreateKey(filepath.Join(dataDir, "master.key"))
+	if err != nil {
+		return nil, err
+	}
+	box, err := secrets.New(key)
+	if err != nil {
+		return nil, err
+	}
+	return store.Open(filepath.Join(dataDir, "atoll.db"), box)
+}
+
+// Reset2FA turns two-factor authentication off for username ("" = the owner) directly
+// in the data dir's database, deletes its recovery codes and signs the user out
+// everywhere. It is the escape hatch for a lost authenticator; run it on the control host.
+func Reset2FA(dataDir, username string) (string, error) {
+	st, err := openDataStore(dataDir)
+	if err != nil {
+		return "", err
+	}
+	defer st.Close()
+	u, err := st.ResetTOTPByName(context.Background(), username)
+	if err == store.ErrNotFound {
+		if username == "" {
+			return "", fmt.Errorf("no user exists yet")
+		}
+		return "", fmt.Errorf("user %q not found", username)
+	}
+	if err != nil {
+		return "", err
+	}
+	st.Audit(context.Background(), "cli", "auth.reset_2fa", u.Username, nil)
+	return u.Username, nil
+}

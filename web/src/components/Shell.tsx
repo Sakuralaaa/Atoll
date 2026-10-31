@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal } from 'lucide-react'
+import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot, cx } from './ui'
 import { api, isDemo } from '../api/client'
@@ -20,6 +21,19 @@ function Team() {
     <button className="w-full flex items-center gap-2.5 h-11 px-2 rounded-lg hover:bg-ov/5">
       <Avatar size={28} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span><ChevronsUpDown size={14} className="ml-auto text-muted" />
     </button>
+  )
+}
+/** zh / en switch (only some screens are translated so far). */
+export function LangToggle() {
+  const { lang } = useT()
+  return (
+    <div className="inline-flex rounded-lg field p-[3px] gap-0.5">
+      {(['zh', 'en'] as Lang[]).map(v => (
+        <button key={v} onClick={() => setLang(v)} title={v === 'zh' ? '中文' : 'English'} className={cx('h-7 px-2 grid place-items-center rounded-md text-[11.5px] font-bold font-mono transition-colors', lang === v ? 'bg-[#fde047] text-[#141414] border-2 border-[var(--edge)]' : 'text-dim hover:text-fg')}>
+          {v === 'zh' ? '中' : 'EN'}
+        </button>
+      ))}
+    </div>
   )
 }
 export function ThemeToggle() {

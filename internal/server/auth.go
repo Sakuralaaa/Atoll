@@ -2,11 +2,9 @@ package server
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -28,10 +26,11 @@ const (
 )
 
 type principal struct {
-	User    *store.User
-	Session bool
-	TokenID string
-	Scope   string // "session" for panel sessions
+	User        *store.User
+	Session     bool
+	TokenID     string
+	Scope       string // "session" for panel sessions
+	SessionHash string // hash of the session token (panel sessions only)
 }
 
 func (p *principal) actor() string {
@@ -60,9 +59,10 @@ func (s *Server) authenticate(r *http.Request) *principal {
 		return nil
 	}
 	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
-		u, err := s.st.SessionUser(r.Context(), hashToken(c.Value))
+		h := hashToken(c.Value)
+		u, err := s.st.SessionUser(r.Context(), h)
 		if err == nil {
-			return &principal{User: u, Session: true, Scope: "session"}
+			return &principal{User: u, Session: true, Scope: "session", SessionHash: h}
 		}
 	}
 	return nil
@@ -118,7 +118,7 @@ func setSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxA
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   isTLS(r),
 		MaxAge:   maxAge,
 	})
@@ -151,64 +151,4 @@ func (s *Server) requireConfirm(w http.ResponseWriter, r *http.Request, action, 
 	s.publish("confirmation", c)
 	writeJSON(w, http.StatusAccepted, c)
 	return nil
-}
-
-// ---------- login rate limiting ----------
-
-type loginLimiter struct {
-	mu     sync.Mutex
-	max    int
-	window time.Duration
-	fails  map[string][]time.Time
-}
-
-func newLoginLimiter(max int, window time.Duration) *loginLimiter {
-	return &loginLimiter{max: max, window: window, fails: map[string][]time.Time{}}
-}
-
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
-
-func (l *loginLimiter) prune(ip string, now time.Time) []time.Time {
-	keep := l.fails[ip][:0]
-	for _, t := range l.fails[ip] {
-		if now.Sub(t) < l.window {
-			keep = append(keep, t)
-		}
-	}
-	if len(keep) == 0 {
-		delete(l.fails, ip)
-		return nil
-	}
-	l.fails[ip] = keep
-	return keep
-}
-
-// blocked reports whether ip is over the limit and for how long.
-func (l *loginLimiter) blocked(ip string) (bool, time.Duration) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := time.Now()
-	f := l.prune(ip, now)
-	if len(f) >= l.max {
-		return true, l.window - now.Sub(f[0])
-	}
-	return false, 0
-}
-
-func (l *loginLimiter) fail(ip string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.fails[ip] = append(l.prune(ip, time.Now()), time.Now())
-}
-
-func (l *loginLimiter) reset(ip string) {
-	l.mu.Lock()
-	delete(l.fails, ip)
-	l.mu.Unlock()
 }

@@ -131,6 +131,56 @@ type APIToken struct {
 	CreatedAt  time.Time  `json:"created_at"`
 }
 
+// ---------- panel login & two-factor auth ----------
+
+// LoginChallenge is POST /auth/login's answer when the account has 2FA on: finish
+// with POST /auth/login/2fa {pending_token, code} before PendingToken expires.
+type LoginChallenge struct {
+	TwoFactorRequired bool      `json:"two_factor_required"`
+	PendingToken      string    `json:"pending_token"`
+	ExpiresAt         time.Time `json:"expires_at"`
+}
+
+// LoginTwoFactorRequest completes a login; Code is a 6-digit TOTP or a recovery code.
+type LoginTwoFactorRequest struct {
+	PendingToken string `json:"pending_token"`
+	Code         string `json:"code"`
+}
+
+// TwoFactorStatus is GET /auth/2fa.
+type TwoFactorStatus struct {
+	Enabled           bool       `json:"enabled"`
+	EnabledAt         *time.Time `json:"enabled_at,omitempty"`
+	RecoveryCodesLeft int        `json:"recovery_codes_left"`
+}
+
+// TwoFactorEnrollment is POST /auth/2fa/enroll: show OTPAuthURI as a QR code.
+type TwoFactorEnrollment struct {
+	Secret     string `json:"secret"`      // base32, for manual entry
+	OTPAuthURI string `json:"otpauth_uri"` // otpauth://totp/...
+}
+
+// TwoFactorRequest re-authenticates a 2FA change (which fields are needed depends on the endpoint).
+type TwoFactorRequest struct {
+	Password string `json:"password,omitempty"`
+	Code     string `json:"code,omitempty"`
+}
+
+// RecoveryCodes are shown once, after enabling 2FA or regenerating.
+type RecoveryCodes struct {
+	Codes []string `json:"recovery_codes"`
+}
+
+// SessionInfo is one live panel session (GET /auth/sessions).
+type SessionInfo struct {
+	ID        string    `json:"id"`
+	IP        string    `json:"ip,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
+	Current   bool      `json:"current"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // Confirmation: destructive ops (delete, migrate, DNS change) requested with an API token
 // return 202 + Confirmation; a human approves it in the panel.
 type Confirmation struct {

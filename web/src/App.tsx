@@ -12,6 +12,7 @@ import ProjectIndex from './pages/ProjectIndex'
 import Import from './pages/Import'
 import Login from './pages/Login'
 import Settings from './pages/Settings'
+import Security from './pages/Security'
 import Confirmations from './pages/Confirmations'
 import { Toaster } from './components/feedback'
 import { api } from './api/client'
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/confirmations" element={<Confirmations />} />
         <Route path="/import" element={<Import />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/security" element={<Security />} />
         <Route path="/projects" element={<Navigate replace to="/" />} />
         <Route path="/projects/:pid" element={<ProjectIndex />} />
         <Route path="/projects/:pid/settings" element={<ProjectSettings />} />

@@ -47,6 +47,18 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 
 节点 agent 主动连出到中控：WebSocket over HTTPS（`wss://<面板域名>/agent/v1/connect`），用加入时换取的节点 token（Bearer）认证，节点无需开放任何入站端口。没有使用 mTLS，所以中控务必放在 HTTPS 后面（`--domain` 或你自己的 TLS 反代）。
 
+## 安全
+
+面板可以直接放在公网域名上，靠以下几层保护：
+
+- **HTTPS**：用 `install-server.sh --domain`（Caddy + Let's Encrypt）或你自己的 TLS 反代；面板只监听 127.0.0.1。会话 cookie 为 `HttpOnly`、`Secure`、`SameSite=Strict`，写操作还会校验 Origin。
+- **两步验证（TOTP）**：在面板「设置 → 安全」里启用——输入密码、用验证器 App（Google Authenticator / 1Password / Bitwarden 等）扫码、输入 6 位验证码确认，然后保存 10 个一次性恢复码。启用、停用都会让其他会话下线。「设置 → 安全」里也能查看和退出登录会话。
+- **防爆破**：密码和验证码失败按来源 IP 与账号分别计数，超过次数后指数退避锁定（IP 最长 1 小时，账号最长 15 分钟），失败会写入日志。只信任本机反代（Caddy）的 `X-Forwarded-For`，其他情况用 `--trusted-proxies` 配置。
+- **找回**：忘记密码 `sudo atoll-server reset-password`；手机和恢复码都丢了 `sudo atoll-server admin reset-2fa <用户名>`（都需要在中控服务器上执行，会让该用户所有会话下线）。
+- **CLI / API 令牌**（`atl_pat_`）不走两步验证，只在面板里创建，按需选择最小 scope。
+
+细节见 [docs/api.md](docs/api.md#two-factor-login-totp)。
+
 ## 发布 Release
 
 推送 `v*` tag 即触发 [.github/workflows/release.yml](.github/workflows/release.yml)（构建面板、跑测试、打包二进制并发布 Release）：

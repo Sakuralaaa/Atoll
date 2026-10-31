@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,8 @@ type Config struct {
 	// LookupHost resolves a hostname (default net.DefaultResolver); override for tests.
 	LookupHost func(ctx context.Context, host string) ([]string, error)
 	Logger     *slog.Logger
+	// TrustedProxies are peers whose X-Forwarded-For is believed (nil = loopback only).
+	TrustedProxies []netip.Prefix
 }
 
 // Server is the control plane.
@@ -46,7 +49,8 @@ type Server struct {
 	hub    *Hub
 	events *eventBus
 	log    *slog.Logger
-	limit  *loginLimiter
+	lock   *lockout
+	mfa    *pendingLogins
 
 	jobMu   sync.Mutex
 	jobBusy map[string]bool
@@ -97,7 +101,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), limit: newLoginLimiter(10, 15*time.Minute), jobBusy: map[string]bool{}}
+	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
 	s.bg, s.cancel = context.WithCancel(context.Background())
@@ -154,6 +158,8 @@ func (s *Server) housekeeping() {
 			}
 			s.st.ExpireConfirmations(s.bg, 24*time.Hour)
 			s.pruneBlobs(24 * time.Hour)
+			s.lock.prune()
+			s.mfa.prune()
 		}
 	}
 }

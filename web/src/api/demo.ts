@@ -7,7 +7,7 @@ import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, Server, Service, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
+  LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
 } from './types'
 
 const now = Date.now()
@@ -241,6 +241,13 @@ const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p =>
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
+const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+const demo2fa = { enabled: false, at: '', left: 10 }
+const demoCodes = () => ['k7m2q-x9tpw', 'h4rcz-m8vne', 'p3dqs-w7kua', 'y9bft-c2hrm', 'n6gxe-t4jqp', 'r2wmk-z8cdv', 'e5ujn-q3fyb', 'a8tpc-v6sgh', 'w4hzr-k9nem', 'f7qdy-b3xut']
+const demoSessions: SessionInfo[] = [
+  { id: '3f9a1c0d7e2b4a65', ip: '203.0.113.24', user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 Safari/605.1.15', current: true, created_at: iso(2 * H), expires_at: new Date(now + 30 * D).toISOString() },
+  { id: 'b81e4f2a90c37d16', ip: '198.51.100.7', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148', current: false, created_at: iso(3 * D), expires_at: new Date(now + 27 * D).toISOString() },
+]
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 
@@ -263,8 +270,19 @@ function route(method: string, path: string, body: any): unknown {
   let a: string[] | null
 
   if (m('auth/status')) return { setup_required: location.hash.includes('setup=1') }
+  // demo 2FA: `#/login?demo=1&2fa=1` (or enabling it in Settings → Security) makes login ask for a code; any 6 digits pass
+  if (P && m('auth/login') && (demo2fa.enabled || location.hash.includes('2fa=1'))) return { two_factor_required: true, pending_token: 'demo-pending', expires_at: new Date(now + 5 * 60e3).toISOString() }
+  if (P && m('auth/login/2fa')) { if (!/^\d{6}$|^[a-z2-9]{5}-?[a-z2-9]{5}$/i.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); return { id: 'usr_demo', username: 'demo' } }
   if (m('auth/me') || m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: body?.username || 'demo' }
   if (m('auth/logout')) return {}
+  if (G && m('auth/2fa')) return { enabled: demo2fa.enabled, enabled_at: demo2fa.enabled ? demo2fa.at : undefined, recovery_codes_left: demo2fa.enabled ? demo2fa.left : 0 }
+  if (P && m('auth/2fa/enroll')) { if (!body?.password) fail(401, 'wrong password'); return { secret: DEMO_SECRET, otpauth_uri: `otpauth://totp/Atoll:demo@${location.host}?secret=${DEMO_SECRET}&issuer=Atoll&algorithm=SHA1&digits=6&period=30` } }
+  if (P && m('auth/2fa/enable')) { if (!/^\d{6}$/.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); Object.assign(demo2fa, { enabled: true, at: new Date().toISOString(), left: 10 }); return { recovery_codes: demoCodes() } }
+  if (P && m('auth/2fa/disable')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.enabled = false; return {} }
+  if (P && m('auth/2fa/recovery-codes')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.left = 10; return { recovery_codes: demoCodes() } }
+  if (G && m('auth/sessions')) return demoSessions
+  if (P && m('auth/sessions/revoke-others')) { const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked: n } }
+  if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }
 
   if (G && m('servers')) return servers
   if (P && m('servers/join-token')) return { token: 'atl_join_7Hq2xV9mK4pR', command: `curl -fsSL ${settings.public_url}/install.sh | sudo sh -s -- --server ${settings.public_url} --join atl_join_7Hq2xV9mK4pR`, expires_at: new Date(now + H).toISOString() }

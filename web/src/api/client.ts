@@ -1,6 +1,6 @@
 import type {
   APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, JoinToken, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, JoinToken, LoginChallenge, RecoveryCodes, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
 } from './types'
 
 export const API = '/api/v1'
@@ -71,7 +71,17 @@ export const api = {
   // auth
   authStatus: () => get<AuthStatus>('/auth/status', { noRedirect: true }),
   me: () => get<Me>('/auth/me'),
-  login: (username: string, password: string) => request<Me>('POST', '/auth/login', { username, password }, { noRedirect: true }),
+  /** Answers Me (session started) or a LoginChallenge when the account has 2FA on. */
+  login: (username: string, password: string) => request<Me | LoginChallenge>('POST', '/auth/login', { username, password }, { noRedirect: true }),
+  login2fa: (pending_token: string, code: string) => request<Me>('POST', '/auth/login/2fa', { pending_token, code }, { noRedirect: true }),
+  twoFactor: () => get<TwoFactorStatus>('/auth/2fa'),
+  enroll2fa: (password: string) => post<TwoFactorEnrollment>('/auth/2fa/enroll', { password }),
+  enable2fa: (code: string) => post<RecoveryCodes>('/auth/2fa/enable', { code }),
+  disable2fa: (password: string, code: string) => post<void>('/auth/2fa/disable', { password, code }),
+  regenRecovery: (password: string, code: string) => post<RecoveryCodes>('/auth/2fa/recovery-codes', { password, code }),
+  sessions: () => get<SessionInfo[]>('/auth/sessions'),
+  revokeSession: (id: string) => del(`/auth/sessions/${e(id)}`),
+  revokeOtherSessions: () => post<{ revoked: number }>('/auth/sessions/revoke-others'),
   setup: (username: string, password: string) => request<Me>('POST', '/auth/setup', { username, password }, { noRedirect: true }),
   logout: () => request<void>('POST', '/auth/logout', {}, { noRedirect: true }),
   // servers
@@ -139,4 +149,8 @@ export const api = {
 /** A PAT-style 202 Confirmation can come back from destructive calls; the panel session normally executes directly. */
 export function isConfirmation(x: unknown): x is Confirmation {
   return !!x && typeof x === 'object' && 'action' in x && 'status' in x && (x as Confirmation).status === 'pending'
+}
+
+export function isChallenge(x: unknown): x is LoginChallenge {
+  return !!x && typeof x === 'object' && (x as LoginChallenge).two_factor_required === true
 }

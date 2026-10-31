@@ -27,7 +27,16 @@ func (s *Server) Handler() http.Handler {
 	open("POST "+v+"/auth/setup", s.handleSetup)
 	open("POST "+v+"/auth/login", s.handleLogin)
 	open("POST "+v+"/auth/logout", s.handleLogout)
+	open("POST "+v+"/auth/login/2fa", s.handleLogin2FA)
 	a("GET "+v+"/auth/me", lvlRead, s.handleMe)
+	a("GET "+v+"/auth/2fa", lvlSession, s.handle2FAStatus)
+	a("POST "+v+"/auth/2fa/enroll", lvlSession, s.handle2FAEnroll)
+	a("POST "+v+"/auth/2fa/enable", lvlSession, s.handle2FAEnable)
+	a("POST "+v+"/auth/2fa/disable", lvlSession, s.handle2FADisable)
+	a("POST "+v+"/auth/2fa/recovery-codes", lvlSession, s.handle2FARecoveryCodes)
+	a("GET "+v+"/auth/sessions", lvlSession, s.handleListSessions)
+	a("DELETE "+v+"/auth/sessions/{id}", lvlSession, s.handleDeleteSession)
+	a("POST "+v+"/auth/sessions/revoke-others", lvlSession, s.handleRevokeOtherSessions)
 
 	// servers
 	a("GET "+v+"/servers", lvlRead, s.handleListServers)

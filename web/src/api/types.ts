@@ -205,3 +205,10 @@ export interface RestoreJob {
   status: 'running' | 'done' | 'failed' | string; steps: ImportStep[]; error?: string; created_at: string; finished_at?: string
 }
 export interface BackupTestResult { ok: boolean; server_id: string; message: string }
+
+// ---- login 2FA (internal/api/types.go) ----
+export interface LoginChallenge { two_factor_required: true; pending_token: string; expires_at: string }
+export interface TwoFactorStatus { enabled: boolean; enabled_at?: string; recovery_codes_left: number }
+export interface TwoFactorEnrollment { secret: string; otpauth_uri: string }
+export interface RecoveryCodes { recovery_codes: string[] }
+export interface SessionInfo { id: string; ip?: string; user_agent?: string; current: boolean; created_at: string; expires_at: string }

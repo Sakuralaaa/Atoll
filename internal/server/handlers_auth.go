@@ -72,7 +72,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User) error {
 	tok := randString(43, tokenAlphabet)
-	if err := s.st.CreateSession(r.Context(), hashToken(tok), u.ID, sessionTTL); err != nil {
+	if err := s.st.CreateSessionInfo(r.Context(), hashToken(tok), u.ID, sessionTTL, s.clientIP(r), r.UserAgent()); err != nil {
 		return err
 	}
 	setSessionCookie(w, r, tok, int(sessionTTL/time.Second))
@@ -80,20 +80,45 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 	return nil
 }
 
+// tooMany answers 429 with Retry-After.
+func tooMany(w http.ResponseWriter, wait time.Duration) error {
+	secs := int(wait.Seconds()) + 1
+	w.Header().Set("Retry-After", fmt.Sprint(secs))
+	if secs < 120 {
+		return errf(429, "rate_limited", "too many failed attempts; try again in %d seconds", secs)
+	}
+	return errf(429, "rate_limited", "too many failed attempts; try again in %d minutes", (secs+59)/60)
+}
+
+// loginFailed counts a failed attempt against the client IP and the account name and logs it.
+func (s *Server) loginFailed(ip, name, reason string) {
+	d1 := s.lock.fail(ipKey(ip), ipBackoff)
+	d2 := s.lock.fail(accountKey(name), accountBackoff)
+	lock := max(d1, d2)
+	if lock > 0 {
+		s.log.Warn("login failed; locked", "user", name, "ip", ip, "reason", reason, "lock", lock.Round(time.Second))
+	} else {
+		s.log.Warn("login failed", "user", name, "ip", ip, "reason", reason)
+	}
+}
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	if !sameOrigin(r) {
 		return errf(403, "csrf", "cross-origin request rejected")
 	}
-	ip := clientIP(r)
-	if blocked, wait := s.limit.blocked(ip); blocked {
-		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
-		return errf(429, "rate_limited", "too many failed logins; try again in %d minutes", int(wait.Minutes())+1)
+	ip := s.clientIP(r)
+	if wait := s.lock.wait(ipKey(ip)); wait > 0 {
+		return tooMany(w, wait)
 	}
 	var c credentials
 	if err := decode(r, &c); err != nil {
 		return err
 	}
-	u, err := s.st.UserByName(r.Context(), strings.TrimSpace(c.Username))
+	name := strings.TrimSpace(c.Username)
+	if wait := s.lock.wait(accountKey(name)); wait > 0 {
+		return tooMany(w, wait)
+	}
+	u, err := s.st.UserByName(r.Context(), name)
 	if err != nil && err != store.ErrNotFound {
 		return err
 	}
@@ -102,10 +127,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		hash = u.PasswordHash
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(c.Password)) != nil || u == nil {
-		s.limit.fail(ip)
+		s.loginFailed(ip, name, "password")
 		return errf(401, "invalid_credentials", "invalid username or password")
 	}
-	s.limit.reset(ip)
+	tf, err := s.st.TOTPState(r.Context(), u.ID)
+	if err != nil {
+		return err
+	}
+	if tf.Enabled {
+		tok, exp := s.mfa.create(u.ID, ip)
+		writeJSON(w, 200, api.LoginChallenge{TwoFactorRequired: true, PendingToken: tok, ExpiresAt: exp})
+		return nil
+	}
+	s.lock.reset(ipKey(ip), accountKey(name))
 	s.st.Audit(r.Context(), "user:"+u.Username, "auth.login", ip, nil)
 	return s.startSession(w, r, u)
 }

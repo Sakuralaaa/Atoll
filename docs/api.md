@@ -10,10 +10,36 @@ All JSON. Errors: non-2xx with `ErrorBody`.
 - `atoll` CLI: talks to REST with a PAT; `atoll mcp` serves MCP over stdio; `atoll import zeabur` migrates from Zeabur.
 
 ## Auth
-- Panel: `POST /api/v1/auth/login {username,password}` → httpOnly cookie `atoll_session`. `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
+- Panel: `POST /api/v1/auth/login {username,password}` → httpOnly cookie `atoll_session` (`Secure` behind HTTPS, `SameSite=Strict`, 30 days). `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
   First run: if no user exists, `POST /api/v1/auth/setup {username,password}` creates the owner (only allowed while users table is empty). `GET /api/v1/auth/status` → `{setup_required: bool}`.
-- API/CLI: `Authorization: Bearer atl_pat_...`. Scopes: `read` (GET only), `deploy` (everything except destructive), `admin`.
+- API/CLI: `Authorization: Bearer atl_pat_...`. Scopes: `read` (GET only), `deploy` (everything except destructive), `admin`. Tokens never need a second factor.
 - Destructive actions with a PAT (delete service/project/server, migrate, add/delete domain) → `202 Confirmation`; approved in panel via `POST /api/v1/confirmations/{id}/approve|reject`. Session (panel) requests execute directly.
+
+### Two-factor login (TOTP)
+RFC 6238: HMAC-SHA1, 30 s, 6 digits, ±1 step accepted; each step is accepted once (replay guard). The secret is AES-GCM encrypted with `master.key`; the 10 one-time recovery codes are stored as SHA-256 hashes.
+
+Login with 2FA on is two steps:
+1. `POST /auth/login {username,password}` → `200 LoginChallenge {two_factor_required:true, pending_token, expires_at}` (no cookie yet; valid 5 min, 5 code attempts).
+2. `POST /auth/login/2fa {pending_token, code}` → session cookie + `{username,...}`. `code` is the 6-digit TOTP or a recovery code (`xxxxx-xxxxx`, case and dashes ignored). Errors: `401 invalid_code`, `401 challenge_expired` (start again with the password).
+
+Management (panel session only; PATs get 403):
+| Method | Path | Body → answer |
+|---|---|---|
+| GET | /auth/2fa | → TwoFactorStatus `{enabled, enabled_at, recovery_codes_left}` |
+| POST | /auth/2fa/enroll | `{password}` → TwoFactorEnrollment `{secret, otpauth_uri}` (pending until confirmed; 409 if already on) |
+| POST | /auth/2fa/enable | `{code}` → RecoveryCodes `{recovery_codes: [10]}`; signs out every other session |
+| POST | /auth/2fa/recovery-codes | `{password, code}` (TOTP) → new RecoveryCodes; old ones stop working |
+| POST | /auth/2fa/disable | `{password, code}` (TOTP or recovery code) → 204; signs out every other session. With 2FA off it cancels a pending enrollment |
+| GET | /auth/sessions | → []SessionInfo `{id, ip, user_agent, current, created_at, expires_at}` |
+| DELETE | /auth/sessions/{id} | sign out one session |
+| POST | /auth/sessions/revoke-others | → `{revoked: n}` |
+
+Lost authenticator: on the control host run `atoll-server admin reset-2fa [--data DIR] <user>` — turns 2FA off, deletes the recovery codes and signs the user out everywhere.
+
+### Brute-force protection
+Failed password, TOTP and recovery-code attempts (login and the re-auth checks above) are counted per client IP (IPv6 per /64) and per account name. IP: 5 free failures, then a lock of 30 s doubling per further failure up to 1 h. Account: 10 free, then 30 s doubling up to 15 min. Locked requests get `429 rate_limited` with `Retry-After` — even with the right password. Counters are forgotten 24 h after the last failure and reset by a full successful login. Every failure is logged (`WARN login failed user=… ip=… reason=…`).
+
+The client IP is the TCP peer, except when the peer is a trusted proxy: then it is the right-most `X-Forwarded-For` entry that is not itself trusted. Trusted proxies default to loopback (Caddy from `install-server.sh --domain`); set `--trusted-proxies` / `ATOLL_TRUSTED_PROXIES` (comma-separated IPs/CIDRs, or `none`) for another setup.
 
 ## REST endpoints (/api/v1)
 | Method | Path | Body / notes |
