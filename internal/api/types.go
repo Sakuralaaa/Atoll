@@ -552,6 +552,10 @@ type ZeaburVolume struct {
 type ZeaburImagePayload struct {
 	Image     string `json:"image"`
 	ServiceID string `json:"service_id"` // atoll service id, used for local tag atoll-import/<id>:<digest12>
+	// Pull: the image comes from a public registry (Docker Hub, GHCR...). The agent pulls the
+	// original ref (tag kept) and only falls back to exporting it from k3s' containerd, tagged
+	// locally with that same ref, when the pull fails. Output is then the original ref.
+	Pull bool `json:"pull,omitempty"`
 }
 type ZeaburVolumePayload struct {
 	HostDir   string `json:"host_dir"`

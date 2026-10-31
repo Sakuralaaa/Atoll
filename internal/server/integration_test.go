@@ -285,6 +285,9 @@ func (a *fakeAgent) answer(ctx context.Context, env inEnvelope) {
 		var p api.ZeaburImagePayload
 		json.Unmarshal(env.Payload, &p)
 		res.Output = "atoll-import/" + p.ServiceID + ":0123456789ab"
+		if p.Pull {
+			res.Output = p.Image
+		}
 	case api.MsgZeaburVolume:
 		res.Output = `{"method":"copy","bytes":2048,"files":3,"dest":"/var/lib/atoll/volumes/x"}`
 	case api.MsgZeaburDB:
@@ -500,8 +503,25 @@ func TestZeaburTakeover(t *testing.T) {
 	if len(job.Verify) != 2 || job.Verify[0].SourceRows != job.Verify[0].TargetRows {
 		t.Fatalf("verify %+v", job.Verify)
 	}
-	if n := len(agent.received(api.MsgZeaburImage)); n != 1 {
-		t.Fatalf("zeabur.image calls: %d", n)
+	imgs := agent.received(api.MsgZeaburImage)
+	if len(imgs) != 2 {
+		t.Fatalf("zeabur.image calls: %d", len(imgs))
+	}
+	for _, raw := range imgs {
+		var p api.ZeaburImagePayload
+		json.Unmarshal(raw, &p)
+		if p.Pull != (p.Image == "postgres:16") {
+			t.Fatalf("pull flag: %+v", p)
+		}
+	}
+	for _, sv := range proj.Services {
+		if sv.Name == "postgresql" {
+			var db api.Service
+			e.mustDo("GET", "/api/v1/services/"+sv.ID, nil, &db, 200)
+			if db.Image != "postgres:16" {
+				t.Fatalf("registry image must keep its original ref, got %s", db.Image)
+			}
+		}
 	}
 	var web api.Service
 	e.mustDo("GET", "/api/v1/services/"+webID, nil, &web, 200)
@@ -575,6 +595,20 @@ func TestZeaburTakeover(t *testing.T) {
 	job = waitJob(t, e, job.ID, "live", "rolled_back", "failed")
 	if job.Status != "live" {
 		t.Fatalf("second cutover: %+v", job.Steps)
+	}
+	// the rollback stopped Atoll's copies: the second cutover must start them and route again
+	ings = agent.received(api.MsgIngress)
+	last = api.IngressPayload{}
+	json.Unmarshal(ings[len(ings)-1], &last)
+	if len(last.Routes) != 2 {
+		t.Fatalf("routes after second cutover: %+v", last.Routes)
+	}
+	var again api.Project
+	e.mustDo("GET", "/api/v1/projects/"+job.ProjectID, nil, &again, 200)
+	for _, sv := range again.Services {
+		if sv.Status == "stopped" {
+			t.Fatalf("service %s still stopped after second cutover", sv.Name)
+		}
 	}
 	if code := e.do("POST", "/api/v1/imports/"+job.ID+"/cleanup", api.ZeaburCleanupRequest{Confirm: "wrong"}, nil); code != 400 {
 		t.Fatalf("cleanup wrong confirm: %d", code)
@@ -656,5 +690,86 @@ func TestCutoverWithTokenNeedsConfirmation(t *testing.T) {
 	job = waitJob(t, e, job.ID, "live", "rolled_back", "failed")
 	if job.Status != "live" {
 		t.Fatalf("approved cutover: %+v", job.Steps)
+	}
+}
+
+// Without a DNS provider (no Cloudflare token, no base domain) a takeover still works when
+// every *.zeabur.app host is mapped explicitly; the DNS step leaves records to the user.
+func TestZeaburTakeoverWithoutDNSProvider(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	_, nodeID := startFakeAgent(t, e, zeaburInventory())
+	var lookMu sync.Mutex
+	answer := "203.0.113.7" // what the mapped host resolves to
+	e.srv.cfg.LookupHost = func(ctx context.Context, host string) ([]string, error) {
+		lookMu.Lock()
+		defer lookMu.Unlock()
+		if host == "blog.203-0-113-7.sslip.io" {
+			return []string{answer}, nil
+		}
+		return nil, fmt.Errorf("no such host %s", host)
+	}
+
+	// unmapped *.zeabur.app host and no base domain: refused with a hint
+	var eb api.ErrorBody
+	req := api.ZeaburLocalImportRequest{ServerID: nodeID, Namespace: "environment-abc123"}
+	if code := e.do("POST", "/api/v1/imports/zeabur-local", req, &eb); code != 400 || !strings.Contains(eb.Error, "myblog.zeabur.app") {
+		t.Fatalf("unmapped domain: %d %+v", code, eb)
+	}
+	// invalid replacement
+	req.DomainMap = map[string]string{"MyBlog.zeabur.app": "not a host"}
+	if code := e.do("POST", "/api/v1/imports/zeabur-local", req, &eb); code != 400 {
+		t.Fatalf("invalid mapping: %d %+v", code, eb)
+	}
+
+	req.DomainMap = map[string]string{"MyBlog.zeabur.app": "Blog.203-0-113-7.sslip.io"}
+	var job api.ImportJob
+	e.mustDo("POST", "/api/v1/imports/zeabur-local", req, &job, 201)
+	e.mustDo("POST", "/api/v1/imports/"+job.ID+"/rehearse", nil, nil, 200)
+	if j := waitJob(t, e, job.ID, "rehearsed", "failed"); j.Status != "rehearsed" {
+		t.Fatalf("rehearse: %+v", j.Steps)
+	}
+	e.mustDo("POST", "/api/v1/imports/"+job.ID+"/cutover", nil, nil, 200)
+	job = waitJob(t, e, job.ID, "live", "rolled_back", "failed")
+	if job.Status != "live" {
+		t.Fatalf("cutover without DNS provider: %s %+v", job.Status, job.Steps)
+	}
+	for _, st := range job.Steps {
+		if st.Name == stepDNS && (st.Status != "done" || !strings.Contains(st.Detail, "1 already resolve")) {
+			t.Fatalf("dns step: %+v", st)
+		}
+	}
+	var doms []api.Domain
+	e.mustDo("GET", "/api/v1/domains", nil, &doms, 200)
+	got := map[string]string{}
+	for _, d := range doms {
+		got[d.Hostname] = d.Status
+	}
+	if got["blog.203-0-113-7.sslip.io"] != "active" || got["blog.example.org"] != "active" {
+		t.Fatalf("domains: %v", got)
+	}
+	e.cf.mu.Lock()
+	n := len(e.cf.created)
+	e.cf.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("cloudflare called without a token: %d", n)
+	}
+
+	// a mapped host that does not resolve here yet stays pending, the cutover still succeeds
+	e.mustDo("POST", "/api/v1/imports/"+job.ID+"/rollback", nil, nil, 200)
+	waitJob(t, e, job.ID, "rolled_back")
+	lookMu.Lock()
+	answer = "198.51.100.9"
+	lookMu.Unlock()
+	e.mustDo("POST", "/api/v1/imports/"+job.ID+"/cutover", nil, nil, 200)
+	job = waitJob(t, e, job.ID, "live", "rolled_back", "failed")
+	if job.Status != "live" {
+		t.Fatalf("second cutover: %+v", job.Steps)
+	}
+	e.mustDo("GET", "/api/v1/domains", nil, &doms, 200)
+	for _, d := range doms {
+		if d.Hostname == "blog.203-0-113-7.sslip.io" && (d.Status != "pending" || !strings.Contains(d.Error, "create A blog.203-0-113-7.sslip.io -> 203.0.113.7")) {
+			t.Fatalf("unresolved domain: %+v", d)
+		}
 	}
 }

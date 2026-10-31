@@ -18,7 +18,7 @@
 
    配置保存在 `~/.config/atoll/config.json`，权限 0600。
 
-2. 在面板 设置 里填好**基础域名**（如 `example.com`），用于替换 `*.zeabur.app` 域名。
+2. 在面板 设置 里填好**基础域名**（如 `example.com`），用于替换 `*.zeabur.app` 域名；也可以不填，导入时用 `--domain old=new` 逐个指定。Cloudflare 令牌是可选的：没有令牌时由你自己添加 A 记录（切换照常进行，域名在记录生效前显示为 pending）。
 
 3. 在**那台 Zeabur 管理的 VPS 上**安装 atoll-agent（面板 → Servers → Add server，复制 join 命令到 VPS 执行）。agent 会自动发现本机的 k3s。
 
@@ -55,7 +55,7 @@ atoll zeabur import my-vps --namespace environment-xxxx \
 atoll zeabur rehearse imp_xxxx
 ```
 
-- Zeabur 构建的镜像从 containerd 导出并 `docker load`（标记为 `atoll-import/<服务>:<digest12>`），公共镜像按正在运行的 digest 固定拉取。
+- Zeabur 构建的镜像从 containerd 导出并 `docker load`（标记为 `atoll-import/<服务>:<digest12>`）；来自 Docker Hub / GHCR 等仓库的镜像按原始引用（保留 tag）拉取，拉取失败时退回到 containerd 中的副本并打上同一个引用。
 - 应用的卷目录在本机复制；数据库用**同主版本**的工具 dump/restore，并核对每张表的行数。
 - Atoll 容器启动但**不接公网流量**。Zeabur 继续服务。
 - 在面板里检查服务、日志和数据。可以反复演练。

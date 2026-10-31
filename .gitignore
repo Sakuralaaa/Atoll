@@ -9,3 +9,4 @@ web/dist/
 /atoll-agent
 /atoll-server
 internal/server/webui/dist/assets/
+notes/real-test-*.md

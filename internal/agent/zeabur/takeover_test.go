@@ -716,3 +716,43 @@ func TestImportImageExportFailure(t *testing.T) {
 		t.Fatal("must not tag after a failed export")
 	}
 }
+
+// Public registry images keep their original ref: pulled when possible, exported from
+// containerd and tagged with that same ref when the pull fails.
+func TestImportImagePullsPublicImages(t *testing.T) {
+	tk, h, rt := newTakeover(t)
+	h.ctrLs = string(readFixture(t, "ctr.txt"))
+	h.archive = []byte("OCI")
+	ctx := context.Background()
+	const ref = "docker.io/library/postgres:latest"
+
+	out, err := tk.Handle(ctx, api.MsgZeaburImage, json.RawMessage(`{"image":"`+ref+`","service_id":"svc_db","pull":true}`))
+	if err != nil || out != ref {
+		t.Fatalf("pull: %q %v", out, err)
+	}
+	if len(rt.Loaded) != 0 || h.called(k3sBin+" ctr -n k8s.io images export --platform linux/"+runtime.GOARCH+" - "+ref) {
+		t.Fatal("pulled image must not be exported from containerd")
+	}
+
+	// registry unreachable: containerd copy, tagged with the original ref
+	delete(rt.Images, ref)
+	rt.PullErr[ref] = errors.New("toomanyrequests: rate limit")
+	rt.LoadRefs = []string{"docker.io/library/postgres@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+	out, err = tk.ImportImage(ctx, api.ZeaburImagePayload{Image: ref, ServiceID: "svc_db", Pull: true})
+	if err != nil || out != ref {
+		t.Fatalf("fallback: %q %v", out, err)
+	}
+	if len(rt.Loaded) != 1 {
+		t.Fatalf("containerd fallback not used: %d loads", len(rt.Loaded))
+	}
+	if _, err := rt.ImageInfo(ctx, ref); err != nil {
+		t.Fatal("fallback image not tagged with the original ref")
+	}
+
+	// neither pull nor cache: both reasons reported
+	rt.PullErr["ghcr.io/acme/api:1.2"] = errors.New("denied")
+	if _, err := tk.ImportImage(ctx, api.ZeaburImagePayload{Image: "ghcr.io/acme/api:1.2", ServiceID: "svc_api", Pull: true}); err == nil ||
+		!strings.Contains(err.Error(), "denied") || !strings.Contains(err.Error(), "not in k3s") {
+		t.Fatalf("both failed: %v", err)
+	}
+}

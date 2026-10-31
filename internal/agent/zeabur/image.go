@@ -35,8 +35,14 @@ func CtrDigest(ctrLs, ref string) string {
 	return ""
 }
 
-// ImportImage exports the image from k3s' containerd and loads it into Docker, tagging it
-// atoll-import/<service_id>:<digest12>. Output is that local ref.
+// ImportImage brings a Zeabur service image into Docker. Output is the docker ref to deploy.
+//
+//   - Zeabur-built images (Pull=false) are exported from k3s' containerd and tagged
+//     atoll-import/<service_id>:<digest12>.
+//   - Public registry images (Pull=true) are pulled by their original ref, tag kept, so the
+//     service keeps following the registry. When the pull fails (rate limit, registry down,
+//     image deleted) the cached copy is exported from containerd and tagged with that same
+//     ref, which the deploy then uses (it falls back to a local image when a pull fails).
 func (t *Takeover) ImportImage(ctx context.Context, p api.ZeaburImagePayload) (string, error) {
 	if p.Image == "" || p.ServiceID == "" {
 		return "", errors.New("image and service_id are required")
@@ -44,11 +50,27 @@ func (t *Takeover) ImportImage(ctx context.Context, p api.ZeaburImagePayload) (s
 	if strings.ContainsAny(p.ServiceID, "/: ") {
 		return "", fmt.Errorf("invalid service id %q", p.ServiceID)
 	}
+	ref := p.Image
+	if p.Pull {
+		perr := t.RT.PullImage(ctx, ref, nil)
+		if perr == nil {
+			return ref, nil
+		}
+		t.Log.Warn("pull failed; exporting the image from k3s' containerd instead", "image", ref, "err", perr)
+		if _, err := t.exportImage(ctx, ref, func(string) string { return ref }); err != nil {
+			return "", fmt.Errorf("pull %s: %v; containerd fallback: %w", ref, perr, err)
+		}
+		return ref, nil
+	}
+	return t.exportImage(ctx, ref, func(digest string) string { return LocalTag(p.ServiceID, digest) })
+}
+
+// exportImage loads ref from k3s' containerd into Docker and tags it target(digest).
+func (t *Takeover) exportImage(ctx context.Context, ref string, target func(digest string) string) (string, error) {
 	bin, err := t.k3sBin()
 	if err != nil {
 		return "", err
 	}
-	ref := p.Image
 	ls, err := t.X.Output(ctx, bin, "ctr", "-n", "k8s.io", "images", "ls")
 	if err != nil {
 		return "", err
@@ -63,9 +85,11 @@ func (t *Takeover) ImportImage(ctx context.Context, p api.ZeaburImagePayload) (s
 			return "", fmt.Errorf("image %s is not in k3s' containerd cache (Zeabur may have garbage-collected it)", ref)
 		}
 	}
-	target := LocalTag(p.ServiceID, digest)
-	if _, err := t.RT.ImageInfo(ctx, target); err == nil {
-		return target, nil // already imported (repeat run)
+	tgt := target(digest)
+	if tgt != ref {
+		if _, err := t.RT.ImageInfo(ctx, tgt); err == nil {
+			return tgt, nil // already imported (repeat run)
+		}
 	}
 
 	pr, pw := io.Pipe()
@@ -84,15 +108,20 @@ func (t *Takeover) ImportImage(ctx context.Context, p api.ZeaburImagePayload) (s
 	if lerr != nil {
 		return "", fmt.Errorf("docker load: %w", lerr)
 	}
+	if len(refs) == 0 {
+		return "", fmt.Errorf("docker load %s: no image loaded", ref)
+	}
 	src := refs[0]
 	for _, r := range refs {
 		if r == ref {
 			src = r
 		}
 	}
-	if err := t.RT.TagImage(ctx, src, target); err != nil {
-		return "", fmt.Errorf("tag %s as %s: %w", src, target, err)
+	if src != tgt {
+		if err := t.RT.TagImage(ctx, src, tgt); err != nil {
+			return "", fmt.Errorf("tag %s as %s: %w", src, tgt, err)
+		}
 	}
-	t.Log.Info("imported zeabur image", "image", ref, "local", target)
-	return target, nil
+	t.Log.Info("imported zeabur image", "image", ref, "local", tgt)
+	return tgt, nil
 }

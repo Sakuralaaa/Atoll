@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,7 +34,9 @@ type Config struct {
 	VerifyTimeout     time.Duration // how long cutover waits for healthy containers (3m)
 
 	CloudflareBaseURL string // override for tests
-	Logger            *slog.Logger
+	// LookupHost resolves a hostname (default net.DefaultResolver); override for tests.
+	LookupHost func(ctx context.Context, host string) ([]string, error)
+	Logger     *slog.Logger
 }
 
 // Server is the control plane.
@@ -72,6 +75,9 @@ func New(cfg Config) (*Server, error) {
 	def(&cfg.VerifyTimeout, 3*time.Minute)
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+	if cfg.LookupHost == nil {
+		cfg.LookupHost = net.DefaultResolver.LookupHost
 	}
 	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
 	for _, d := range []string{cfg.DataDir, filepath.Join(cfg.DataDir, "blobs")} {

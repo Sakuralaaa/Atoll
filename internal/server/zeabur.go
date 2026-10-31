@@ -237,22 +237,34 @@ func (s *Server) handleZeaburLocalImport(w http.ResponseWriter, r *http.Request)
 		return badRequest("namespace %s has no services", req.Namespace)
 	}
 
-	// settings: *.zeabur.app hosts need a new home under base_domain, with Cloudflare DNS
+	// *.zeabur.app hosts die with Zeabur: each needs a replacement, either given explicitly in
+	// domain_map (old=new, or old= to drop it) or derived from base_domain. DNS is optional:
+	// with a Cloudflare token the cutover creates the records, without one the user does.
 	base, _ := s.st.GetSetting(ctx, "base_domain")
-	cfTok, _ := s.st.GetSetting(ctx, "cloudflare_token")
-	needsDomain := false
+	req.DomainMap = lowerKeys(req.DomainMap)
+	var unmapped []string
 	for _, sv := range selected {
 		for _, d := range sv.Domains {
 			if k8s.IsGeneratedDomain(d) {
-				if nd, ok := req.DomainMap[strings.ToLower(d)]; ok && nd == "" {
-					continue // explicitly dropped
+				if _, ok := req.DomainMap[strings.ToLower(d)]; ok {
+					continue // explicitly mapped or dropped
 				}
-				needsDomain = true
+				unmapped = append(unmapped, d)
 			}
 		}
 	}
-	if needsDomain && (base == "" || cfTok == "") {
-		return errf(400, "settings_required", "这些服务使用 *.zeabur.app 域名，接管后会失效：请先在 设置 (Settings) 中填写根域名 (base_domain) 和 Cloudflare API Token，Atoll 会为它们创建新域名")
+	if len(unmapped) > 0 && base == "" {
+		return errf(400, "settings_required", "这些服务使用 *.zeabur.app 域名，接管后会失效 (%s)：请在 设置 (Settings) 中填写根域名 (base_domain)，或用 domain_map / --domain old=new 逐个指定新域名（old= 表示丢弃）", strings.Join(dedupe(unmapped), ", "))
+	}
+	for o, n := range req.DomainMap {
+		if n == "" {
+			continue
+		}
+		h, err := normalizeHostname(n, base)
+		if err != nil {
+			return badRequest("domain_map %s: %v", o, err)
+		}
+		req.DomainMap[o] = h
 	}
 
 	name := strings.TrimSpace(req.ProjectName)
@@ -379,6 +391,15 @@ func (s *Server) handleZeaburLocalImport(w http.ResponseWriter, r *http.Request)
 	s.st.Audit(ctx, principalFrom(ctx).actor(), "import.zeabur_local", job.ID, map[string]string{"project": p.ID, "namespace": req.Namespace})
 	writeJSON(w, 201, maskJob(job))
 	return nil
+}
+
+// lowerKeys returns m with lower-cased keys (hostnames are case-insensitive).
+func lowerKeys(m map[string]string) map[string]string {
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[strings.ToLower(strings.TrimSuffix(strings.TrimSpace(k), "."))] = strings.TrimSpace(v)
+	}
+	return out
 }
 
 func hasKey(env []api.EnvVar, k string) bool {
@@ -522,12 +543,15 @@ func (z *zrun) doRehearse() error {
 		return err
 	}
 	if err := z.st.do(stepImages, func() (string, error) {
-		n := 0
+		n, pulled := 0, 0
 		for _, sv := range z.meta.Services {
-			if !sv.ZeaburRegistry {
+			if sv.Image == "" {
 				continue
 			}
-			ref, err := s.hub.Call(ctx, z.node, api.MsgZeaburImage, api.ZeaburImagePayload{Image: sv.Image, ServiceID: sv.AtollID}, s.cfg.TransferTimeout)
+			// Zeabur-built images only exist in containerd; registry images are pulled by
+			// their original ref (tag kept), with containerd as the agent's fallback.
+			pull := !sv.ZeaburRegistry
+			ref, err := s.hub.Call(ctx, z.node, api.MsgZeaburImage, api.ZeaburImagePayload{Image: sv.Image, ServiceID: sv.AtollID, Pull: pull}, s.cfg.TransferTimeout)
 			if err != nil {
 				return "", fmt.Errorf("%s: %w", sv.Name, err)
 			}
@@ -538,9 +562,13 @@ func (z *zrun) doRehearse() error {
 			if err := z.setImage(sv.AtollID, ref); err != nil {
 				return "", err
 			}
-			n++
+			if pull {
+				pulled++
+			} else {
+				n++
+			}
 		}
-		return fmt.Sprintf("%d Zeabur-built image(s) exported from containerd; public images are pulled pinned to their running digest", n), nil
+		return fmt.Sprintf("%d Zeabur-built image(s) exported from containerd; %d registry image(s) pulled with their original tag", n, pulled), nil
 	}); err != nil {
 		return err
 	}
@@ -757,6 +785,31 @@ func (z *zrun) cutover() error {
 	return fmt.Errorf("cutover failed, rolled back automatically: %w", err)
 }
 
+// startStopped starts every Atoll service of the job that is stopped (after a rollback) and
+// waits until they are healthy.
+func (z *zrun) startStopped() error {
+	s, ctx := z.s, z.ctx
+	since := time.Now()
+	var started []string
+	for _, sv := range z.meta.Services {
+		svc, stopped, err := s.st.GetService(ctx, sv.AtollID)
+		if err != nil {
+			return err
+		}
+		if !stopped {
+			continue
+		}
+		if _, err := s.serviceAction(ctx, svc, "start"); err != nil {
+			return fmt.Errorf("start %s: %w", sv.Name, err)
+		}
+		started = append(started, sv.AtollID)
+	}
+	if len(started) == 0 {
+		return nil
+	}
+	return s.waitHealthy(ctx, started, since, s.cfg.VerifyTimeout)
+}
+
 func (z *zrun) scale(sv zeaburSvcMeta, replicas int) error {
 	if sv.Workload == "" {
 		return nil
@@ -781,6 +834,11 @@ func (z *zrun) scale(sv zeaburSvcMeta, replicas int) error {
 func (z *zrun) doCutover() error {
 	s, ctx := z.s, z.ctx
 	if err := z.st.do(stepScaleDown, func() (string, error) {
+		// A rollback stops Atoll's copies (desired_stopped): start them again first, or the
+		// final DB sync has no target and the ingress has no routes to serve.
+		if err := z.startStopped(); err != nil {
+			return "", err
+		}
 		n := 0
 		for _, sv := range z.meta.Services {
 			if sv.isDB() || sv.Workload == "" {
@@ -866,7 +924,10 @@ func (z *zrun) doCutover() error {
 }
 
 // configureDNS creates proxied A records for remapped *.zeabur.app hosts that have none yet;
-// custom domains already point at this server and are left alone.
+// custom domains already point at this server and are left alone. Without a DNS provider the
+// records are the user's job: hosts that already resolve to this server go active, the others
+// stay pending with the record to create, and the cutover still succeeds (Caddy serves them as
+// soon as DNS points here).
 func (z *zrun) configureDNS() (string, error) {
 	s, ctx := z.s, z.ctx
 	doms, err := s.st.ListDomains(ctx, "", z.job.ProjectID)
@@ -883,8 +944,8 @@ func (z *zrun) configureDNS() (string, error) {
 	}
 	prov := s.dnsProvider(ctx)
 	finder, _ := prov.(dns.Finder)
-	created, kept, custom := 0, 0, 0
-	var bad []string
+	created, kept, custom, resolved := 0, 0, 0, 0
+	var bad, manual []string
 	for _, d := range doms {
 		dd := d.Domain
 		if !remapped[dd.Hostname] {
@@ -905,10 +966,18 @@ func (z *zrun) configureDNS() (string, error) {
 			}
 		}
 		recID, err := prov.UpsertA(ctx, dd.Hostname, node.PublicIPv4, true)
-		if err != nil {
-			if errors.Is(err, dns.ErrNotConfigured) {
-				err = fmt.Errorf("no Cloudflare token in Settings; create A %s -> %s", dd.Hostname, orUnknown(node.PublicIPv4))
+		if errors.Is(err, dns.ErrNotConfigured) {
+			if z.resolvesHere(dd.Hostname, node.PublicIPv4) {
+				resolved++
+				s.st.SetDomainStatus(ctx, dd.ID, "active", "", "")
+				continue
 			}
+			note := fmt.Sprintf("no DNS provider configured: create A %s -> %s", dd.Hostname, orUnknown(node.PublicIPv4))
+			s.st.SetDomainStatus(ctx, dd.ID, "pending", note, "")
+			manual = append(manual, dd.Hostname)
+			continue
+		}
+		if err != nil {
 			s.st.SetDomainStatus(ctx, dd.ID, "error", err.Error(), "")
 			bad = append(bad, dd.Hostname+": "+err.Error())
 			continue
@@ -919,7 +988,33 @@ func (z *zrun) configureDNS() (string, error) {
 	if len(bad) > 0 {
 		return "", fmt.Errorf("DNS failed: %s", strings.Join(bad, "; "))
 	}
-	return fmt.Sprintf("%d record(s) created, %d already present, %d custom domain(s) unchanged (same IP)", created, kept, custom), nil
+	msg := fmt.Sprintf("%d record(s) created, %d already present, %d custom domain(s) unchanged (same IP)", created, kept, custom)
+	if resolved > 0 {
+		msg += fmt.Sprintf(", %d already resolve to this server", resolved)
+	}
+	if len(manual) > 0 {
+		msg += fmt.Sprintf("; no DNS provider: create A records to %s for %s", orUnknown(node.PublicIPv4), strings.Join(manual, ", "))
+	}
+	return msg, nil
+}
+
+// resolvesHere reports whether host already resolves to ip (best effort, short timeout).
+func (z *zrun) resolvesHere(host, ip string) bool {
+	if ip == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(z.ctx, 5*time.Second)
+	defer cancel()
+	addrs, err := z.s.cfg.LookupHost(ctx, host)
+	if err != nil {
+		return false
+	}
+	for _, a := range addrs {
+		if a == ip {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------- rollback ----------
