@@ -267,7 +267,7 @@ log "atoll-server is running"
 	echo "  Open $url to create the owner account (first visit runs setup)."
 	if [ "$local_only" = 1 ] && [ -z "$DOMAIN" ] && [ "$url" = "http://127.0.0.1:$port" ]; then
 		echo "  atoll-server listens on $listen only: reach it through your TLS proxy, or re-run with --domain NAME."
-	elif [ -z "$DOMAIN" ]; then
+	elif [ -z "$DOMAIN" ] && [ "$local_only" = 0 ] && [ "${url#https://}" = "$url" ]; then
 		echo "  Put a TLS proxy in front before exposing it publicly (or re-run with --domain NAME)."
 	fi
 	echo "  Forgot the password?  sudo atoll-server reset-password --data $DATA"
