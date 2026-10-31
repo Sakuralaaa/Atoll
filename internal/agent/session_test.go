@@ -131,6 +131,21 @@ func newTestAgent(t *testing.T, serverURL, token string) (*agent.Agent, *agentte
 	return a, f
 }
 
+// webRunning reports whether f is a status frame listing svc_web as running.
+func webRunning(f frame) bool {
+	if f.Type != api.MsgStatus {
+		return false
+	}
+	var st api.StatusPayload
+	json.Unmarshal(f.Payload, &st)
+	for _, c := range st.Containers {
+		if c.ServiceID == "svc_web" && c.State == "running" {
+			return true
+		}
+	}
+	return false
+}
+
 func TestWebSocketSession(t *testing.T) {
 	const token = "atl_node_secret"
 	fs := newFakeServer(t, token)
@@ -165,8 +180,12 @@ func TestWebSocketSession(t *testing.T) {
 	spec.RegistryAuth = nil
 	fs.send(api.MsgApply, "r1", api.ApplyPayload{Spec: spec})
 	var statuses []string
+	sawWebRunning := false
 	for {
 		fr := fs.wait("deploy/result", func(f frame) bool {
+			if webRunning(f) {
+				sawWebRunning = true
+			}
 			return f.Type == api.MsgDeploy || (f.Type == api.MsgResult && f.ID == "r1")
 		})
 		if fr.Type == api.MsgResult {
@@ -188,20 +207,11 @@ func TestWebSocketSession(t *testing.T) {
 		t.Fatalf("deploy statuses %v", statuses)
 	}
 
-	// status reflects the new container.
-	fs.wait("status with svc_web", func(f frame) bool {
-		if f.Type != api.MsgStatus {
-			return false
-		}
-		var st api.StatusPayload
-		json.Unmarshal(f.Payload, &st)
-		for _, c := range st.Containers {
-			if c.ServiceID == "svc_web" && c.State == "running" {
-				return true
-			}
-		}
-		return false
-	})
+	// status reflects the new container. The change-driven status frame can arrive
+	// before the apply result (and be skipped by the loop above), so it may already be seen.
+	if !sawWebRunning {
+		fs.wait("status with svc_web", webRunning)
+	}
 
 	// exec
 	fs.send(api.MsgExec, "r2", api.ExecPayload{ServiceID: "svc_web", Cmd: []string{"echo", "hi"}})
