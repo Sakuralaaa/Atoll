@@ -12,6 +12,8 @@
 - **一键数据库模板**：PostgreSQL / MySQL / Redis / MongoDB。
 - **项目迁移**：在 VPS 之间迁移服务（卷 + 数据库导出恢复）。
 - **从 Zeabur 原地接管**：在原先交给 Zeabur 管理的同一台 VPS 上扫描 k3s → 导入 → 演练 → 切换 → 可回滚 → 最后卸载 k3s。详见 [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md)。
+- **定时备份**：restic 直传任意 S3 兼容存储（R2 / B2 / S3 / MinIO），数据库逻辑导出 + 卷快照，保留策略可配；由各节点 agent 本地调度，中控离线也照常备份；恢复前自动保留一份当前数据，原机器宕机时可恢复到另一台 VPS。详见 [docs/api.md](docs/api.md#backups)。
+- **镜像更新检测**：定期比对镜像仓库的 digest 与新的 semver tag，可仅提醒或在时间窗内自动更新（同 tag 新 digest），一键应用、可回滚。
 - **CLI / API / MCP**：`atoll` 命令行、带 scope 的 `atl_pat_` token、`atoll mcp` 供 Claude Code / Codex 等外部 agent 使用；破坏性操作需在面板确认。
 
 ## 组成
@@ -41,6 +43,14 @@ go test ./...
 curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh | sudo sh
 # 节点（在面板「服务器 → 添加」里复制带 token 的命令）
 curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server https://panel.example.com --token atl_join_xxx
+```
+
+## 发布 Release
+
+推送 `v*` tag 即触发 [.github/workflows/release.yml](.github/workflows/release.yml)（构建面板、跑测试、打包二进制并发布 Release）：
+
+```bash
+git tag v0.1.0 && git push --tags
 ```
 
 ## License

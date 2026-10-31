@@ -123,13 +123,13 @@ func (a *Agent) Run(ctx context.Context) error {
 
 // ---------- outbound ----------
 
-// Emit sends an event; deploy events are queued while disconnected, others are dropped.
+// Emit sends an event; deploy and backup events are queued while disconnected, others are dropped.
 func (a *Agent) Emit(msgType string, payload any) {
 	env := api.Envelope{Type: msgType, Payload: payload}
 	a.connMu.Lock()
 	c := a.conn
 	if c == nil {
-		if msgType == api.MsgDeploy {
+		if queuedWhileOffline(msgType) {
 			a.queue = append(a.queue, env)
 			if len(a.queue) > 500 {
 				a.queue = a.queue[len(a.queue)-500:]
@@ -139,7 +139,7 @@ func (a *Agent) Emit(msgType string, payload any) {
 		return
 	}
 	a.connMu.Unlock()
-	if err := a.write(c, env); err != nil && msgType == api.MsgDeploy {
+	if err := a.write(c, env); err != nil && queuedWhileOffline(msgType) {
 		a.connMu.Lock()
 		a.queue = append(a.queue, env)
 		a.connMu.Unlock()

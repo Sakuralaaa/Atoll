@@ -75,7 +75,8 @@ func (s *Store) ExpireConfirmations(ctx context.Context, ttl time.Duration) {
 
 // ---------- settings ----------
 
-var secretSettings = map[string]bool{"cloudflare_token": true, "origin_cert_pem": true, "origin_key_pem": true}
+var secretSettings = map[string]bool{"cloudflare_token": true, "origin_cert_pem": true, "origin_key_pem": true,
+	"backup_access_key": true, "backup_secret_key": true, "backup_repo_password": true}
 
 // GetSetting returns a setting ("" if unset), decrypting secret keys.
 func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {

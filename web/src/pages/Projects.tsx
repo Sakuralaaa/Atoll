@@ -7,12 +7,15 @@ import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import { primaryDomain, projIcon, svcIcon } from '../api/view'
+import { useUpdatesByService } from '../api/updates'
+import { UpdateBadge } from '../components/ImageUpdateCard'
 
 export const useProjects = () => useQuery('projects', api.projectsFull)
 
 export default function Projects() {
   const q = useProjects()
   const servers = useQuery('servers', api.servers).data
+  const updates = useUpdatesByService()
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [create, setCreate] = useState(false)
@@ -59,7 +62,7 @@ export default function Projects() {
                 </div>
                 <div className="mt-5 px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
                   {srv ? <><Mini provider={srv.provider ?? '?'} size={13} /><span className="text-fg2 truncate">{srv.name}</span></> : <span className="text-dim">—</span>}
-                  <span className="ml-auto flex items-center gap-2 text-muted tnum"><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length}</span>
+                  <span className="ml-auto flex items-center gap-2 text-muted tnum"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length}</span>
                 </div>
               </Link>
             )

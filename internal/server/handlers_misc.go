@@ -86,6 +86,11 @@ func (s *Server) execConfirmed(ctx context.Context, r *http.Request, c *api.Conf
 	case "import.cutover":
 		_, err := s.startCutover(ctx, c.Target, actor)
 		return err
+	case "backup.restore":
+		var req api.BackupRestoreRequest
+		json.Unmarshal(payload, &req)
+		_, err := s.startRestore(ctx, c.Target, req, actor)
+		return err
 	}
 	return errf(400, "unknown_action", "unknown confirmation action %q", c.Action)
 }
@@ -109,6 +114,8 @@ func (s *Server) settings(ctx context.Context) api.Settings {
 	if st.PublicURL == "" {
 		st.PublicURL = s.cfg.PublicURL
 	}
+	st.ImageCheckIntervalHours = int(s.imageCheckInterval(ctx) / time.Hour)
+	s.fillBackupSettings(ctx, &st) // backups.go
 	return st
 }
 
@@ -150,9 +157,19 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	if req.CloudflareToken != "" { // "" keeps the stored token
 		set["cloudflare_token"] = strings.TrimSpace(req.CloudflareToken)
 	}
+	if req.ImageCheckIntervalHours < 0 || req.ImageCheckIntervalHours > 24*7 {
+		return badRequest("image_check_interval_hours must be between 1 and 168")
+	}
+	if req.ImageCheckIntervalHours > 0 { // 0 keeps the stored value
+		set["image_check_interval_hours"] = intStr(req.ImageCheckIntervalHours)
+	}
 	if req.OriginCertPEM != "" {
 		set["origin_cert_pem"] = req.OriginCertPEM
 		set["origin_key_pem"] = req.OriginKeyPEM
+	}
+	generatedBackupPassword, backupChanged, err := s.applyBackupSettings(ctx, req) // backups.go
+	if err != nil {
+		return err
 	}
 	for k, v := range set {
 		if err := s.st.SetSetting(ctx, k, v); err != nil {
@@ -169,7 +186,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 		}
 		s.pushIngress(ctx, n.ID)
 	}
-	writeJSON(w, 200, s.settings(ctx))
+	if backupChanged {
+		s.pushBackupConfigAll(ctx, true)
+	}
+	out := s.settings(ctx)
+	out.BackupRepoPassword = generatedBackupPassword // shown once
+	writeJSON(w, 200, out)
 	return nil
 }
 

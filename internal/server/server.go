@@ -48,6 +48,8 @@ type Server struct {
 	jobMu   sync.Mutex
 	jobBusy map[string]bool
 
+	upd *updater // image update detection (imageupdates.go)
+
 	bg     context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -91,6 +93,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), limit: newLoginLimiter(10, 15*time.Minute), jobBusy: map[string]bool{}}
 	s.hub = newHub(s)
+	s.upd = newUpdater()
 	s.bg, s.cancel = context.WithCancel(context.Background())
 	// Nobody is connected right after start.
 	nodes, _ := st.ListNodes(s.bg)
@@ -101,6 +104,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	s.wg.Add(1)
 	go s.housekeeping()
+	s.wg.Add(1)
+	go s.imageUpdateLoop()
+	s.startBackupScheduler() // backups.go
 	return s, nil
 }
 

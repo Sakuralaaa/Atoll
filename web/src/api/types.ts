@@ -67,6 +67,12 @@ export interface Settings {
   base_domain: string; cloudflare_zone_id: string; cloudflare_token?: string
   has_cloudflare_token: boolean; tls_mode: 'cloudflare-origin' | 'acme' | string; public_url: string
   /** write-only like cloudflare_token */ origin_cert_pem?: string; origin_key_pem?: string; has_origin_cert: boolean; acme_email?: string
+  /** image update check interval (hours, default 6); 0 on PUT keeps the stored value */ image_check_interval_hours?: number
+  /** backup target (any S3 API). Empty fields on PUT keep the stored value; clear with DELETE /settings/backup */
+  backup_endpoint?: string; backup_bucket?: string; backup_prefix?: string; backup_region?: string
+  /** write-only */ backup_access_key?: string; backup_secret_key?: string; has_backup_credentials?: boolean
+  /** write-only; returned ONCE in the PUT response when the server generated it */ backup_repo_password?: string
+  has_backup_password?: boolean; backup_configured?: boolean
 }
 
 export interface ErrorBody { error: string; code?: string }
@@ -155,3 +161,47 @@ export interface Template { kind: string; name: string; description: string; ima
 export interface EnvReference extends EnvVar { service?: string }
 /** /events frame */
 export interface LiveEvent { type: 'service' | 'server' | 'deployment' | 'confirmation' | string; payload?: unknown }
+
+// ---- image update detection (GET /image-updates, /services/{id}/image-update) ----
+export type ImageUpdatePolicyKind = 'notify' | 'auto' | 'off'
+export interface ImageUpdate {
+  service_id: string; project_id: string; service: string; image: string
+  policy: ImageUpdatePolicyKind | string
+  /** daily auto-update window "HH:MM-HH:MM" in UTC */ window?: string
+  status: 'up_to_date' | 'update_available' | 'unknown' | 'error' | 'unsupported' | 'disabled' | string
+  update_available: boolean; digest_changed: boolean
+  current_digest?: string; latest_digest?: string; current_tag?: string
+  /** newest higher tag, same major */ newer_tag?: string
+  /** newest higher major, shown separately */ major_tag?: string
+  changelog_url?: string; error?: string; note?: string
+  checked_at?: string; next_check_at?: string; last_auto_digest?: string
+}
+export interface ImageUpdatePolicy { policy: ImageUpdatePolicyKind; window?: string }
+
+
+// ---------- Backups (restic to any S3 bucket) ----------
+export interface BackupKeep { daily: number; weekly: number; monthly: number }
+export interface BackupPolicy {
+  service_id: string; enabled: boolean
+  /** 5-field cron, default "0 3 * * *" */ schedule: string
+  /** IANA zone the schedule is read in */ timezone: string
+  keep: BackupKeep
+  /** database templates: also snapshot volumes (always on for other services) */ include_volumes: boolean
+  updated_at?: string
+  // read-only
+  next_run_at?: string; repo_configured: boolean; parts?: ('dump' | 'volumes' | string)[]
+}
+export interface BackupSnapshot { id: string; part: 'dump' | 'volumes' | string; bytes: number; added: number; pruned?: boolean }
+export interface Backup {
+  id: string; service_id: string; server_id: string
+  trigger: 'schedule' | 'manual' | 'catchup' | 'imported' | string
+  status: 'running' | 'done' | 'failed' | 'pruned' | string
+  snapshots: BackupSnapshot[]; bytes: number; added: number; duration_ms: number
+  error?: string; warnings?: string[]; started_at: string; finished_at?: string
+}
+export interface BackupRestoreRequest { target_server_id?: string }
+export interface RestoreJob {
+  id: string; backup_id: string; service_id: string; project_id: string; from_server_id: string; to_server_id: string
+  status: 'running' | 'done' | 'failed' | string; steps: ImportStep[]; error?: string; created_at: string; finished_at?: string
+}
+export interface BackupTestResult { ok: boolean; server_id: string; message: string }

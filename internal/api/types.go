@@ -115,7 +115,7 @@ type Deployment struct {
 	ServerID    string     `json:"server_id"`
 	ImageDigest string     `json:"image_digest,omitempty"`
 	Status      string     `json:"status"`  // "queued" | "pulling" | "starting" | "running" | "failed" | "superseded"
-	Trigger     string     `json:"trigger"` // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate"
+	Trigger     string     `json:"trigger"` // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update"
 	Message     string     `json:"message,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
 	FinishedAt  *time.Time `json:"finished_at,omitempty"`
@@ -156,6 +156,24 @@ type Settings struct {
 	OriginKeyPEM  string `json:"origin_key_pem,omitempty"`
 	HasOriginCert bool   `json:"has_origin_cert"`
 	ACMEEmail     string `json:"acme_email,omitempty"` // used when TLSMode == "acme"
+
+	// Backup target (any S3 API: Cloudflare R2, Backblaze B2, AWS S3, MinIO). See BackupRepo.
+	// Access/secret key and the restic repository password are write-only like CloudflareToken.
+	BackupEndpoint       string `json:"backup_endpoint,omitempty"` // e.g. https://<account>.r2.cloudflarestorage.com
+	BackupBucket         string `json:"backup_bucket,omitempty"`
+	BackupPrefix         string `json:"backup_prefix,omitempty"` // path inside the bucket, default "atoll"
+	BackupRegion         string `json:"backup_region,omitempty"` // "auto" for R2; B2 e.g. us-west-004
+	BackupAccessKey      string `json:"backup_access_key,omitempty"`
+	BackupSecretKey      string `json:"backup_secret_key,omitempty"`
+	HasBackupCredentials bool   `json:"has_backup_credentials"`
+	// BackupRepoPassword encrypts the restic repository. Write it to set an existing repo's
+	// password (disaster recovery on a fresh control server). When none is stored the first
+	// save of a backup target generates one and returns it ONCE in the PUT response.
+	BackupRepoPassword string `json:"backup_repo_password,omitempty"`
+	HasBackupPassword  bool   `json:"has_backup_password"`
+	BackupConfigured   bool   `json:"backup_configured"` // endpoint, bucket, credentials and password all set
+	// ImageCheckIntervalHours is how often image update checks run (default 6; PUT 0 keeps the stored value).
+	ImageCheckIntervalHours int `json:"image_check_interval_hours"`
 }
 
 // Template is a one-click database service (GET /api/v1/templates). Env values may
@@ -585,4 +603,281 @@ const MsgZeaburUninstall = "zeabur.uninstall"
 
 type ZeaburUninstallPayload struct {
 	KeepBackup bool `json:"keep_backup"` // tar.gz every PVC dir to /var/lib/atoll/zeabur-backup/<pvc>.tgz first
+}
+
+// ---------- Backups (restic to any S3 bucket; see docs/api.md "Backups") ----------
+// Data never transits the control server: each agent runs `restic` in a container and talks
+// to the bucket directly. The agent keeps its policies locally and runs the schedule itself,
+// so backups continue while the control server is offline; results are reported as
+// MsgBackupEvent frames (queued while disconnected).
+
+// BackupKeep is the restic `forget` retention (keep-daily / keep-weekly / keep-monthly).
+type BackupKeep struct {
+	Daily   int `json:"daily"`
+	Weekly  int `json:"weekly"`
+	Monthly int `json:"monthly"`
+}
+
+// BackupPolicy is GET/PUT /api/v1/services/{id}/backup-policy.
+type BackupPolicy struct {
+	ServiceID string     `json:"service_id"`
+	Enabled   bool       `json:"enabled"`
+	Schedule  string     `json:"schedule"` // 5-field cron, default "0 3 * * *"
+	Timezone  string     `json:"timezone"` // IANA zone the schedule is read in; default the control server's zone
+	Keep      BackupKeep `json:"keep"`
+	// IncludeVolumes also snapshots the service's volume dirs. Database templates always back
+	// up a logical dump; for other services the volumes are the backup (forced on).
+	IncludeVolumes bool       `json:"include_volumes"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	// read-only, computed
+	NextRunAt      *time.Time `json:"next_run_at,omitempty"`
+	RepoConfigured bool       `json:"repo_configured"`
+	Parts          []string   `json:"parts,omitempty"` // what a run backs up: "dump" and/or "volumes"
+}
+
+// BackupSnapshot is one restic snapshot written by a backup run.
+type BackupSnapshot struct {
+	ID     string `json:"id"`               // restic snapshot id (full)
+	Part   string `json:"part"`             // "dump" | "volumes"
+	Bytes  int64  `json:"bytes"`            // logical size (total_bytes_processed)
+	Added  int64  `json:"added"`            // new data uploaded (data_added, after dedup + compression)
+	Pruned bool   `json:"pruned,omitempty"` // removed by retention
+}
+
+// Backup is one backup run of a service (GET /api/v1/services/{id}/backups).
+type Backup struct {
+	ID         string           `json:"id"` // "bak_..."
+	ServiceID  string           `json:"service_id"`
+	ServerID   string           `json:"server_id"`
+	Trigger    string           `json:"trigger"` // "schedule" | "manual" | "catchup" | "imported"
+	Status     string           `json:"status"`  // "running" | "done" | "failed" | "pruned"
+	Snapshots  []BackupSnapshot `json:"snapshots"`
+	Bytes      int64            `json:"bytes"`
+	Added      int64            `json:"added"`
+	DurationMs int64            `json:"duration_ms"`
+	Error      string           `json:"error,omitempty"`
+	Warnings   []string         `json:"warnings,omitempty"`
+	StartedAt  time.Time        `json:"started_at"`
+	FinishedAt *time.Time       `json:"finished_at,omitempty"`
+}
+
+// BackupRestoreRequest is the body of POST /api/v1/backups/{id}/restore. An empty target (or
+// the service's own server) restores in place. Another server is disaster recovery: the
+// project's server must be offline; the whole project is moved to the target (services
+// created there from their stored config), then this backup's data is restored.
+type BackupRestoreRequest struct {
+	TargetServerID string `json:"target_server_id,omitempty"`
+}
+
+// RestoreJob tracks a restore (GET /api/v1/restores/{id}).
+type RestoreJob struct {
+	ID         string       `json:"id"` // "rst_..."
+	BackupID   string       `json:"backup_id"`
+	ServiceID  string       `json:"service_id"`
+	ProjectID  string       `json:"project_id"`
+	FromServer string       `json:"from_server_id"`
+	ToServer   string       `json:"to_server_id"`
+	Status     string       `json:"status"` // "running" | "done" | "failed"
+	Steps      []ImportStep `json:"steps"`
+	Error      string       `json:"error,omitempty"`
+	CreatedAt  time.Time    `json:"created_at"`
+	FinishedAt *time.Time   `json:"finished_at,omitempty"`
+}
+
+// BackupTestResult is POST /api/v1/settings/backup/test.
+type BackupTestResult struct {
+	OK       bool   `json:"ok"`
+	ServerID string `json:"server_id"` // agent that ran the check
+	Message  string `json:"message"`
+}
+
+const (
+	// server -> agent
+	MsgBackupConfig    = "backup.config"    // BackupConfigPayload: repo + every policy of this node; agent persists it and schedules locally
+	MsgBackupRun       = "backup.run"       // BackupRunPayload: queue a run now; result Output "queued" | "skipped"; progress via MsgBackupEvent
+	MsgBackupRestore   = "backup.restore"   // BackupRestorePayload: blocking; result Output = JSON BackupRestoreResult
+	MsgBackupSnapshots = "backup.snapshots" // BackupSnapshotsPayload: result Output = JSON []ResticSnapshot
+	MsgBackupTest      = "backup.test"      // BackupRepo: check (and init) the repository; result Output = message
+
+	// agent -> server
+	MsgBackupEvent = "backup" // BackupEvent
+)
+
+// BackupRepo is the restic repository on an S3-compatible bucket. Carries secrets: never log
+// it (it implements slog.LogValuer and fmt.Stringer with redaction).
+type BackupRepo struct {
+	Endpoint  string `json:"endpoint"`
+	Bucket    string `json:"bucket"`
+	Prefix    string `json:"prefix,omitempty"`
+	Region    string `json:"region,omitempty"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+	Password  string `json:"password"`
+}
+
+// URL is the restic repository string, e.g. s3:https://acct.r2.cloudflarestorage.com/bucket/atoll.
+func (r BackupRepo) URL() string {
+	ep := r.Endpoint
+	if ep != "" && !hasScheme(ep) {
+		ep = "https://" + ep
+	}
+	for len(ep) > 0 && ep[len(ep)-1] == '/' {
+		ep = ep[:len(ep)-1]
+	}
+	u := "s3:" + ep + "/" + r.Bucket
+	if p := trimSlashes(r.Prefix); p != "" {
+		u += "/" + p
+	}
+	return u
+}
+
+// String redacts the credentials.
+func (r BackupRepo) String() string { return r.URL() + " (credentials redacted)" }
+
+// GoString redacts the credentials (%#v).
+func (r BackupRepo) GoString() string { return r.String() }
+
+func hasScheme(s string) bool {
+	return len(s) > 7 && (s[:7] == "http://" || (len(s) > 8 && s[:8] == "https://"))
+}
+
+func trimSlashes(s string) string {
+	for len(s) > 0 && s[0] == '/' {
+		s = s[1:]
+	}
+	for len(s) > 0 && s[len(s)-1] == '/' {
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+// BackupTarget is one service's backup policy as the agent runs it.
+type BackupTarget struct {
+	ServiceID      string     `json:"service_id"`
+	ProjectID      string     `json:"project_id"`
+	Name           string     `json:"name"`
+	Kind           string     `json:"kind"` // service kind: postgres|mysql|mongo|redis get a logical dump
+	Volumes        []string   `json:"volumes"`
+	IncludeVolumes bool       `json:"include_volumes"`
+	Enabled        bool       `json:"enabled"`
+	Schedule       string     `json:"schedule"`
+	Timezone       string     `json:"timezone"`
+	Keep           BackupKeep `json:"keep"`
+}
+
+type BackupConfigPayload struct {
+	Repo    *BackupRepo    `json:"repo,omitempty"` // nil = no target configured (agent stops scheduling)
+	Targets []BackupTarget `json:"targets"`
+}
+
+type BackupRunPayload struct {
+	BackupID string       `json:"backup_id"`
+	Trigger  string       `json:"trigger"` // "manual" | "catchup"
+	Target   BackupTarget `json:"target"`
+	Repo     BackupRepo   `json:"repo"`
+	// Since (catch-up only): skip when this agent already ran the service at or after Since.
+	Since *time.Time `json:"since,omitempty"`
+}
+
+// BackupEvent reports a run's progress (status "running") and outcome ("done" | "failed").
+type BackupEvent struct {
+	BackupID   string           `json:"backup_id"`
+	ServiceID  string           `json:"service_id"`
+	Trigger    string           `json:"trigger"`
+	Status     string           `json:"status"`
+	Snapshots  []BackupSnapshot `json:"snapshots,omitempty"`
+	Bytes      int64            `json:"bytes"`
+	Added      int64            `json:"added"`
+	DurationMs int64            `json:"duration_ms"`
+	Error      string           `json:"error,omitempty"`
+	Warnings   []string         `json:"warnings,omitempty"`
+	StartedAt  time.Time        `json:"started_at"`
+	FinishedAt *time.Time       `json:"finished_at,omitempty"`
+	Pruned     []string         `json:"pruned,omitempty"` // snapshot ids removed by retention
+}
+
+// BackupRestorePayload restores snapshots of SourceServiceID into the local service Target.
+type BackupRestorePayload struct {
+	Target          BackupTarget     `json:"target"`
+	SourceServiceID string           `json:"source_service_id"`
+	Snapshots       []BackupSnapshot `json:"snapshots"`
+	Repo            BackupRepo       `json:"repo"`
+}
+
+type BackupRestoreResult struct {
+	Restored []string `json:"restored"` // parts restored
+	Bytes    int64    `json:"bytes"`
+	Warnings []string `json:"warnings,omitempty"`
+	// MovedAside is where the replaced data was kept (one generation).
+	MovedAside string `json:"moved_aside,omitempty"`
+}
+
+type BackupSnapshotsPayload struct {
+	Repo      BackupRepo `json:"repo"`
+	ServiceID string     `json:"service_id"`
+}
+
+// ResticSnapshot is one entry of `restic snapshots --json`.
+type ResticSnapshot struct {
+	ID       string    `json:"id"`
+	ShortID  string    `json:"short_id"`
+	Time     time.Time `json:"time"`
+	Hostname string    `json:"hostname"`
+	Tags     []string  `json:"tags"`
+	Paths    []string  `json:"paths"`
+}
+
+// ---------- Image update detection (see docs/api.md "Image updates") ----------
+// The server periodically resolves each service's image tag to its registry manifest digest
+// (HEAD, OCI distribution API) and compares it with the digest the agent reports in
+// ContainerState.ImageDigest. Semver-like tags also get the newest higher tag.
+
+const (
+	ImageUpdatePolicyNotify = "notify" // default: show the update, do nothing
+	ImageUpdatePolicyAuto   = "auto"   // redeploy pinned to the new digest (same tag), inside the window
+	ImageUpdatePolicyOff    = "off"    // never check
+)
+
+// ImageUpdate is GET /api/v1/services/{id}/image-update (and one item of GET /api/v1/image-updates).
+type ImageUpdate struct {
+	ServiceID string `json:"service_id"`
+	ProjectID string `json:"project_id"`
+	Service   string `json:"service"` // service name
+	Image     string `json:"image"`   // the service's image ref
+	Policy    string `json:"policy"`  // notify | auto | off
+	// Window is the optional daily auto-update window "HH:MM-HH:MM" (UTC, may wrap midnight); "" = any time.
+	Window string `json:"window,omitempty"`
+	// Status: up_to_date | update_available | unknown (not checked yet / running digest unknown) |
+	// error | unsupported (local or digest-only image) | disabled (policy off).
+	Status          string `json:"status"`
+	UpdateAvailable bool   `json:"update_available"` // digest changed or a newer same-major tag exists
+	// DigestChanged: the tag now points to a different manifest than the running container.
+	DigestChanged bool   `json:"digest_changed"`
+	CurrentDigest string `json:"current_digest,omitempty"` // running (agent-reported)
+	LatestDigest  string `json:"latest_digest,omitempty"`  // registry digest of the current tag
+	CurrentTag    string `json:"current_tag,omitempty"`
+	// NewerTag is the newest higher semver tag with the same major (and same shape/suffix);
+	// MajorTag the newest with a higher major, shown separately (not counted in UpdateAvailable).
+	NewerTag     string     `json:"newer_tag,omitempty"`
+	MajorTag     string     `json:"major_tag,omitempty"`
+	ChangelogURL string     `json:"changelog_url,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	Note         string     `json:"note,omitempty"` // e.g. why auto-update is waiting or paused
+	CheckedAt    *time.Time `json:"checked_at,omitempty"`
+	NextCheckAt  *time.Time `json:"next_check_at,omitempty"`
+	// LastAutoDigest is the last digest auto-update deployed (never retried automatically).
+	LastAutoDigest string `json:"last_auto_digest,omitempty"`
+}
+
+// ImageUpdatePolicy is the body of PUT /api/v1/services/{id}/image-update/policy.
+type ImageUpdatePolicy struct {
+	Policy string `json:"policy"`
+	Window string `json:"window,omitempty"`
+}
+
+// ImageUpdateApplyRequest is the body of POST /api/v1/services/{id}/image-update/apply.
+// Empty Tag redeploys the current tag pinned to its latest digest; a Tag switches the
+// service to that tag (validated against the registry) and deploys it.
+type ImageUpdateApplyRequest struct {
+	Tag string `json:"tag,omitempty"`
 }

@@ -151,7 +151,9 @@ type fakeAgent struct {
 	ctrs  map[string]api.ContainerState
 	inv   api.ZeaburInventory
 	dbBad bool // answer zeabur.db with match:false
-	wmu   sync.Mutex
+	// hook, when set, answers a request instead of the defaults (ok=false falls through).
+	hook func(env inEnvelope) (api.ResultPayload, bool)
+	wmu  sync.Mutex
 }
 
 func startFakeAgent(t *testing.T, e *testEnv, inv api.ZeaburInventory) (*fakeAgent, string) {
@@ -245,6 +247,15 @@ func (a *fakeAgent) loop(ctx context.Context) {
 
 func (a *fakeAgent) answer(ctx context.Context, env inEnvelope) {
 	res := api.ResultPayload{OK: true}
+	a.mu.Lock()
+	hook := a.hook
+	a.mu.Unlock()
+	if hook != nil {
+		if r, ok := hook(env); ok {
+			a.send(ctx, api.Envelope{Type: api.MsgResult, ID: env.ID, Payload: r})
+			return
+		}
+	}
 	switch env.Type {
 	case api.MsgApply:
 		var p api.ApplyPayload

@@ -16,7 +16,7 @@ import (
 )
 
 const mcpInstructions = `Atoll manages services on the user's own servers. Read tools are safe. ` +
-	`Destructive actions (migrate, add_domain, zeabur steps) need the user's approval in the Atoll panel: ` +
+	`Destructive actions (migrate, add_domain, backup_restore, zeabur steps) need the user's approval in the Atoll panel: ` +
 	`such a tool returns "PENDING CONFIRMATION ..." and nothing happens until the user approves it there. ` +
 	`Never retry to get around a pending confirmation; tell the user what to approve.`
 
@@ -383,6 +383,69 @@ func MCPTools(app *App) []server.ServerTool {
 					return nil, err
 				}
 				return c.GetImport(ctx, id)
+			}),
+		t(tool("list_updates", "List image updates: services whose tag now points to a newer digest than what runs, or that have a newer semver tag (same major; major bumps in major_tag). Apply one with `atoll updates --apply SERVICE` or the panel.", true, false,
+			mcp.WithBoolean("available_only", mcp.Description("only services with an update (default true)")),
+			mcp.WithString("project", mcp.Description("project name or id to filter"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				list, err := c.ListImageUpdates(ctx, r.GetBool("available_only", true))
+				if err != nil {
+					return nil, err
+				}
+				if ref := r.GetString("project", ""); ref != "" {
+					p, err := c.ResolveProject(ctx, ref)
+					if err != nil {
+						return nil, err
+					}
+					kept := list[:0]
+					for _, u := range list {
+						if u.ProjectID == p.ID {
+							kept = append(kept, u)
+						}
+					}
+					list = kept
+				}
+				return list, nil
+			}),
+		t(tool("backup_list", "List a service's backups (newest first): id, status, snapshots, size. Restore one with backup_restore.", true, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return c.ListBackups(ctx, s.ID, false)
+			}),
+		t(tool("backup_run", "Back up a service now (restic on the service's server, straight to the configured bucket).", false, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return c.RunBackup(ctx, s.ID)
+			}),
+		t(tool("backup_restore", "Restore a backup, replacing the service's current data (a safety copy is kept). Only creates a PENDING CONFIRMATION the user must approve in the Atoll panel; never retry to bypass it. target_server is disaster recovery and only works while the project's server is offline.", false, true,
+			mcp.WithString("backup_id", mcp.Required(), mcp.Description("bak_... id or restic snapshot id from backup_list")),
+			mcp.WithString("target_server", mcp.Description("restore onto this server (name or id); default in place"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				id, err := reqStr(r, "backup_id")
+				if err != nil {
+					return nil, err
+				}
+				b, err := c.GetBackup(ctx, id)
+				if err != nil {
+					return nil, err
+				}
+				target := ""
+				if ref := r.GetString("target_server", ""); ref != "" {
+					srv, err := c.ResolveServer(ctx, ref)
+					if err != nil {
+						return nil, err
+					}
+					target = srv.ID
+				}
+				// with an API token the server answers 202 + Confirmation (surfaced by mcpHandle as
+				// PENDING CONFIRMATION); a direct start here would mean a session credential
+				return c.RestoreBackup(ctx, b.ID, target)
 			}),
 	}
 }

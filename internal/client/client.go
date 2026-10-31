@@ -149,7 +149,8 @@ func decodeResponse(resp *http.Response, out any) error {
 	}
 	if resp.StatusCode == http.StatusAccepted {
 		var cf api.Confirmation
-		if len(data) > 0 && json.Unmarshal(data, &cf) == nil && cf.ID != "" {
+		// other 202 bodies (e.g. a queued Backup) also carry an id: a confirmation has an action
+		if len(data) > 0 && json.Unmarshal(data, &cf) == nil && cf.ID != "" && cf.Action != "" {
 			return &ConfirmationRequiredError{Confirmation: cf}
 		}
 	}

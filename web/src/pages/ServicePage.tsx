@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Activity, KeyRound, ArchiveRestore, BarChart3, Network, HardDrive, Settings, RotateCw, Rocket, Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, Download, History, ShieldCheck, Check, X, Loader2, Undo2, Share2 } from 'lucide-react'
+import { Activity, KeyRound, ArchiveRestore, BarChart3, Network, HardDrive, Settings, RotateCw, Rocket, Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, History, ShieldCheck, Check, X, Loader2, Undo2, Share2 } from 'lucide-react'
 import { ProjectShell } from '../components/Shell'
 import { Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Spark, Tabs, statusText, cx } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Label, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle, CardSkeleton } from '../components/feedback'
 import AddServiceModal from '../components/AddServiceModal'
+import ImageUpdateCard from '../components/ImageUpdateCard'
+import BackupPanel from '../components/BackupPanel'
 import { api, isDemo, type Range } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import { ago, bytesRate, day, dateTime, deployStatusText, latestDeploy, primaryPort, svcIcon, timeLabels, triggerText } from '../api/view'
@@ -46,7 +48,7 @@ export default function ServicePage() {
           <div className="mt-6">
             {tab === 'status' && <StatusTab p={p} s={s} srv={srv} />}
             {tab === 'env' && <EnvTab s={s} />}
-            {tab === 'backup' && <BackupTab />}
+            {tab === 'backup' && <BackupPanel p={p} s={s} />}
             {tab === 'usage' && <UsageTab s={s} />}
             {tab === 'network' && <NetworkTab s={s} srv={srv} />}
             {tab === 'disk' && <DiskTab s={s} />}
@@ -120,6 +122,8 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
           <span className="ml-auto text-[13px] text-dim">回滚到任意历史镜像摘要</span>
         </div>
       </Card>
+
+      <ImageUpdateCard s={s} />
 
       <div className="mt-6 text-[13px] font-semibold mb-3">域名</div>
       {doms.length ? <div className="space-y-3">{doms.map(d => (
@@ -304,26 +308,6 @@ function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void
       <div className="text-[12.5px] text-muted mb-3">每行一个 KEY=VALUE。私有变量显示为空值，保持为空即不修改。</div>
       <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} className="w-full h-[320px] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
     </Modal>
-  )
-}
-
-function BackupTab() {
-  if (!isDemo()) return <Empty icon={<ArchiveRestore size={22} />} title="备份功能即将推出" desc="计划：restic 增量备份到 Cloudflare R2，每天自动执行。现在可以在「硬盘」里查看卷，或用 atoll CLI 导出数据。" />
-  return (
-    <>
-      <div className="flex items-center justify-between mb-4">
-        <div><div className="text-[15px] font-semibold">备份</div><div className="text-[13px] text-muted mt-0.5">restic 增量备份到 Cloudflare R2，每天 04:00 自动执行，保留 14 份。</div></div>
-        <div className="flex gap-2"><Button>备份策略</Button><Button variant="primary"><Plus size={15} />立即备份</Button></div>
-      </div>
-      <Card className="divide-y divide-line">
-        {['2026-10-29 04:00', '2026-10-28 04:00', '2026-10-27 04:00', '2026-10-26 04:00', '2026-10-25 04:00'].map((t, i) => (
-          <div key={t} className="px-6 h-14 flex items-center gap-4 text-[13px]">
-            <ArchiveRestore size={16} className="text-muted" /><span className="font-semibold">{t}</span><span className="text-muted">{['1.42 GB', '1.41 GB', '1.40 GB', '1.38 GB', '1.37 GB'][i]} · 增量 {[12, 9, 31, 7, 18][i]} MB</span>
-            <span className="ml-auto flex gap-2"><Button size="sm"><Download size={14} />下载</Button><Button size="sm">还原</Button></span>
-          </div>
-        ))}
-      </Card>
-    </>
   )
 }
 

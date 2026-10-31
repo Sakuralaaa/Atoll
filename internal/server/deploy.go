@@ -336,6 +336,7 @@ func (s *Server) pushNodeState(ctx context.Context, nodeID string) {
 	if err := s.pushIngressSync(ctx, nodeID); err != nil {
 		s.log.Warn("ingress push failed", "node", nodeID, "err", err)
 	}
+	s.pushBackupConfig(ctx, nodeID, true) // backups.go: agent schedules backups locally
 }
 
 // serviceNode returns the node a service runs on.

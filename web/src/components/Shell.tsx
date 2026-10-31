@@ -6,6 +6,8 @@ import { Avatar, Logo, ServiceIcon, Mini, Dot, cx } from './ui'
 import { api, isDemo } from '../api/client'
 import { useQuery } from '../api/hooks'
 import { svcIcon } from '../api/view'
+import { useUpdatesByService } from '../api/updates'
+import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 
 const useMe = () => useQuery('me', api.me)
@@ -95,6 +97,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const loc = useLocation()
   const srv = useServers().data?.find(s => s.id === project.server_id)
   const services = project.services ?? []
+  const updates = useUpdatesByService()
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
     <div className="h-full flex topline">
@@ -116,7 +119,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
           {!services.length && <div className="px-2 text-[12.5px] text-dim">还没有服务</div>}
           {services.map(s => (
             <Link key={s.id} to={`/projects/${project.id}/services/${s.id}`} className={cx('flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
-              <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{s.name}</span><Dot status={s.status} />
+              <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{s.name}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
             </Link>
           ))}
         </div>

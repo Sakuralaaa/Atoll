@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/agent"
+	"github.com/Sakuralaaa/Atoll/internal/agent/backup"
 	"github.com/Sakuralaaa/Atoll/internal/agent/firewall"
 	"github.com/Sakuralaaa/Atoll/internal/agent/zeabur"
 )
@@ -117,6 +118,16 @@ func run(cfgPath string, log *slog.Logger) error {
 	tk.Recover = a.Recover
 	a.Ext = append(a.Ext, tk)
 	a.Ingress.AddGuard(tk.IngressGuard)
+
+	// Scheduled backups: restic in a container, straight to the S3 bucket; the schedule runs
+	// locally so it does not depend on the control server.
+	bk := backup.New(rt, paths, cfg.NodeID, a.Emit, log)
+	bk.Locked = a.Mgr.Locked
+	if cfg.BackupImage != "" {
+		bk.Image = cfg.BackupImage
+	}
+	a.Ext = append(a.Ext, bk)
+	go bk.Loop(ctx)
 
 	log.Info("atoll-agent starting", "version", agent.Version, "node", cfg.NodeID, "server", cfg.ServerURL,
 		"data", filepath.Clean(cfg.DataDir), "firewall", cfg.FirewallEnabled())

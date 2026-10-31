@@ -37,6 +37,8 @@ type Config struct {
 	Firewall *bool `json:"firewall,omitempty"`
 	// CaddyImage overrides the ingress image (default caddy:2).
 	CaddyImage string `json:"caddy_image,omitempty"`
+	// BackupImage overrides the pinned restic image used for backups (default restic/restic:0.17.3).
+	BackupImage string `json:"backup_image,omitempty"`
 }
 
 func (c *Config) FirewallEnabled() bool { return c.Firewall == nil || *c.Firewall }

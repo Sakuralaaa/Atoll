@@ -444,6 +444,7 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) error {
 	if err := s.st.UpdateServiceSpec(r.Context(), *svc); err != nil {
 		return err
 	}
+	spec.Image = pinRollbackImage(spec.Image, old.ImageDigest) // a tag may have moved since (imageupdates.go)
 	spec.DeploymentID = newID("dep")
 	d, err := s.deploySpec(r.Context(), svc, *spec, "rollback", []string{"rollback to " + old.ID})
 	if err != nil {

@@ -25,10 +25,11 @@ export function openSocket(path: string, onMessage: (data: unknown) => void, onS
 }
 
 const KEYS: Record<string, string[]> = {
-  service: ['projects', 'project:', 'service:', 'domains', 'containers:'],
+  service: ['projects', 'project:', 'service:', 'domains', 'containers:', 'image-update'],
   server: ['servers', 'server:'],
-  deployment: ['deployments:', 'service:', 'project:', 'projects'],
+  deployment: ['deployments:', 'service:', 'project:', 'projects', 'image-update'],
   confirmation: ['confirmations'],
+  image_update: ['image-update'],
 }
 
 /** Live refresh: one /events socket; each frame invalidates the queries its type affects (batched). */

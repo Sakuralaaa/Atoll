@@ -67,6 +67,26 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", lvlDeploy, s.handleExec)
 
+	// image updates (imageupdates.go)
+	a("GET "+v+"/image-updates", lvlRead, s.handleListImageUpdates)
+	a("GET "+v+"/services/{id}/image-update", lvlRead, s.handleGetImageUpdate)
+	a("POST "+v+"/services/{id}/image-update/check", lvlDeploy, s.handleCheckImageUpdate)
+	a("PUT "+v+"/services/{id}/image-update/policy", lvlDeploy, s.handlePutImageUpdatePolicy)
+	a("POST "+v+"/services/{id}/image-update/apply", lvlDeploy, s.handleApplyImageUpdate)
+
+	// backups (backups.go)
+	a("GET "+v+"/services/{id}/backup-policy", lvlRead, s.handleGetBackupPolicy)
+	a("PUT "+v+"/services/{id}/backup-policy", lvlDeploy, s.handlePutBackupPolicy)
+	a("GET "+v+"/services/{id}/backups", lvlRead, s.handleListBackups)
+	a("POST "+v+"/services/{id}/backups", lvlDeploy, s.handleRunBackup)
+	a("GET "+v+"/services/{id}/restores", lvlRead, s.handleListRestores)
+	a("GET "+v+"/backups/{id}", lvlRead, s.handleGetBackup)
+	a("POST "+v+"/backups/{id}/restore", lvlDeploy, s.handleRestoreBackup)
+	a("GET "+v+"/restores/{id}", lvlRead, s.handleGetRestore)
+	a("POST "+v+"/settings/backup/test", lvlAdmin, s.handleBackupTest)
+	a("GET "+v+"/settings/backup/password", lvlSession, s.handleBackupPassword)
+	a("DELETE "+v+"/settings/backup", lvlAdmin, s.handleDeleteBackupSettings)
+
 	// domains
 	a("GET "+v+"/domains", lvlRead, s.handleListAllDomains)
 	a("DELETE "+v+"/domains/{id}", lvlDeploy, s.handleDeleteDomain)

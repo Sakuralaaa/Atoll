@@ -6,6 +6,8 @@ import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Settings as S } from '../api/types'
+import ImageCheckSettings from '../components/ImageCheckSettings'
+import BackupStorageSettings from '../components/BackupStorageSettings'
 
 export default function Settings() {
   const q = useQuery('settings', api.settings)
@@ -13,10 +15,12 @@ export default function Settings() {
     <MainShell>
       <div className="max-w-[1000px] mx-auto px-14 pt-12 pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
-        <p className="text-[13px] text-muted mt-2 mb-8">域名、证书和面板地址。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
+        <p className="text-[13px] text-muted mt-2 mb-8">域名、证书、面板地址和备份存储。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
         {q.data && <Form key={JSON.stringify(q.data)} s={q.data} />}
+        {q.data && <ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} />}
+        {q.data && <BackupStorageSettings s={q.data} />}
       </div>
     </MainShell>
   )

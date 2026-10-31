@@ -3,6 +3,8 @@
 import { projects as mockProjects, servers as mockServers } from '../mock'
 import { series } from '../components/ui'
 import { ApiError } from './client'
+import { makeDemoUpdates } from './demo-updates'
+import { makeDemoBackups } from './demo-backups'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
   LogLine, NodeMetrics, Project, Server, Service, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
@@ -234,6 +236,8 @@ function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
 }
 
 // ---------- router ----------
+const demoUpdates = makeDemoUpdates(services, deployments)
+const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p => p.id === pid)?.server_id ?? '', settings)
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
@@ -298,6 +302,8 @@ function route(method: string, path: string, body: any): unknown {
     return fullProject(pr)
   }
 
+  { const r = demoUpdates(method, seg, body); if (r !== undefined) return r }
+  { const r = demoBackups.route(method, seg, body); if (r !== undefined) return r }
   if ((a = m('services/*/actions'))) { const s = svc(a[0]); s.status = body.action === 'stop' ? 'stopped' : 'running'; s.replicas = body.action === 'stop' ? '0/1' : '1/1'; return {} }
   if ((a = m('services/*/rollback'))) return {}
   if ((a = m('services/*/env/references'))) {
@@ -337,7 +343,15 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('confirmations/*/approve')) || (a = m('confirmations/*/reject'))) { const c = confirmations.find(x => x.id === a![0])!; c.status = seg[2] === 'approve' ? 'approved' : 'rejected'; return {} }
 
   if (G && m('settings') && location.hash.includes('nocf=1')) return { ...settings, base_domain: '', has_cloudflare_token: false }
-  if (m('settings')) { if (U) { const { cloudflare_token, ...rest } = body as Settings; Object.assign(settings, rest); if (cloudflare_token) settings.has_cloudflare_token = true } return settings }
+  if (m('settings')) {
+    if (U) {
+      const { cloudflare_token, backup_access_key: _ak, backup_secret_key: _sk, backup_repo_password: _pw, backup_endpoint: _e, backup_bucket: _b, backup_prefix: _p, backup_region: _r, has_backup_credentials: _h1, has_backup_password: _h2, backup_configured: _c, ...rest } = body as Settings
+      Object.assign(settings, rest); if (cloudflare_token) settings.has_cloudflare_token = true
+      const generated = demoBackups.putSettings(body)
+      return generated ? { ...settings, backup_repo_password: generated } : settings
+    }
+    return settings
+  }
   if (G && m('templates')) return templates
   if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }
