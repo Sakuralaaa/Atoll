@@ -905,11 +905,13 @@ func (z *zrun) doCutover() error {
 		return err
 	}
 	if err := z.st.do(stepIngress, func() (string, error) {
+		// Marked before the call: a park that fails halfway (DaemonSet patched, operator
+		// stopped, ports still busy) must still be undone by the rollback.
+		z.meta.IngressParked = true
+		z.save()
 		if _, err := s.hub.Call(ctx, z.node, api.MsgZeaburIngress, api.ZeaburIngressPayload{Park: true}, 5*time.Minute); err != nil {
 			return "", fmt.Errorf("park Zeabur ingress: %w", err)
 		}
-		z.meta.IngressParked = true
-		z.save()
 		if err := s.st.SetIngressHold(ctx, z.job.ProjectID, false); err != nil {
 			return "", err
 		}

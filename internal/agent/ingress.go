@@ -161,7 +161,7 @@ func (in *Ingress) apply(ctx context.Context, p api.IngressPayload) error {
 	if err := writeFileAtomic(in.configFile(), cfg, 0o644); err != nil {
 		return err
 	}
-	if err := in.ensureCaddy(ctx, cfg); err != nil {
+	if err := in.ensureCaddy(ctx, cfg, len(p.Routes) > 0); err != nil {
 		return err
 	}
 	if in.firewall != nil {
@@ -209,8 +209,17 @@ func (in *Ingress) checkGuards(ctx context.Context) error {
 	return nil
 }
 
-func (in *Ingress) ensureCaddy(ctx context.Context, cfg []byte) error {
+// ensureCaddy makes atoll-caddy run with cfg. With no routes a missing or stopped caddy is
+// left alone: there is nothing to serve, and 80/443 may belong to someone else (Zeabur's
+// ingress after a takeover rollback).
+func (in *Ingress) ensureCaddy(ctx context.Context, cfg []byte, haveRoutes bool) error {
 	spec := in.caddySpec()
+	if !haveRoutes {
+		info, err := in.rt.InspectContainer(ctx, CaddyContainer)
+		if errors.Is(err, ErrNotFound) || (err == nil && info.State != "running" && info.State != "restarting") {
+			return nil
+		}
+	}
 	for _, m := range spec.Mounts {
 		if err := os.MkdirAll(m.Source, 0o755); err != nil {
 			return err

@@ -25,9 +25,14 @@ const svclbLabel = "svccontroller.k3s.cattle.io/enablelb"
 // DaemonSet is the subset of a DaemonSet we read (kubectl -o json).
 type DaemonSet struct {
 	Metadata struct {
-		Name      string            `json:"name"`
-		Namespace string            `json:"namespace"`
-		Labels    map[string]string `json:"labels"`
+		Name            string            `json:"name"`
+		Namespace       string            `json:"namespace"`
+		Labels          map[string]string `json:"labels"`
+		OwnerReferences []struct {
+			Kind       string `json:"kind"`
+			Name       string `json:"name"`
+			Controller bool   `json:"controller"`
+		} `json:"ownerReferences"`
 	} `json:"metadata"`
 	Spec struct {
 		Template struct {
@@ -60,6 +65,21 @@ func (d DaemonSet) Running() bool {
 }
 
 func (d DaemonSet) Parked() bool { return d.Spec.Template.Spec.NodeSelector[ParkLabel] != "" }
+
+// Operated reports whether a custom controller owns the DaemonSet (Zeabur's operator owns its
+// ingress-controller through a ZeaburService object and reverts edits to it).
+func (d DaemonSet) Operated() bool {
+	for _, o := range d.Metadata.OwnerReferences {
+		if o.Controller && o.Kind != "" && o.Kind != "Node" {
+			return true
+		}
+	}
+	return false
+}
+
+// OperatorSelector finds operator Deployments (kubebuilder/kustomize convention, which
+// Zeabur's operator-system/operator-controller-manager follows).
+const OperatorSelector = "control-plane=controller-manager"
 
 func (d DaemonSet) IsSvcLB() bool { return strings.HasPrefix(d.Metadata.Name, "svclb-") }
 
@@ -149,6 +169,16 @@ func (t *Takeover) ParkIngress(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var parked []string
+	for _, d := range ds {
+		if d.Operated() && !d.Parked() {
+			ops, err := t.parkOperators(ctx)
+			if err != nil {
+				return "", err
+			}
+			parked = append(parked, ops...)
+			break
+		}
+	}
 	for _, d := range ds {
 		if d.IsSvcLB() {
 			if err := t.parkSvcLB(ctx); err != nil {
@@ -285,6 +315,71 @@ func (t *Takeover) parkSvcLB(ctx context.Context) error {
 	return nil
 }
 
+// parkOperators scales the cluster's operator Deployments to 0 (recorded, restored by
+// RestoreIngress) and waits for their pods to go, so a parked ingress stays parked.
+func (t *Takeover) parkOperators(ctx context.Context) ([]string, error) {
+	out, err := t.kubectl(ctx, "get", "deployments", "-A", "-l", OperatorSelector, "-o", "json")
+	if err != nil {
+		return nil, err
+	}
+	var list struct {
+		Items []struct {
+			Metadata struct {
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(out, &list); err != nil {
+		return nil, fmt.Errorf("parse operator deployments: %w", err)
+	}
+	var done []string
+	for _, it := range list.Items {
+		wl := "deployment/" + it.Metadata.Name
+		key := it.Metadata.Namespace + "/" + wl
+		if _, err := t.State.Update(func(s *State) error {
+			for _, k := range s.ParkedOperators {
+				if k == key {
+					return nil
+				}
+			}
+			s.ParkedOperators = append(s.ParkedOperators, key)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		if _, err := t.Scale(ctx, api.ZeaburScalePayload{Namespace: it.Metadata.Namespace, Workload: wl, Replicas: 0}); err != nil {
+			return nil, fmt.Errorf("stop operator %s: %w", key, err)
+		}
+		if err := t.waitNoPods(ctx, it.Metadata.Namespace, wl); err != nil {
+			return nil, err
+		}
+		done = append(done, key+" (operator scaled to 0)")
+	}
+	return done, nil
+}
+
+func (t *Takeover) waitNoPods(ctx context.Context, ns, wl string) error {
+	deadline := time.Now().Add(t.ParkWait)
+	for {
+		out, err := t.kubectl(ctx, "get", wl, "-n", ns, "-o", "jsonpath={.status.replicas}")
+		if err != nil {
+			return err
+		}
+		if n := strings.TrimSpace(string(out)); n == "" || n == "0" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s/%s still has pods after %s", ns, wl, t.ParkWait)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(t.PollEvery):
+		}
+	}
+}
+
 // RestoreIngress reverses ParkIngress. atoll-caddy is stopped first so the ports are free.
 func (t *Takeover) RestoreIngress(ctx context.Context) (string, error) {
 	st, err := t.State.Load()
@@ -320,7 +415,18 @@ func (t *Takeover) RestoreIngress(ctx context.Context) (string, error) {
 		}
 		restored = append(restored, "node/"+r.Node+" "+r.Key)
 	}
+	// operators last: they see the ingress exactly as it was
+	for _, key := range st.ParkedOperators {
+		ns, wl, _ := strings.Cut(key, "/")
+		if _, ok := st.Workloads[key]; ok {
+			if _, err := t.Scale(ctx, api.ZeaburScalePayload{Namespace: ns, Workload: wl, Replicas: RestoreReplicas}); err != nil {
+				return "", fmt.Errorf("restore operator %s: %w", key, err)
+			}
+		}
+		restored = append(restored, key)
+	}
 	if _, err := t.State.Update(func(s *State) error {
+		s.ParkedOperators = nil
 		s.ParkedDaemonSets, s.NodeLabels = nil, nil
 		s.IngressParked, s.CutoverAt = false, nil
 		return nil

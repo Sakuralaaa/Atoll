@@ -33,6 +33,8 @@ type fakeDS struct {
 	HostPorts    []int
 	HostNetwork  bool
 	NodeSelector map[string]string
+	// Operated: owned by an operator that reverts edits while operator-system/op runs.
+	Operated bool
 }
 
 // fakeHost replays a single-node k3s host: kubectl/ctr/du/uninstall commands are answered
@@ -115,8 +117,12 @@ func (h *fakeHost) dsJSON() []byte {
 		if h.running(d) {
 			n = 1
 		}
+		meta := map[string]any{"name": d.Name, "namespace": d.NS}
+		if d.Operated {
+			meta["ownerReferences"] = []any{map[string]any{"kind": "ZeaburService", "name": "zeabur-cluster-ingress", "controller": true}}
+		}
 		items = append(items, map[string]any{
-			"metadata": map[string]any{"name": d.Name, "namespace": d.NS},
+			"metadata": meta,
 			"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
 				"nodeSelector": d.NodeSelector, "hostNetwork": d.HostNetwork,
 				"containers": []any{map[string]any{"name": "c", "ports": ports}},
@@ -190,6 +196,9 @@ func (h *fakeHost) run(name string, args []string, stdin io.Reader, w io.Writer)
 		}
 		for _, d := range h.ds {
 			if d.Name == a[2] && d.NS == a[4] {
+				if d.Operated && h.replicas["operator-system/deployment/op"] > 0 {
+					return nil, nil // the operator reconciles the edit away
+				}
 				if d.NodeSelector == nil {
 					d.NodeSelector = map[string]string{}
 				}
@@ -213,6 +222,15 @@ func (h *fakeHost) run(name string, args []string, stdin io.Reader, w io.Writer)
 			h.labels[k] = v
 		}
 		return nil, nil
+	case j == "get deployments -A -l "+zeabur.OperatorSelector+" -o json":
+		var items []any
+		if _, ok := h.replicas["operator-system/deployment/op"]; ok {
+			items = append(items, map[string]any{"metadata": map[string]any{"name": "op", "namespace": "operator-system"}})
+		}
+		b, _ := json.Marshal(map[string]any{"items": items})
+		return b, nil
+	case a[0] == "get" && len(a) == 6 && a[5] == "jsonpath={.status.replicas}":
+		return []byte(fmt.Sprint(h.replicas[a[3]+"/"+a[1]])), nil
 	case a[0] == "get" && len(a) == 6 && a[5] == "jsonpath={.spec.replicas}":
 		n, ok := h.replicas[a[3]+"/"+a[1]]
 		if !ok {
@@ -754,5 +772,32 @@ func TestImportImagePullsPublicImages(t *testing.T) {
 	if _, err := tk.ImportImage(ctx, api.ZeaburImagePayload{Image: "ghcr.io/acme/api:1.2", ServiceID: "svc_api", Pull: true}); err == nil ||
 		!strings.Contains(err.Error(), "denied") || !strings.Contains(err.Error(), "not in k3s") {
 		t.Fatalf("both failed: %v", err)
+	}
+}
+
+// Zeabur's operator owns its ingress DaemonSet and reverts a parked nodeSelector: parking
+// stops the operator first and the restore brings it back.
+func TestParkStopsOperator(t *testing.T) {
+	tk, h, _ := newTakeover(t)
+	ctx := context.Background()
+	h.ds = []*fakeDS{{NS: "zeabur-system", Name: "ingress-controller", HostPorts: []int{80, 443}, Operated: true}}
+	h.replicas["operator-system/deployment/op"] = 1
+	if _, err := tk.ParkIngress(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if h.replicas["operator-system/deployment/op"] != 0 || h.ds[0].NodeSelector[zeabur.ParkLabel] == "" {
+		t.Fatalf("operator %d selector %v", h.replicas["operator-system/deployment/op"], h.ds[0].NodeSelector)
+	}
+	if st, _ := tk.State.Load(); len(st.ParkedOperators) != 1 {
+		t.Fatalf("operator not recorded: %+v", st)
+	}
+	if _, err := tk.RestoreIngress(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if h.replicas["operator-system/deployment/op"] != 1 || h.ds[0].NodeSelector[zeabur.ParkLabel] != "" {
+		t.Fatalf("after restore: operator %d selector %v", h.replicas["operator-system/deployment/op"], h.ds[0].NodeSelector)
+	}
+	if st, _ := tk.State.Load(); len(st.ParkedOperators) != 0 || len(st.Workloads) != 0 {
+		t.Fatalf("state after restore %+v", st)
 	}
 }

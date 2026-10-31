@@ -19,6 +19,9 @@ type State struct {
 	// Node labels set to stop k3s ServiceLB (svclb) pods, with the previous value ("" = absent).
 	NodeLabels    []NodeLabelRecord `json:"node_labels,omitempty"`
 	IngressParked bool              `json:"ingress_parked"`
+	// ParkedOperators are controller-manager Deployments ("<ns>/deployment/<name>") scaled to
+	// 0 so they do not revert the parked ingress; their replicas are in Workloads.
+	ParkedOperators []string `json:"parked_operators,omitempty"`
 	// CutoverAt is set when the Zeabur ingress was parked (the last cutover step on this host).
 	CutoverAt    *time.Time `json:"cutover_at,omitempty"`
 	K3sRemoved   bool       `json:"k3s_removed"`

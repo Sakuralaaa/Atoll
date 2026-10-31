@@ -267,3 +267,29 @@ func TestSaveTLSReloads(t *testing.T) {
 		t.Fatalf("tls reload %d", len(l.cfgs))
 	}
 }
+
+// With no routes there is nothing to serve: a missing or stopped caddy is left alone, so
+// withdrawing routes after a Zeabur rollback succeeds while Zeabur owns 80/443 again.
+func TestIngressNoRoutesLeavesCaddyAlone(t *testing.T) {
+	in, f, _, _, _ := newIngress(t)
+	ctx := context.Background()
+	in.SetGuards(func(context.Context) error { return errors.New("Zeabur/k3s ingress is still running") })
+	if err := in.Apply(ctx, payload()); err != nil {
+		t.Fatalf("empty payload: %v", err)
+	}
+	if _, ok := f.Get(agent.CaddyContainer); ok {
+		t.Fatal("caddy created without routes")
+	}
+	in.SetGuards()
+	if err := in.Apply(ctx, payload("a.example.com")); err != nil {
+		t.Fatal(err)
+	}
+	f.SetState(agent.CaddyContainer, "exited")
+	in.SetGuards(func(context.Context) error { return errors.New("busy") })
+	if err := in.Apply(ctx, payload()); err != nil {
+		t.Fatalf("withdraw routes with stopped caddy: %v", err)
+	}
+	if c, _ := f.Get(agent.CaddyContainer); c.Info.State != "exited" {
+		t.Fatalf("stopped caddy restarted: %s", c.Info.State)
+	}
+}
