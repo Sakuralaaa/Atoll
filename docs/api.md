@@ -53,7 +53,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET/PATCH/DELETE | /projects/{id} | GET includes services |
 | GET/POST | /projects/{id}/services | POST Service (kind+image or template kind) |
 | GET/PATCH/DELETE | /services/{id} | PATCH partial Service → triggers redeploy |
-| POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} |
+| POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} (redeploy → Deployment) |
 | POST | /services/{id}/rollback | {deployment_id} |
 | POST | /projects/{id}/migrate | {server_id}: stop → volume export/import via server relay → start on target → DNS switch |
 | GET/PUT | /services/{id}/env | []EnvVar (PUT replaces all; secret values "" keep old) ; `?reveal=1` shows secrets (session only) |
@@ -87,7 +87,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /imports/{id} | ImportJob |
 | PUT | /imports/{id}/volumes/{service_name}/{volume} | raw tar.gz body, streamed to target agent via volume.import |
 | POST | /imports/{id}/start | deploy all services |
-| GET | /templates | db templates (postgres, mysql, redis, mongo) |
+| GET | /templates | []Template: db templates (postgres, mysql, redis, mongo); create one with POST /projects/{id}/services `{kind, name, env?}` |
 | GET | /events (WS) | live updates {type: "service"|"server"|"deployment"|"confirmation"|"image_update"|"backup"|"restore", payload} |
 
 ## Agent endpoints
@@ -142,7 +142,8 @@ Nodes that are not on the tailnet then cannot connect, so move every node first.
 
 ## Conventions
 - IDs: 12-char lowercase base32 with prefix: `srv_`, `prj_`, `svc_`, `dep_`, `dom_`, `tok_`, `cfm_`, `imp_`, `bak_`, `rst_`.
-- Docker: container name `atoll-<service_id>`, labels `atoll.service=<id>`, `atoll.project=<id>`, `atoll.deployment=<id>`; network per project `atoll-<project_id>` with alias = service name; every container with an http port also joins `atoll-ingress`, where `atoll-caddy` runs. Restart policy `unless-stopped`.
+- Docker: container name `atoll-<service_id>`, labels `atoll.service=<id>`, `atoll.project=<id>`, `atoll.deployment=<id>`; network per project `atoll-<project_id>` with alias = service name (the agent removes it when the project's last service on that node is removed, unless a container is still attached); every container with an http port also joins `atoll-ingress`, where `atoll-caddy` runs. Restart policy `unless-stopped`.
+- Deployments of one service are applied one at a time. A deploy requested while another is in flight (e.g. `set_env` then `redeploy` right away) is queued and sent when the in-flight one finishes; of several queued requests only the newest is sent, the ones it replaced become `superseded` without running. A finished deployment supersedes only OLDER ones, never a newer queued one.
 - Volumes: bind mounts under `/var/lib/atoll/volumes/<service_id>/<volume_name>`.
 - Env references: `${KEY}` resolves own vars then exposed vars of other services in project; `${SERVICE.KEY}` for explicit; built-ins: `${<SERVICE>_HOST}` (service name), `${<PORTNAME>_PORT}`, `${ATOLL_<PORTNAME>_DOMAIN}`, `${ATOLL_<PORTNAME>_URL}`, `PORT` = first port, `PASSWORD` random 32 chars for db templates.
 - Times UTC RFC3339.
@@ -210,12 +211,14 @@ The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_UR
 
 **Placement & network.** `atoll deploy IMAGE -p PROJECT --server SERVER` places a new service on another server (`POST /projects/{id}/services` with `server_id`); `atoll services migrate SERVICE --to SERVER [-p PROJECT]` moves one service (`POST /services/{id}/migrate`, `migrate` permission); `atoll migrate PROJECT --to SERVER` moves a whole project. `atoll services rm SERVICE [-p PROJECT]` and `atoll projects rm PROJECT` delete (`delete` permission). `atoll servers network join|switch|public SERVER` runs `POST /servers/{id}/network` (`servers` permission).
 
+**Database templates.** `atoll templates ls` (`GET /templates`, `read`) lists postgres, mysql, redis and mongo with their exposed variables. `atoll deploy --template postgres|mysql|redis|mongodb [NAME] -p PROJECT [-e K=V] [--server SERVER]` (same as `atoll templates deploy TEMPLATE [NAME] -p PROJECT`) creates a NEW service of that kind (`POST /projects/{id}/services` with `kind`, `name` and optional `env` overriding template keys; `deploy` permission). NAME defaults to the kind; an existing service with that name is an error, never overwritten. MCP: `list_templates`, `deploy_template`.
+
 **MCP.** At startup `atoll mcp` reads `/auth/me` and only registers the tools the token's permissions allow (servers that predate permissions: mapped from the legacy scope; when `/auth/me` fails every tool is registered and calls report the error):
 
 | Permission | Tools |
 |---|---|
-| read | `list_servers`, `list_projects`, `list_services`, `get_logs`, `get_deployment`, `zeabur_scan`, `zeabur_import_status`, `list_updates`, `backup_list` |
-| deploy | `deploy` (`domains` also needs `domains`; `server` places a new service), `set_env`, `restart`, `redeploy`, `rollback`, `backup_run` |
+| read | `list_servers`, `list_projects`, `list_services`, `get_logs`, `get_deployment`, `zeabur_scan`, `zeabur_import_status`, `list_updates`, `backup_list`, `list_templates` |
+| deploy | `deploy` (`domains` also needs `domains`; `server` places a new service), `deploy_template` (new database service from a template), `set_env`, `restart`, `redeploy`, `rollback`, `backup_run` |
 | domains | `add_domain` |
 | delete | `delete_service`, `delete_project` (container, volumes and domains are removed) |
 | migrate | `migrate` (project), `service_migrate` (one service) |

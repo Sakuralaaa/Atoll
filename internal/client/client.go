@@ -401,6 +401,18 @@ func (c *Client) CreateService(ctx context.Context, projectID string, svc api.Se
 	return &v, c.do(ctx, http.MethodPost, "/projects/"+esc(projectID)+"/services", svc, &v)
 }
 
+// CreateServiceWithEnv creates (and deploys) a service with initial variables. For a
+// template kind (postgres, mysql, redis, mongo) the server fills image, ports, volumes and
+// env from the template; env given here overrides template keys.
+func (c *Client) CreateServiceWithEnv(ctx context.Context, projectID string, svc api.Service, env []api.EnvVar) (*api.Service, error) {
+	body := struct {
+		api.Service
+		Env []api.EnvVar `json:"env,omitempty"`
+	}{svc, env}
+	var v api.Service
+	return &v, c.do(ctx, http.MethodPost, "/projects/"+esc(projectID)+"/services", body, &v)
+}
+
 func (c *Client) GetService(ctx context.Context, id string) (*api.Service, error) {
 	var v api.Service
 	return &v, c.do(ctx, http.MethodGet, "/services/"+esc(id), nil, &v)
@@ -627,10 +639,9 @@ func (c *Client) PutSettings(ctx context.Context, s api.Settings) (*api.Settings
 	return &v, c.do(ctx, http.MethodPut, "/settings", s, &v)
 }
 
-// Template is a database template from GET /templates. Its shape is not in types.go;
-// the server returns Service-like objects, so they decode into api.Service.
-func (c *Client) ListTemplates(ctx context.Context) ([]api.Service, error) {
-	var v []api.Service
+// ListTemplates returns the one-click database templates (GET /templates).
+func (c *Client) ListTemplates(ctx context.Context) ([]api.Template, error) {
+	var v []api.Template
 	return v, c.do(ctx, http.MethodGet, "/templates", nil, &v)
 }
 

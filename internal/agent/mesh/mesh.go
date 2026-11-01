@@ -61,6 +61,10 @@ type Mesh struct {
 	HasIP    func(ip string) bool
 	Interval time.Duration // periodic reconcile (default 30s)
 	MemoryMB int           // forwarder memory limit (default 64)
+	// PruneNetwork, when set, is offered a project network after the mesh removed a
+	// forwarder from it and wants none there any more (agent: Manager.PruneProjectNetwork,
+	// which keeps it while a service or container still uses it).
+	PruneNetwork func(ctx context.Context, name string)
 
 	mu      sync.Mutex // serializes reconcile and payload changes
 	payload api.MeshPayload
@@ -378,6 +382,7 @@ func (m *Mesh) reconcileLocked(ctx context.Context) error {
 		return err
 	}
 	have := map[string]agent.ContainerInfo{}
+	dropped := map[string]bool{} // project networks a removed forwarder was on
 	for _, c := range existing {
 		have[c.Name] = c
 		if _, ok := want[c.Name]; ok {
@@ -391,6 +396,19 @@ func (m *Mesh) reconcileLocked(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("remove %s: %w", c.Name, err))
 		} else {
 			m.Log.Info("mesh forwarder removed", "container", c.Name)
+			if pid := c.Labels[agent.LabelProject]; pid != "" {
+				dropped["atoll-"+pid] = true
+			}
+		}
+	}
+	if m.PruneNetwork != nil {
+		for _, cs := range want {
+			for _, nw := range cs.Networks {
+				delete(dropped, nw.Name)
+			}
+		}
+		for nw := range dropped {
+			m.PruneNetwork(ctx, nw)
 		}
 	}
 	names := make([]string, 0, len(want))

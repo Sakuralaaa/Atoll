@@ -77,6 +77,28 @@ func (d *DockerRuntime) EnsureNetwork(ctx context.Context, name string) error {
 	return err
 }
 
+func (d *DockerRuntime) RemoveNetwork(ctx context.Context, name string) error {
+	ins, err := d.cli.NetworkInspect(ctx, name, network.InspectOptions{})
+	if err != nil {
+		return mapErr(err)
+	}
+	if ins.Labels[LabelManaged] != "true" {
+		return fmt.Errorf("network %s is not managed by atoll", name)
+	}
+	if len(ins.Containers) > 0 {
+		return fmt.Errorf("%w: %d container(s) attached", ErrNetworkInUse, len(ins.Containers))
+	}
+	err = d.cli.NetworkRemove(ctx, ins.ID)
+	switch {
+	case err == nil:
+		return nil
+	case errdefs.IsForbidden(err) || errdefs.IsConflict(err):
+		// "has active endpoints": a container attached between inspect and remove.
+		return fmt.Errorf("%w: %v", ErrNetworkInUse, err)
+	}
+	return mapErr(err)
+}
+
 func (d *DockerRuntime) PullImage(ctx context.Context, ref string, auth *api.RegistryAuth) error {
 	opts := image.PullOptions{}
 	if auth != nil && auth.Username != "" {

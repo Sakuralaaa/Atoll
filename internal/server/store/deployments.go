@@ -84,10 +84,23 @@ func (s *Store) UpdateDeployment(ctx context.Context, id, status, message, diges
 	return err
 }
 
-// SupersedeOthers marks older running deployments of a service as superseded.
+// SupersedeOthers marks the service's deployments created before keepID that are running or
+// still in progress as superseded. Newer deployments are never touched: a request made while
+// keepID was in flight is the newest desired state and still has to run.
 func (s *Store) SupersedeOthers(ctx context.Context, serviceID, keepID string) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE deployments SET status='superseded' WHERE service_id=? AND id<>? AND status IN ('running','queued','pulling','starting')`, serviceID, keepID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE deployments SET status='superseded', finished_at=COALESCE(finished_at, ?)
+		WHERE service_id=? AND id<>? AND status IN ('running','queued','pulling','starting')
+		AND rowid < (SELECT rowid FROM deployments WHERE id=?)`, TS(time.Now()), serviceID, keepID, keepID)
 	return err
+}
+
+// NewerInProgress reports whether the service has a deployment created after id that has
+// not finished yet.
+func (s *Store) NewerInProgress(ctx context.Context, serviceID, id string) (bool, error) {
+	var n int
+	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM deployments WHERE service_id=? AND status IN ('queued','pulling','starting')
+		AND rowid > (SELECT rowid FROM deployments WHERE id=?)`, serviceID, id).Scan(&n)
+	return n > 0, err
 }
 
 // DesiredSpecsForNode returns, for every service on nodeID, the spec of its

@@ -145,20 +145,94 @@ func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.Reso
 	s.publish("deployment", d)
 	s.publishService(ctx, svc.ID)
 	if online {
-		nodeID := node
-		s.goBG(func(bg context.Context) {
-			res, err := s.hub.Request(bg, nodeID, api.MsgApply, api.ApplyPayload{Spec: spec}, s.cfg.TransferTimeout)
-			if err == nil && res.OK {
-				return
-			}
-			msg := res.Error
-			if err != nil {
-				msg = err.Error()
-			}
-			s.failDeployment(bg, d.ID, svc.ID, "apply failed: "+msg)
-		})
+		s.enqueueApply(pendingApply{nodeID: node, serviceID: svc.ID, depID: d.ID, spec: spec})
 	}
 	return &d, nil
+}
+
+// pendingApply is one deployment waiting to be sent to its agent.
+type pendingApply struct {
+	nodeID, serviceID, depID string
+	spec                     api.ResolvedSpec
+}
+
+// applyQueue serializes the applies of one service: at most one is in flight, and of the
+// requests made meanwhile only the newest is kept (it carries the latest desired state:
+// env, image, config were all re-resolved when it was created). The ones it replaces never
+// reach the agent and are marked superseded. So "set_env, then redeploy right away" runs
+// the env deploy and then the redeploy, instead of the redeploy being dropped.
+type applyQueue struct {
+	busy bool
+	next *pendingApply
+}
+
+func (s *Server) enqueueApply(p pendingApply) {
+	s.applyMu.Lock()
+	q := s.applyQ[p.serviceID]
+	if q == nil {
+		q = &applyQueue{}
+		s.applyQ[p.serviceID] = q
+	}
+	if q.busy {
+		dropped := q.next
+		q.next = &p
+		s.applyMu.Unlock()
+		if dropped != nil {
+			s.supersedeQueued(s.bg, dropped.depID, dropped.serviceID, p.depID)
+		}
+		return
+	}
+	q.busy = true
+	s.applyMu.Unlock()
+	s.goBG(func(bg context.Context) {
+		cur := p
+		for {
+			s.sendApply(bg, cur)
+			s.applyMu.Lock()
+			next := q.next
+			q.next = nil
+			if next == nil || bg.Err() != nil {
+				q.busy = false
+				if q.next == nil {
+					delete(s.applyQ, cur.serviceID)
+				}
+				s.applyMu.Unlock()
+				return
+			}
+			s.applyMu.Unlock()
+			cur = *next
+		}
+	})
+}
+
+// sendApply sends one deployment and waits for the agent to finish it.
+func (s *Server) sendApply(ctx context.Context, p pendingApply) {
+	if d, err := s.st.GetDeployment(ctx, p.depID); err == nil && d.Status == "superseded" {
+		return
+	}
+	res, err := s.hub.Request(ctx, p.nodeID, api.MsgApply, api.ApplyPayload{Spec: p.spec}, s.cfg.TransferTimeout)
+	if err == nil && res.OK {
+		return
+	}
+	msg := res.Error
+	if err != nil {
+		msg = err.Error()
+	}
+	s.failDeployment(ctx, p.depID, p.serviceID, "apply failed: "+msg)
+}
+
+// supersedeQueued marks a deployment that was still waiting behind an in-flight one as
+// replaced by a newer request; it is never sent.
+func (s *Server) supersedeQueued(ctx context.Context, depID, serviceID, byID string) {
+	cur, err := s.st.GetDeployment(ctx, depID)
+	if err != nil || !inProgress(cur.Status) {
+		return
+	}
+	s.st.UpdateDeployment(ctx, depID, "superseded", "replaced by newer deployment "+byID+" before it started", "")
+	if d, err := s.st.GetDeployment(ctx, depID); err == nil {
+		s.publish("deployment", d)
+	}
+	s.publishService(ctx, serviceID)
 }
 
 func (s *Server) failDeployment(ctx context.Context, depID, serviceID, msg string) {
@@ -197,7 +271,11 @@ func (s *Server) handleDeployEvent(ctx context.Context, nodeID string, ev api.De
 	switch ev.Status {
 	case "running":
 		s.st.SupersedeOthers(ctx, d.ServiceID, d.ID)
-		s.st.SetServiceStatus(ctx, d.ServiceID, "running", "1/1")
+		if newer, _ := s.st.NewerInProgress(ctx, d.ServiceID, d.ID); newer {
+			s.st.SetServiceStatus(ctx, d.ServiceID, "deploying", "") // the queued newer one runs next
+		} else {
+			s.st.SetServiceStatus(ctx, d.ServiceID, "running", "1/1")
+		}
 	case "failed":
 		s.st.SetServiceStatus(ctx, d.ServiceID, "failed", "0/1")
 	default:

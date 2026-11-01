@@ -91,6 +91,24 @@ func (f *Fake) EnsureNetwork(_ context.Context, name string) error {
 	return nil
 }
 
+func (f *Fake) RemoveNetwork(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.Networks[name] {
+		return agent.ErrNotFound
+	}
+	for _, c := range f.Containers {
+		for _, n := range c.Spec.Networks {
+			if n.Name == name {
+				return agent.ErrNetworkInUse
+			}
+		}
+	}
+	f.call("network.rm %s", name)
+	delete(f.Networks, name)
+	return nil
+}
+
 func (f *Fake) PullImage(_ context.Context, ref string, auth *api.RegistryAuth) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

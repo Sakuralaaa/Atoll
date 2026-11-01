@@ -39,6 +39,10 @@ type Manager struct {
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
 
+	// netMu orders "persist a spec" against "remove a project network nobody uses": a spec
+	// saved before the cleanup's check keeps the network; one saved after re-creates it.
+	netMu sync.Mutex
+
 	digestMu sync.Mutex
 	digests  map[string]string // image id -> repo digest
 }
@@ -94,7 +98,7 @@ func (m *Manager) Apply(ctx context.Context, spec api.ResolvedSpec) error {
 	if prevErr == nil {
 		prevPtr = &prev
 	}
-	if err := m.store.Save(spec); err != nil {
+	if err := m.saveSpec(spec); err != nil {
 		m.deployEvent(spec, "failed", "persist state: "+err.Error(), "")
 		return err
 	}
@@ -365,6 +369,14 @@ func (m *Manager) Remove(ctx context.Context, serviceID string, keepVolumes bool
 }
 
 func (m *Manager) removeLocked(ctx context.Context, serviceID string, keepVolumes bool) error {
+	// The project network to drop once this was its last service: from the persisted spec,
+	// or the container's project label when only the container is left.
+	netName := ""
+	if spec, err := m.store.Load(serviceID); err == nil {
+		netName = projectNetwork(spec)
+	} else if info, err := m.rt.InspectContainer(ctx, ContainerName(serviceID)); err == nil && info.Labels[LabelProject] != "" {
+		netName = "atoll-" + info.Labels[LabelProject]
+	}
 	for _, n := range []string{ContainerName(serviceID), oldName(serviceID)} {
 		if err := m.rt.StopContainer(ctx, n, m.StopTimeout); err != nil && !errors.Is(err, ErrNotFound) {
 			m.log.Warn("stop before remove", "container", n, "err", err)
@@ -383,7 +395,43 @@ func (m *Manager) removeLocked(ctx context.Context, serviceID string, keepVolume
 		}
 	}
 	m.log.Info("removed service", "service", serviceID, "keep_volumes", keepVolumes)
+	m.PruneProjectNetwork(ctx, netName)
 	return nil
+}
+
+// saveSpec persists a desired spec (see netMu).
+func (m *Manager) saveSpec(spec api.ResolvedSpec) error {
+	m.netMu.Lock()
+	defer m.netMu.Unlock()
+	return m.store.Save(spec)
+}
+
+// PruneProjectNetwork removes a project's docker network when no persisted service on this
+// node uses it any more (the project's last service here was removed, e.g. project delete;
+// or the mesh dropped the project's last forwarder).
+// A network that still has containers attached (a mesh proxy, a container started outside
+// atoll) is left alone; failures are logged, never fatal to the removal.
+func (m *Manager) PruneProjectNetwork(ctx context.Context, name string) {
+	if name == "" || name == IngressNetwork || !strings.HasPrefix(name, "atoll-") {
+		return
+	}
+	m.netMu.Lock()
+	defer m.netMu.Unlock()
+	specs, _ := m.store.List()
+	for _, s := range specs {
+		if projectNetwork(s) == name {
+			return
+		}
+	}
+	switch err := m.rt.RemoveNetwork(ctx, name); {
+	case err == nil:
+		m.log.Info("removed project network", "network", name)
+	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, ErrNetworkInUse):
+		m.log.Info("project network still in use, kept", "network", name, "err", err)
+	default:
+		m.log.Warn("remove project network", "network", name, "err", err)
+	}
 }
 
 // Action handles start/stop/restart and persists the desired Stopped flag.
@@ -435,7 +483,7 @@ func (m *Manager) Sync(ctx context.Context, specs []api.ResolvedSpec) error {
 	for _, s := range specs {
 		want[s.ServiceID] = true
 		unlock := m.lock(s.ServiceID)
-		err := m.store.Save(s)
+		err := m.saveSpec(s)
 		if err == nil {
 			err = m.converge(ctx, s)
 		}

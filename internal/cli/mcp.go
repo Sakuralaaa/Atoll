@@ -57,7 +57,9 @@ var mcpToolPerm = map[string]string{
 	"zeabur_import_status": api.PermRead,
 	"list_updates":         api.PermRead,
 	"backup_list":          api.PermRead,
+	"list_templates":       api.PermRead,
 	"deploy":               api.PermDeploy,
+	"deploy_template":      api.PermDeploy,
 	"set_env":              api.PermDeploy,
 	"restart":              api.PermDeploy,
 	"redeploy":             api.PermDeploy,
@@ -289,6 +291,28 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				env := argMap(r, "env")
 				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil), Server: r.GetString("server", "")})
+			}),
+		t(tool("list_templates", "List the one-click database templates (postgres, mysql, redis, mongo) with their image, ports and the exposed variables other services can reference (e.g. ${POSTGRES_CONNECTION_STRING}).", true, false),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				return ListTemplateSummaries(ctx, c)
+			}),
+		t(tool("deploy_template", "Create and deploy a NEW database service from a template (random password, data volume, exposed connection variables). Same as `atoll deploy --template`. Fails if the project already has a service with that name.", false, false,
+			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
+			mcp.WithString("template", mcp.Required(), mcp.Description("postgres | mysql | redis | mongodb")),
+			mcp.WithString("name", mcp.Description("service name (default: the template kind)")),
+			mcp.WithObject("env", mcp.Description("template variables to override, {KEY: VALUE}, e.g. {POSTGRES_DATABASE: app}")),
+			mcp.WithString("server", mcp.Description("server name or id (default: the project's server; both must be on the tailnet)"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				project, err := reqStr(r, "project")
+				if err != nil {
+					return nil, err
+				}
+				tpl, err := reqStr(r, "template")
+				if err != nil {
+					return nil, err
+				}
+				env := argMap(r, "env")
+				return DeployTemplate(ctx, c, TemplateRequest{Project: project, Template: tpl, Name: r.GetString("name", ""), Env: env, EnvOrder: sortedKeys(env), Server: r.GetString("server", "")})
 			}),
 		t(tool("set_env", "Set (or unset) environment variables of a service; the service redeploys. Secret-looking keys are stored as secrets.", false, false,
 			append(svcArgs(),

@@ -55,6 +55,9 @@ type Server struct {
 	jobMu   sync.Mutex
 	jobBusy map[string]bool
 
+	applyMu sync.Mutex
+	applyQ  map[string]*applyQueue // per-service deploy queue (deploy.go)
+
 	upd *updater  // image update detection (imageupdates.go)
 	net *netState // private network provider + mesh (network.go)
 
@@ -102,7 +105,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}}
+	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
 	s.bg, s.cancel = context.WithCancel(context.Background())

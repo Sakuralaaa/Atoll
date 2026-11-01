@@ -12,12 +12,19 @@ import (
 // ErrNotFound is returned by a Runtime when a container, image or network does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrNetworkInUse is returned by RemoveNetwork when containers are still attached.
+var ErrNetworkInUse = errors.New("network in use")
+
 // Runtime is the slice of the Docker Engine the agent needs. The real implementation
 // (DockerRuntime) talks to dockerd; tests use an in-memory fake.
 type Runtime interface {
 	Version(ctx context.Context) (string, error)
 
 	EnsureNetwork(ctx context.Context, name string) error
+	// RemoveNetwork deletes an atoll-managed network. It returns ErrNetworkInUse (and leaves
+	// the network) while any container is attached, ErrNotFound when it does not exist, and
+	// refuses networks atoll did not create.
+	RemoveNetwork(ctx context.Context, name string) error
 
 	// PullImage pulls ref (with optional registry credentials).
 	PullImage(ctx context.Context, ref string, auth *api.RegistryAuth) error

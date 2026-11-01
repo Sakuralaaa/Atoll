@@ -84,7 +84,7 @@ func NewRoot(app *App) *cobra.Command {
 		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, recreate container)"),
 		newRollbackCmd(app), newDomainCmd(app), newMigrateCmd(app), newExecCmd(app),
 		newMCPCmd(app), newZeaburCmd(app), newImportCmd(app),
-		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app),
+		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app),
 	)
 	return root
 }

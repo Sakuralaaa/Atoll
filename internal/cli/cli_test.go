@@ -117,6 +117,15 @@ func (f *fakePanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.Unmarshal(body, &s)
 		s.ID = "svc_new"
 		writeJSON(w, 201, s)
+	case "GET /templates":
+		writeJSON(w, 200, []api.Template{
+			{Kind: "postgres", Name: "PostgreSQL", Description: "PostgreSQL 16", Image: "postgres:16-alpine",
+				Ports: []api.Port{{Name: "database", ContainerPort: 5432, Protocol: "tcp"}},
+				Env:   []api.EnvVar{{Key: "PASSWORD", Value: "${PASSWORD}", Secret: true}, {Key: "POSTGRES_CONNECTION_STRING", Value: "postgresql://...", Secret: true, Exposed: true}}},
+			{Kind: "mongo", Name: "MongoDB", Description: "MongoDB 7", Image: "mongo:7",
+				Ports: []api.Port{{Name: "database", ContainerPort: 27017, Protocol: "tcp"}},
+				Env:   []api.EnvVar{{Key: "MONGO_URI", Value: "mongodb://...", Secret: true, Exposed: true}}},
+		})
 	case "GET /services/svc_1/env", "GET /services/svc_new/env":
 		writeJSON(w, 200, []api.EnvVar{})
 	case "PUT /services/svc_1/env", "PUT /services/svc_new/env":

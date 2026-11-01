@@ -298,17 +298,43 @@ func imageName(image string) string {
 }
 
 func newDeployCmd(app *App) *cobra.Command {
-	var project, name, server string
+	var project, name, server, template string
 	var ports, envs, domains []string
 	cmd := &cobra.Command{
 		Use: "deploy IMAGE -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER]",
+		Example: "  atoll deploy ghcr.io/me/app:v2 -p shop --port web:3000/http --domain app.example.com\n" +
+			"  atoll deploy --template postgres db -p shop\n" +
+			"  atoll deploy --template mongodb -p shop -e MONGO_USERNAME=app",
 		Long: "Creates the service when the project has none by that name, otherwise updates it and redeploys.\n" +
 			"Needs the deploy permission; --domain also needs the domains permission.\n" +
 			"--server places a NEW service on a server other than the project's (both on the tailnet);\n" +
-			"to move an existing service use `atoll services migrate`.",
-		Short: "Deploy an image: create the service, or update its image/ports/env and redeploy",
-		Args:  cobra.ExactArgs(1),
+			"to move an existing service use `atoll services migrate`.\n" +
+			"--template creates a database service from a template instead (same as `atoll templates deploy`);\n" +
+			"the optional argument is then the service name (default: the template kind).",
+		Short: "Deploy an image or a database template: create the service, or update its image/ports/env and redeploy",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if template != "" {
+				return cobra.MaximumNArgs(1)(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if template != "" {
+				if project == "" {
+					return fmt.Errorf("-p PROJECT is required")
+				}
+				if len(ports) > 0 || len(domains) > 0 {
+					return fmt.Errorf("--port and --domain do not apply to --template (templates bring their own ports; add a domain with `atoll domain add`)")
+				}
+				n := name
+				if len(args) == 1 {
+					if n != "" && n != args[0] {
+						return fmt.Errorf("give the service name once (argument or --name)")
+					}
+					n = args[0]
+				}
+				return runTemplateDeploy(cmd, app, TemplateRequest{Project: project, Template: template, Name: n, Server: server}, envs)
+			}
 			c, err := app.client()
 			if err != nil {
 				return err
@@ -355,6 +381,7 @@ func newDeployCmd(app *App) *cobra.Command {
 	f.StringArrayVarP(&envs, "env", "e", nil, "KEY=VALUE, repeatable")
 	f.StringArrayVar(&domains, "domain", nil, "hostname to route to the first http port, repeatable (needs the domains permission)")
 	f.StringVar(&server, "server", "", "server name or id for a new service (default: the project's server)")
+	f.StringVar(&template, "template", "", "deploy a database template (postgres, mysql, redis, mongodb) instead of an image")
 	return cmd
 }
 

@@ -52,6 +52,14 @@ func configHostPath(p Paths, serviceID, containerPath string) (string, error) {
 	return filepath.Join(p.ConfigsDir(serviceID), filepath.FromSlash(clean)), nil
 }
 
+// projectNetwork is the per-project bridge network a service's container joins.
+func projectNetwork(s api.ResolvedSpec) string {
+	if s.Network != "" {
+		return s.Network
+	}
+	return "atoll-" + s.ProjectID
+}
+
 // BuildContainerSpec turns a ResolvedSpec into the container definition.
 //
 // Command/Args follow Kubernetes semantics: Command replaces the image ENTRYPOINT,
@@ -63,10 +71,7 @@ func BuildContainerSpec(p Paths, s api.ResolvedSpec) (ContainerSpec, error) {
 	if s.Image == "" {
 		return ContainerSpec{}, fmt.Errorf("spec %s has no image", s.ServiceID)
 	}
-	network := s.Network
-	if network == "" {
-		network = "atoll-" + s.ProjectID
-	}
+	network := projectNetwork(s)
 	cs := ContainerSpec{
 		Name:       ContainerName(s.ServiceID),
 		Image:      s.Image,

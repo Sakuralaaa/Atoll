@@ -142,6 +142,7 @@ func run(cfgPath string, log *slog.Logger) error {
 
 	// Cross-server service mesh: forwarders over the tailnet, state kept locally.
 	mk := mesh.New(rt, paths, log)
+	mk.PruneNetwork = a.Mgr.PruneProjectNetwork
 	a.Ext = append(a.Ext, mk)
 	a.MeshErr = mk.Err
 	go mk.Loop(ctx)

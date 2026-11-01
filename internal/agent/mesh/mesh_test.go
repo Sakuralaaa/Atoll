@@ -243,3 +243,31 @@ func TestMeshBuildsForwarderImage(t *testing.T) {
 		t.Fatal("image rebuilt although present")
 	}
 }
+
+// Removing a project's last forwarder offers its network for pruning; a network a wanted
+// forwarder still uses is not offered.
+func TestMeshOffersNetworkForPruning(t *testing.T) {
+	f := agenttest.New()
+	f.Images[img] = agent.ImageInfo{ID: "sha256:fwd"}
+	up := true
+	m := newMesh(t, f, t.TempDir(), &up)
+	var offered []string
+	m.PruneNetwork = func(_ context.Context, name string) { offered = append(offered, name) }
+	if err := send(t, m, payload()); err != nil {
+		t.Fatal(err)
+	}
+	p := payload()
+	p.Imports = nil // exporter on atoll-prj_1 stays
+	if err := send(t, m, p); err != nil {
+		t.Fatal(err)
+	}
+	if len(offered) != 0 {
+		t.Fatalf("network still in use offered: %v", offered)
+	}
+	if err := send(t, m, api.MeshPayload{}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(offered, []string{"atoll-prj_1"}) {
+		t.Fatalf("offered %v", offered)
+	}
+}
