@@ -143,9 +143,10 @@ func (s *Server) execAddDomain(ctx context.Context, serviceID string, req domain
 		s.releaseRoute(d.Hostname)
 		s.pushIngress(ctx, nodeID)
 	}
-	// ATOLL_<PORT>_DOMAIN changed: redeploy so the env reflects it (only if deployed before).
-	if _, err := s.st.LatestDeployment(ctx, svc.ID); err == nil {
-		s.deploy(ctx, svc.ID, "env")
+	// A route change only: the container is redeployed just when the domain reaches
+	// something it explicitly references (domainenv.go).
+	if after, err := s.st.ListDomains(ctx, "", svc.ProjectID); err == nil {
+		s.redeployForDomainChange(ctx, svc.ProjectID, withoutDomain(after, d.ID), after)
 	}
 	s.st.Audit(ctx, actor, "domain.add", d.ID, map[string]string{"hostname": d.Hostname, "service": svc.ID})
 	return d, nil
@@ -229,9 +230,10 @@ func (s *Server) execDeleteDomain(ctx context.Context, id, actor string) error {
 	}
 	// Route first, DNS record second: while the record still exists nobody is sent to a
 	// Caddy that no longer knows the name, and the CA is never asked about a dying name.
-	nodeID := ""
+	nodeID, projectID := "", ""
 	if svc, _, err := s.st.GetService(ctx, d.ServiceID); err == nil {
 		nodeID, _ = s.serviceNode(ctx, svc)
+		projectID = svc.ProjectID
 	}
 	s.holdRoute(d.Hostname)
 	if nodeID != "" && s.hub.Online(nodeID) {
@@ -247,10 +249,17 @@ func (s *Server) execDeleteDomain(ctx context.Context, id, actor string) error {
 		}
 		return errf(502, "dns_error", "could not delete DNS record: %v", err)
 	}
+	var before []store.DomainRow
+	if projectID != "" {
+		before, _ = s.st.ListDomains(ctx, "", projectID)
+	}
 	err = s.st.DeleteDomain(ctx, id)
 	s.releaseRoute(d.Hostname)
 	if err != nil {
 		return err
+	}
+	if before != nil {
+		s.redeployForDomainChange(ctx, projectID, before, withoutDomain(before, id))
 	}
 	s.st.Audit(ctx, actor, "domain.delete", id, map[string]string{"hostname": d.Hostname})
 	s.publish("domain", map[string]any{"id": id, "service_id": d.ServiceID, "deleted": true})

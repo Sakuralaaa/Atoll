@@ -323,3 +323,87 @@ func TestDomainProvisioningResumesAfterRestart(t *testing.T) {
 	e.waitIngressWith(d.Hostname)
 	e.waitStatus(d.Hostname, "active")
 }
+
+// appliesFor counts the MsgApply (container recreate) sent for a service.
+func (e *provEnv) appliesFor(serviceID string) int {
+	n := 0
+	for _, raw := range e.agent.received(api.MsgApply) {
+		var ap api.ApplyPayload
+		json.Unmarshal(raw, &ap)
+		if ap.Spec.ServiceID == serviceID {
+			n++
+		}
+	}
+	return n
+}
+
+func (e *provEnv) waitApplies(serviceID string, want int) {
+	e.t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for e.appliesFor(serviceID) < want {
+		if time.Now().After(deadline) {
+			e.t.Fatalf("%s: %d applies, want %d", serviceID, e.appliesFor(serviceID), want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Binding and unbinding a domain (provisioning included) only changes the route table: the
+// service's container is not redeployed. A service that explicitly references the domain
+// in its env is redeployed, since its configuration really changed.
+func TestDomainChangeIsRouteOnly(t *testing.T) {
+	e := newProvEnv(t)
+	e.waitApplies(e.svc.ID, 1) // initial deploy
+	var ref api.Service
+	e.mustDo("POST", "/api/v1/projects/"+e.svc.ProjectID+"/services", map[string]any{
+		"name": "worker", "kind": "image", "image": "traefik/whoami",
+		"env": []api.EnvVar{{Key: "APP_URL", Value: "${APP.ATOLL_WEB_URL}"}},
+	}, &ref, 201)
+	e.waitApplies(ref.ID, 1)
+
+	const host = "app.example.com"
+	e.l.set(func() { e.l.visible[host] = "198.51.100.20"; e.l.certOK[host] = true })
+	e.addDomain(host, true)
+	e.waitIngressWith(host)
+	e.waitStatus(host, "active")
+	e.waitApplies(ref.ID, 2) // explicit ${APP.ATOLL_WEB_URL} changed
+	var last api.ApplyPayload
+	raws := e.agent.received(api.MsgApply)
+	json.Unmarshal(raws[len(raws)-1], &last)
+	if last.Spec.ServiceID != ref.ID || last.Spec.Env["APP_URL"] != "https://"+host {
+		t.Fatalf("referencing service redeploy: %+v", last.Spec)
+	}
+
+	// a second domain on the same port changes nothing the containers see
+	const host2 = "www.example.com"
+	e.l.set(func() { e.l.visible[host2] = "198.51.100.20"; e.l.certOK[host2] = true })
+	e.addDomain(host2, true)
+	e.waitStatus(host2, "active")
+
+	d2 := e.domain(host2)
+	e.mustDo("DELETE", "/api/v1/domains/"+d2.ID, nil, nil, 204)
+	time.Sleep(200 * time.Millisecond)
+	if n := e.appliesFor(e.svc.ID); n != 1 {
+		t.Fatalf("domain changes recreated the service's container: %d applies", n)
+	}
+	if n := e.appliesFor(ref.ID); n != 2 {
+		t.Fatalf("second domain on the same port redeployed the referencing service: %d applies", n)
+	}
+
+	d := e.domain(host)
+	e.mustDo("DELETE", "/api/v1/domains/"+d.ID, nil, nil, 204)
+	e.waitApplies(ref.ID, 3) // reference no longer resolves
+	time.Sleep(200 * time.Millisecond)
+	if n := e.appliesFor(e.svc.ID); n != 1 {
+		t.Fatalf("domain removal recreated the service's container: %d applies", n)
+	}
+	lastIng := ""
+	for _, ev := range e.l.snapshot() {
+		if strings.HasPrefix(ev, "ingress [") {
+			lastIng = ev
+		}
+	}
+	if lastIng != "ingress []" {
+		t.Fatalf("route table after removals %q; events %q", lastIng, e.l.snapshot())
+	}
+}

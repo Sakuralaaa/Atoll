@@ -16,11 +16,16 @@ func containerName(serviceID string) string { return "atoll-" + serviceID }
 
 // buildSpec resolves the full desired spec of svc. Warnings come from env resolution.
 func (s *Server) buildSpec(ctx context.Context, svc *api.Service, deploymentID string) (api.ResolvedSpec, []string, error) {
-	svcs, err := s.st.ListServices(ctx, svc.ProjectID)
+	doms, err := s.st.ListDomains(ctx, "", svc.ProjectID)
 	if err != nil {
 		return api.ResolvedSpec{}, nil, err
 	}
-	doms, err := s.st.ListDomains(ctx, "", svc.ProjectID)
+	return s.buildSpecWith(ctx, svc, deploymentID, doms)
+}
+
+// buildSpecWith is buildSpec with the project's domains given (all domains of the project).
+func (s *Server) buildSpecWith(ctx context.Context, svc *api.Service, deploymentID string, doms []store.DomainRow) (api.ResolvedSpec, []string, error) {
+	svcs, err := s.st.ListServices(ctx, svc.ProjectID)
 	if err != nil {
 		return api.ResolvedSpec{}, nil, err
 	}
