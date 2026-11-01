@@ -12,7 +12,8 @@ sh install/install-server.sh --help 2>&1 | grep -q -- '--tailscale-authkey KEY'
 sh install/install-server.sh --help 2>&1 | grep -q -- '--agent-tailnet-only'
 sh install/install-agent.sh --help 2>&1 | grep -q -- '--tailscale-hostname NAME'
 if command -v shellcheck >/dev/null 2>&1; then
-	shellcheck -s sh install/install-agent.sh install/install-server.sh internal/agent/tailnet/install-tailscale.sh
+	# warnings and errors only: info-level checks differ between shellcheck versions
+	shellcheck -s sh -S warning install/install-agent.sh install/install-server.sh internal/agent/tailnet/install-tailscale.sh
 fi
 
 T=$(mktemp -d)

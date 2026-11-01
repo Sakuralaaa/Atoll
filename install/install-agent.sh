@@ -70,7 +70,7 @@ USAGE
 }
 
 need_arg() {
-	[ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"
+	if [ $# -lt 2 ] || [ -z "$2" ]; then die "$1 needs a value"; fi
 }
 
 parse_args() {

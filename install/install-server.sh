@@ -63,7 +63,7 @@ usage() {
 	exit 2
 }
 
-need_arg() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
+need_arg() { if [ $# -lt 2 ] || [ -z "$2" ]; then die "$1 needs a value"; fi; }
 
 while [ $# -gt 0 ]; do
 	case "$1" in
