@@ -7,6 +7,7 @@ import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
 import { backupsApi } from '../api/backups'
 import type { BackupTestResult, Settings } from '../api/types'
+import { KEEP_NETWORK } from './NetworkSettings'
 
 type Secret = { password: string; repository: string; first: boolean }
 
@@ -68,7 +69,7 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
   }
   // PUT /settings replaces every field: send the current values back (write-only secrets "" = keep).
   const save = () => wrap(async () => {
-    const r = await run(() => api.putSettings({ ...s, backup_access_key: '', backup_secret_key: '', backup_repo_password: '', ...body() }), { ok: '备份存储已保存', invalidate: ['settings', 'backup-policy'] })
+    const r = await run(() => api.putSettings({ ...s, backup_access_key: '', backup_secret_key: '', backup_repo_password: '', ...KEEP_NETWORK, ...body() }), { ok: '备份存储已保存', invalidate: ['settings', 'backup-policy'] })
     if (r?.backup_repo_password) onGenerated({ password: r.backup_repo_password, repository: repoUrl(r), first: true })
     if (r) { setAk(''); setSk(''); setRepoPw('') }
   })

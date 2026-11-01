@@ -11,10 +11,21 @@ export interface Server {
   role: 'worker' | 'control' | string
   status: 'pending' | 'online' | 'offline' | 'draining' | string
   public_ipv4: string; public_ipv6?: string; tailnet_host?: string
+  /** 100.x address when the node is on the tailnet */ tailnet_ip?: string
+  /** private-network state the agent last reported */ network?: NodeNetwork
   provider?: string; region?: string; os: string; arch: string
   cpu_cores: number; mem_mb: number; disk_gb: number; agent_version: string
   last_seen_at: string; created_at: string
   usage?: NodeMetrics
+}
+
+/** Private-network state an agent reports (internal/api NodeNetwork). */
+export interface NodeNetwork {
+  provider: 'tailscale' | '' | string
+  state: 'running' | 'not_installed' | 'stopped' | 'needs_login' | 'starting' | 'unknown' | string
+  control_url?: string; fallback_urls?: string[]
+  /** control_url is a tailnet address */ via_tailnet: boolean
+  mesh_error?: string
 }
 
 export interface JoinToken { token: string; command: string; expires_at: string }
@@ -37,6 +48,7 @@ export interface Service {
   cpu_limit?: number; mem_limit_mb?: number; registry_cred_id?: string
   status: 'running' | 'deploying' | 'stopped' | 'failed' | 'unknown' | string
   replicas: string; created_at: string; domains?: Domain[]
+  /** server the service runs on (read-only); usually the project's server */ server_id?: string
 }
 
 export interface Project {
@@ -52,10 +64,25 @@ export interface Deployment {
   message?: string; started_at: string; finished_at?: string
 }
 
+// ---- API token permissions ----
+export type Permission = 'read' | 'deploy' | 'delete' | 'migrate' | 'domains' | 'restore' | 'servers' | 'settings' | 'tokens'
+/** display order (api.AllPermissions) */
+export const ALL_PERMISSIONS: Permission[] = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
+/** cannot be combined with a project-scoped token (api.GlobalPermissions) */
+export const GLOBAL_PERMISSIONS: Permission[] = ['servers', 'settings', 'tokens']
+
 export interface APIToken {
-  id: string; name: string; scope: 'read' | 'deploy' | 'admin' | string; prefix: string
-  token?: string; last_used_at?: string; created_at: string
+  id: string; name: string
+  /** legacy summary derived from permissions */ scope: 'read' | 'deploy' | 'admin' | string
+  /** "read" is always included */ permissions: (Permission | string)[]
+  /** project ids; empty = all projects */ projects?: string[]
+  /** allowed destructive ops still wait for approval in the panel */ require_approval?: boolean
+  prefix: string; token?: string; last_used_at?: string; created_at: string
 }
+/** POST /tokens */
+export interface TokenRequest { name: string; scope?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }
+/** PATCH /tokens/{id}; omitted fields stay */
+export interface TokenUpdate { name?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }
 
 export interface Confirmation {
   id: string; action: string; target: string; summary: string
@@ -73,7 +100,20 @@ export interface Settings {
   /** write-only */ backup_access_key?: string; backup_secret_key?: string; has_backup_credentials?: boolean
   /** write-only; returned ONCE in the PUT response when the server generated it */ backup_repo_password?: string
   has_backup_password?: boolean; backup_configured?: boolean
+  /** private network: "" (none) | "tailscale"; PUT omitting it keeps, "none" clears */ network_provider?: '' | 'tailscale' | 'none' | string
+  /** write-only (tskey-…) */ tailscale_auth_key?: string; has_tailscale_auth_key?: boolean
+  /** PUT only */ clear_tailscale_auth_key?: boolean
+  /** MagicDNS suffix, e.g. tail1234.ts.net */ tailnet_name?: string
+  /** agent endpoint over the tailnet; "" = derived from the tailnet listener */ tailnet_control_url?: string
+  // read-only status
+  tailnet_listen?: string; tailnet_listen_error?: string; agent_public?: boolean
 }
+
+/** POST /servers/{id}/network */
+export interface ServerNetworkRequest { action: 'join' | 'switch' | 'public' }
+export interface NetworkResult { switched: boolean; control_url: string; tailnet_ip?: string; state: string; message?: string }
+/** POST /services/{id}/migrate */
+export interface ServiceMigrateRequest { server_id: string }
 
 export interface ErrorBody { error: string; code?: string }
 
@@ -109,7 +149,7 @@ export interface ImportJob {
 export interface ImportVerify { service: string; table: string; source_rows: number; target_rows: number }
 
 export interface MigrationJob {
-  id: string; project_id: string; from_server_id: string; to_server_id: string
+  id: string; project_id: string; /** set when one service moves */ service_id?: string; from_server_id: string; to_server_id: string
   status: 'running' | 'done' | 'failed' | string; steps: ImportStep[]; error?: string; created_at: string; finished_at?: string
 }
 

@@ -5,6 +5,7 @@ import { TextInput } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
 import type { Settings } from '../api/types'
+import { KEEP_NETWORK } from './NetworkSettings'
 
 /** Settings → 镜像更新: how often the server asks registries for new image digests. */
 export default function ImageCheckSettings({ s }: { s: Settings }) {
@@ -14,7 +15,7 @@ export default function ImageCheckSettings({ s }: { s: Settings }) {
   const n = Number(v)
   const ok = Number.isInteger(n) && n >= 1 && n <= 168
   // PUT /settings replaces every field: send the current values back (write-only secrets are "" = keep).
-  const save = () => wrap(() => run(() => api.putSettings({ ...s, image_check_interval_hours: n }), { ok: '检查间隔已保存', invalidate: ['settings'] }))
+  const save = () => wrap(() => run(() => api.putSettings({ ...s, ...KEEP_NETWORK, image_check_interval_hours: n }), { ok: '检查间隔已保存', invalidate: ['settings'] }))
   return (
     <div className="mt-8 mb-8">
       <div className="text-[15px] font-semibold flex items-center gap-2"><ArrowUpCircle size={17} />镜像更新</div>

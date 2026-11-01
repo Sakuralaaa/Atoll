@@ -9,6 +9,8 @@ import { run, useQuery } from '../api/hooks'
 import { ago, day, flagFor, gb, projIcon, timeLabels, usagePct } from '../api/view'
 import type { Project, Server } from '../api/types'
 import { useProjects } from './Projects'
+import { NetBadge, ServerNetworkAction, useNetState } from '../components/ServerNetwork'
+import { useT } from '../i18n'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
 const projectsOn = (ps: Project[] | undefined, sid: string) => (ps ?? []).filter(p => p.server_id === sid)
@@ -55,6 +57,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 function InfoTab({ s }: { s: Server }) {
+  const { t } = useT()
   const u = usagePct(s), on = s.status === 'online'
   return (
     <>
@@ -63,7 +66,8 @@ function InfoTab({ s }: { s: Server }) {
           <div className="text-[13px] font-semibold mb-3">运行信息</div>
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
           <KV k="Agent" v={s.agent_version || '—'} />
-          <KV k="管理通道" v={s.tailnet_host ? <span className="font-mono text-[12.5px]">{s.tailnet_host}</span> : '直连'} />
+          <KV k={t('管理通道', 'Agent channel')} v={<span className="flex items-center gap-2">{s.tailnet_host && <span className="font-mono text-[12.5px]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
+          <KV k={t('内网 IP', 'Tailnet IP')} v={<span className="font-mono text-[13px]">{s.tailnet_ip || '—'}</span>} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
           <KV k="区域" v={`${flagFor(s.region)} ${s.region || '—'}`} />
           <KV k="IPv4" v={<span className="font-mono text-[13px]">{s.public_ipv4 || '—'}</span>} />
@@ -195,6 +199,7 @@ function SettingsTab({ s }: { s: Server }) {
         <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-[480px] h-11 rounded-lg field px-3.5 flex items-center text-[13px] font-mono">{s.public_ipv4 || '—'}</div></Row>
         <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>取消</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>保存配置</Button></div>
       </Section>
+      <NetworkSection s={s} />
       <Section title="Agent">
         <Row t="Atoll Agent" d={`${s.agent_version || '未知版本'} · 本地保存期望状态，中控离线时容器照常运行`}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? '已连接' : statusText[s.status] ?? s.status}</span>{isDemo() && <Button size="sm"><RefreshCw size={14} />更新 Agent</Button>}</Row>
         <Row t="防火墙" d="80/443 仅放行 Cloudflare IP；SSH 与 Agent 只走 Tailscale"><Badge tone="green">已启用</Badge></Row>
@@ -215,6 +220,23 @@ function SettingsTab({ s }: { s: Server }) {
         onConfirm={async () => { const r = await run(() => api.deleteServer(s.id), { ok: '服务器已删除', invalidate: ['servers'] }); if (r !== undefined) nav('/servers') }} />}
       {evac && <Evacuate s={s} ps={ps} onClose={() => setEvac(false)} />}
     </>
+  )
+}
+
+function NetworkSection({ s }: { s: Server }) {
+  const { t } = useT()
+  const state = useNetState()
+  const n = s.network
+  return (
+    <Section title={<>{t('私有网络', 'Private network')}<NetBadge s={s} /></>}>
+      <Row t={t('Tailscale', 'Tailscale')} d={s.tailnet_ip ? `${s.tailnet_ip} · ${state(n?.state)}` : n ? state(n.state) : t('这台服务器还没有加入 tailnet', 'This server is not on the tailnet yet')}>
+        <ServerNetworkAction s={s} />
+      </Row>
+      <Row t={t('管理通道', 'Agent channel')} d={n?.fallback_urls?.length ? `${t('备用', 'Fallback')}: ${n.fallback_urls.join(', ')}` : undefined}>
+        <span className="font-mono text-[12.5px] text-fg2 truncate max-w-[420px]">{n?.control_url || '—'}</span>
+      </Row>
+      {n?.mesh_error && <Row t={t('跨服务器转发', 'Cross-server mesh')} d={n.mesh_error}><Badge tone="red">{t('异常', 'Error')}</Badge></Row>}
+    </Section>
   )
 }
 

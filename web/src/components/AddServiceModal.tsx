@@ -5,6 +5,7 @@ import { run, useQuery } from '../api/hooks'
 import type { Service } from '../api/types'
 import { Badge, Button, ServiceIcon, cx } from './ui'
 import { Label, Select, TextInput } from './feedback'
+import { useT } from '../i18n'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'soon'; i: React.ReactNode; t: string; d: string }[] = [
@@ -30,6 +31,7 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
     addEventListener('keydown', k); return () => removeEventListener('keydown', k)
   }, [step, sel, list, onClose])
   const done = (s?: Service) => { if (s) { onCreated?.(s); onClose() } }
+  const [serverId, setServerId] = useState('')
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 flex items-start justify-center pt-[14vh]" onClick={onClose}>
@@ -53,14 +55,39 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
           </div>
           <div className="border-t border-line px-5 h-11 flex items-center gap-4 text-[12px] text-dim"><span>↑↓ 选择</span><span>↵ 确认</span><span>Esc 关闭</span></div>
         </>}
-        {step === 'image' && <ImageForm projectId={projectId} onDone={done} />}
-        {step === 'db' && <DbPicker projectId={projectId} onDone={done} />}
+        {step !== 'pick' && <Placement projectId={projectId} value={serverId} onChange={setServerId} />}
+        {step === 'image' && <ImageForm projectId={projectId} serverId={serverId} onDone={done} />}
+        {step === 'db' && <DbPicker projectId={projectId} serverId={serverId} onDone={done} />}
       </div>
     </div>
   )
 }
 
-function ImageForm({ projectId, onDone }: { projectId: string; onDone: (s?: Service) => void }) {
+/** Optional placement (server_id) when there is more than one server; "" = the project's server. */
+function Placement({ projectId, value, onChange }: { projectId: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useT()
+  const proj = useQuery(`project:${projectId}`, () => api.project(projectId)).data
+  const servers = (useQuery('servers', api.servers).data ?? []).filter(x => x.role !== 'control')
+  const settings = useQuery('settings', api.settings).data
+  if (servers.length < 2 || !proj) return null
+  const home = servers.find(x => x.id === proj.server_id)
+  const other = value && value !== proj.server_id ? servers.find(x => x.id === value) : undefined
+  const tailnetOff = settings && settings.network_provider !== 'tailscale'
+  return (
+    <div className="px-5 pt-5 -mb-2">
+      <Label t={t('服务器', 'Server')} d={t('默认和项目其他服务同一台。放到其他服务器时，两边经 tailnet 互通，服务名不变。', "Defaults to the project's server. On another server, services reach each other over the tailnet under the same name.")}>
+        <Select className="w-full" value={value || proj.server_id} onChange={e => onChange(e.target.value === proj.server_id ? '' : e.target.value)}>
+          {servers.map(x => <option key={x.id} value={x.id}>{x.name}{x.id === proj.server_id ? t('（项目服务器）', ' (project server)') : ''}{x.status !== 'online' ? ` · ${t('离线', 'offline')}` : ''}</option>)}
+        </Select>
+      </Label>
+      {other && (tailnetOff || !other.tailnet_ip || (home && !home.tailnet_ip)) && <div className="mb-4 -mt-2 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">
+        {tailnetOff ? t('跨服务器需要先在设置里启用 Tailscale。', 'Cross-server placement needs Tailscale enabled in Settings.') : t('两台服务器都需要先加入内网（tailnet）。', 'Both servers need to be on the tailnet first.')}
+      </div>}
+    </div>
+  )
+}
+
+function ImageForm({ projectId, serverId, onDone }: { projectId: string; serverId: string; onDone: (s?: Service) => void }) {
   const [image, setImage] = useState(''); const [name, setName] = useState(''); const [port, setPort] = useState('8080'); const [proto, setProto] = useState('http')
   const [busy, setBusy] = useState(false)
   const auto = image.split('/').pop()?.split(':')[0]?.replace(/[^a-z0-9-]/gi, '-').toLowerCase() ?? ''
@@ -69,7 +96,7 @@ function ImageForm({ projectId, onDone }: { projectId: string; onDone: (s?: Serv
     setBusy(true)
     const ref = image.includes(':') || image.includes('@') ? image.trim() : `${image.trim()}:latest`
     const s = await run(() => api.createService(projectId, {
-      name: name || auto, kind: 'image', image: ref, volumes: [],
+      name: name || auto, kind: 'image', image: ref, volumes: [], ...(serverId ? { server_id: serverId } : {}),
       ports: port ? [{ name: 'web', container_port: +port, protocol: proto }] : [],
     }), { ok: '服务已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
     setBusy(false); onDone(s)
@@ -87,12 +114,12 @@ function ImageForm({ projectId, onDone }: { projectId: string; onDone: (s?: Serv
   )
 }
 
-function DbPicker({ projectId, onDone }: { projectId: string; onDone: (s?: Service) => void }) {
+function DbPicker({ projectId, serverId, onDone }: { projectId: string; serverId: string; onDone: (s?: Service) => void }) {
   const t = useQuery('templates', api.templates)
   const [busy, setBusy] = useState<string>()
   const create = async (kind: string) => {
     setBusy(kind)
-    const s = await run(() => api.createService(projectId, { name: kind === 'postgres' ? 'postgresql' : kind === 'mongo' ? 'mongodb' : kind, kind }), { ok: '数据库已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
+    const s = await run(() => api.createService(projectId, { name: kind === 'postgres' ? 'postgresql' : kind === 'mongo' ? 'mongodb' : kind, kind, ...(serverId ? { server_id: serverId } : {}) }), { ok: '数据库已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
     setBusy(undefined); onDone(s)
   }
   return (

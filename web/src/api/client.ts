@@ -1,6 +1,6 @@
 import type {
   APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, JoinToken, LoginChallenge, RecoveryCodes, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
 } from './types'
 
 export const API = '/api/v1'
@@ -92,6 +92,8 @@ export const api = {
   joinToken: () => post<JoinToken>('/servers/join-token'),
   serverMetrics: (id: string, range: Range = '24h') => get<NodeMetrics[]>(`/servers/${e(id)}/metrics?range=${range}`),
   serverContainers: (id: string) => get<ContainerState[]>(`/servers/${e(id)}/containers`),
+  /** join: install Tailscale + tailscale up + switch agent to the tailnet; switch: already on it; public: back to the public URL */
+  serverNetwork: (id: string, action: ServerNetworkRequest['action']) => post<NetworkResult>(`/servers/${e(id)}/network`, { action }),
   // projects
   projects: () => get<Project[]>('/projects'),
   project: (id: string) => get<Project>(`/projects/${e(id)}`),
@@ -120,10 +122,13 @@ export const api = {
   domains: () => get<Domain[]>('/domains'),
   deployments: (id: string) => get<Deployment[]>(`/services/${e(id)}/deployments`),
   serviceMetrics: (id: string, range: Range = '24h') => get<ContainerMetrics[]>(`/services/${e(id)}/metrics?range=${range}`),
+  /** move one service (container + volumes) to another server; siblings reach it over the tailnet mesh */
+  migrateService: (id: string, server_id: string) => post<MigrationJob | Confirmation>(`/services/${e(id)}/migrate`, { server_id }),
   exec: (id: string, cmd: string[]) => post<ResultPayload>(`/services/${e(id)}/exec`, { cmd }),
   // tokens, confirmations, settings
   tokens: () => get<APIToken[]>('/tokens'),
-  createToken: (b: { name: string; scope: string }) => post<APIToken>('/tokens', b),
+  createToken: (b: TokenRequest) => post<APIToken>('/tokens', b),
+  updateToken: (id: string, b: TokenUpdate) => patch<APIToken>(`/tokens/${e(id)}`, b),
   deleteToken: (id: string) => del(`/tokens/${e(id)}`),
   confirmations: (status?: string) => get<Confirmation[]>(`/confirmations${status ? `?status=${status}` : ''}`),
   approve: (id: string) => post<void>(`/confirmations/${e(id)}/approve`),

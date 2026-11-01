@@ -16,10 +16,13 @@ const H = 3600e3, D = 24 * H
 let seq = 1000
 const nid = (p: string) => `${p}_demo${(seq++).toString(36)}`
 
+const TAILNET: Record<string, [string, boolean]> = { phx: ['100.64.0.10', true], fra: ['100.64.0.20', false], tyo: ['100.64.0.4', true] }
 const servers: Server[] = mockServers.map(s => ({
   id: s.id, name: s.name, role: s.role ?? 'worker', status: s.status, public_ipv4: s.ip, provider: s.provider, region: s.region,
   tailnet_host: `${s.id}.tail3c1a.ts.net`, os: s.os, arch: s.arch, cpu_cores: s.cpu, mem_mb: s.memGB * 1024, disk_gb: s.diskGB,
   agent_version: 'v0.1.0', last_seen_at: iso(s.status === 'online' ? 8e3 : 12 * 60e3), created_at: '2026-10-12T08:00:00Z',
+  // demo private network: phx + fra joined the tailnet (fra still on the public channel), sin not yet
+  ...(TAILNET[s.id] ? { tailnet_ip: TAILNET[s.id][0], network: { provider: 'tailscale', state: 'running', via_tailnet: TAILNET[s.id][1], control_url: TAILNET[s.id][1] ? 'http://100.64.0.4:7301' : 'https://panel.example.com', fallback_urls: TAILNET[s.id][1] ? ['https://panel.example.com'] : [] } } : { network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } }),
   usage: { at: iso(8e3), cpu_pct: s.cpuUse, mem_used_mb: Math.round(s.memGB * 1024 * s.memUse / 100), mem_total_mb: s.memGB * 1024, disk_used_gb: +(s.diskGB * s.diskUse / 100).toFixed(1), disk_total_gb: s.diskGB, net_rx_bps: 120e3, net_tx_bps: 80e3, load1: s.cpuUse / 25 },
 }))
 
@@ -37,7 +40,7 @@ for (const p of mockProjects) {
   for (const s of p.services) {
     const db = s.kind !== 'image'
     const svc: Service = {
-      id: s.id, project_id: p.id, name: s.name, kind: s.kind, image: `${s.image}:${s.tag}`, status: s.status, replicas: s.replicas,
+      id: s.id, project_id: p.id, server_id: p.serverId, name: s.name, kind: s.kind, image: `${s.image}:${s.tag}`, status: s.status, replicas: s.replicas,
       created_at: `${s.created}T06:00:00Z`,
       ports: [{ name: db ? s.kind : 'web', container_port: s.port, protocol: db ? 'tcp' : 'http' }],
       volumes: (VOLS[s.kind] ?? [['data', '/app/data'], ['logs', '/app/logs']]).map(([name, mount_path]) => ({ name, mount_path })),
@@ -75,9 +78,9 @@ for (const p of projects) {
 }
 
 const tokens: APIToken[] = [
-  { id: 'tok_demo1', name: 'claude-code-macbook', scope: 'admin', prefix: 'atl_pat_3fA9', last_used_at: iso(2 * 60e3), created_at: iso(9 * D) },
-  { id: 'tok_demo2', name: 'codex-ci', scope: 'deploy', prefix: 'atl_pat_k21Q', last_used_at: iso(D), created_at: iso(6 * D) },
-  { id: 'tok_demo3', name: '只读监控', scope: 'read', prefix: 'atl_pat_Zx07', last_used_at: iso(5 * D), created_at: iso(12 * D) },
+  { id: 'tok_demo1', name: 'claude-code-macbook', scope: 'admin', permissions: ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens'], require_approval: true, prefix: 'atl_pat_3fA9', last_used_at: iso(2 * 60e3), created_at: iso(9 * D) },
+  { id: 'tok_demo2', name: 'codex-ci', scope: 'deploy', permissions: ['read', 'deploy', 'domains'], projects: ['acme', 'linkproxy'], prefix: 'atl_pat_k21Q', last_used_at: iso(D), created_at: iso(6 * D) },
+  { id: 'tok_demo3', name: '只读监控', scope: 'read', permissions: ['read'], prefix: 'atl_pat_Zx07', last_used_at: iso(5 * D), created_at: iso(12 * D) },
 ]
 const confirmations: Confirmation[] = [
   { id: 'cfm_demo1', action: 'service.delete', target: 'cron-worker', summary: '删除服务 LinkProxy / cron-worker（容器、2 个卷）', status: 'pending', created_by: 'codex-ci', created_at: iso(4 * 60e3) },
@@ -85,7 +88,8 @@ const confirmations: Confirmation[] = [
   { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: '把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix', status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
   { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: '删除项目 old-blog（3 个服务）', status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
 ]
-const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true }
+const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true,
+  network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true }
 const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
   ({ kind, name, image, description, ports: [{ name: kind, container_port: port, protocol: 'tcp' }], volumes: [{ name: 'data', mount_path: mount }], env: [] })
 const templates: Template[] = [
@@ -248,6 +252,16 @@ const demoSessions: SessionInfo[] = [
   { id: '3f9a1c0d7e2b4a65', ip: '203.0.113.24', user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 Safari/605.1.15', current: true, created_at: iso(2 * H), expires_at: new Date(now + 30 * D).toISOString() },
   { id: 'b81e4f2a90c37d16', ip: '198.51.100.7', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148', current: false, created_at: iso(3 * D), expires_at: new Date(now + 27 * D).toISOString() },
 ]
+const ALL = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
+/** mirrors the server: read always on, global perms rejected with a project scope, legacy scope summary */
+function tokenPerms(b: { scope?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }) {
+  let perms = b.permissions?.length ? b.permissions : b.scope === 'admin' ? ALL : b.scope === 'deploy' ? ['read', 'deploy'] : ['read']
+  perms = ALL.filter(p => p === 'read' || perms.includes(p))
+  const projects = b.projects ?? []
+  if (projects.length && perms.some(p => ['servers', 'settings', 'tokens'].includes(p))) fail(400, 'servers/settings/tokens permissions cannot be combined with a project-scoped token')
+  const scope = perms.length === ALL.length ? 'admin' : perms.includes('deploy') ? 'deploy' : 'read'
+  return { permissions: perms, projects, require_approval: !!b.require_approval, scope }
+}
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 
@@ -291,6 +305,15 @@ function route(method: string, path: string, body: any): unknown {
     const c = metrics(1, u.cpu_pct, u.cpu_pct * 0.4, q.get('range') ?? '24h'), mm = metrics(2, u.mem_used_mb, u.mem_total_mb * 0.04, q.get('range') ?? '24h'), dd = metrics(3, u.disk_used_gb, u.disk_total_gb * 0.006, q.get('range') ?? '24h')
     return c.map((x, i): NodeMetrics => ({ ...u, at: x.at, cpu_pct: Math.min(100, x.v), mem_used_mb: Math.min(u.mem_total_mb, mm[i].v), disk_used_gb: dd[i].v }))
   }
+  if (P && (a = m('servers/*/network'))) {
+    const s = servers.find(x => x.id === a![0]) ?? fail(404, '服务器不存在')
+    if (s.status !== 'online') fail(409, 'server is offline')
+    if (body.action !== 'public' && settings.network_provider !== 'tailscale') fail(409, 'enable the Tailscale network provider in Settings first')
+    const pub = settings.public_url, cu = settings.tailnet_control_url || 'http://100.64.0.4:7301'
+    if (body.action === 'public') s.network = { provider: 'tailscale', state: 'running', via_tailnet: false, control_url: pub, fallback_urls: [] }
+    else { s.tailnet_ip = s.tailnet_ip || `100.64.0.${30 + servers.indexOf(s)}`; s.network = { provider: 'tailscale', state: 'running', via_tailnet: true, control_url: cu, fallback_urls: [pub] } }
+    return { switched: true, control_url: s.network.control_url, tailnet_ip: s.tailnet_ip, state: 'running', message: body.action === 'join' ? '(demo) Tailscale 已安装并加入 tailnet' : undefined }
+  }
   if ((a = m('servers/*/zeabur'))) { if (a[0] !== 'phx') fail(404, '这台服务器上没有检测到 Zeabur（k3s 未安装）'); return { ...zeabur, scanned_at: new Date().toISOString() } }
   if ((a = m('servers/*/containers'))) {
     const pids = projects.filter(p => p.server_id === a![0]).map(p => p.id)
@@ -308,11 +331,11 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('projects/*/services'))) {
     if (G) return services.filter(s => s.project_id === a![0]).map(withSvc)
     const t = templates.find(x => x.kind === body.kind)
-    const s: Service = { id: nid('svc'), project_id: a[0], name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString() }
+    const s: Service = { id: nid('svc'), project_id: a[0], server_id: body.server_id || projects.find(x => x.id === a![0])?.server_id, name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString() }
     services.push(s); env[s.id] = []; deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: new Date().toISOString() }]
     return withSvc(s)
   }
-  if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; return {} }
+  if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; services.filter(x => x.project_id === pr.id).forEach(x => { x.server_id = body.server_id }); return {} }
   if ((a = m('projects/*'))) {
     const pr = projects.find(x => x.id === a![0]) ?? fail(404, '项目不存在')
     if (X) Object.assign(pr, body)
@@ -343,6 +366,13 @@ function route(method: string, path: string, body: any): unknown {
     const r = q.get('range') ?? '24h', c = metrics(1, 3, 1.6, r), mem = metrics(2, 180, 14, r), net = metrics(3, 1.1e6, 0.8e6, r)
     return c.map((x, i): ContainerMetrics => ({ service_id: a![0], at: x.at, cpu_pct: x.v, mem_mb: mem[i].v, net_rx_bps: net[i].v * 0.6, net_tx_bps: net[i].v * 0.4 }))
   }
+  if (P && (a = m('services/*/migrate'))) {
+    const s = svc(a[0]); const from = s.server_id ?? ''
+    if (!servers.some(x => x.id === body.server_id)) fail(400, `unknown target server_id "${body.server_id}"`)
+    if (from === body.server_id) fail(400, 'service already runs there')
+    s.server_id = body.server_id
+    return { id: nid('mig'), project_id: s.project_id, service_id: s.id, from_server_id: from, to_server_id: body.server_id, status: 'running', steps: [{ name: '停止服务', status: 'done' }, { name: '复制数据卷', status: 'running' }], created_at: new Date().toISOString() }
+  }
   if ((a = m('services/*/exec'))) return exec(body.cmd)
   if ((a = m('services/*'))) {
     const s = svc(a[0])
@@ -354,7 +384,8 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('domains/*'))) { const i = domains.findIndex(d => d.id === a![0]); if (i >= 0) domains.splice(i, 1); return {} }
 
   if (G && m('tokens')) return tokens
-  if (P && m('tokens')) { const t: APIToken = { id: nid('tok'), name: body.name, scope: body.scope, prefix: 'atl_pat_' + Math.random().toString(36).slice(2, 6), created_at: new Date().toISOString() }; tokens.unshift(t); return { ...t, token: t.prefix + 'Xk2Vb8NqR4mZt7Lw1PcY9sHd' } }
+  if (P && m('tokens')) { const t: APIToken = { id: nid('tok'), name: body.name, ...tokenPerms(body), prefix: 'atl_pat_' + Math.random().toString(36).slice(2, 6), created_at: new Date().toISOString() }; tokens.unshift(t); return { ...t, token: t.prefix + 'Xk2Vb8NqR4mZt7Lw1PcY9sHd' } }
+  if (X && (a = m('tokens/*'))) { const t = tokens.find(x => x.id === a![0]) ?? fail(404, 'token not found'); Object.assign(t, tokenPerms({ ...t, ...body })); if (body.name) t.name = body.name; return t }
   if ((a = m('tokens/*'))) { const i = tokens.findIndex(t => t.id === a![0]); tokens.splice(i, 1); return {} }
 
   if (G && m('confirmations')) return confirmations.filter(c => !q.get('status') || c.status === q.get('status'))
@@ -363,8 +394,13 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('settings') && location.hash.includes('nocf=1')) return { ...settings, base_domain: '', has_cloudflare_token: false }
   if (m('settings')) {
     if (U) {
-      const { cloudflare_token, backup_access_key: _ak, backup_secret_key: _sk, backup_repo_password: _pw, backup_endpoint: _e, backup_bucket: _b, backup_prefix: _p, backup_region: _r, has_backup_credentials: _h1, has_backup_password: _h2, backup_configured: _c, ...rest } = body as Settings
+      const { tailscale_auth_key: tsKey, clear_tailscale_auth_key: tsClear, network_provider: np, tailnet_name: tn, tailnet_control_url: tcu, tailnet_listen: _tl, tailnet_listen_error: _tle, agent_public: _ap, has_tailscale_auth_key: _hts, cloudflare_token, backup_access_key: _ak, backup_secret_key: _sk, backup_repo_password: _pw, backup_endpoint: _e, backup_bucket: _b, backup_prefix: _p, backup_region: _r, has_backup_credentials: _h1, has_backup_password: _h2, backup_configured: _c, ...rest } = body as Settings
       Object.assign(settings, rest); if (cloudflare_token) settings.has_cloudflare_token = true
+      if (tsKey) { if (!tsKey.startsWith('tskey-')) fail(400, 'tailscale_auth_key must be a Tailscale auth key (tskey-auth-...)'); settings.has_tailscale_auth_key = true } else if (tsClear) settings.has_tailscale_auth_key = false
+      if (np === 'none') settings.network_provider = ''
+      else if (np === 'tailscale') { if (!settings.has_tailscale_auth_key) fail(400, 'tailscale needs an auth key'); settings.network_provider = 'tailscale' }
+      if (np || tn) settings.tailnet_name = tn ?? ''
+      if (np || tcu) settings.tailnet_control_url = tcu || (settings.tailnet_listen ? `http://${settings.tailnet_listen}` : '')
       const generated = demoBackups.putSettings(body)
       return generated ? { ...settings, backup_repo_password: generated } : settings
     }

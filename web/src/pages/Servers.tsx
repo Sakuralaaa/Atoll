@@ -8,8 +8,11 @@ import { api } from '../api/client'
 import { invalidate, useQuery } from '../api/hooks'
 import { flagFor, gb, needsAttention, usagePct } from '../api/view'
 import type { JoinToken } from '../api/types'
+import { NetBadge } from '../components/ServerNetwork'
+import { useT } from '../i18n'
 
 export default function Servers() {
+  const { t } = useT()
   const q = useQuery('servers', api.servers, { interval: 30000 })
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
@@ -60,6 +63,10 @@ export default function Servers() {
                   <div className="mt-6 grid grid-cols-2 text-[13px]">
                     <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5">{s.public_ipv4 || '—'}</div></div>
                     <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-center gap-2">{flagFor(s.region)} {s.region || '—'}</div></div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 text-[13px]">
+                    <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5">{s.tailnet_ip || '—'}</div></div>
+                    <div><div className="text-muted">{t('管理通道', 'Agent channel')}</div><div className="mt-1.5"><NetBadge s={s} /></div></div>
                   </div>
                   <div className="mt-5 space-y-2.5 text-[13px]">
                     <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">CPU 使用率</span><Ticks value={on ? u.cpu : 0} n={34} /></div>
