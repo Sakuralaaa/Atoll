@@ -145,6 +145,11 @@ func (s *Server) applyDNS(ctx context.Context, d *api.Domain, nodeID string) {
 	}
 	recID, err := s.dnsProvider(ctx).UpsertA(ctx, d.Hostname, n.PublicIPv4, d.Proxied)
 	switch {
+	case errors.Is(err, dns.ErrNotConfigured) && s.resolvesTo(ctx, d.Hostname, n.PublicIPv4):
+		// no DNS provider, but the name already points here (wildcard DNS such as sslip.io,
+		// or a record the user made): nothing left to do
+		d.Status = "active"
+		d.Error = ""
 	case errors.Is(err, dns.ErrNotConfigured):
 		d.Status = "pending"
 		d.Error = fmt.Sprintf("DNS not managed: no Cloudflare token in Settings. Create an A record %s -> %s yourself.", d.Hostname, orUnknown(n.PublicIPv4))
@@ -157,6 +162,25 @@ func (s *Server) applyDNS(ctx context.Context, d *api.Domain, nodeID string) {
 	}
 	s.st.SetDomainStatus(ctx, d.ID, d.Status, d.Error, recID)
 	s.publish("domain", d)
+}
+
+// resolvesTo reports whether host already resolves to ip (best effort, short timeout).
+func (s *Server) resolvesTo(ctx context.Context, host, ip string) bool {
+	if ip == "" || s.cfg.LookupHost == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	addrs, err := s.cfg.LookupHost(ctx, host)
+	if err != nil {
+		return false
+	}
+	for _, a := range addrs {
+		if a == ip {
+			return true
+		}
+	}
+	return false
 }
 
 func orUnknown(s string) string {

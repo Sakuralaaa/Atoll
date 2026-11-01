@@ -95,17 +95,22 @@ func (s *Server) authed(need access, fn handlerFunc) http.HandlerFunc {
 		}
 		if !p.Session {
 			if err := s.checkToken(r, p, need); err != nil {
+				if destructivePerm[need.perm] {
+					// denied attempts at destructive routes are audited too
+					s.st.Audit(r.Context(), p.actor(), "api."+need.perm, r.Method+" "+r.URL.Path, map[string]string{"token_id": p.TokenID, "result": "denied: " + err.Error()})
+				}
 				return err
 			}
 		}
 		ctx := context.WithValue(r.Context(), ctxKey{}, p)
 		err := fn(w, r.WithContext(ctx))
+		// "api.<perm>" (not "token.<perm>", which would read like "token.delete" = a revoked token)
 		if !p.Session && destructivePerm[need.perm] {
 			outcome := "ok"
 			if err != nil {
 				outcome = err.Error()
 			}
-			s.st.Audit(ctx, p.actor(), "token."+need.perm, r.Method+" "+r.URL.Path, map[string]string{"token_id": p.TokenID, "result": outcome})
+			s.st.Audit(ctx, p.actor(), "api."+need.perm, r.Method+" "+r.URL.Path, map[string]string{"token_id": p.TokenID, "result": outcome})
 		}
 		return err
 	})

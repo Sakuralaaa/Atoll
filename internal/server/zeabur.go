@@ -1002,21 +1002,7 @@ func (z *zrun) configureDNS() (string, error) {
 
 // resolvesHere reports whether host already resolves to ip (best effort, short timeout).
 func (z *zrun) resolvesHere(host, ip string) bool {
-	if ip == "" {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(z.ctx, 5*time.Second)
-	defer cancel()
-	addrs, err := z.s.cfg.LookupHost(ctx, host)
-	if err != nil {
-		return false
-	}
-	for _, a := range addrs {
-		if a == ip {
-			return true
-		}
-	}
-	return false
+	return z.s.resolvesTo(z.ctx, host, ip)
 }
 
 // ---------- rollback ----------
