@@ -672,7 +672,7 @@ func TestCutoverWithTokenNeedsConfirmation(t *testing.T) {
 	_, nodeID := startFakeAgent(t, e, zeaburInventory())
 	e.mustDo("PUT", "/api/v1/settings", api.Settings{BaseDomain: "example.com", CloudflareToken: "cf-token", CloudflareZoneID: "zone1"}, nil, 200)
 	var tok api.APIToken
-	e.mustDo("POST", "/api/v1/tokens", map[string]string{"name": "ci", "scope": "deploy"}, &tok, 201)
+	e.mustDo("POST", "/api/v1/tokens", map[string]any{"name": "ci", "permissions": []string{"deploy", "migrate"}, "require_approval": true}, &tok, 201)
 	var job api.ImportJob
 	if code := e.doWith(http.DefaultClient, tok.Token, "POST", "/api/v1/imports/zeabur-local", api.ZeaburLocalImportRequest{ServerID: nodeID, Namespace: "environment-abc123"}, &job); code != 201 {
 		t.Fatalf("import with PAT: %d", code)

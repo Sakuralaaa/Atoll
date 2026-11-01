@@ -295,7 +295,7 @@ func TestRestoreInPlaceNeedsConfirmationWithToken(t *testing.T) {
 	agent.mu.Unlock()
 
 	var tok api.APIToken
-	e.mustDo("POST", "/api/v1/tokens", map[string]string{"name": "mcp", "scope": "deploy"}, &tok, 201)
+	e.mustDo("POST", "/api/v1/tokens", map[string]any{"name": "mcp", "permissions": []string{"deploy", "restore"}, "require_approval": true}, &tok, 201)
 	var c api.Confirmation
 	if code := e.doWith(http.DefaultClient, tok.Token, "POST", "/api/v1/backups/bak_restoreme01/restore", map[string]string{}, &c); code != 202 || c.Action != "backup.restore" {
 		t.Fatalf("restore with PAT: %d %+v", code, c)

@@ -14,7 +14,7 @@ import (
 // Handler returns the full HTTP handler: REST API, agent endpoints, downloads and the web UI.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	a := func(pattern string, level int, fn handlerFunc) { mux.Handle(pattern, s.authed(level, fn)) }
+	a := func(pattern string, need access, fn handlerFunc) { mux.Handle(pattern, s.authed(need, fn)) }
 	open := func(pattern string, fn handlerFunc) { mux.Handle(pattern, s.wrap(fn)) }
 	const v = "/api/v1"
 
@@ -28,7 +28,7 @@ func (s *Server) Handler() http.Handler {
 	open("POST "+v+"/auth/login", s.handleLogin)
 	open("POST "+v+"/auth/logout", s.handleLogout)
 	open("POST "+v+"/auth/login/2fa", s.handleLogin2FA)
-	a("GET "+v+"/auth/me", lvlRead, s.handleMe)
+	a("GET "+v+"/auth/me", needReadGlobal, s.handleMe)
 	a("GET "+v+"/auth/2fa", lvlSession, s.handle2FAStatus)
 	a("POST "+v+"/auth/2fa/enroll", lvlSession, s.handle2FAEnroll)
 	a("POST "+v+"/auth/2fa/enable", lvlSession, s.handle2FAEnable)
@@ -39,45 +39,45 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/auth/sessions/revoke-others", lvlSession, s.handleRevokeOtherSessions)
 
 	// servers
-	a("GET "+v+"/servers", lvlRead, s.handleListServers)
-	a("POST "+v+"/servers/join-token", lvlAdmin, s.handleJoinToken)
-	a("GET "+v+"/servers/{id}", lvlRead, s.handleGetServer)
-	a("PATCH "+v+"/servers/{id}", lvlDeploy, s.handlePatchServer)
-	a("DELETE "+v+"/servers/{id}", lvlDeploy, s.handleDeleteServer)
+	a("GET "+v+"/servers", needReadGlobal, s.handleListServers)
+	a("POST "+v+"/servers/join-token", needServers, s.handleJoinToken)
+	a("GET "+v+"/servers/{id}", needReadGlobal, s.handleGetServer)
+	a("PATCH "+v+"/servers/{id}", needServers, s.handlePatchServer)
+	a("DELETE "+v+"/servers/{id}", needServers, s.handleDeleteServer)
 	a("GET "+v+"/servers/{id}/metrics", lvlRead, s.handleServerMetrics)
 	a("GET "+v+"/servers/{id}/containers", lvlRead, s.handleServerContainers)
 	a("GET "+v+"/servers/{id}/zeabur", lvlRead, s.handleZeaburScan)
 
 	// projects
-	a("GET "+v+"/projects", lvlRead, s.handleListProjects)
-	a("POST "+v+"/projects", lvlDeploy, s.handleCreateProject)
+	a("GET "+v+"/projects", needReadList, s.handleListProjects)
+	a("POST "+v+"/projects", needDeployGlobal, s.handleCreateProject)
 	a("GET "+v+"/projects/{id}", lvlRead, s.handleGetProject)
 	a("PATCH "+v+"/projects/{id}", lvlDeploy, s.handlePatchProject)
-	a("DELETE "+v+"/projects/{id}", lvlDeploy, s.handleDeleteProject)
+	a("DELETE "+v+"/projects/{id}", needDelete, s.handleDeleteProject)
 	a("GET "+v+"/projects/{id}/services", lvlRead, s.handleListServices)
 	a("POST "+v+"/projects/{id}/services", lvlDeploy, s.handleCreateService)
-	a("POST "+v+"/projects/{id}/migrate", lvlDeploy, s.handleMigrate)
+	a("POST "+v+"/projects/{id}/migrate", needMigrate, s.handleMigrate)
 	a("GET "+v+"/migrations", lvlRead, s.handleListMigrations)
 	a("GET "+v+"/migrations/{id}", lvlRead, s.handleGetMigration)
 
 	// services
 	a("GET "+v+"/services/{id}", lvlRead, s.handleGetService)
 	a("PATCH "+v+"/services/{id}", lvlDeploy, s.handlePatchService)
-	a("DELETE "+v+"/services/{id}", lvlDeploy, s.handleDeleteService)
+	a("DELETE "+v+"/services/{id}", needDelete, s.handleDeleteService)
 	a("POST "+v+"/services/{id}/actions", lvlDeploy, s.handleServiceAction)
 	a("POST "+v+"/services/{id}/rollback", lvlDeploy, s.handleRollback)
 	a("GET "+v+"/services/{id}/env", lvlRead, s.handleGetEnv)
 	a("PUT "+v+"/services/{id}/env", lvlDeploy, s.handlePutEnv)
 	a("GET "+v+"/services/{id}/env/references", lvlRead, s.handleEnvReferences)
 	a("GET "+v+"/services/{id}/domains", lvlRead, s.handleListDomains)
-	a("POST "+v+"/services/{id}/domains", lvlDeploy, s.handleAddDomain)
+	a("POST "+v+"/services/{id}/domains", needDomains, s.handleAddDomain)
 	a("GET "+v+"/services/{id}/deployments", lvlRead, s.handleListDeployments)
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", lvlDeploy, s.handleExec)
 
 	// image updates (imageupdates.go)
-	a("GET "+v+"/image-updates", lvlRead, s.handleListImageUpdates)
+	a("GET "+v+"/image-updates", needReadList, s.handleListImageUpdates)
 	a("GET "+v+"/services/{id}/image-update", lvlRead, s.handleGetImageUpdate)
 	a("POST "+v+"/services/{id}/image-update/check", lvlDeploy, s.handleCheckImageUpdate)
 	a("PUT "+v+"/services/{id}/image-update/policy", lvlDeploy, s.handlePutImageUpdatePolicy)
@@ -90,20 +90,21 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/services/{id}/backups", lvlDeploy, s.handleRunBackup)
 	a("GET "+v+"/services/{id}/restores", lvlRead, s.handleListRestores)
 	a("GET "+v+"/backups/{id}", lvlRead, s.handleGetBackup)
-	a("POST "+v+"/backups/{id}/restore", lvlDeploy, s.handleRestoreBackup)
+	a("POST "+v+"/backups/{id}/restore", needRestore, s.handleRestoreBackup)
 	a("GET "+v+"/restores/{id}", lvlRead, s.handleGetRestore)
-	a("POST "+v+"/settings/backup/test", lvlAdmin, s.handleBackupTest)
+	a("POST "+v+"/settings/backup/test", needSettings, s.handleBackupTest)
 	a("GET "+v+"/settings/backup/password", lvlSession, s.handleBackupPassword)
-	a("DELETE "+v+"/settings/backup", lvlAdmin, s.handleDeleteBackupSettings)
+	a("DELETE "+v+"/settings/backup", needSettings, s.handleDeleteBackupSettings)
 
 	// domains
-	a("GET "+v+"/domains", lvlRead, s.handleListAllDomains)
-	a("DELETE "+v+"/domains/{id}", lvlDeploy, s.handleDeleteDomain)
+	a("GET "+v+"/domains", needReadList, s.handleListAllDomains)
+	a("DELETE "+v+"/domains/{id}", needDomains, s.handleDeleteDomain)
 
 	// tokens
-	a("GET "+v+"/tokens", lvlAdmin, s.handleListTokens)
-	a("POST "+v+"/tokens", lvlAdmin, s.handleCreateToken)
-	a("DELETE "+v+"/tokens/{id}", lvlAdmin, s.handleDeleteToken)
+	a("GET "+v+"/tokens", needTokens, s.handleListTokens)
+	a("POST "+v+"/tokens", needTokens, s.handleCreateToken)
+	a("PATCH "+v+"/tokens/{id}", needTokens, s.handlePatchToken)
+	a("DELETE "+v+"/tokens/{id}", needTokens, s.handleDeleteToken)
 
 	// confirmations
 	a("GET "+v+"/confirmations", lvlRead, s.handleListConfirmations)
@@ -111,21 +112,21 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/confirmations/{id}/reject", lvlSession, s.handleDecideConfirmation(false))
 
 	// settings & templates
-	a("GET "+v+"/settings", lvlRead, s.handleGetSettings)
-	a("PUT "+v+"/settings", lvlAdmin, s.handlePutSettings)
-	a("GET "+v+"/templates", lvlRead, s.handleTemplates)
+	a("GET "+v+"/settings", needReadGlobal, s.handleGetSettings)
+	a("PUT "+v+"/settings", needSettings, s.handlePutSettings)
+	a("GET "+v+"/templates", needReadGlobal, s.handleTemplates)
 
 	// imports
 	a("GET "+v+"/imports", lvlRead, s.handleListImports)
-	a("POST "+v+"/imports", lvlDeploy, s.handleCreateImport)
-	a("POST "+v+"/imports/zeabur-local", lvlDeploy, s.handleZeaburLocalImport)
+	a("POST "+v+"/imports", needDeployGlobal, s.handleCreateImport)
+	a("POST "+v+"/imports/zeabur-local", needDeployGlobal, s.handleZeaburLocalImport)
 	a("GET "+v+"/imports/{id}", lvlRead, s.handleGetImport)
-	a("PUT "+v+"/imports/{id}/volumes/{service_name}/{volume}", lvlDeploy, s.handleImportVolume)
-	a("POST "+v+"/imports/{id}/start", lvlDeploy, s.handleStartImport)
-	a("POST "+v+"/imports/{id}/rehearse", lvlDeploy, s.handleRehearse)
-	a("POST "+v+"/imports/{id}/cutover", lvlDeploy, s.handleCutover)
-	a("POST "+v+"/imports/{id}/rollback", lvlDeploy, s.handleZeaburRollback)
-	a("POST "+v+"/imports/{id}/cleanup", lvlSession, s.handleZeaburCleanup)
+	a("PUT "+v+"/imports/{id}/volumes/{service_name}/{volume}", needDeployGlobal, s.handleImportVolume)
+	a("POST "+v+"/imports/{id}/start", needDeployGlobal, s.handleStartImport)
+	a("POST "+v+"/imports/{id}/rehearse", needDeployGlobal, s.handleRehearse)
+	a("POST "+v+"/imports/{id}/cutover", needMigrate, s.handleCutover)
+	a("POST "+v+"/imports/{id}/rollback", needMigrate, s.handleZeaburRollback)
+	a("POST "+v+"/imports/{id}/cleanup", needMigrate, s.handleZeaburCleanup)
 
 	// live events
 	a("GET "+v+"/events", lvlRead, s.handleEvents)

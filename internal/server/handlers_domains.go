@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -22,6 +23,12 @@ func (s *Server) handleListAllDomains(w http.ResponseWriter, r *http.Request) er
 	ds, err := s.st.ListDomains(r.Context(), "", "")
 	if err != nil {
 		return err
+	}
+	if p := principalFrom(r.Context()); p.Projects != nil {
+		ds = slices.DeleteFunc(ds, func(d store.DomainRow) bool {
+			pid, err := s.projectOf(r.Context(), "services", d.ServiceID)
+			return err != nil || !p.inProject(pid)
+		})
 	}
 	writeJSON(w, 200, plainDomains(ds))
 	return nil

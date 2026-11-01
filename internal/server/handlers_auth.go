@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +25,12 @@ type credentials struct {
 type meResponse struct {
 	Username string `json:"username"`
 	Auth     string `json:"auth"`  // "session" | "token"
-	Scope    string `json:"scope"` // "session" or the token scope
+	Scope    string `json:"scope"` // "session" or the token's legacy scope summary
+	// Permissions the caller holds (every permission for panel sessions).
+	Permissions []string `json:"permissions"`
+	// Projects the token is limited to (empty = all projects).
+	Projects        []string `json:"projects,omitempty"`
+	RequireApproval bool     `json:"require_approval,omitempty"`
 }
 
 var dummyHash = sync.OnceValue(func() string {
@@ -76,7 +85,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 		return err
 	}
 	setSessionCookie(w, r, tok, int(sessionTTL/time.Second))
-	writeJSON(w, 200, meResponse{Username: u.Username, Auth: "session", Scope: "session"})
+	writeJSON(w, 200, meResponse{Username: u.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions)})
 	return nil
 }
 
@@ -155,11 +164,21 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 	p := principalFrom(r.Context())
-	auth := "token"
 	if p.Session {
-		auth = "session"
+		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions)})
+		return nil
 	}
-	writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: auth, Scope: p.Scope})
+	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval}
+	for _, x := range api.AllPermissions {
+		if p.Perms[x] {
+			me.Permissions = append(me.Permissions, x)
+		}
+	}
+	for x := range p.Projects {
+		me.Projects = append(me.Projects, x)
+	}
+	slices.Sort(me.Projects)
+	writeJSON(w, 200, me)
 	return nil
 }
 
@@ -174,11 +193,52 @@ func (s *Server) handleListTokens(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) error {
-	var req struct {
-		Name  string `json:"name"`
-		Scope string `json:"scope"`
+// checkTokenGrant validates a token's permission set and project scope, and makes sure a
+// token caller never hands out more than it holds itself (no escalation).
+func (s *Server) checkTokenGrant(ctx context.Context, caller *principal, perms, projects []string, requireApproval bool) ([]string, error) {
+	projects = slices.Compact(slices.Sorted(slices.Values(projects)))
+	projects = slices.DeleteFunc(projects, func(x string) bool { return strings.TrimSpace(x) == "" })
+	if len(projects) > 0 {
+		for _, g := range api.GlobalPermissions {
+			if slices.Contains(perms, g) {
+				return nil, badRequest("permission %q cannot be combined with a project-scoped token", g)
+			}
+		}
+		for _, id := range projects {
+			if _, err := s.st.GetProject(ctx, id); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return nil, badRequest("unknown project %q", id)
+				}
+				return nil, err
+			}
+		}
 	}
+	if caller.Session {
+		return projects, nil
+	}
+	for _, x := range perms {
+		if !caller.Perms[x] {
+			return nil, errf(403, "escalation", "an API token cannot grant the %q permission it does not hold itself", x)
+		}
+	}
+	if caller.Projects != nil {
+		if len(projects) == 0 {
+			return nil, errf(403, "escalation", "a project-scoped API token cannot grant access to all projects")
+		}
+		for _, id := range projects {
+			if !caller.Projects[id] {
+				return nil, errf(403, "escalation", "an API token cannot grant access to project %q it cannot access itself", id)
+			}
+		}
+	}
+	if caller.RequireApproval && !requireApproval {
+		return nil, errf(403, "escalation", "an API token with require_approval can only create or change tokens that also require approval")
+	}
+	return projects, nil
+}
+
+func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) error {
+	var req api.TokenRequest
 	if err := decode(r, &req); err != nil {
 		return err
 	}
@@ -186,21 +246,73 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) error
 	if req.Name == "" || len(req.Name) > 100 {
 		return badRequest("name required (max 100 chars)")
 	}
-	if req.Scope == "" {
-		req.Scope = "deploy"
+	perms := req.Permissions
+	if len(perms) == 0 {
+		var ok bool
+		if perms, ok = permsForScope(req.Scope); !ok {
+			return badRequest("scope must be read, deploy or admin")
+		}
 	}
-	if req.Scope != "read" && req.Scope != "deploy" && req.Scope != "admin" {
-		return badRequest("scope must be read, deploy or admin")
+	perms, err := normalizePerms(perms)
+	if err != nil {
+		return err
 	}
 	p := principalFrom(r.Context())
+	projects, err := s.checkTokenGrant(r.Context(), p, perms, req.Projects, req.RequireApproval)
+	if err != nil {
+		return err
+	}
 	tok := patPrefix + randString(32, tokenAlphabet)
-	t := api.APIToken{ID: newID("tok"), Name: req.Name, Scope: req.Scope, Prefix: tok[:len(patPrefix)+4], CreatedAt: time.Now().UTC()}
+	t := api.APIToken{ID: newID("tok"), Name: req.Name, Scope: scopeSummary(perms), Permissions: perms, Projects: projects,
+		RequireApproval: req.RequireApproval, Prefix: tok[:len(patPrefix)+4], CreatedAt: time.Now().UTC()}
 	if err := s.st.CreateAPIToken(r.Context(), p.User.ID, t, hashToken(tok)); err != nil {
 		return err
 	}
-	s.st.Audit(r.Context(), p.actor(), "token.create", t.ID, map[string]string{"scope": t.Scope, "name": t.Name})
+	s.st.Audit(r.Context(), p.actor(), "token.create", t.ID, map[string]string{"scope": t.Scope, "name": t.Name,
+		"permissions": strings.Join(perms, ","), "projects": strings.Join(projects, ","), "require_approval": strconv.FormatBool(t.RequireApproval)})
 	t.Token = tok
 	writeJSON(w, 201, t)
+	return nil
+}
+
+func (s *Server) handlePatchToken(w http.ResponseWriter, r *http.Request) error {
+	var req api.TokenUpdate
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	t, err := s.st.GetAPIToken(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	if req.Name != nil {
+		n := strings.TrimSpace(*req.Name)
+		if n == "" || len(n) > 100 {
+			return badRequest("name required (max 100 chars)")
+		}
+		t.Name = n
+	}
+	if req.Permissions != nil {
+		if t.Permissions, err = normalizePerms(*req.Permissions); err != nil {
+			return err
+		}
+	}
+	if req.Projects != nil {
+		t.Projects = *req.Projects
+	}
+	if req.RequireApproval != nil {
+		t.RequireApproval = *req.RequireApproval
+	}
+	p := principalFrom(r.Context())
+	if t.Projects, err = s.checkTokenGrant(r.Context(), p, t.Permissions, t.Projects, t.RequireApproval); err != nil {
+		return err
+	}
+	t.Scope = scopeSummary(t.Permissions)
+	if err := s.st.UpdateAPIToken(r.Context(), *t); err != nil {
+		return err
+	}
+	s.st.Audit(r.Context(), p.actor(), "token.update", t.ID, map[string]string{"name": t.Name,
+		"permissions": strings.Join(t.Permissions, ","), "projects": strings.Join(t.Projects, ","), "require_approval": strconv.FormatBool(t.RequireApproval)})
+	writeJSON(w, 200, t)
 	return nil
 }
 

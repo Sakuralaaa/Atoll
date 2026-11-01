@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
+	pr := principalFrom(r.Context())
+	ps = slices.DeleteFunc(ps, func(x api.Project) bool { return !pr.inProject(x.ID) })
 	for i := range ps {
 		if ps[i].Services, err = s.servicesWithDomains(r.Context(), ps[i].ID); err != nil {
 			return err

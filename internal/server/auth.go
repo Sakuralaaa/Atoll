@@ -17,20 +17,17 @@ const (
 	patPrefix     = "atl_pat_"
 )
 
-// Access levels for routes.
-const (
-	lvlRead    = iota // any authenticated principal
-	lvlDeploy         // session, or PAT with deploy/admin
-	lvlAdmin          // session, or PAT with admin
-	lvlSession        // panel session only
-)
-
 type principal struct {
 	User        *store.User
 	Session     bool
 	TokenID     string
-	Scope       string // "session" for panel sessions
+	Scope       string // "session" for panel sessions, else the token's legacy scope summary
 	SessionHash string // hash of the session token (panel sessions only)
+
+	// API tokens only
+	Perms           map[string]bool
+	Projects        map[string]bool // nil = every project
+	RequireApproval bool
 }
 
 func (p *principal) actor() string {
@@ -38,6 +35,14 @@ func (p *principal) actor() string {
 		return "user:" + p.User.Username
 	}
 	return "token:" + p.TokenID
+}
+
+// can reports whether p holds perm (panel sessions hold everything).
+func (p *principal) can(perm string) bool { return p.Session || p.Perms[perm] }
+
+// inProject reports whether p may touch projectID.
+func (p *principal) inProject(projectID string) bool {
+	return p.Session || p.Projects == nil || p.Projects[projectID]
 }
 
 type ctxKey struct{}
@@ -53,7 +58,17 @@ func (s *Server) authenticate(r *http.Request) *principal {
 		if strings.HasPrefix(tok, patPrefix) {
 			ta, err := s.st.AuthAPIToken(r.Context(), hashToken(tok))
 			if err == nil {
-				return &principal{User: ta.User, TokenID: ta.TokenID, Scope: ta.Scope}
+				p := &principal{User: ta.User, TokenID: ta.TokenID, Scope: ta.Scope, Perms: map[string]bool{}, RequireApproval: ta.RequireApproval}
+				for _, x := range ta.Permissions {
+					p.Perms[x] = true
+				}
+				if len(ta.Projects) > 0 {
+					p.Projects = map[string]bool{}
+					for _, x := range ta.Projects {
+						p.Projects[x] = true
+					}
+				}
+				return p
 			}
 		}
 		return nil
@@ -68,8 +83,8 @@ func (s *Server) authenticate(r *http.Request) *principal {
 	return nil
 }
 
-// authed wraps a handler with authentication and an access level check.
-func (s *Server) authed(level int, fn handlerFunc) http.HandlerFunc {
+// authed wraps a handler with authentication and the route's access rule (perms.go).
+func (s *Server) authed(need access, fn handlerFunc) http.HandlerFunc {
 	return s.wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p := s.authenticate(r)
 		if p == nil {
@@ -79,16 +94,20 @@ func (s *Server) authed(level int, fn handlerFunc) http.HandlerFunc {
 			return errf(403, "csrf", "cross-origin request rejected")
 		}
 		if !p.Session {
-			switch {
-			case level == lvlSession:
-				return errf(403, "session_required", "this action is only allowed from the panel (log in with a browser session)")
-			case p.Scope == "read" && (r.Method != http.MethodGet || level > lvlRead):
-				return errf(403, "insufficient_scope", "token scope %q does not allow this request", p.Scope)
-			case level == lvlAdmin && p.Scope != "admin":
-				return errf(403, "insufficient_scope", "admin scope required")
+			if err := s.checkToken(r, p, need); err != nil {
+				return err
 			}
 		}
-		return fn(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, p)))
+		ctx := context.WithValue(r.Context(), ctxKey{}, p)
+		err := fn(w, r.WithContext(ctx))
+		if !p.Session && destructivePerm[need.perm] {
+			outcome := "ok"
+			if err != nil {
+				outcome = err.Error()
+			}
+			s.st.Audit(ctx, p.actor(), "token."+need.perm, r.Method+" "+r.URL.Path, map[string]string{"token_id": p.TokenID, "result": outcome})
+		}
+		return err
 	})
 }
 
@@ -124,11 +143,18 @@ func setSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxA
 	})
 }
 
-// requireConfirm runs exec directly for panel sessions; for PATs it records a
-// pending Confirmation (executed later by approve) and answers 202.
+// requireConfirm runs a destructive operation. Panel sessions and API tokens that hold
+// the route's permission run it directly; a token created with require_approval instead
+// records a pending Confirmation (executed later by approve) and answers 202. (A token
+// without the permission never gets here: authed answers 403.)
 func (s *Server) requireConfirm(w http.ResponseWriter, r *http.Request, action, target, summary string, payload any, exec func(ctx context.Context) (int, any, error)) error {
 	p := principalFrom(r.Context())
-	if p.Session {
+	if p.Session || !p.RequireApproval {
+		detail := map[string]string{"summary": summary}
+		if !p.Session {
+			detail["token_id"] = p.TokenID
+		}
+		s.st.Audit(r.Context(), p.actor(), action, target, detail)
 		status, body, err := exec(r.Context())
 		if err != nil {
 			return err

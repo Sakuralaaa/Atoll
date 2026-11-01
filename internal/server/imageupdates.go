@@ -480,10 +480,11 @@ func (s *Server) handleListImageUpdates(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 	onlyAvail := r.URL.Query().Get("available") == "1"
+	pr := principalFrom(ctx)
 	out := []api.ImageUpdate{}
 	for _, t := range targets {
 		svc, _, err := s.st.GetService(ctx, t[0])
-		if err != nil {
+		if err != nil || !pr.inProject(svc.ProjectID) {
 			continue
 		}
 		row := rows[svc.ID]

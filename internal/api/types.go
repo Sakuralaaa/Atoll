@@ -122,13 +122,61 @@ type Deployment struct {
 }
 
 type APIToken struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Scope      string     `json:"scope"`           // "read" | "deploy" | "admin"
-	Prefix     string     `json:"prefix"`          // first chars, e.g. "atl_pat_3fA9"
-	Token      string     `json:"token,omitempty"` // only returned once at creation
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Scope string `json:"scope"` // legacy summary derived from Permissions: "read" | "deploy" | "admin"
+	// Permissions the token holds (see Perm*); "read" is always included.
+	Permissions []string `json:"permissions"`
+	// Projects limits the token to these project ids; empty = all projects.
+	Projects []string `json:"projects,omitempty"`
+	// RequireApproval: destructive operations the token is allowed to do still wait
+	// for approval in the panel (202 Confirmation) instead of running directly.
+	RequireApproval bool       `json:"require_approval,omitempty"`
+	Prefix          string     `json:"prefix"`          // first chars, e.g. "atl_pat_3fA9"
+	Token           string     `json:"token,omitempty"` // only returned once at creation
+	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+// ---------- API token permissions ----------
+
+// Token permissions. A token can do an operation only when it holds the permission;
+// without it the request fails with 403 missing_permission (no approval request).
+// With it the operation runs directly, unless the token has RequireApproval.
+const (
+	PermRead     = "read"     // every GET: projects, services, env (masked), logs, metrics, settings
+	PermDeploy   = "deploy"   // create/edit projects and services, env, start/stop/restart/redeploy, rollback, exec, image updates, backup policy + run, imports
+	PermDelete   = "delete"   // delete services and projects (with their volumes)
+	PermMigrate  = "migrate"  // move projects between servers, Zeabur cutover / rollback
+	PermDomains  = "domains"  // bind and remove domains (changes DNS)
+	PermRestore  = "restore"  // restore backups (replaces live data)
+	PermServers  = "servers"  // join tokens, rename/remove servers
+	PermSettings = "settings" // panel settings (Cloudflare, TLS, backup storage)
+	PermTokens   = "tokens"   // list/create/change/delete API tokens (never more than the token itself holds)
+)
+
+// AllPermissions in display order.
+var AllPermissions = []string{PermRead, PermDeploy, PermDelete, PermMigrate, PermDomains, PermRestore, PermServers, PermSettings, PermTokens}
+
+// GlobalPermissions cannot be combined with a project-scoped token.
+var GlobalPermissions = []string{PermServers, PermSettings, PermTokens}
+
+// TokenRequest creates a token (POST /tokens). Scope is the legacy shorthand
+// (read → read; deploy → read+deploy; admin → all) used when Permissions is empty.
+type TokenRequest struct {
+	Name            string   `json:"name"`
+	Scope           string   `json:"scope,omitempty"`
+	Permissions     []string `json:"permissions,omitempty"`
+	Projects        []string `json:"projects,omitempty"`
+	RequireApproval bool     `json:"require_approval,omitempty"`
+}
+
+// TokenUpdate changes a token (PATCH /tokens/{id}); nil fields stay.
+type TokenUpdate struct {
+	Name            *string   `json:"name,omitempty"`
+	Permissions     *[]string `json:"permissions,omitempty"`
+	Projects        *[]string `json:"projects,omitempty"`
+	RequireApproval *bool     `json:"require_approval,omitempty"`
 }
 
 // ---------- panel login & two-factor auth ----------

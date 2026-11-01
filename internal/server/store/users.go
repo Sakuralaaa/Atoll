@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -99,39 +100,84 @@ func (s *Store) DeleteSession(ctx context.Context, hash string) error {
 
 // TokenAuth is the result of looking up a PAT.
 type TokenAuth struct {
-	TokenID string
-	Name    string
-	Scope   string
-	User    *User
+	TokenID         string
+	Name            string
+	Scope           string
+	Permissions     []string
+	Projects        []string
+	RequireApproval bool
+	User            *User
+}
+
+func splitList(s string) []string {
+	out := []string{}
+	for _, f := range strings.Split(s, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // CreateAPIToken stores a PAT.
 func (s *Store) CreateAPIToken(ctx context.Context, userID int64, t api.APIToken, hash string) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO api_tokens(id, user_id, name, scope, prefix, token_hash, created_at) VALUES(?,?,?,?,?,?,?)`,
-		t.ID, userID, t.Name, t.Scope, t.Prefix, hash, TS(t.CreatedAt))
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO api_tokens(id, user_id, name, scope, prefix, token_hash, created_at, permissions, projects, require_approval) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		t.ID, userID, t.Name, t.Scope, t.Prefix, hash, TS(t.CreatedAt), strings.Join(t.Permissions, ","), strings.Join(t.Projects, ","), b2i(t.RequireApproval))
 	return mapErr(err)
+}
+
+const tokenCols = `id, name, scope, prefix, last_used_at, created_at, permissions, projects, require_approval`
+
+func scanToken(row interface{ Scan(...any) error }) (*api.APIToken, error) {
+	var t api.APIToken
+	var last sql.NullString
+	var c, perms, projects string
+	var ra int
+	if err := row.Scan(&t.ID, &t.Name, &t.Scope, &t.Prefix, &last, &c, &perms, &projects, &ra); err != nil {
+		return nil, mapErr(err)
+	}
+	t.LastUsedAt = parseTSPtr(last)
+	t.CreatedAt = parseTS(c)
+	t.Permissions = splitList(perms)
+	t.Projects = splitList(projects)
+	t.RequireApproval = ra == 1
+	return &t, nil
 }
 
 // ListAPITokens lists PATs (never the secret).
 func (s *Store) ListAPITokens(ctx context.Context) ([]api.APIToken, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, scope, prefix, last_used_at, created_at FROM api_tokens ORDER BY created_at DESC`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+tokenCols+` FROM api_tokens ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []api.APIToken{}
 	for rows.Next() {
-		var t api.APIToken
-		var last sql.NullString
-		var c string
-		if err := rows.Scan(&t.ID, &t.Name, &t.Scope, &t.Prefix, &last, &c); err != nil {
+		t, err := scanToken(rows)
+		if err != nil {
 			return nil, err
 		}
-		t.LastUsedAt = parseTSPtr(last)
-		t.CreatedAt = parseTS(c)
-		out = append(out, t)
+		out = append(out, *t)
 	}
 	return out, rows.Err()
+}
+
+// GetAPIToken returns one PAT (never the secret).
+func (s *Store) GetAPIToken(ctx context.Context, id string) (*api.APIToken, error) {
+	return scanToken(s.DB.QueryRowContext(ctx, `SELECT `+tokenCols+` FROM api_tokens WHERE id=?`, id))
+}
+
+// UpdateAPIToken stores a token's name, scope summary, permissions, projects and approval flag.
+func (s *Store) UpdateAPIToken(ctx context.Context, t api.APIToken) error {
+	res, err := s.DB.ExecContext(ctx, `UPDATE api_tokens SET name=?, scope=?, permissions=?, projects=?, require_approval=? WHERE id=?`,
+		t.Name, t.Scope, strings.Join(t.Permissions, ","), strings.Join(t.Projects, ","), b2i(t.RequireApproval), t.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // DeleteAPIToken removes a PAT.
@@ -150,11 +196,14 @@ func (s *Store) DeleteAPIToken(ctx context.Context, id string) error {
 func (s *Store) AuthAPIToken(ctx context.Context, hash string) (*TokenAuth, error) {
 	var ta TokenAuth
 	var uid int64
-	err := s.DB.QueryRowContext(ctx, `SELECT id, name, scope, user_id FROM api_tokens WHERE token_hash=?`, hash).
-		Scan(&ta.TokenID, &ta.Name, &ta.Scope, &uid)
+	var perms, projects string
+	var ra int
+	err := s.DB.QueryRowContext(ctx, `SELECT id, name, scope, user_id, permissions, projects, require_approval FROM api_tokens WHERE token_hash=?`, hash).
+		Scan(&ta.TokenID, &ta.Name, &ta.Scope, &uid, &perms, &projects, &ra)
 	if err != nil {
 		return nil, mapErr(err)
 	}
+	ta.Permissions, ta.Projects, ta.RequireApproval = splitList(perms), splitList(projects), ra == 1
 	u, err := s.UserByID(ctx, uid)
 	if err != nil {
 		return nil, err

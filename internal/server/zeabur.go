@@ -1114,6 +1114,9 @@ func (s *Server) handleZeaburCleanup(w http.ResponseWriter, r *http.Request) err
 	if err := decode(r, &req); err != nil {
 		return err
 	}
+	if p := principalFrom(ctx); !p.Session && p.RequireApproval {
+		return errf(403, "approval_required", "removing Zeabur cannot be queued for approval; run it from the panel or with a token without require_approval")
+	}
 	j, meta, err := s.loadZeaburJob(ctx, r.PathValue("id"))
 	if err != nil {
 		return err
