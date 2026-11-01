@@ -247,3 +247,71 @@ func TestMCPMissingPermissionText(t *testing.T) {
 		t.Fatalf("result %v %q", res.IsError, txt)
 	}
 }
+
+func mcpCall(t *testing.T, app *App, name string, args map[string]any) (bool, string) {
+	t.Helper()
+	NewMCPServer(app) // sets app.NewClient
+	for _, st := range MCPTools(app) {
+		if st.Tool.Name != name {
+			continue
+		}
+		var req mcp.CallToolRequest
+		req.Params.Name = name
+		req.Params.Arguments = args
+		res, err := st.Handler(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.IsError, res.Content[0].(mcp.TextContent).Text
+	}
+	t.Fatalf("no tool %s", name)
+	return false, ""
+}
+
+func TestMCPDeleteTools(t *testing.T) {
+	dep := toolNames(t, []string{"read", "deploy", "domains"})
+	if dep["delete_service"] || dep["delete_project"] {
+		t.Fatalf("delete tools offered without the delete permission: %v", dep)
+	}
+	del := toolNames(t, []string{"read", "delete"})
+	if !del["delete_service"] || !del["delete_project"] || del["deploy"] {
+		t.Fatalf("delete tools %v", del)
+	}
+
+	f, srv := newFake(t)
+	f.services = []api.Service{{ID: "svc_1", Name: "api", ProjectID: "prj_1", ServerID: "srv_1"}}
+	app := &App{Version: "test", URL: srv.URL, Token: "atl_pat_test", ConfigPath: filepath.Join(t.TempDir(), "c.json")}
+	if isErr, txt := mcpCall(t, app, "delete_service", map[string]any{"service": "api", "project": "web"}); isErr || !strings.Contains(txt, "Deleted service api") || !f.called("DELETE /services/svc_1") {
+		t.Fatalf("delete_service: %v %q", isErr, txt)
+	}
+	if isErr, txt := mcpCall(t, app, "delete_project", map[string]any{"project": "web"}); isErr || !strings.Contains(txt, "Deleted project web") || !f.called("DELETE /projects/prj_1") {
+		t.Fatalf("delete_project: %v %q", isErr, txt)
+	}
+	f.approve = true
+	if isErr, txt := mcpCall(t, app, "delete_service", map[string]any{"service": "api"}); isErr || !strings.HasPrefix(txt, "PENDING CONFIRMATION cfm_bbbbbbbbbbbb") {
+		t.Fatalf("delete_service with approval: %v %q", isErr, txt)
+	}
+	f.approve, f.denyPerm = false, "delete"
+	if isErr, txt := mcpCall(t, app, "delete_project", map[string]any{"project": "web"}); !isErr || !strings.Contains(txt, "PERMISSION DENIED") || !strings.Contains(txt, `"delete"`) {
+		t.Fatalf("delete_project denied: %v %q", isErr, txt)
+	}
+}
+
+func TestServicesRmCLI(t *testing.T) {
+	f, srv := newFake(t)
+	f.services = []api.Service{{ID: "svc_1", Name: "api", ProjectID: "prj_1", ServerID: "srv_1"}}
+	r := runCLI(t, srv.URL, "", "services", "rm", "api", "-p", "web")
+	if r.e != nil || !strings.Contains(r.out, "Deleted service api") || !f.called("DELETE /services/svc_1") {
+		t.Fatalf("rm: %v %q %q", r.e, r.out, r.err)
+	}
+	f.approve = true
+	r = runCLI(t, srv.URL, "", "services", "rm", "api", "-p", "web")
+	if r.e == nil || strings.Contains(r.out, "Deleted") {
+		t.Fatalf("pending rm must not report success: %v %q", r.e, r.out)
+	}
+	f.approve, f.denyPerm = false, "delete"
+	r = runCLI(t, srv.URL, "", "services", "rm", "api", "-p", "web")
+	if r.e == nil || !strings.Contains(r.e.Error(), "delete") {
+		t.Fatalf("denied rm: %v", r.e)
+	}
+}

@@ -187,7 +187,7 @@ func newProjectsCmd(app *App) *cobra.Command {
 // ---------- services ----------
 
 func newServicesCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List services and move one to another server"}
+	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List, delete and move services"}
 	var project string
 	ls := &cobra.Command{
 		Use: "ls -p PROJECT", Aliases: []string{"list"}, Short: "List services of a project", Args: cobra.NoArgs,
@@ -225,7 +225,28 @@ func newServicesCmd(app *App) *cobra.Command {
 		},
 	}
 	ls.Flags().StringVarP(&project, "project", "p", "", "project name or id")
-	cmd.AddCommand(ls, newServiceMigrateCmd(app))
+	var rmProject string
+	rm := &cobra.Command{
+		Use: "rm SERVICE [-p PROJECT]", Aliases: []string{"delete"}, Short: "Delete a service with its container, volumes and domains (needs the delete permission; runs immediately)", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := app.client()
+			if err != nil {
+				return err
+			}
+			ctx := ctxOf(cmd)
+			s, err := c.ResolveService(ctx, rmProject, args[0])
+			if err != nil {
+				return err
+			}
+			if _, err := app.handle(ctx, c, c.DeleteService(ctx, s.ID)); err != nil {
+				return err
+			}
+			fmt.Fprintf(app.Out, "Deleted service %s\n", s.Name)
+			return nil
+		},
+	}
+	rm.Flags().StringVarP(&rmProject, "project", "p", "", "project name or id (to disambiguate service names)")
+	cmd.AddCommand(ls, rm, newServiceMigrateCmd(app))
 	return cmd
 }
 

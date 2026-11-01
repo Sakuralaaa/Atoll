@@ -25,7 +25,7 @@ func mcpInstructions(me client.Me) string {
 			`"PENDING CONFIRMATION ..." and nothing happens until the user approves it in the Atoll panel. ` +
 			"Never retry to get around a pending confirmation; tell the user what to approve."
 	}
-	return s + "Destructive tools (migrate, service_migrate, add_domain, backup_restore, rollback) run IMMEDIATELY when called: " +
+	return s + "Destructive tools (delete_service, delete_project, migrate, service_migrate, add_domain, backup_restore, rollback) run IMMEDIATELY when called: " +
 		"there is no confirmation step, so confirm with the user before calling them. " +
 		`If a tool returns "PENDING CONFIRMATION ..." the user must approve it in the panel; never retry to bypass it.`
 }
@@ -67,6 +67,8 @@ var mcpToolPerm = map[string]string{
 	"migrate":              api.PermMigrate,
 	"service_migrate":      api.PermMigrate,
 	"backup_restore":       api.PermRestore,
+	"delete_service":       api.PermDelete,
+	"delete_project":       api.PermDelete,
 }
 
 // MCPToolPermission returns the permission tool needs ("" for an unknown tool).
@@ -445,6 +447,33 @@ func MCPTools(app *App) []server.ServerTool {
 					return nil, fmt.Errorf("service %s already runs on %s", s.Name, srv.Name)
 				}
 				return c.MigrateService(ctx, s.ID, srv.ID)
+			}),
+		t(tool("delete_service", "Delete ONE service with its container, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				if err := c.DeleteService(ctx, s.ID); err != nil {
+					return nil, err
+				}
+				return fmt.Sprintf("Deleted service %s (%s).", s.Name, s.ID), nil
+			}),
+		t(tool("delete_project", "Delete a whole project with ALL its services, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true,
+			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				ref, err := reqStr(r, "project")
+				if err != nil {
+					return nil, err
+				}
+				p, err := c.ResolveProject(ctx, ref)
+				if err != nil {
+					return nil, err
+				}
+				if err := c.DeleteProject(ctx, p.ID); err != nil {
+					return nil, err
+				}
+				return fmt.Sprintf("Deleted project %s (%s).", p.Name, p.ID), nil
 			}),
 		t(tool("get_deployment", "Show a service's deployments (newest first), or one deployment by id.", true, false,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... (default: all, newest first)")))...),

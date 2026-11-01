@@ -208,7 +208,7 @@ The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_UR
 
 **Tokens.** `atoll token ls`, `atoll token create NAME [--perm read,deploy,...] [--project PROJECT]... [--require-approval]` (default `read`; `--perm all` for every permission; `servers`/`settings`/`tokens` cannot be combined with `--project`; the secret is printed once), `atoll token edit TOKEN [--name N] [--perm ...|--add-perm ...|--rm-perm ...] [--project P...|--all-projects] [--require-approval[=false]]`, `atoll token rm TOKEN` (TOKEN = id, name or prefix). All need the `tokens` permission.
 
-**Placement & network.** `atoll deploy IMAGE -p PROJECT --server SERVER` places a new service on another server (`POST /projects/{id}/services` with `server_id`); `atoll services migrate SERVICE --to SERVER [-p PROJECT]` moves one service (`POST /services/{id}/migrate`, `migrate` permission); `atoll migrate PROJECT --to SERVER` moves a whole project. `atoll servers network join|switch|public SERVER` runs `POST /servers/{id}/network` (`servers` permission).
+**Placement & network.** `atoll deploy IMAGE -p PROJECT --server SERVER` places a new service on another server (`POST /projects/{id}/services` with `server_id`); `atoll services migrate SERVICE --to SERVER [-p PROJECT]` moves one service (`POST /services/{id}/migrate`, `migrate` permission); `atoll migrate PROJECT --to SERVER` moves a whole project. `atoll services rm SERVICE [-p PROJECT]` and `atoll projects rm PROJECT` delete (`delete` permission). `atoll servers network join|switch|public SERVER` runs `POST /servers/{id}/network` (`servers` permission).
 
 **MCP.** At startup `atoll mcp` reads `/auth/me` and only registers the tools the token's permissions allow (servers that predate permissions: mapped from the legacy scope; when `/auth/me` fails every tool is registered and calls report the error):
 
@@ -217,7 +217,10 @@ The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_UR
 | read | `list_servers`, `list_projects`, `list_services`, `get_logs`, `get_deployment`, `zeabur_scan`, `zeabur_import_status`, `list_updates`, `backup_list` |
 | deploy | `deploy` (`domains` also needs `domains`; `server` places a new service), `set_env`, `restart`, `redeploy`, `rollback`, `backup_run` |
 | domains | `add_domain` |
+| delete | `delete_service`, `delete_project` (container, volumes and domains are removed) |
 | migrate | `migrate` (project), `service_migrate` (one service) |
 | restore | `backup_restore` |
 
 Destructive tools say in their description that they run immediately when permitted. A call the server refuses with `missing_permission` returns a `PERMISSION DENIED` tool error naming the permission; `PENDING CONFIRMATION` is returned only for tokens with `require_approval`.
+
+**Audit.** Every API-token request to a route that needs `delete`, `migrate`, `domains`, `restore`, `servers`, `settings` or `tokens` is written to the audit log as `api.<permission>` with the token id and the result (`ok`, the error, or `denied: ...` when the token lacks the permission).

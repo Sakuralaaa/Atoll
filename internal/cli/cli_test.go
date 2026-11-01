@@ -30,7 +30,8 @@ type fakePanel struct {
 	cfStatus  string // status returned by GET /confirmations
 	impStatus string
 	me        map[string]any // GET /auth/me answer (default {"username":"chen"})
-	denyPerm  string         // when set, mutating token/migrate/network routes answer 403 missing_permission for it
+	denyPerm  string         // when set, mutating token/migrate/network/delete routes answer 403 missing_permission for it
+	approve   bool           // when set, DELETE routes answer 202 + a pending confirmation (require_approval token)
 }
 
 func init() { importPoll = 10 * time.Millisecond }
@@ -128,6 +129,15 @@ func (f *fakePanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.Image = img
 		}
 		writeJSON(w, 200, s)
+	case "DELETE /services/svc_1", "DELETE /projects/prj_1":
+		switch {
+		case f.denyPerm != "":
+			writeJSON(w, 403, api.ErrorBody{Error: `this API token lacks the "` + f.denyPerm + `" permission; grant it in the panel (CLI & API → tokens) or use a token that has it`, Code: "missing_permission"})
+		case f.approve:
+			writeJSON(w, 202, api.Confirmation{ID: "cfm_bbbbbbbbbbbb", Action: "service.delete", Summary: "Delete service api", Status: "pending"})
+		default:
+			w.WriteHeader(204)
+		}
 	case "POST /projects/prj_1/migrate":
 		writeJSON(w, 202, cf)
 	case "GET /confirmations":
