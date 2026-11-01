@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/Sakuralaaa/Atoll/internal/server/dns"
 	"github.com/Sakuralaaa/Atoll/internal/server/secrets"
 	"github.com/Sakuralaaa/Atoll/internal/server/store"
@@ -37,7 +38,17 @@ type Config struct {
 	CloudflareBaseURL string // override for tests
 	// LookupHost resolves a hostname (default net.DefaultResolver); override for tests.
 	LookupHost func(ctx context.Context, host string) ([]string, error)
-	Logger     *slog.Logger
+	// ResolvePublic resolves a hostname through public resolvers (default DNS-over-HTTPS at
+	// Cloudflare and Google), used to wait for a new record before Caddy asks for a cert.
+	ResolvePublic func(ctx context.Context, host string) ([]string, error)
+	// ProbeHTTPS checks that https://host serves a valid certificate (default: real request).
+	ProbeHTTPS func(ctx context.Context, host string) error
+	// DNSProvider overrides the provider built from settings (tests).
+	DNSProvider     dns.Provider
+	DNSWaitTimeout  time.Duration // how long a new domain waits to resolve publicly before its route is pushed (90s)
+	CertWaitTimeout time.Duration // how long a new domain's HTTPS probe may take before it is marked active anyway (3m)
+	ProvisionPoll   time.Duration // DNS poll interval while provisioning (3s; HTTPS probes run at twice this)
+	Logger          *slog.Logger
 	// TrustedProxies are peers whose X-Forwarded-For is believed (nil = loopback only).
 	TrustedProxies []netip.Prefix
 }
@@ -57,6 +68,9 @@ type Server struct {
 
 	applyMu sync.Mutex
 	applyQ  map[string]*applyQueue // per-service deploy queue (deploy.go)
+
+	holdMu sync.Mutex
+	held   map[string]int // hostnames kept out of pushed route tables (provision.go)
 
 	upd *updater  // image update detection (imageupdates.go)
 	net *netState // private network provider + mesh (network.go)
@@ -81,6 +95,15 @@ func New(cfg Config) (*Server, error) {
 	def(&cfg.TransferTimeout, 60*time.Minute)
 	def(&cfg.DeployWaitTimeout, 5*time.Minute)
 	def(&cfg.VerifyTimeout, 3*time.Minute)
+	def(&cfg.DNSWaitTimeout, 90*time.Second)
+	def(&cfg.CertWaitTimeout, 3*time.Minute)
+	def(&cfg.ProvisionPoll, 3*time.Second)
+	if cfg.ResolvePublic == nil {
+		cfg.ResolvePublic = dns.DoH{}.Resolve
+	}
+	if cfg.ProbeHTTPS == nil {
+		cfg.ProbeHTTPS = probeHTTPS
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -105,7 +128,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}}
+	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
 	s.bg, s.cancel = context.WithCancel(context.Background())
@@ -116,6 +139,17 @@ func New(cfg Config) (*Server, error) {
 			st.SetNodeStatus(s.bg, n.ID, "offline", false)
 		}
 	}
+	// Domains a restart caught mid-provisioning stay out of the routes until DNS is visible.
+	var resume []api.Domain
+	if doms, err := st.ListDomains(s.bg, "", ""); err == nil {
+		for _, d := range doms {
+			if d.Status == statusProvisioning {
+				s.holdRoute(d.Hostname)
+				resume = append(resume, d.Domain)
+			}
+		}
+	}
+	s.goBG(func(bg context.Context) { s.resumeProvisioning(bg, resume) })
 	s.wg.Add(1)
 	go s.housekeeping()
 	s.wg.Add(1)
@@ -215,6 +249,9 @@ func (s *Server) publicURL(ctx context.Context, r *http.Request) string {
 
 // dnsProvider builds the DNS provider from current settings.
 func (s *Server) dnsProvider(ctx context.Context) dns.Provider {
+	if s.cfg.DNSProvider != nil {
+		return s.cfg.DNSProvider
+	}
 	tok, _ := s.st.GetSetting(ctx, "cloudflare_token")
 	if tok == "" {
 		return dns.Noop{}

@@ -74,7 +74,7 @@ export function Segment({ items, value }: { items: { k: string; l: string; icon?
   )
 }
 
-const DOT: Record<string, string> = { running: 'bg-emerald-400 text-emerald-400', online: 'bg-emerald-400 text-emerald-400', active: 'bg-emerald-400 text-emerald-400', done: 'bg-emerald-400 text-emerald-400', deploying: 'bg-amber-400 text-amber-400', pending: 'bg-amber-400 text-amber-400', draining: 'bg-amber-400 text-amber-400', stopped: 'bg-zinc-500 text-zinc-500', unknown: 'bg-zinc-500 text-zinc-500', offline: 'bg-zinc-600 text-zinc-600', failed: 'bg-rose-500 text-rose-500', error: 'bg-rose-500 text-rose-500' }
+const DOT: Record<string, string> = { running: 'bg-emerald-400 text-emerald-400', online: 'bg-emerald-400 text-emerald-400', active: 'bg-emerald-400 text-emerald-400', done: 'bg-emerald-400 text-emerald-400', deploying: 'bg-amber-400 text-amber-400', pending: 'bg-amber-400 text-amber-400', provisioning: 'bg-amber-400 text-amber-400', draining: 'bg-amber-400 text-amber-400', stopped: 'bg-zinc-500 text-zinc-500', unknown: 'bg-zinc-500 text-zinc-500', offline: 'bg-zinc-600 text-zinc-600', failed: 'bg-rose-500 text-rose-500', error: 'bg-rose-500 text-rose-500' }
 export function Dot({ status }: { status: string }) {
   const c = DOT[status] ?? DOT.unknown
   const glow = !['stopped', 'offline', 'unknown'].includes(status) && !!DOT[status]

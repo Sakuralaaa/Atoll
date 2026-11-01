@@ -115,9 +115,13 @@ func (s *Server) execAddDomain(ctx context.Context, serviceID string, req domain
 	}
 	d.ID = newID("dom")
 	d.ServiceID = svc.ID
-	d.Status = "pending"
+	d.Status = statusProvisioning
 	d.CreatedAt = time.Now().UTC()
+	// Held out of the route table until DNS is in place: Caddy asks the CA for a certificate
+	// as soon as it sees the hostname, and an NXDOMAIN answer costs a minute-long retry.
+	s.holdRoute(d.Hostname)
 	if err := s.st.CreateDomain(ctx, *d); err != nil {
+		s.releaseRoute(d.Hostname)
 		if errors.Is(err, store.ErrConflict) {
 			return nil, errf(409, "conflict", "hostname %s is already bound", d.Hostname)
 		}
@@ -125,10 +129,20 @@ func (s *Server) execAddDomain(ctx context.Context, serviceID string, req domain
 	}
 	nodeID, err := s.serviceNode(ctx, svc)
 	if err != nil {
+		s.releaseRoute(d.Hostname)
 		return nil, err
 	}
-	s.applyDNS(ctx, d, nodeID)
-	s.pushIngress(ctx, nodeID)
+	ip := ""
+	if n, err := s.st.GetNode(ctx, nodeID); err == nil {
+		ip = n.PublicIPv4
+	}
+	if s.upsertDNS(ctx, d, nodeID, statusProvisioning) {
+		dd := *d
+		s.goBG(func(bg context.Context) { s.provisionDomain(bg, dd, nodeID, ip) })
+	} else {
+		s.releaseRoute(d.Hostname)
+		s.pushIngress(ctx, nodeID)
+	}
 	// ATOLL_<PORT>_DOMAIN changed: redeploy so the env reflects it (only if deployed before).
 	if _, err := s.st.LatestDeployment(ctx, svc.ID); err == nil {
 		s.deploy(ctx, svc.ID, "env")
@@ -139,9 +153,15 @@ func (s *Server) execAddDomain(ctx context.Context, serviceID string, req domain
 
 // applyDNS points d at the node's public IPv4 and records the outcome on d.
 func (s *Server) applyDNS(ctx context.Context, d *api.Domain, nodeID string) {
+	s.upsertDNS(ctx, d, nodeID, "active")
+}
+
+// upsertDNS points d at the node's public IPv4, records the outcome on d and reports
+// whether the provider wrote the record (d.Status is then okStatus).
+func (s *Server) upsertDNS(ctx context.Context, d *api.Domain, nodeID, okStatus string) bool {
 	n, err := s.st.GetNode(ctx, nodeID)
 	if err != nil {
-		return
+		return false
 	}
 	recID, err := s.dnsProvider(ctx).UpsertA(ctx, d.Hostname, n.PublicIPv4, d.Proxied)
 	switch {
@@ -157,11 +177,12 @@ func (s *Server) applyDNS(ctx context.Context, d *api.Domain, nodeID string) {
 		d.Status = "error"
 		d.Error = err.Error()
 	default:
-		d.Status = "active"
+		d.Status = okStatus
 		d.Error = ""
 	}
 	s.st.SetDomainStatus(ctx, d.ID, d.Status, d.Error, recID)
 	s.publish("domain", d)
+	return err == nil
 }
 
 // resolvesTo reports whether host already resolves to ip (best effort, short timeout).
@@ -206,16 +227,30 @@ func (s *Server) execDeleteDomain(ctx context.Context, id, actor string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.dnsProvider(ctx).Delete(ctx, d.Hostname, d.RecordID); err != nil && !errors.Is(err, dns.ErrNotConfigured) {
-		return errf(502, "dns_error", "could not delete DNS record: %v", err)
-	}
-	if err := s.st.DeleteDomain(ctx, id); err != nil {
-		return err
-	}
+	// Route first, DNS record second: while the record still exists nobody is sent to a
+	// Caddy that no longer knows the name, and the CA is never asked about a dying name.
+	nodeID := ""
 	if svc, _, err := s.st.GetService(ctx, d.ServiceID); err == nil {
-		if nodeID, err := s.serviceNode(ctx, svc); err == nil {
+		nodeID, _ = s.serviceNode(ctx, svc)
+	}
+	s.holdRoute(d.Hostname)
+	if nodeID != "" && s.hub.Online(nodeID) {
+		if err := s.pushIngressSync(ctx, nodeID); err != nil {
+			s.log.Warn("domain: route removal push failed", "host", d.Hostname, "node", nodeID, "err", err)
+		}
+	}
+	err = s.dnsProvider(ctx).Delete(ctx, d.Hostname, d.RecordID)
+	if err != nil && !errors.Is(err, dns.ErrNotConfigured) {
+		s.releaseRoute(d.Hostname) // still bound: serve it again
+		if nodeID != "" {
 			s.pushIngress(ctx, nodeID)
 		}
+		return errf(502, "dns_error", "could not delete DNS record: %v", err)
+	}
+	err = s.st.DeleteDomain(ctx, id)
+	s.releaseRoute(d.Hostname)
+	if err != nil {
+		return err
 	}
 	s.st.Audit(ctx, actor, "domain.delete", id, map[string]string{"hostname": d.Hostname})
 	s.publish("domain", map[string]any{"id": id, "service_id": d.ServiceID, "deleted": true})

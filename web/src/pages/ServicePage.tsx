@@ -13,6 +13,7 @@ import { ago, bytesRate, day, dateTime, deployStatusText, latestDeploy, primaryP
 import type { Deployment, Domain, EnvVar, Project, Server, Service } from '../api/types'
 import { RangePicker } from './ServerDetail'
 import { useT } from '../i18n'
+import { DomainBadge } from '../components/DomainStatus'
 
 const TABS = [
   { k: 'status', l: '服务状态', icon: <Activity size={15} /> },
@@ -179,10 +180,6 @@ function RecentDeploys({ deps }: { deps?: Deployment[] }) {
     </div>
   )
 }
-function DomainBadge({ d }: { d: Domain }) {
-  return d.status === 'active' ? <Badge tone="green"><ShieldCheck size={11} />证书有效</Badge> : d.status === 'error' ? <span title={d.error}><Badge tone="red">{d.error ? '异常' : '错误'}</Badge></span> : <Badge tone="amber">配置中</Badge>
-}
-
 function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; onClose: () => void }) {
   const [target, setTarget] = useState<Deployment>()
   return (

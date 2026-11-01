@@ -358,8 +358,8 @@ function route(method: string, path: string, body: any): unknown {
   }
   if ((a = m('services/*/domains'))) {
     if (G) return domains.filter(d => d.service_id === a![0])
-    const d: Domain = { id: nid('dom'), service_id: a[0], hostname: body.hostname, port_name: body.port_name, proxied: body.proxied, status: 'pending', created_at: new Date().toISOString() }
-    domains.push(d); return d
+    const d: Domain = { id: nid('dom'), service_id: a[0], hostname: body.hostname, port_name: body.port_name, proxied: body.proxied, status: 'provisioning', created_at: new Date().toISOString() }
+    domains.push(d); setTimeout(() => { d.status = 'active' }, 8000); return d
   }
   if ((a = m('services/*/deployments'))) return deployments[a[0]] ?? []
   if ((a = m('services/*/metrics'))) {

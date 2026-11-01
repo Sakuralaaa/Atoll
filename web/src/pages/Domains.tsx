@@ -8,8 +8,8 @@ import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Domain, Project, Service } from '../api/types'
 import { useProjects } from './Projects'
+import { DomainBadge, DomainNote } from '../components/DomainStatus'
 
-const STATUS: Record<string, [string, 'green' | 'amber' | 'red' | 'zinc']> = { active: ['证书有效', 'green'], pending: ['生效中', 'amber'], error: ['异常', 'red'] }
 
 export default function Domains() {
   const q = useQuery('domains', api.domains, { interval: 15000 })
@@ -46,14 +46,13 @@ export default function Domains() {
             <div className="grid grid-cols-[1.5fr_1.2fr_1.5fr_1fr_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>域名</span><span>服务</span><span>指向服务器</span><span>记录</span><span>状态</span><span /></div>
             {q.data.map(d => {
               const o = svcOf(d), srv = servers?.find(x => x.id === o?.p.server_id)
-              const [t, tone] = STATUS[d.status] ?? [d.status, 'zinc']
               return (
                 <div key={d.id} className="grid grid-cols-[1.5fr_1.2fr_1.5fr_1fr_110px_72px] gap-4 px-6 min-h-14 py-2 items-center text-[13px] border-b border-line last:border-0">
-                  <div className="min-w-0"><div className="font-semibold truncate">{d.hostname}</div>{d.error && <div className="text-[12px] text-[#ef4444] truncate" title={d.error}>{d.error}</div>}</div>
+                  <div className="min-w-0"><div className="font-semibold truncate">{d.hostname}</div><DomainNote d={d} /></div>
                   {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate">{o.p.name} / {o.s.name}</Link> : <span className="text-dim">—</span>}
                   <span className="flex items-center gap-2 text-fg2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
                   <span className="font-mono text-[12.5px] text-muted truncate">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
-                  <span><Badge tone={tone}>{t}</Badge></span>
+                  <span><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end">
                     <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title="打开" className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
                     <button title="解绑" onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>

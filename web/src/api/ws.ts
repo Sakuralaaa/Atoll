@@ -27,6 +27,7 @@ export function openSocket(path: string, onMessage: (data: unknown) => void, onS
 const KEYS: Record<string, string[]> = {
   service: ['projects', 'project:', 'service:', 'domains', 'containers:', 'image-update'],
   server: ['servers', 'server:'],
+  domain: ['domains', 'projects', 'project:', 'service:'],
   deployment: ['deployments:', 'service:', 'project:', 'projects', 'image-update'],
   confirmation: ['confirmations'],
   image_update: ['image-update'],

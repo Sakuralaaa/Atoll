@@ -58,8 +58,8 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /projects/{id}/migrate | {server_id}: stop → volume export/import via server relay → start on target → DNS switch |
 | GET/PUT | /services/{id}/env | []EnvVar (PUT replaces all; secret values "" keep old) ; `?reveal=1` shows secrets (session only) |
 | GET | /services/{id}/env/references | []EnvVar exposed by other services in project |
-| GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied} |
-| DELETE | /domains/{id} | |
+| GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied}. Status: with a Cloudflare token the record is created first and the domain is `provisioning` (route held back from Caddy until the name resolves publicly, ≤90s; then `active` once HTTPS answers, ≤3 min, with a note in `error` if it never did); without a token `active` when the name already resolves to the server, else `pending` with the record to create; `error` when the DNS API failed |
+| DELETE | /domains/{id} | removes the route from Caddy first, then the DNS record (on a DNS error the route is restored and the domain stays bound) |
 | GET | /domains | all domains |
 | GET | /services/{id}/deployments | []Deployment |
 | GET | /services/{id}/metrics?range= | []ContainerMetrics |

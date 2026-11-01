@@ -354,6 +354,9 @@ func (s *Server) ingressFor(ctx context.Context, nodeID string) (api.IngressPayl
 	email, _ := s.st.GetSetting(ctx, "acme_email")
 	out := api.IngressPayload{Routes: []api.IngressRoute{}, TLSMode: mode, ACMEEmail: email, CloudflareOnly: mode == "cloudflare-origin"}
 	for _, r := range rows {
+		if s.routeHeld(r.Hostname) {
+			continue // DNS record not visible yet, or being unbound (provision.go)
+		}
 		port := 0
 		for _, p := range r.Ports {
 			if p.Protocol != "http" {

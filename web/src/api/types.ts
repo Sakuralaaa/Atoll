@@ -37,7 +37,7 @@ export interface HealthCheck { cmd?: string[]; http_path?: string; interval_sec?
 
 export interface Domain {
   id: string; service_id: string; hostname: string; port_name: string; proxied: boolean
-  status: 'pending' | 'active' | 'error' | string; error?: string; created_at: string
+  status: 'provisioning' | 'pending' | 'active' | 'error' | string; error?: string; created_at: string
 }
 
 export interface Service {
