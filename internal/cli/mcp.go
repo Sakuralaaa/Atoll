@@ -15,17 +15,29 @@ import (
 	"github.com/Sakuralaaa/Atoll/internal/client"
 )
 
-const mcpInstructions = `Atoll manages services on the user's own servers. Read tools are safe. ` +
-	`Destructive actions (migrate, add_domain, backup_restore, zeabur steps) need the user's approval in the Atoll panel: ` +
-	`such a tool returns "PENDING CONFIRMATION ..." and nothing happens until the user approves it there. ` +
-	`Never retry to get around a pending confirmation; tell the user what to approve.`
+// mcpInstructions describes how permissions work for this token.
+func mcpInstructions(me client.Me) string {
+	s := "Atoll manages services on the user's own servers. Read tools are safe. " +
+		"Only the tools this API token is permitted to use are listed; an operation outside its permissions fails with PERMISSION DENIED " +
+		"(tell the user which permission to grant; do not try to work around it). "
+	if me.RequireApproval() {
+		return s + "This token requires approval: destructive tools (delete, migrate, domains, restore, zeabur steps) return " +
+			`"PENDING CONFIRMATION ..." and nothing happens until the user approves it in the Atoll panel. ` +
+			"Never retry to get around a pending confirmation; tell the user what to approve."
+	}
+	return s + "Destructive tools (migrate, service_migrate, add_domain, backup_restore, rollback) run IMMEDIATELY when called: " +
+		"there is no confirmation step, so confirm with the user before calling them. " +
+		`If a tool returns "PENDING CONFIRMATION ..." the user must approve it in the panel; never retry to bypass it.`
+}
 
 func newMCPCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "mcp",
 		Short: "Serve the Atoll tools over MCP (stdio) for AI agents",
 		Long: "Runs an MCP server on stdin/stdout. Configure your agent with the command `atoll mcp`;\n" +
-			"it uses the same login as the CLI (atoll login, or $ATOLL_URL/$ATOLL_TOKEN).",
+			"it uses the same login as the CLI (atoll login, or $ATOLL_URL/$ATOLL_TOKEN).\n" +
+			"At startup it reads the token's permissions (/auth/me) and only offers the tools the token\n" +
+			"may use; give the agent a token with just the permissions it needs (`atoll token create`).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s := NewMCPServer(app)
@@ -34,13 +46,68 @@ func newMCPCmd(app *App) *cobra.Command {
 	}
 }
 
-// NewMCPServer builds the MCP server with every Atoll tool registered.
+// mcpToolPerm names the token permission each MCP tool needs. Every tool must be listed.
+var mcpToolPerm = map[string]string{
+	"list_servers":         api.PermRead,
+	"list_projects":        api.PermRead,
+	"list_services":        api.PermRead,
+	"get_logs":             api.PermRead,
+	"get_deployment":       api.PermRead,
+	"zeabur_scan":          api.PermRead,
+	"zeabur_import_status": api.PermRead,
+	"list_updates":         api.PermRead,
+	"backup_list":          api.PermRead,
+	"deploy":               api.PermDeploy,
+	"set_env":              api.PermDeploy,
+	"restart":              api.PermDeploy,
+	"redeploy":             api.PermDeploy,
+	"rollback":             api.PermDeploy,
+	"backup_run":           api.PermDeploy,
+	"add_domain":           api.PermDomains,
+	"migrate":              api.PermMigrate,
+	"service_migrate":      api.PermMigrate,
+	"backup_restore":       api.PermRestore,
+}
+
+// MCPToolPermission returns the permission tool needs ("" for an unknown tool).
+func MCPToolPermission(tool string) string { return mcpToolPerm[tool] }
+
+// FilterMCPTools keeps the tools whose permission is in perms.
+func FilterMCPTools(tools []server.ServerTool, perms []string) []server.ServerTool {
+	have := map[string]bool{}
+	for _, p := range perms {
+		have[p] = true
+	}
+	var out []server.ServerTool
+	for _, t := range tools {
+		if p := mcpToolPerm[t.Tool.Name]; p != "" && have[p] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// NewMCPServer builds the MCP server. It asks /auth/me for the token's permissions and
+// registers only the tools the token may use; when /auth/me cannot be reached every tool is
+// registered (calls then report the real error).
 func NewMCPServer(app *App) *server.MCPServer {
 	if app.NewClient == nil {
 		app.NewClient = client.New
 	}
-	s := server.NewMCPServer("atoll", app.Version, server.WithToolCapabilities(false), server.WithInstructions(mcpInstructions))
-	s.AddTools(MCPTools(app)...)
+	var me client.Me
+	tools := MCPTools(app)
+	if c, err := app.client(); err == nil {
+		if m, err := c.Me(context.Background()); err == nil {
+			me = m
+			tools = FilterMCPTools(tools, m.Permissions())
+		} else if app.Err != nil {
+			fmt.Fprintln(app.Err, "atoll mcp: could not read token permissions, offering every tool:", err)
+		}
+	} else if app.Err != nil {
+		fmt.Fprintln(app.Err, "atoll mcp:", err)
+	}
+	s := server.NewMCPServer("atoll", app.Version, server.WithToolCapabilities(false), server.WithInstructions(mcpInstructions(me)))
+	s.AddTools(tools...)
 	return s
 }
 
@@ -59,7 +126,7 @@ func mcpHandle(app *App, body mcpBody) server.ToolHandlerFunc {
 			if cf, ok := client.AsConfirmation(err); ok {
 				return mcp.NewToolResultText(pendingText(cf)), nil
 			}
-			return mcp.NewToolResultError(err.Error()), nil
+			return mcp.NewToolResultError(mcpErrorText(err)), nil
 		}
 		if s, ok := v.(string); ok {
 			return mcp.NewToolResultText(s), nil
@@ -70,6 +137,22 @@ func mcpHandle(app *App, body mcpBody) server.ToolHandlerFunc {
 		}
 		return mcp.NewToolResultText(string(b)), nil
 	}
+}
+
+// mcpErrorText makes permission errors explicit for the agent.
+func mcpErrorText(err error) string {
+	if perm, ok := client.MissingPermission(err); ok {
+		if perm == "" {
+			return "PERMISSION DENIED: " + err.Error() + "\nNothing was done. Do not retry; ask the user to grant the permission to this API token in the Atoll panel."
+		}
+		return fmt.Sprintf("PERMISSION DENIED: this Atoll API token lacks the %q permission needed for this action. Nothing was done. "+
+			"Do not retry or work around it; ask the user to grant %q to the token in the Atoll panel (CLI & API → tokens) if they want you to do this.", perm, perm)
+	}
+	switch client.ErrorCode(err) {
+	case client.CodeProjectScope, client.CodeEscalation, client.CodeSessionRequired:
+		return "PERMISSION DENIED: " + ExplainError(err).Error() + "\nNothing was done. Do not retry."
+	}
+	return err.Error()
 }
 
 func pendingText(cf *api.Confirmation) string {
@@ -147,6 +230,7 @@ func MCPTools(app *App) []server.ServerTool {
 	t := func(tl mcp.Tool, body mcpBody) server.ServerTool {
 		return server.ServerTool{Tool: tl, Handler: mcpHandle(app, body)}
 	}
+	const imm = " Runs immediately when the token has the %s permission (no confirmation step unless the token requires approval), so confirm with the user first."
 	return []server.ServerTool{
 		t(tool("list_servers", "List the user's servers with status and resource usage.", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -178,7 +262,8 @@ func MCPTools(app *App) []server.ServerTool {
 			mcp.WithString("name", mcp.Description("service name (default: image name)")),
 			mcp.WithArray("ports", mcp.WithStringItems(), mcp.Description("ports as [name:]PORT[/http|tcp|udp]")),
 			mcp.WithObject("env", mcp.Description("environment variables to set, {KEY: VALUE}")),
-			mcp.WithArray("domains", mcp.WithStringItems(), mcp.Description("hostnames to route to the first http port (need approval)"))),
+			mcp.WithArray("domains", mcp.WithStringItems(), mcp.Description("hostnames to route to the first http port (needs the domains permission; runs immediately)")),
+			mcp.WithString("server", mcp.Description("server name or id for a NEW service (default: the project's server; both must be on the tailnet)"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				project, err := reqStr(r, "project")
 				if err != nil {
@@ -201,7 +286,7 @@ func MCPTools(app *App) []server.ServerTool {
 					ports = append(ports, pp)
 				}
 				env := argMap(r, "env")
-				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil)})
+				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil), Server: r.GetString("server", "")})
 			}),
 		t(tool("set_env", "Set (or unset) environment variables of a service; the service redeploys. Secret-looking keys are stored as secrets.", false, false,
 			append(svcArgs(),
@@ -273,7 +358,7 @@ func MCPTools(app *App) []server.ServerTool {
 			actionBody(client.ActionRestart)),
 		t(tool("redeploy", "Redeploy a service (pull the image again and recreate the container).", false, false, svcArgs()...),
 			actionBody(client.ActionRedeploy)),
-		t(tool("rollback", "Roll a service back to a previous deployment (default: the last good one before the current).", false, true,
+		t(tool("rollback", "Roll a service back to a previous deployment (default: the last good one before the current). Runs immediately; confirm with the user first.", false, true,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... to roll back to")))...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
@@ -297,7 +382,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return fmt.Sprintf("%s: rolling back to %s", s.Name, dep), nil
 			}),
-		t(tool("add_domain", "Route a hostname to a service (changes DNS: needs approval in the panel).", false, true,
+		t(tool("add_domain", "Route a hostname to a service (changes DNS)."+fmt.Sprintf(imm, api.PermDomains), false, true,
 			append(svcArgs(),
 				mcp.WithString("hostname", mcp.Required(), mcp.Description("e.g. app.example.com")),
 				mcp.WithString("port_name", mcp.Description("port name (default: first http port)")),
@@ -313,7 +398,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.AddDomain(ctx, s.ID, client.AddDomainRequest{Hostname: host, PortName: r.GetString("port_name", ""), Proxied: r.GetBool("proxied", true)})
 			}),
-		t(tool("migrate", "Move a project to another server (stop, copy volumes, start, switch DNS). Needs approval in the panel.", false, true,
+		t(tool("migrate", "Move a whole project to another server (stop, copy volumes, start, switch DNS; downtime)."+fmt.Sprintf(imm, api.PermMigrate), false, true,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
 			mcp.WithString("server", mcp.Required(), mcp.Description("target server name or id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -340,6 +425,26 @@ func MCPTools(app *App) []server.ServerTool {
 					return nil, err
 				}
 				return fmt.Sprintf("Migration of %s to %s started.", p.Name, s.Name), nil
+			}),
+		t(tool("service_migrate", "Move ONE service (container + volumes) to another server; it stops during the data copy and the rest of the project reaches it over the tailnet mesh under the same name (both servers must be on the tailnet)."+fmt.Sprintf(imm, api.PermMigrate), false, true,
+			append(svcArgs(), mcp.WithString("server", mcp.Required(), mcp.Description("target server name or id")))...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				sref, err := reqStr(r, "server")
+				if err != nil {
+					return nil, err
+				}
+				srv, err := c.ResolveServer(ctx, sref)
+				if err != nil {
+					return nil, err
+				}
+				if s.ServerID == srv.ID {
+					return nil, fmt.Errorf("service %s already runs on %s", s.Name, srv.Name)
+				}
+				return c.MigrateService(ctx, s.ID, srv.ID)
 			}),
 		t(tool("get_deployment", "Show a service's deployments (newest first), or one deployment by id.", true, false,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... (default: all, newest first)")))...),
@@ -423,7 +528,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.RunBackup(ctx, s.ID)
 			}),
-		t(tool("backup_restore", "Restore a backup, replacing the service's current data (a safety copy is kept). Only creates a PENDING CONFIRMATION the user must approve in the Atoll panel; never retry to bypass it. target_server is disaster recovery and only works while the project's server is offline.", false, true,
+		t(tool("backup_restore", "Restore a backup, replacing the service's current data (a safety copy is kept). target_server is disaster recovery and only works while the project's server is offline."+fmt.Sprintf(imm, api.PermRestore)+" If it returns PENDING CONFIRMATION, never retry to bypass it.", false, true,
 			mcp.WithString("backup_id", mcp.Required(), mcp.Description("bak_... id or restic snapshot id from backup_list")),
 			mcp.WithString("target_server", mcp.Description("restore onto this server (name or id); default in place"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -443,8 +548,8 @@ func MCPTools(app *App) []server.ServerTool {
 					}
 					target = srv.ID
 				}
-				// with an API token the server answers 202 + Confirmation (surfaced by mcpHandle as
-				// PENDING CONFIRMATION); a direct start here would mean a session credential
+				// a token with require_approval gets 202 + Confirmation (surfaced by mcpHandle as
+				// PENDING CONFIRMATION); otherwise the restore starts now
 				return c.RestoreBackup(ctx, b.ID, target)
 			}),
 	}

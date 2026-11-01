@@ -149,7 +149,7 @@ Restic to any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3, MinIO).
 - In place (no target, or the service's own server): the agent stops the container and moves the current volume dir aside as a pre-restore safety copy (one generation, `<agent data>/backup/pre-restore/<service_id>`, reported in the restore step detail). Databases are re-initialised empty by their image and loaded from the dump; other services get their volume dirs restored. If the restore fails, the previous data is put back and the container restarted.
 - Onto another server (disaster recovery): allowed only while the project's server is offline (409 `source_online` otherwise; use `migrate` for a live move). The whole project is reassigned to the target, every service is created there from its stored config, then this one service's data is restored, ingress synced and DNS switched. If creating the services fails, the project stays on its original server.
 
-**CLI / MCP.** `atoll backup list SERVICE [--refresh]`, `atoll backup run SERVICE`, `atoll backup restore SNAPSHOT [--to SERVER]` (SNAPSHOT = `bak_...` or restic snapshot id; exits 3 while the confirmation is pending, `--wait` waits for approval), `atoll backup policy SERVICE [--enable|--disable] [--schedule CRON] [--timezone TZ] [--keep-daily N --keep-weekly N --keep-monthly N]` (no flags shows the policy). SERVICE is a name, `svc_...` or `project/name` (or `-p PROJECT`). MCP tools: `backup_list` (read-only), `backup_run`, `backup_restore` (only ever creates a pending confirmation; never bypassed).
+**CLI / MCP.** `atoll backup list SERVICE [--refresh]`, `atoll backup run SERVICE`, `atoll backup restore SNAPSHOT [--to SERVER]` (SNAPSHOT = `bak_...` or restic snapshot id; needs the `restore` permission and runs immediately; only a token with `require_approval` gets a pending confirmation — the CLI then exits 3, `--wait` waits for approval), `atoll backup policy SERVICE [--enable|--disable] [--schedule CRON] [--timezone TZ] [--keep-daily N --keep-weekly N --keep-monthly N]` (no flags shows the policy). SERVICE is a name, `svc_...` or `project/name` (or `-p PROJECT`). MCP tools: `backup_list` (read-only), `backup_run`, `backup_restore` (`restore` permission; runs immediately unless the token requires approval, a pending confirmation is never bypassed).
 
 **Limitations.**
 - The control server's own database and `master.key` are not backed up. Copy the control server's data dir (`ATOLL_DATA`, `/var/lib/atoll/` with the installer, which contains `master.key`) off the box yourself; without `master.key` the stored secrets cannot be decrypted. Keep the restic repository password too.
@@ -157,3 +157,22 @@ Restic to any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3, MinIO).
 - Redis assumes RDB persistence with data in `/data`: the dump is an RDB file (`redis-cli --rdb`) written back as `/data/dump.rdb`, and an existing AOF is removed so it does not win over the restored RDB.
 - Cross-server recovery restores one service per job; restore the project's other services from their own backups.
 - The agent host needs the docker CLI (restic and the dump tools run in containers).
+
+## CLI & MCP permissions
+The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_URL` / `$ATOLL_TOKEN`). What they may do is the token's permission set (`read`, `deploy`, `delete`, `migrate`, `domains`, `restore`, `servers`, `settings`, `tokens`), optionally limited to projects. Without a permission the server answers `403 missing_permission` and the CLI names the permission to grant (`atoll token edit TOKEN --add-perm PERM`); with it the operation runs directly. Only a token created with `require_approval` gets `202 Confirmation` for destructive operations (CLI exit code 3, `--wait` waits for the panel approval). `403 escalation` means a token tried to hand out more than it holds; `403 project_scope` that the token is limited to other projects.
+
+**Tokens.** `atoll token ls`, `atoll token create NAME [--perm read,deploy,...] [--project PROJECT]... [--require-approval]` (default `read`; `--perm all` for every permission; `servers`/`settings`/`tokens` cannot be combined with `--project`; the secret is printed once), `atoll token edit TOKEN [--name N] [--perm ...|--add-perm ...|--rm-perm ...] [--project P...|--all-projects] [--require-approval[=false]]`, `atoll token rm TOKEN` (TOKEN = id, name or prefix). All need the `tokens` permission.
+
+**Placement & network.** `atoll deploy IMAGE -p PROJECT --server SERVER` places a new service on another server (`POST /projects/{id}/services` with `server_id`); `atoll services migrate SERVICE --to SERVER [-p PROJECT]` moves one service (`POST /services/{id}/migrate`, `migrate` permission); `atoll migrate PROJECT --to SERVER` moves a whole project. `atoll servers network join|switch|public SERVER` runs `POST /servers/{id}/network` (`servers` permission).
+
+**MCP.** At startup `atoll mcp` reads `/auth/me` and only registers the tools the token's permissions allow (servers that predate permissions: mapped from the legacy scope; when `/auth/me` fails every tool is registered and calls report the error):
+
+| Permission | Tools |
+|---|---|
+| read | `list_servers`, `list_projects`, `list_services`, `get_logs`, `get_deployment`, `zeabur_scan`, `zeabur_import_status`, `list_updates`, `backup_list` |
+| deploy | `deploy` (`domains` also needs `domains`; `server` places a new service), `set_env`, `restart`, `redeploy`, `rollback`, `backup_run` |
+| domains | `add_domain` |
+| migrate | `migrate` (project), `service_migrate` (one service) |
+| restore | `backup_restore` |
+
+Destructive tools say in their description that they run immediately when permitted. A call the server refuses with `missing_permission` returns a `PERMISSION DENIED` tool error naming the permission; `PENDING CONFIRMATION` is returned only for tokens with `require_approval`.

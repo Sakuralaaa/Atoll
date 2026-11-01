@@ -29,6 +29,8 @@ type fakePanel struct {
 	services  []api.Service
 	cfStatus  string // status returned by GET /confirmations
 	impStatus string
+	me        map[string]any // GET /auth/me answer (default {"username":"chen"})
+	denyPerm  string         // when set, mutating token/migrate/network routes answer 403 missing_permission for it
 }
 
 func init() { importPoll = 10 * time.Millisecond }
@@ -71,7 +73,30 @@ func (f *fakePanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cf := api.Confirmation{ID: "cfm_aaaaaaaaaaaa", Action: "service.migrate", Summary: "move web to s2", Status: "pending"}
 	switch key {
 	case "GET /auth/me":
-		writeJSON(w, 200, map[string]any{"username": "chen"})
+		me := f.me
+		if me == nil {
+			me = map[string]any{"username": "chen"}
+		}
+		writeJSON(w, 200, me)
+	case "GET /tokens":
+		writeJSON(w, 200, []api.APIToken{{ID: "tok_1", Name: "ci", Prefix: "atl_pat_3fA9", Permissions: []string{"read", "deploy"}}})
+	case "POST /tokens", "PATCH /tokens/tok_1", "POST /services/svc_1/migrate", "POST /servers/srv_2/network":
+		if f.denyPerm != "" {
+			writeJSON(w, 403, api.ErrorBody{Error: `this API token lacks the "` + f.denyPerm + `" permission; grant it in the panel (CLI & API → tokens) or use a token that has it`, Code: "missing_permission"})
+			return
+		}
+		switch {
+		case key == "POST /tokens":
+			var req api.TokenRequest
+			json.Unmarshal(body, &req)
+			writeJSON(w, 201, api.APIToken{ID: "tok_2", Name: req.Name, Permissions: req.Permissions, Projects: req.Projects, RequireApproval: req.RequireApproval, Token: "atl_pat_secretvalue"})
+		case key == "PATCH /tokens/tok_1":
+			writeJSON(w, 200, api.APIToken{ID: "tok_1", Name: "ci", Permissions: []string{"read", "deploy", "migrate"}})
+		case key == "POST /services/svc_1/migrate":
+			writeJSON(w, 200, api.MigrationJob{ID: "mig_1", ServiceID: "svc_1", Status: "running"})
+		default:
+			writeJSON(w, 200, api.NetworkResult{Switched: true, ControlURL: "http://atoll.tailnet.example:7301", State: "running"})
+		}
 	case "GET /servers":
 		writeJSON(w, 200, []api.Server{{ID: "srv_1", Name: "vps1", PublicIPv4: "203.0.113.7"}, {ID: "srv_2", Name: "s2"}})
 	case "GET /servers/srv_1":

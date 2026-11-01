@@ -1,7 +1,10 @@
 // Package client is a typed Go client for the Atoll REST API (/api/v1, see docs/api.md).
-// It authenticates with a personal access token (Bearer atl_pat_...). Destructive actions
-// requested with a PAT are answered with 202 + Confirmation; those surface as
-// *ConfirmationRequiredError so callers can tell the user to approve in the panel, or wait.
+// It authenticates with a personal access token (Bearer atl_pat_...). What a token may do is
+// set by its permissions (read, deploy, delete, migrate, domains, restore, servers, settings,
+// tokens): an operation the token lacks the permission for fails with 403 missing_permission
+// (see MissingPermission); an operation it holds the permission for runs directly. Only a token
+// created with require_approval gets 202 + Confirmation for destructive operations; those
+// surface as *ConfirmationRequiredError so callers can tell the user to approve, or wait.
 package client
 
 import (
@@ -61,6 +64,55 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &ae) && ae.StatusCode == http.StatusNotFound
 }
 
+// Error codes the API uses for token permission problems (403).
+const (
+	CodeMissingPermission = "missing_permission"
+	CodeEscalation        = "escalation"
+	CodeProjectScope      = "project_scope"
+	CodeSessionRequired   = "session_required"
+)
+
+// ErrorCode returns the API error code of err ("" when err is not an *APIError).
+func ErrorCode(err error) string {
+	var ae *APIError
+	if errors.As(err, &ae) {
+		return ae.Code
+	}
+	return ""
+}
+
+// MissingPermission reports whether err is a 403 missing_permission and, when the server
+// named it (`lacks the "migrate" permission`), which permission is needed.
+func MissingPermission(err error) (perm string, ok bool) {
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Code != CodeMissingPermission {
+		return "", false
+	}
+	return quotedPerm(ae.Message), true
+}
+
+// quotedPerm extracts the first "quoted" known permission name from a server message.
+func quotedPerm(msg string) string {
+	for rest := msg; ; {
+		i := strings.Index(rest, `"`)
+		if i < 0 {
+			return ""
+		}
+		rest = rest[i+1:]
+		j := strings.Index(rest, `"`)
+		if j < 0 {
+			return ""
+		}
+		cand := rest[:j]
+		rest = rest[j+1:]
+		for _, p := range api.AllPermissions {
+			if p == cand {
+				return p
+			}
+		}
+	}
+}
+
 // ConfirmationRequiredError is returned when the server answered 202 with a Confirmation:
 // the action is queued until a human approves it in the panel.
 type ConfirmationRequiredError struct {
@@ -69,7 +121,7 @@ type ConfirmationRequiredError struct {
 
 func (e *ConfirmationRequiredError) Error() string {
 	c := e.Confirmation
-	s := fmt.Sprintf("confirmation required: %q needs approval in the Atoll panel (confirmation id %s)", c.Action, c.ID)
+	s := fmt.Sprintf("confirmation required: this token requires approval, so %q waits for approval in the Atoll panel (confirmation id %s)", c.Action, c.ID)
 	if c.Summary != "" {
 		s += ": " + c.Summary
 	}
@@ -180,7 +232,8 @@ func esc(s string) string { return url.PathEscape(s) }
 
 // ---------- auth ----------
 
-// Me is whatever /auth/me returns; the shape is not part of types.go, so it is kept loose.
+// Me is the /auth/me answer ({username, auth, scope, permissions, projects, require_approval}).
+// It is kept as a map so older servers (without permissions) still decode.
 type Me map[string]any
 
 // Name returns a display name from the /auth/me answer.
@@ -192,6 +245,53 @@ func (m Me) Name() string {
 	}
 	return ""
 }
+
+func (m Me) strings(k string) []string {
+	raw, _ := m[k].([]any)
+	var out []string
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Permissions the caller holds. Servers that predate fine-grained permissions only report a
+// scope; it is mapped like the server does (read → read; deploy → read+deploy; admin/session → all).
+func (m Me) Permissions() []string {
+	if _, ok := m["permissions"]; ok {
+		return m.strings("permissions")
+	}
+	switch m.Scope() {
+	case "read":
+		return []string{api.PermRead}
+	case "deploy":
+		return []string{api.PermRead, api.PermDeploy}
+	case "admin", "session":
+		return append([]string(nil), api.AllPermissions...)
+	}
+	return []string{api.PermRead}
+}
+
+// HasPermission reports whether the caller holds perm.
+func (m Me) HasPermission(perm string) bool {
+	for _, p := range m.Permissions() {
+		if p == perm {
+			return true
+		}
+	}
+	return false
+}
+
+// Projects the token is limited to (nil = all projects).
+func (m Me) Projects() []string { return m.strings("projects") }
+
+// RequireApproval reports whether destructive operations wait for approval in the panel.
+func (m Me) RequireApproval() bool { v, _ := m["require_approval"].(bool); return v }
+
+// Scope is the legacy scope summary ("read" | "deploy" | "admin" | "session").
+func (m Me) Scope() string { v, _ := m["scope"].(string); return v }
 
 func (c *Client) Me(ctx context.Context) (Me, error) {
 	var m Me
@@ -229,6 +329,19 @@ func (c *Client) CreateJoinToken(ctx context.Context) (*api.JoinToken, error) {
 func (c *Client) ServerMetrics(ctx context.Context, id, rng string) ([]api.NodeMetrics, error) {
 	var v []api.NodeMetrics
 	return v, c.do(ctx, http.MethodGet, "/servers/"+esc(id)+"/metrics?range="+url.QueryEscape(rng), nil, &v)
+}
+
+// ServerNetwork runs a private-network action on a server: "join" (install Tailscale if
+// needed and join the tailnet, then switch the agent to the tailnet control URL), "switch"
+// (already on the tailnet: switch the control URL) or "public" (back to the public URL).
+func (c *Client) ServerNetwork(ctx context.Context, id, action string) (*api.NetworkResult, error) {
+	switch action {
+	case "join", "switch", "public":
+	default:
+		return nil, fmt.Errorf("unknown network action %q (want join, switch or public)", action)
+	}
+	var v api.NetworkResult
+	return &v, c.do(ctx, http.MethodPost, "/servers/"+esc(id)+"/network", api.ServerNetworkRequest{Action: action}, &v)
 }
 
 func (c *Client) ServerContainers(ctx context.Context, id string) ([]api.ContainerState, error) {
@@ -281,6 +394,8 @@ func (c *Client) ListServices(ctx context.Context, projectID string) ([]api.Serv
 	return v, c.do(ctx, http.MethodGet, "/projects/"+esc(projectID)+"/services", nil, &v)
 }
 
+// CreateService creates a service. svc.ServerID (optional) places it on a server other than
+// the project's; both servers must be on the tailnet.
 func (c *Client) CreateService(ctx context.Context, projectID string, svc api.Service) (*api.Service, error) {
 	var v api.Service
 	return &v, c.do(ctx, http.MethodPost, "/projects/"+esc(projectID)+"/services", svc, &v)
@@ -299,6 +414,13 @@ func (c *Client) UpdateService(ctx context.Context, id string, patch map[string]
 
 func (c *Client) DeleteService(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/services/"+esc(id), nil, nil)
+}
+
+// MigrateService moves one service (container + volumes) to another server; the rest of the
+// project stays and reaches it over the tailnet mesh. Returns the started MigrationJob.
+func (c *Client) MigrateService(ctx context.Context, id, serverID string) (*api.MigrationJob, error) {
+	var v api.MigrationJob
+	return &v, c.do(ctx, http.MethodPost, "/services/"+esc(id)+"/migrate", api.ServiceMigrateRequest{ServerID: serverID}, &v)
 }
 
 // Service actions.
@@ -423,9 +545,16 @@ func (c *Client) ListTokens(ctx context.Context) ([]api.APIToken, error) {
 	return v, c.do(ctx, http.MethodGet, "/tokens", nil, &v)
 }
 
-func (c *Client) CreateToken(ctx context.Context, name, scope string) (*api.APIToken, error) {
+// CreateToken creates a token. The answer carries the secret in Token (shown only once).
+func (c *Client) CreateToken(ctx context.Context, req api.TokenRequest) (*api.APIToken, error) {
 	var v api.APIToken
-	return &v, c.do(ctx, http.MethodPost, "/tokens", map[string]string{"name": name, "scope": scope}, &v)
+	return &v, c.do(ctx, http.MethodPost, "/tokens", req, &v)
+}
+
+// UpdateToken PATCHes a token; nil fields of upd stay unchanged.
+func (c *Client) UpdateToken(ctx context.Context, id string, upd api.TokenUpdate) (*api.APIToken, error) {
+	var v api.APIToken
+	return &v, c.do(ctx, http.MethodPatch, "/tokens/"+esc(id), upd, &v)
 }
 
 func (c *Client) DeleteToken(ctx context.Context, id string) error {

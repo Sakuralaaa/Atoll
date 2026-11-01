@@ -41,7 +41,7 @@ func newLoginCmd(app *App) *cobra.Command {
 				token = os.Getenv("ATOLL_TOKEN")
 			}
 			if url == "" || token == "" {
-				return fmt.Errorf("--url and --token are required (create a token in the panel under Settings → API tokens)")
+				return fmt.Errorf("--url and --token are required (create a token in the panel under CLI & API → tokens)")
 			}
 			c := app.NewClient(url, token)
 			me, err := c.Me(ctxOf(cmd))
@@ -53,9 +53,16 @@ func newLoginCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.JSON {
-				return app.printJSON(map[string]any{"url": url, "user": me.Name(), "config": p})
+				return app.printJSON(map[string]any{"url": url, "user": me.Name(), "config": p, "permissions": me.Permissions(), "projects": me.Projects(), "require_approval": me.RequireApproval()})
 			}
 			fmt.Fprintf(app.Out, "Logged in to %s as %s (saved to %s)\n", url, me.Name(), p)
+			fmt.Fprintf(app.Out, "Token permissions: %s\n", strings.Join(me.Permissions(), ", "))
+			if pr := me.Projects(); len(pr) > 0 {
+				fmt.Fprintf(app.Out, "Limited to projects: %s\n", strings.Join(pr, ", "))
+			}
+			if me.RequireApproval() {
+				fmt.Fprintln(app.Out, "Destructive operations wait for approval in the panel (require_approval).")
+			}
 			return nil
 		},
 	}
@@ -67,7 +74,7 @@ func newLoginCmd(app *App) *cobra.Command {
 // ---------- servers ----------
 
 func newServersCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "servers", Aliases: []string{"server"}, Short: "List servers"}
+	cmd := &cobra.Command{Use: "servers", Aliases: []string{"server"}, Short: "List servers and switch their private network"}
 	cmd.AddCommand(&cobra.Command{
 		Use: "ls", Aliases: []string{"list"}, Short: "List servers", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,6 +102,7 @@ func newServersCmd(app *App) *cobra.Command {
 			return tw.Flush()
 		},
 	})
+	cmd.AddCommand(newServerNetworkCmd(app))
 	return cmd
 }
 
@@ -155,7 +163,7 @@ func newProjectsCmd(app *App) *cobra.Command {
 	create.Flags().StringVar(&desc, "description", "", "description")
 	cmd.AddCommand(create)
 	cmd.AddCommand(&cobra.Command{
-		Use: "rm PROJECT", Aliases: []string{"delete"}, Short: "Delete a project (needs approval in the panel)", Args: cobra.ExactArgs(1),
+		Use: "rm PROJECT", Aliases: []string{"delete"}, Short: "Delete a project with all its services and volumes (needs the delete permission; runs immediately)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {
@@ -179,7 +187,7 @@ func newProjectsCmd(app *App) *cobra.Command {
 // ---------- services ----------
 
 func newServicesCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List services"}
+	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List services and move one to another server"}
 	var project string
 	ls := &cobra.Command{
 		Use: "ls -p PROJECT", Aliases: []string{"list"}, Short: "List services of a project", Args: cobra.NoArgs,
@@ -217,7 +225,7 @@ func newServicesCmd(app *App) *cobra.Command {
 		},
 	}
 	ls.Flags().StringVarP(&project, "project", "p", "", "project name or id")
-	cmd.AddCommand(ls)
+	cmd.AddCommand(ls, newServiceMigrateCmd(app))
 	return cmd
 }
 
@@ -269,10 +277,14 @@ func imageName(image string) string {
 }
 
 func newDeployCmd(app *App) *cobra.Command {
-	var project, name string
+	var project, name, server string
 	var ports, envs, domains []string
 	cmd := &cobra.Command{
-		Use:   "deploy IMAGE -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST]",
+		Use: "deploy IMAGE -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER]",
+		Long: "Creates the service when the project has none by that name, otherwise updates it and redeploys.\n" +
+			"Needs the deploy permission; --domain also needs the domains permission.\n" +
+			"--server places a NEW service on a server other than the project's (both on the tailnet);\n" +
+			"to move an existing service use `atoll services migrate`.",
 		Short: "Deploy an image: create the service, or update its image/ports/env and redeploy",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -299,7 +311,7 @@ func newDeployCmd(app *App) *cobra.Command {
 				}
 				parsed = append(parsed, pp)
 			}
-			res, err := Deploy(ctxOf(cmd), c, DeployRequest{Project: project, Image: image, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains})
+			res, err := Deploy(ctxOf(cmd), c, DeployRequest{Project: project, Image: image, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains, Server: server})
 			if res != nil && len(res.Pending) > 0 {
 				for _, p := range res.Pending {
 					fmt.Fprintln(app.Err, "pending approval:", p)
@@ -320,7 +332,8 @@ func newDeployCmd(app *App) *cobra.Command {
 	f.StringVar(&name, "name", "", "service name (default: image name)")
 	f.StringArrayVar(&ports, "port", nil, "port as [name:]PORT[/http|tcp|udp], repeatable")
 	f.StringArrayVarP(&envs, "env", "e", nil, "KEY=VALUE, repeatable")
-	f.StringArrayVar(&domains, "domain", nil, "hostname to route to the first http port, repeatable")
+	f.StringArrayVar(&domains, "domain", nil, "hostname to route to the first http port, repeatable (needs the domains permission)")
+	f.StringVar(&server, "server", "", "server name or id for a new service (default: the project's server)")
 	return cmd
 }
 
@@ -333,6 +346,9 @@ type DeployRequest struct {
 	Env      map[string]string
 	EnvOrder []string
 	Domains  []string
+	// Server (name or id) places a newly created service on that server instead of the
+	// project's. For an existing service it must match where it runs (move it with migrate).
+	Server string
 }
 
 // DeployResult says what happened.
@@ -360,6 +376,26 @@ func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResu
 			existing = &svcs[i]
 		}
 	}
+	serverID := ""
+	if r.Server != "" {
+		srv, err := c.ResolveServer(ctx, r.Server)
+		if err != nil {
+			return nil, err
+		}
+		serverID = srv.ID
+		if existing != nil {
+			cur := existing.ServerID
+			if cur == "" {
+				cur = p.ServerID
+			}
+			if cur != srv.ID {
+				return nil, fmt.Errorf("service %s already exists on another server; move it with `atoll services migrate %s --to %s`", existing.Name, existing.Name, srv.Name)
+			}
+		}
+		if serverID == p.ServerID {
+			serverID = ""
+		}
+	}
 	res := &DeployResult{}
 	var set []api.EnvVar
 	order := r.EnvOrder
@@ -378,7 +414,7 @@ func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResu
 		if ports == nil {
 			ports = []api.Port{}
 		}
-		svc, err = c.CreateService(ctx, p.ID, api.Service{Name: r.Name, Kind: "image", Image: r.Image, Ports: ports, Volumes: []api.Volume{}})
+		svc, err = c.CreateService(ctx, p.ID, api.Service{Name: r.Name, Kind: "image", Image: r.Image, Ports: ports, Volumes: []api.Volume{}, ServerID: serverID})
 		if err != nil {
 			return nil, err
 		}
@@ -724,7 +760,7 @@ func newDomainCmd(app *App) *cobra.Command {
 	cmd.PersistentFlags().StringVarP(&svcRef, "service", "s", "", "service name or id")
 	cmd.PersistentFlags().StringVarP(&project, "project", "p", "", "project name or id")
 	add := &cobra.Command{
-		Use: "add HOSTNAME -s SERVICE", Short: "Route a hostname to a service (needs approval: changes DNS)", Args: cobra.ExactArgs(1),
+		Use: "add HOSTNAME -s SERVICE", Short: "Route a hostname to a service (needs the domains permission: changes DNS)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {
@@ -753,7 +789,7 @@ func newDomainCmd(app *App) *cobra.Command {
 	add.Flags().BoolVar(&proxied, "proxied", true, "Cloudflare proxy (orange cloud)")
 	cmd.AddCommand(add)
 	cmd.AddCommand(&cobra.Command{
-		Use: "rm HOSTNAME|DOMAIN_ID", Aliases: []string{"delete"}, Short: "Remove a domain (needs approval)", Args: cobra.ExactArgs(1),
+		Use: "rm HOSTNAME|DOMAIN_ID", Aliases: []string{"delete"}, Short: "Remove a domain (needs the domains permission: changes DNS)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {
@@ -827,7 +863,7 @@ func newDomainCmd(app *App) *cobra.Command {
 func newMigrateCmd(app *App) *cobra.Command {
 	var to string
 	cmd := &cobra.Command{
-		Use: "migrate PROJECT --to SERVER", Short: "Move a project to another server (stop → copy volumes → start → DNS); needs approval", Args: cobra.ExactArgs(1),
+		Use: "migrate PROJECT --to SERVER", Short: "Move a project to another server (stop → copy volumes → start → DNS); needs the migrate permission", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {

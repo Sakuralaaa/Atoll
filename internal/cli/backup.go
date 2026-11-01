@@ -20,7 +20,7 @@ func newBackupCmd(app *App) *cobra.Command {
 			"Settings → backup storage), on the service's schedule, even while the panel is offline.\n" +
 			"  atoll backup list SERVICE                 backup runs, newest first\n" +
 			"  atoll backup run SERVICE                  back up now\n" +
-			"  atoll backup restore SNAPSHOT [--to SERVER]   restore (needs approval with an API token)\n" +
+			"  atoll backup restore SNAPSHOT [--to SERVER]   restore (needs the restore permission)\n" +
 			"  atoll backup policy SERVICE [--enable|--disable] [--schedule CRON] [--keep-daily N ...]\n" +
 			"SERVICE is a name, an id (svc_...) or project/name.",
 	}
@@ -145,13 +145,14 @@ func newBackupRestoreCmd(app *App) *cobra.Command {
 	var to string
 	cmd := &cobra.Command{
 		Use:   "restore SNAPSHOT [--to SERVER]",
-		Short: "Restore a backup (replaces the service's current data; needs approval with an API token)",
+		Short: "Restore a backup (replaces the service's current data; needs the restore permission)",
 		Long: "SNAPSHOT is a backup id (bak_...) or a restic snapshot id (full or 8-char) from `atoll backup list`.\n" +
 			"Without --to the service is restored in place; the agent first keeps a safety copy of the\n" +
 			"current data. --to SERVER is disaster recovery: only allowed while the project's server is\n" +
 			"offline; the whole project moves to SERVER and this one service's data is restored there\n" +
 			"(restore the project's other services from their own backups).\n" +
-			"With an API token this creates a pending confirmation; approve it in the panel (or use --wait).",
+			"Needs the restore permission and runs immediately; a token created with --require-approval\n" +
+			"instead creates a pending confirmation to approve in the panel (or use --wait).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()

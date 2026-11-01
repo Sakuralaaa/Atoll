@@ -47,7 +47,7 @@ func Execute(version string) int {
 			fmt.Fprintln(app.Err, pe.Error())
 			return 3
 		}
-		fmt.Fprintln(app.Err, "Error:", err)
+		fmt.Fprintln(app.Err, "Error:", ExplainError(err))
 		return 1
 	}
 	return 0
@@ -72,7 +72,7 @@ func NewRoot(app *App) *cobra.Command {
 	pf.StringVar(&app.URL, "url", "", "Atoll panel URL (default from config / $ATOLL_URL)")
 	pf.StringVar(&app.Token, "token", "", "API token (default from config / $ATOLL_TOKEN)")
 	pf.StringVar(&app.ConfigPath, "config", "", "config file (default ~/.config/atoll/config.json)")
-	pf.BoolVar(&app.Wait, "wait", false, "when an action needs approval in the panel, wait until it is approved")
+	pf.BoolVar(&app.Wait, "wait", false, "for a token created with --require-approval: wait until the action is approved in the panel")
 	pf.DurationVar(&app.WaitTimeout, "wait-timeout", 15*time.Minute, "how long --wait waits")
 
 	root.AddCommand(
@@ -84,7 +84,7 @@ func NewRoot(app *App) *cobra.Command {
 		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, recreate container)"),
 		newRollbackCmd(app), newDomainCmd(app), newMigrateCmd(app), newExecCmd(app),
 		newMCPCmd(app), newZeaburCmd(app), newImportCmd(app),
-		newUpdatesCmd(app), newBackupCmd(app),
+		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app),
 	)
 	return root
 }
@@ -121,7 +121,7 @@ func (app *App) client() (*client.Client, error) {
 		token = app.Token
 	}
 	if url == "" || token == "" {
-		return nil, errors.New("not logged in: run `atoll login --url https://your-panel --token atl_pat_...` (create a token in the panel under Settings → API tokens)")
+		return nil, errors.New("not logged in: run `atoll login --url https://your-panel --token atl_pat_...` (create a token in the panel under CLI & API → tokens)")
 	}
 	c := app.NewClient(url, token)
 	c.UserAgent = "atoll-cli/" + app.Version
@@ -138,7 +138,8 @@ func (app *App) table() *tabwriter.Writer {
 	return tabwriter.NewWriter(app.Out, 2, 4, 2, ' ', 0)
 }
 
-// pendingError is returned when an action waits for approval in the panel (exit code 3).
+// pendingError is returned when an action waits for approval in the panel (exit code 3);
+// this only happens for tokens created with require_approval.
 type pendingError struct{ msg string }
 
 func (e *pendingError) Error() string { return e.msg }
