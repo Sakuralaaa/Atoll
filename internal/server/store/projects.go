@@ -89,12 +89,38 @@ func (s *Store) DeleteProject(ctx context.Context, id string) error {
 const svcCols = `id, project_id, name, kind, image, command, args, ports, volumes, configs, health,
 	cpu_limit, mem_limit_mb, registry_cred_id, status, replicas, created_at`
 
+// svcNode is a service's effective server: its own placement, else the project's server.
+const svcNode = `COALESCE(NULLIF(services.server_id, ''), (SELECT p.server_id FROM projects p WHERE p.id = services.project_id), '')`
+
+// EffNode is the same expression for queries that join services s with projects p.
+const EffNode = `COALESCE(NULLIF(s.server_id, ''), p.server_id)`
+
+// SetServiceServer places a service on serverID ("" or the project's server = follow the project).
+func (s *Store) SetServiceServer(ctx context.Context, id, serverID string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE services SET server_id=CASE WHEN ?=(SELECT server_id FROM projects WHERE id=services.project_id) THEN '' ELSE ? END WHERE id=?`,
+		serverID, serverID, id)
+	return err
+}
+
+// ClearServicePlacements makes every service of a project follow the project's server again.
+func (s *Store) ClearServicePlacements(ctx context.Context, projectID string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE services SET server_id='' WHERE project_id=?`, projectID)
+	return err
+}
+
+// CountServicesOnNode counts services whose effective server is nodeID.
+func (s *Store) CountServicesOnNode(ctx context.Context, nodeID string) (int, error) {
+	var n int
+	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM services s JOIN projects p ON p.id=s.project_id WHERE `+EffNode+`=?`, nodeID).Scan(&n)
+	return n, err
+}
+
 func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error) {
 	var v api.Service
 	var cmd, args, ports, vols, cfgs, health, c string
 	var stopped int
 	err := row.Scan(&v.ID, &v.ProjectID, &v.Name, &v.Kind, &v.Image, &cmd, &args, &ports, &vols, &cfgs, &health,
-		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &stopped)
+		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &stopped, &v.ServerID)
 	if err != nil {
 		return nil, false, mapErr(err)
 	}
@@ -162,12 +188,12 @@ func (s *Store) SetDesiredStopped(ctx context.Context, id string, stopped bool) 
 
 // GetService returns a service and whether it is desired-stopped.
 func (s *Store) GetService(ctx context.Context, id string) (*api.Service, bool, error) {
-	return scanService(s.DB.QueryRowContext(ctx, `SELECT `+svcCols+`, desired_stopped FROM services WHERE id=?`, id))
+	return scanService(s.DB.QueryRowContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE id=?`, id))
 }
 
 // ListServices returns services of a project ordered by name.
 func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Service, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped FROM services WHERE project_id=? ORDER BY name`, projectID)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE project_id=? ORDER BY name`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +213,7 @@ func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Servi
 func (s *Store) DeleteService(ctx context.Context, id string) error {
 	s.DB.ExecContext(ctx, `DELETE FROM container_states WHERE service_id=?`, id)
 	s.DB.ExecContext(ctx, `DELETE FROM container_metrics WHERE service_id=?`, id)
+	s.DB.ExecContext(ctx, `DELETE FROM mesh_ports WHERE service_id=?`, id)
 	res, err := s.DB.ExecContext(ctx, `DELETE FROM services WHERE id=?`, id)
 	if err != nil {
 		return err
@@ -345,7 +372,7 @@ type RouteRow struct {
 func (s *Store) RoutesForNode(ctx context.Context, nodeID string) ([]RouteRow, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT d.hostname, d.service_id, d.port_name, s.ports FROM domains d
 		JOIN services s ON s.id=d.service_id JOIN projects p ON p.id=s.project_id
-		WHERE p.server_id=? AND p.ingress_hold=0 AND s.desired_stopped=0 ORDER BY d.hostname`, nodeID)
+		WHERE `+EffNode+`=? AND p.ingress_hold=0 AND s.desired_stopped=0 ORDER BY d.hostname`, nodeID)
 	if err != nil {
 		return nil, err
 	}

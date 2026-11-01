@@ -40,6 +40,14 @@ type fakeServer struct {
 func newFakeServer(t *testing.T, token string) *fakeServer {
 	fs := &fakeServer{t: t, token: token, frames: make(chan frame, 1024), ready: make(chan struct{})}
 	fs.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/agent/v1/ping" { // control-URL verification before a switch
+			if r.Header.Get("Authorization") != "Bearer "+fs.token {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			w.Write([]byte(`{"ok":true,"node_id":"srv_test"}`))
+			return
+		}
 		if r.URL.Path != "/agent/v1/connect" {
 			http.NotFound(w, r)
 			return

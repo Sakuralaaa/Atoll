@@ -223,7 +223,7 @@ func (d *DockerRuntime) CreateContainer(ctx context.Context, s ContainerSpec) er
 	for _, p := range s.Ports {
 		port := nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, protoOr(p.Protocol)))
 		cfg.ExposedPorts[port] = struct{}{}
-		host.PortBindings[port] = append(host.PortBindings[port], nat.PortBinding{HostPort: strconv.Itoa(p.HostPort)})
+		host.PortBindings[port] = append(host.PortBindings[port], nat.PortBinding{HostIP: p.HostIP, HostPort: strconv.Itoa(p.HostPort)})
 	}
 	for _, m := range s.Mounts {
 		host.Mounts = append(host.Mounts, mount.Mount{

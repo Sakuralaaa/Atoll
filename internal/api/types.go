@@ -8,23 +8,26 @@ import "time"
 // ---------- REST resources (JSON, /api/v1) ----------
 
 type Server struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Role         string    `json:"role"`   // "worker" | "control"
-	Status       string    `json:"status"` // "pending" | "online" | "offline" | "draining"
-	PublicIPv4   string    `json:"public_ipv4"`
-	PublicIPv6   string    `json:"public_ipv6,omitempty"`
-	TailnetHost  string    `json:"tailnet_host,omitempty"`
-	Provider     string    `json:"provider,omitempty"` // free text, e.g. "Hetzner"
-	Region       string    `json:"region,omitempty"`
-	OS           string    `json:"os"`
-	Arch         string    `json:"arch"`
-	CPUCores     int       `json:"cpu_cores"`
-	MemMB        int       `json:"mem_mb"`
-	DiskGB       int       `json:"disk_gb"`
-	AgentVersion string    `json:"agent_version"`
-	LastSeenAt   time.Time `json:"last_seen_at"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Role        string `json:"role"`   // "worker" | "control"
+	Status      string `json:"status"` // "pending" | "online" | "offline" | "draining"
+	PublicIPv4  string `json:"public_ipv4"`
+	PublicIPv6  string `json:"public_ipv6,omitempty"`
+	TailnetHost string `json:"tailnet_host,omitempty"`
+	TailnetIP   string `json:"tailnet_ip,omitempty"` // 100.x address when the node is on the tailnet
+	// Network is the private-network state the agent last reported (provider, control URL in use).
+	Network      *NodeNetwork `json:"network,omitempty"`
+	Provider     string       `json:"provider,omitempty"` // free text, e.g. "Hetzner"
+	Region       string       `json:"region,omitempty"`
+	OS           string       `json:"os"`
+	Arch         string       `json:"arch"`
+	CPUCores     int          `json:"cpu_cores"`
+	MemMB        int          `json:"mem_mb"`
+	DiskGB       int          `json:"disk_gb"`
+	AgentVersion string       `json:"agent_version"`
+	LastSeenAt   time.Time    `json:"last_seen_at"`
+	CreatedAt    time.Time    `json:"created_at"`
 	// latest sample, filled by server from metrics
 	Usage *NodeMetrics `json:"usage,omitempty"`
 }
@@ -86,6 +89,10 @@ type Service struct {
 	Replicas       string       `json:"replicas"` // e.g. "1/1"
 	CreatedAt      time.Time    `json:"created_at"`
 	Domains        []Domain     `json:"domains,omitempty"`
+	// ServerID is the server this service runs on (read-only in responses). Usually the
+	// project's server; a service placed on another server (POST .../services with server_id,
+	// or POST /services/{id}/migrate) reaches its siblings over the tailnet mesh.
+	ServerID string `json:"server_id,omitempty"`
 }
 
 type EnvVar struct {
@@ -174,6 +181,22 @@ type Settings struct {
 	BackupConfigured   bool   `json:"backup_configured"` // endpoint, bucket, credentials and password all set
 	// ImageCheckIntervalHours is how often image update checks run (default 6; PUT 0 keeps the stored value).
 	ImageCheckIntervalHours int `json:"image_check_interval_hours"`
+
+	// Private network provider for machine-to-machine traffic (agent<->control, service<->service
+	// across servers). See docs/api.md "Private network (Tailscale)".
+	NetworkProvider string `json:"network_provider"` // "" (none) | "tailscale"; PUT omitting it keeps the stored value, "none" clears
+	// TailscaleAuthKey is write-only (reusable, tagged, ideally pre-approved); GET returns "" and HasTailscaleAuthKey.
+	TailscaleAuthKey      string `json:"tailscale_auth_key,omitempty"`
+	HasTailscaleAuthKey   bool   `json:"has_tailscale_auth_key"`
+	ClearTailscaleAuthKey bool   `json:"clear_tailscale_auth_key,omitempty"` // PUT only
+	TailnetName           string `json:"tailnet_name,omitempty"`             // e.g. tail1234.ts.net (MagicDNS suffix)
+	// TailnetControlURL is the agent endpoint over the tailnet, e.g. http://100.101.102.103:7301.
+	// Empty = derived from the server's tailnet listener (TailnetListen).
+	TailnetControlURL string `json:"tailnet_control_url,omitempty"`
+	// read-only status
+	TailnetListen    string `json:"tailnet_listen,omitempty"`       // address the tailnet agent listener is bound to ("" = none)
+	TailnetListenErr string `json:"tailnet_listen_error,omitempty"` // why the tailnet listener is not up yet
+	AgentPublic      bool   `json:"agent_public"`                   // agent endpoints also answer on the public listener
 }
 
 // Template is a one-click database service (GET /api/v1/templates). Env values may
@@ -193,6 +216,7 @@ type Template struct {
 type MigrationJob struct {
 	ID         string       `json:"id"` // "mig_..."
 	ProjectID  string       `json:"project_id"`
+	ServiceID  string       `json:"service_id,omitempty"` // set when one service moves (POST /services/{id}/migrate)
 	FromServer string       `json:"from_server_id"`
 	ToServer   string       `json:"to_server_id"`
 	Status     string       `json:"status"` // "running" | "done" | "failed"
@@ -260,6 +284,8 @@ const (
 	MsgVolumeExport = "volume.export" // VolumeTransferPayload: agent PUTs tar.gz of volume to URL
 	MsgVolumeImport = "volume.import" // VolumeTransferPayload: agent GETs tar.gz from URL into volume
 	MsgTLS          = "tls"           // TLSPayload: origin cert+key for Caddy
+	MsgNetwork      = "network"       // NetworkPayload: join the tailnet and/or switch the control URL (verified first); result Output = JSON NetworkResult
+	MsgMesh         = "mesh"          // MeshPayload: full cross-server service mesh of this node; agent persists it and runs forwarders
 
 	// agent -> server
 	MsgHello   = "hello"   // HelloPayload, first frame after connect
@@ -350,18 +376,20 @@ type VolumeTransferPayload struct {
 }
 
 type HelloPayload struct {
-	NodeID        string `json:"node_id"`
-	AgentVersion  string `json:"agent_version"`
-	Hostname      string `json:"hostname"`
-	OS            string `json:"os"`
-	Arch          string `json:"arch"`
-	CPUCores      int    `json:"cpu_cores"`
-	MemMB         int    `json:"mem_mb"`
-	DiskGB        int    `json:"disk_gb"`
-	PublicIPv4    string `json:"public_ipv4"`
-	PublicIPv6    string `json:"public_ipv6,omitempty"`
-	TailnetHost   string `json:"tailnet_host,omitempty"`
-	DockerVersion string `json:"docker_version"`
+	NodeID        string       `json:"node_id"`
+	AgentVersion  string       `json:"agent_version"`
+	Hostname      string       `json:"hostname"`
+	OS            string       `json:"os"`
+	Arch          string       `json:"arch"`
+	CPUCores      int          `json:"cpu_cores"`
+	MemMB         int          `json:"mem_mb"`
+	DiskGB        int          `json:"disk_gb"`
+	PublicIPv4    string       `json:"public_ipv4"`
+	PublicIPv6    string       `json:"public_ipv6,omitempty"`
+	TailnetHost   string       `json:"tailnet_host,omitempty"`
+	DockerVersion string       `json:"docker_version"`
+	TailnetIP     string       `json:"tailnet_ip,omitempty"`
+	Network       *NodeNetwork `json:"network,omitempty"`
 }
 
 type ContainerState struct {
@@ -884,4 +912,113 @@ type ImageUpdatePolicy struct {
 // service to that tag (validated against the registry) and deploys it.
 type ImageUpdateApplyRequest struct {
 	Tag string `json:"tag,omitempty"`
+}
+
+// ---------- Private network (Tailscale) and cross-server service mesh ----------
+// See docs/api.md "Private network (Tailscale)". The panel stays public; machine-to-machine
+// traffic (agent<->control, service<->service across servers) goes over the tailnet.
+
+const (
+	NetworkProviderNone      = ""
+	NetworkProviderTailscale = "tailscale"
+)
+
+// NodeNetwork is the private-network state an agent reports in its hello.
+type NodeNetwork struct {
+	Provider string `json:"provider"` // "tailscale" | ""
+	// State: "running" | "not_installed" | "stopped" | "needs_login" | "starting" | "unknown".
+	State        string   `json:"state"`
+	ControlURL   string   `json:"control_url,omitempty"`   // URL the agent is connected through
+	FallbackURLs []string `json:"fallback_urls,omitempty"` // tried when ControlURL fails (e.g. the public URL)
+	ViaTailnet   bool     `json:"via_tailnet"`             // ControlURL is a tailnet address
+	MeshError    string   `json:"mesh_error,omitempty"`    // last cross-server forwarder problem
+}
+
+// NetworkPayload (server -> agent, MsgNetwork). ControlURL is only switched to after the agent
+// reached <ControlURL>/agent/v1/ping with its own node token; on failure the old URL stays.
+type NetworkPayload struct {
+	Provider    string `json:"provider"`
+	ControlURL  string `json:"control_url,omitempty"`  // switch to this URL ("" = keep)
+	FallbackURL string `json:"fallback_url,omitempty"` // keep as fallback (normally the public URL)
+	// AuthKey is only sent for an explicit "join tailnet" action on a node that is not on the
+	// tailnet yet: the agent installs Tailscale when missing and runs tailscale up. Never logged.
+	AuthKey  string `json:"auth_key,omitempty"`
+	Hostname string `json:"hostname,omitempty"` // tailscale --hostname, default atoll-<hostname>
+}
+
+// NetworkResult is the Output of MsgNetwork and the body of POST /servers/{id}/network.
+type NetworkResult struct {
+	Switched   bool   `json:"switched"`
+	ControlURL string `json:"control_url"`
+	TailnetIP  string `json:"tailnet_ip,omitempty"`
+	State      string `json:"state"`
+	Message    string `json:"message,omitempty"`
+}
+
+// ServerNetworkRequest is the body of POST /api/v1/servers/{id}/network.
+type ServerNetworkRequest struct {
+	// Action: "join" (install Tailscale if needed, tailscale up with the stored auth key, then
+	// switch the agent to the tailnet control URL), "switch" (node already on the tailnet:
+	// switch the control URL), "public" (switch the agent back to the public URL).
+	Action string `json:"action"`
+}
+
+// BootstrapRequest / BootstrapResponse: POST /agent/v1/bootstrap with a (not consumed) join
+// token, or GET /agent/v1/network with a node token. `?format=env` answers KEY=value lines
+// for install-agent.sh. The auth key is only ever returned here.
+type BootstrapRequest struct {
+	JoinToken string `json:"join_token"`
+}
+type BootstrapResponse struct {
+	NetworkProvider  string `json:"network_provider"`
+	TailscaleAuthKey string `json:"tailscale_auth_key,omitempty"`
+	TailnetName      string `json:"tailnet_name,omitempty"`
+	ControlURL       string `json:"control_url,omitempty"` // agent endpoint over the tailnet
+	PublicURL        string `json:"public_url"`
+}
+
+// MeshPort is one forwarded port. On an export HostPort is the port published on the node's
+// tailnet IP; on an import Target is "<tailnet_ip>:<host_port>" of the exporting node.
+type MeshPort struct {
+	Port     int    `json:"port"`     // container port of the service
+	Protocol string `json:"protocol"` // "tcp" | "udp"
+	HostPort int    `json:"host_port,omitempty"`
+	Target   string `json:"target,omitempty"`
+}
+
+// MeshExport: a local service other servers of the same project consume. The agent runs a
+// forwarder in the project network that listens on <tailnet_ip>:<host_port> only.
+type MeshExport struct {
+	ServiceID string     `json:"service_id"`
+	ProjectID string     `json:"project_id"`
+	Network   string     `json:"network"`
+	Name      string     `json:"name"` // service DNS name in the project network
+	Ports     []MeshPort `json:"ports"`
+}
+
+// MeshImport: a service of a local project that runs on another server. The agent runs a
+// forwarder in the project network with the service's DNS name (and Aliases) that forwards
+// each port to the exporting node over the tailnet.
+type MeshImport struct {
+	ServiceID string     `json:"service_id"`
+	ProjectID string     `json:"project_id"`
+	Network   string     `json:"network"`
+	Name      string     `json:"name"`
+	Aliases   []string   `json:"aliases,omitempty"`
+	ServerID  string     `json:"server_id"` // node the service runs on
+	Ports     []MeshPort `json:"ports"`
+}
+
+// MeshPayload is the full mesh of one node (MsgMesh). Empty lists remove every forwarder.
+type MeshPayload struct {
+	TailnetIP string       `json:"tailnet_ip"` // this node's tailnet IP (exports bind here only)
+	Exports   []MeshExport `json:"exports"`
+	Imports   []MeshImport `json:"imports"`
+}
+
+// ServiceMigrateRequest is the body of POST /api/v1/services/{id}/migrate: move one service
+// (container + volumes) to another server; the rest of the project stays and reaches it over
+// the tailnet mesh under the same service name.
+type ServiceMigrateRequest struct {
+	ServerID string `json:"server_id"`
 }

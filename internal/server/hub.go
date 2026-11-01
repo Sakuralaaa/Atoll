@@ -255,7 +255,11 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	s.hub.mu.Unlock()
 	s.log.Info("agent connected", "node", nodeID, "version", hello.AgentVersion, "ip", hello.PublicIPv4)
 	s.publishServer(ctx, nodeID)
-	s.goBG(func(bg context.Context) { s.pushNodeState(bg, nodeID) })
+	s.forgetMesh(nodeID)
+	s.goBG(func(bg context.Context) {
+		s.pushNodeState(bg, nodeID)
+		s.reconcileNetwork(bg, nodeID, hello) // network.go: move to the tailnet control URL
+	})
 
 	for {
 		env, err := readEnvelope(ctx, ws)
@@ -329,6 +333,7 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		var hello api.HelloPayload
 		if json.Unmarshal(env.Payload, &hello) == nil {
 			s.st.UpdateNodeHello(ctx, c.nodeID, hello)
+			s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 		}
 	default:
 		s.log.Debug("unknown agent frame", "type", env.Type)

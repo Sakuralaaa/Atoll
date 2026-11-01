@@ -188,11 +188,13 @@ func (s *Server) handleImportVolume(w http.ResponseWriter, r *http.Request) erro
 	j.Status = "uploading"
 	st := &stepper{steps: &j.Steps, save: func() { s.saveImport(context.Background(), j, kind, meta) }}
 	st.run(step)
-	blobID, _, getURL, err := s.newBlob(ctx, s.publicURL(ctx, r))
+	base := s.publicURL(ctx, r)
+	blobID, _, getURL, err := s.newBlob(ctx, base)
 	if err != nil {
 		st.fail(step, err)
 		return err
 	}
+	getURL = s.agentURL(ctx, p.ServerID, base, getURL) // network.go: tailnet base when the agent uses it
 	defer s.removeBlob(blobID)
 	if err := s.writeBlob(blobID, r.Body); err != nil {
 		st.fail(step, err)

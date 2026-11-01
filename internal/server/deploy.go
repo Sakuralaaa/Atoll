@@ -117,20 +117,24 @@ func (s *Server) deploy(ctx context.Context, serviceID, trigger string) (*api.De
 
 // deploySpec records and sends a prepared spec (used directly by rollback).
 func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.ResolvedSpec, trigger string, warnings []string) (*api.Deployment, error) {
-	p, err := s.st.GetProject(ctx, svc.ProjectID)
+	cur, stopped, err := s.st.GetService(ctx, svc.ID)
 	if err != nil {
 		return nil, err
 	}
-	if _, stopped, err := s.st.GetService(ctx, svc.ID); err == nil && stopped {
+	if stopped {
 		// An explicit deploy means the user wants it running again.
 		s.st.SetDesiredStopped(ctx, svc.ID, false)
 	}
+	node, err := s.serviceNode(ctx, cur) // current placement (a migration may just have moved it)
+	if err != nil {
+		return nil, err
+	}
 	spec.Stopped = false
 	d := api.Deployment{
-		ID: spec.DeploymentID, ServiceID: svc.ID, ServerID: p.ServerID, Status: "queued", Trigger: trigger,
+		ID: spec.DeploymentID, ServiceID: svc.ID, ServerID: node, Status: "queued", Trigger: trigger,
 		Message: strings.Join(warnings, "\n"), StartedAt: time.Now().UTC(),
 	}
-	online := s.hub.Online(p.ServerID)
+	online := s.hub.Online(node)
 	if !online {
 		d.Message = strings.TrimSpace("server offline; will apply when its agent reconnects\n" + d.Message)
 	}
@@ -141,7 +145,7 @@ func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.Reso
 	s.publish("deployment", d)
 	s.publishService(ctx, svc.ID)
 	if online {
-		nodeID := p.ServerID
+		nodeID := node
 		s.goBG(func(bg context.Context) {
 			res, err := s.hub.Request(bg, nodeID, api.MsgApply, api.ApplyPayload{Spec: spec}, s.cfg.TransferTimeout)
 			if err == nil && res.OK {
@@ -337,10 +341,14 @@ func (s *Server) pushNodeState(ctx context.Context, nodeID string) {
 		s.log.Warn("ingress push failed", "node", nodeID, "err", err)
 	}
 	s.pushBackupConfig(ctx, nodeID, true) // backups.go: agent schedules backups locally
+	s.pushMeshAll(ctx)                    // mesh.go: cross-server service names (this node's tailnet IP may have changed)
 }
 
 // serviceNode returns the node a service runs on.
 func (s *Server) serviceNode(ctx context.Context, svc *api.Service) (string, error) {
+	if svc.ServerID != "" {
+		return svc.ServerID, nil // effective placement filled by the store
+	}
 	p, err := s.st.GetProject(ctx, svc.ProjectID)
 	if err != nil {
 		return "", err

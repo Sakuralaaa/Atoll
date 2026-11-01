@@ -58,3 +58,41 @@ func Join(ctx context.Context, serverURL, joinToken string, hello api.HelloPaylo
 	}
 	return cfg, nil
 }
+
+// FetchNetwork asks the control server for the private-network settings (GET
+// /agent/v1/network with the node token), trying every configured control URL in order.
+func FetchNetwork(ctx context.Context, cfg *Config) (api.BootstrapResponse, error) {
+	var last error
+	for _, base := range cfg.ControlURLs() {
+		rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		req, err := http.NewRequestWithContext(rctx, http.MethodGet, base+"/agent/v1/network", nil)
+		if err != nil {
+			cancel()
+			return api.BootstrapResponse{}, err
+		}
+		req.Header.Set("Authorization", "Bearer "+cfg.NodeToken)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			last = err
+			continue
+		}
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
+		cancel()
+		if resp.StatusCode/100 != 2 {
+			last = fmt.Errorf("%s: %s", base, resp.Status)
+			continue
+		}
+		var br api.BootstrapResponse
+		if err := json.Unmarshal(b, &br); err != nil {
+			last = fmt.Errorf("%s: bad response: %w", base, err)
+			continue
+		}
+		return br, nil
+	}
+	if last == nil {
+		last = fmt.Errorf("no control URL configured")
+	}
+	return api.BootstrapResponse{}, last
+}

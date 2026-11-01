@@ -41,6 +41,11 @@ Flags (serve):
   --public-url URL   URL agents and the CLI use (env ATOLL_PUBLIC_URL; Settings override it)
   --log-level LEVEL  debug|info|warn|error (env ATOLL_LOG_LEVEL, default info)
 
+Private network (Tailscale), env only:
+  ATOLL_AGENT_LISTEN=tailscale:7301   extra listener for agent endpoints on this host's tailnet IP
+  ATOLL_AGENT_TAILNET_ONLY=1          stop answering /agent/* publicly (bootstrap stays public)
+  ATOLL_MESH_PORTS=41000-41999        ports published on tailnet IPs for cross-server services
+
 Flags (reset-password):
   --data DIR  --user NAME (default: owner)  --password PW (default: generated)
 `, server.Version)
@@ -88,6 +93,17 @@ func serve(args []string) int {
 		log.Error("start", "err", err)
 		return 1
 	}
+	lo, hi, err := server.ParseMeshPorts(env("ATOLL_MESH_PORTS", ""))
+	if err != nil {
+		log.Error("start", "err", err)
+		return 1
+	}
+	tailnetOnly := false
+	switch env("ATOLL_AGENT_TAILNET_ONLY", "") {
+	case "1", "true", "yes", "on":
+		tailnetOnly = true
+	}
+	srv.SetNetworkOptions(server.NetOptions{AgentListen: env("ATOLL_AGENT_LISTEN", ""), AgentTailnetOnly: tailnetOnly, MeshPortLo: lo, MeshPortHi: hi})
 	hs := &http.Server{
 		Addr:              *listen,
 		Handler:           srv.Handler(),
@@ -96,6 +112,7 @@ func serve(args []string) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go srv.ServeAgentListener(ctx) // no-op unless ATOLL_AGENT_LISTEN is set
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("atoll-server listening", "addr", *listen, "data", *data, "version", server.Version)

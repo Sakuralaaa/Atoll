@@ -83,6 +83,11 @@ func (s *Server) execConfirmed(ctx context.Context, r *http.Request, c *api.Conf
 		json.Unmarshal(payload, &req)
 		_, err := s.startMigration(ctx, c.Target, req.ServerID, s.publicURL(ctx, r), actor)
 		return err
+	case "service.migrate":
+		var req api.ServiceMigrateRequest
+		json.Unmarshal(payload, &req)
+		_, err := s.startServiceMigration(ctx, c.Target, req.ServerID, s.publicURL(ctx, r), actor)
+		return err
 	case "import.cutover":
 		_, err := s.startCutover(ctx, c.Target, actor)
 		return err
@@ -115,7 +120,8 @@ func (s *Server) settings(ctx context.Context) api.Settings {
 		st.PublicURL = s.cfg.PublicURL
 	}
 	st.ImageCheckIntervalHours = int(s.imageCheckInterval(ctx) / time.Hour)
-	s.fillBackupSettings(ctx, &st) // backups.go
+	s.fillBackupSettings(ctx, &st)  // backups.go
+	s.fillNetworkSettings(ctx, &st) // network.go
 	return st
 }
 
@@ -171,6 +177,10 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	networkChanged, err := s.applyNetworkSettings(ctx, req) // network.go
+	if err != nil {
+		return err
+	}
 	for k, v := range set {
 		if err := s.st.SetSetting(ctx, k, v); err != nil {
 			return err
@@ -188,6 +198,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	}
 	if backupChanged {
 		s.pushBackupConfigAll(ctx, true)
+	}
+	if networkChanged {
+		s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	}
 	out := s.settings(ctx)
 	out.BackupRepoPassword = generatedBackupPassword // shown once

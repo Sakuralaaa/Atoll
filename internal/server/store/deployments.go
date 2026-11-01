@@ -93,7 +93,7 @@ func (s *Store) SupersedeOthers(ctx context.Context, serviceID, keepID string) e
 // DesiredSpecsForNode returns, for every service on nodeID, the spec of its
 // latest deployment with Stopped set from desired state.
 func (s *Store) DesiredSpecsForNode(ctx context.Context, nodeID string) ([]api.ResolvedSpec, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT s.id, s.desired_stopped FROM services s JOIN projects p ON p.id=s.project_id WHERE p.server_id=? ORDER BY s.id`, nodeID)
+	rows, err := s.DB.QueryContext(ctx, `SELECT s.id, s.desired_stopped FROM services s JOIN projects p ON p.id=s.project_id WHERE `+EffNode+`=? ORDER BY s.id`, nodeID)
 	if err != nil {
 		return nil, err
 	}
