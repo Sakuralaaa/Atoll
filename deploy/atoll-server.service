@@ -1,15 +1,18 @@
 [Unit]
 Description=Atoll control server (REST API, web panel, agent hub)
 Documentation=https://github.com/Sakuralaaa/Atoll
-After=network-online.target
-Wants=network-online.target
+# tailscaled: ATOLL_AGENT_LISTEN=tailscale:7301 serves agents on this host's tailnet IP.
+# install-server.sh only adds it when Tailscale is installed; drop it on hosts without.
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 Environment=ATOLL_LISTEN=:7300
 Environment=ATOLL_DATA=/var/lib/atoll
-# Optional overrides (ATOLL_LISTEN, ATOLL_PUBLIC_URL, ATOLL_LOG_LEVEL) live here.
+# Optional overrides (ATOLL_LISTEN, ATOLL_PUBLIC_URL, ATOLL_LOG_LEVEL, ATOLL_AGENT_LISTEN,
+# ATOLL_AGENT_TAILNET_ONLY, ATOLL_MESH_PORTS) live here.
 EnvironmentFile=-/etc/atoll/server.env
 ExecStart=/usr/local/bin/atoll-server serve
 Restart=always

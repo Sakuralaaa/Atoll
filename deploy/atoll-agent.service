@@ -3,8 +3,10 @@ Description=Atoll agent (worker node daemon)
 Documentation=https://github.com/Sakuralaaa/Atoll
 # Containers run in the Docker Engine (they are dockerd's children, not ours, so they keep
 # running when the agent stops). The agent also waits for dockerd on its own.
-After=network-online.target docker.service
-Wants=network-online.target docker.service
+# tailscaled: the control URL may be a tailnet address. install-agent.sh only adds it when
+# Tailscale is installed; drop it from both lines on hosts without Tailscale.
+After=network-online.target docker.service tailscaled.service
+Wants=network-online.target docker.service tailscaled.service
 # Never give up restarting after a burst of failures.
 StartLimitIntervalSec=0
 

@@ -47,6 +47,16 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 
 节点 agent 主动连出到中控：WebSocket over HTTPS（`wss://<面板域名>/agent/v1/connect`），用加入时换取的节点 token（Bearer）认证，节点无需开放任何入站端口。没有使用 mTLS，所以中控务必放在 HTTPS 后面（`--domain` 或你自己的 TLS 反代）。
 
+### 私有网络（Tailscale，可选）
+
+面板仍走公网 HTTPS；中控 ↔ 节点、跨服务器的服务互访可以改走 Tailscale。**只有中控和节点需要装 Tailscale，你自己的电脑不需要**（面板、CLI 都用公网地址）。电脑上同时开着 Tailscale 和 Clash TUN 的，在规则里加 `IP-CIDR,100.64.0.0/10,DIRECT`。
+
+1. Tailscale 后台：ACL 里 `tagOwners` 加 `"tag:atoll": ["autogroup:admin"]`，并放行 `tag:atoll` → `tag:atoll:7301,41000-41999`；生成 auth key：**可复用、非临时（ephemeral 关）、预授权、标签 `tag:atoll`**。
+2. 中控：`install-server.sh --domain panel.example.com --tailscale-authkey tskey-auth-xxx [--agent-tailnet-only]`（以 `atoll-control` 加入 tailnet，`ATOLL_AGENT_LISTEN=tailscale:7301`），再到面板「设置 → 私有网络」选 Tailscale 并填同一个 key。中控的 tailnet 地址要用 **100.x IP**（节点用 `--accept-dns=false`，解析不了 MagicDNS 名）。
+3. 节点：照常运行上面的安装命令。脚本会向中控 bootstrap、安装 Tailscale、`tailscale up --ssh=false --accept-dns=false --accept-routes=false`（已在线则跳过，key 不会打印），经 tailnet 地址加入，公网地址留作备用；tailnet 不通时警告并走公网，之后可在「服务器 → 加入 tailnet」或 `atoll-agent tailnet up` 迁移。
+
+`--agent-tailnet-only`（`ATOLL_AGENT_TAILNET_ONLY=1`）之后公网上的 `/agent/*` 一律 404（`/agent/v1/bootstrap` 除外），自己配 Caddy 的也要同样处理。详见 [docs/api.md](docs/api.md#private-network-tailscale)。
+
 ## 安全
 
 面板可以直接放在公网域名上，靠以下几层保护：

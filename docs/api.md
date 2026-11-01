@@ -94,6 +94,51 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 - `POST /agent/v1/join` JoinRequest → JoinResponse
 - `GET  /agent/v1/connect` (WebSocket, `Authorization: Bearer <node_token>`) — Envelope frames, see types.go.
 - `PUT  /agent/v1/blobs/{token}` / `GET /agent/v1/blobs/{token}` — volume tar.gz relay for migration/import (one-time tokens, stored in `<data>/blobs`, deleted after import).
+- `POST /agent/v1/bootstrap` / `GET /agent/v1/network` / `GET /agent/v1/ping` — private network, see [Private network (Tailscale)](#private-network-tailscale).
+
+## Private network (Tailscale)
+The panel stays on its public HTTPS URL. Machine-to-machine traffic — agent ↔ control server and service ↔ service across servers — can go over a Tailscale tailnet instead.
+
+**Who needs Tailscale.** The control server and the worker nodes only. Your own PCs do not: the panel, the `atoll` CLI and MCP keep using the public URL. If a PC of yours does run Tailscale next to Clash/Mihomo in TUN mode, add `IP-CIDR,100.64.0.0/10,DIRECT` before the final rule so tailnet traffic is not sent to the proxy.
+
+**Tailscale admin console, once.**
+- ACL policy (merge into yours; the default allow-all policy already permits this):
+  ```json
+  {
+    "tagOwners": { "tag:atoll": ["autogroup:admin"] },
+    "acls": [
+      { "action": "accept", "src": ["tag:atoll"], "dst": ["tag:atoll:7301,41000-41999"] }
+    ]
+  }
+  ```
+  7301 is the control server's agent listener (`ATOLL_AGENT_LISTEN`), 41000–41999 the cross-server service ports (`ATOLL_MESH_PORTS`).
+- Auth key (Settings → Keys → Generate auth key): **reusable**, **not ephemeral** (nodes must survive restarts), **pre-approved**, tag **`tag:atoll`**. Tagged nodes do not expire; the key's own expiry only limits when new nodes can join.
+
+**Control server.** `install-server.sh --tailscale-authkey tskey-auth-... [--agent-tailnet-only]` installs Tailscale (official install script, else the official apt repo), runs `tailscale up --hostname=atoll-control --ssh=false --accept-dns=false --accept-routes=false` (skipped when the host already is on a tailnet), writes `ATOLL_AGENT_LISTEN=tailscale:7301` (and `ATOLL_AGENT_TAILNET_ONLY=1`) to `/etc/atoll/server.env`, orders the unit after `tailscaled.service` and checks `http://<tailnet IP>:7301/agent/v1/ping`. Then in the panel, **Settings → Private network**: provider Tailscale, paste the same auth key (stored encrypted with `master.key`, never returned or logged). The tailnet control URL defaults to `http://<control tailnet IP>:7301`; if you set it by hand it must be the **100.x IP**, not a MagicDNS name — workers run `--accept-dns=false`.
+
+**Worker nodes.** The usual `install-agent.sh --server https://panel... --token atl_join_...` command:
+1. `POST /agent/v1/bootstrap?format=env` with the join token (checked, not consumed);
+2. if the provider is Tailscale: installs Tailscale, `tailscale up --authkey=… --hostname=atoll-<hostname> --ssh=false --accept-dns=false --accept-routes=false` (skipped when already up; the key is never printed), waits for `<control tailnet URL>/agent/v1/ping`;
+3. joins through the tailnet URL and keeps `--server` in `fallback_urls`. If any tailnet step fails it warns and joins over `--server`; move it later with **Servers → Join tailnet** or `atoll-agent tailnet up`;
+4. orders `atoll-agent.service` after `tailscaled.service`. Re-running the installer with either URL counts as already joined.
+Flags: `--tailscale-authkey KEY` (use this key instead of the server's), `--tailscale-hostname NAME`, `--no-tailnet`.
+
+`--ssh=false --accept-dns=false --accept-routes=false`: Atoll never enables Tailscale SSH, never rewrites the host's DNS and never installs subnet routes, so joining cannot break the host's existing networking.
+
+**Endpoints.**
+- `POST /agent/v1/bootstrap` `{join_token}` → BootstrapResponse `{network_provider, tailscale_auth_key?, tailnet_name?, control_url?, public_url}`. With `?format=env`: `KEY=value` lines `ATOLL_NETWORK`, `ATOLL_TS_AUTHKEY`, `ATOLL_TAILNET`, `ATOLL_CONTROL_URL`, `ATOLL_PUBLIC_URL`. 401 `invalid_join_token`. Always public.
+- `GET /agent/v1/network` (node token) — the same, for `atoll-agent tailnet up`.
+- `GET /agent/v1/ping` → `{ok: true}`; with a node token `{ok: true, node_id}` (401 for a bad token). Agents verify a new control URL with it before switching.
+
+**Tailnet-only agents.** `ATOLL_AGENT_TAILNET_ONLY=1` makes the public listener answer `/agent/*` with 404 `tailnet_only`, except `POST /agent/v1/bootstrap`. Do the same in front of it: `install-server.sh --domain … --agent-tailnet-only` writes this into its Caddy site; with your own Caddy add
+```
+@agent {
+	path /agent/*
+	not path /agent/v1/bootstrap
+}
+respond @agent 404
+```
+Nodes that are not on the tailnet then cannot connect, so move every node first.
 
 ## Conventions
 - IDs: 12-char lowercase base32 with prefix: `srv_`, `prj_`, `svc_`, `dep_`, `dom_`, `tok_`, `cfm_`, `imp_`, `bak_`, `rst_`.
