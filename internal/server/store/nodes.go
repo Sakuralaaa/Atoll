@@ -9,15 +9,21 @@ import (
 )
 
 const nodeCols = `id, name, role, status, public_ipv4, public_ipv6, tailnet_host, provider, region, os, arch,
-	cpu_cores, mem_mb, disk_gb, agent_version, last_seen_at, created_at`
+	cpu_cores, mem_mb, disk_gb, agent_version, last_seen_at, created_at, tailnet_ip, network`
 
 func scanNode(row interface{ Scan(...any) error }) (*api.Server, error) {
 	var n api.Server
-	var last, c string
+	var last, c, netw string
 	err := row.Scan(&n.ID, &n.Name, &n.Role, &n.Status, &n.PublicIPv4, &n.PublicIPv6, &n.TailnetHost, &n.Provider, &n.Region,
-		&n.OS, &n.Arch, &n.CPUCores, &n.MemMB, &n.DiskGB, &n.AgentVersion, &last, &c)
+		&n.OS, &n.Arch, &n.CPUCores, &n.MemMB, &n.DiskGB, &n.AgentVersion, &last, &c, &n.TailnetIP, &netw)
 	if err != nil {
 		return nil, mapErr(err)
+	}
+	if netw != "" {
+		var nn api.NodeNetwork
+		if json.Unmarshal([]byte(netw), &nn) == nil {
+			n.Network = &nn
+		}
 	}
 	n.LastSeenAt = parseTS(last)
 	n.CreatedAt = parseTS(c)
@@ -26,9 +32,13 @@ func scanNode(row interface{ Scan(...any) error }) (*api.Server, error) {
 
 // CreateNode inserts a node.
 func (s *Store) CreateNode(ctx context.Context, n api.Server) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO nodes(`+nodeCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	netw := ""
+	if n.Network != nil {
+		netw = mustJSON(n.Network)
+	}
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO nodes(`+nodeCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		n.ID, n.Name, n.Role, n.Status, n.PublicIPv4, n.PublicIPv6, n.TailnetHost, n.Provider, n.Region, n.OS, n.Arch,
-		n.CPUCores, n.MemMB, n.DiskGB, n.AgentVersion, TS(n.LastSeenAt), TS(n.CreatedAt))
+		n.CPUCores, n.MemMB, n.DiskGB, n.AgentVersion, TS(n.LastSeenAt), TS(n.CreatedAt), n.TailnetIP, netw)
 	return mapErr(err)
 }
 
@@ -63,9 +73,14 @@ func (s *Store) UpdateNodeMeta(ctx context.Context, id, name, provider, region s
 
 // UpdateNodeHello records facts reported by the agent.
 func (s *Store) UpdateNodeHello(ctx context.Context, id string, h api.HelloPayload) error {
+	netw := ""
+	if h.Network != nil {
+		netw = mustJSON(h.Network)
+	}
 	_, err := s.DB.ExecContext(ctx, `UPDATE nodes SET public_ipv4=COALESCE(NULLIF(?, ''), public_ipv4), public_ipv6=?, tailnet_host=?, os=?, arch=?,
-		cpu_cores=?, mem_mb=?, disk_gb=?, agent_version=?, docker_version=?, status='online', last_seen_at=? WHERE id=?`,
-		h.PublicIPv4, h.PublicIPv6, h.TailnetHost, h.OS, h.Arch, h.CPUCores, h.MemMB, h.DiskGB, h.AgentVersion, h.DockerVersion, TS(time.Now()), id)
+		cpu_cores=?, mem_mb=?, disk_gb=?, agent_version=?, docker_version=?, status='online', last_seen_at=?, tailnet_ip=?, network=? WHERE id=?`,
+		h.PublicIPv4, h.PublicIPv6, h.TailnetHost, h.OS, h.Arch, h.CPUCores, h.MemMB, h.DiskGB, h.AgentVersion, h.DockerVersion, TS(time.Now()),
+		h.TailnetIP, netw, id)
 	return err
 }
 

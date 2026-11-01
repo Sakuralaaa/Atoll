@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Version is the agent version, set at build time with -ldflags "-X github.com/Sakuralaaa/Atoll/internal/agent.Version=v1.2.3".
@@ -28,8 +29,11 @@ const (
 // Config is /etc/atoll/agent.json, written by `atoll-agent join` (mode 0600).
 type Config struct {
 	ServerURL string `json:"server_url"`
-	NodeID    string `json:"node_id"`
-	NodeToken string `json:"node_token"`
+	// FallbackURLs are tried in order when ServerURL keeps failing (e.g. the public URL after
+	// the agent switched to the control server's tailnet address). Managed by the agent.
+	FallbackURLs []string `json:"fallback_urls,omitempty"`
+	NodeID       string   `json:"node_id"`
+	NodeToken    string   `json:"node_token"`
 	// DataDir defaults to /var/lib/atoll.
 	DataDir string `json:"data_dir,omitempty"`
 	// Firewall enables the nftables Cloudflare-only rules for 80/443 when the server asks
@@ -42,6 +46,38 @@ type Config struct {
 }
 
 func (c *Config) FirewallEnabled() bool { return c.Firewall == nil || *c.Firewall }
+
+// ControlURLs is ServerURL followed by the fallbacks, deduplicated.
+func (c *Config) ControlURLs() []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, u := range append([]string{c.ServerURL}, c.FallbackURLs...) {
+		u = strings.TrimRight(strings.TrimSpace(u), "/")
+		if u != "" && !seen[u] {
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// SwitchServer makes url the primary control URL and keeps every previous URL as a fallback.
+func (c *Config) SwitchServer(url, extraFallback string) {
+	url = strings.TrimRight(strings.TrimSpace(url), "/")
+	prev := c.ControlURLs()
+	if extraFallback != "" {
+		prev = append(prev, strings.TrimRight(extraFallback, "/"))
+	}
+	c.ServerURL = url
+	c.FallbackURLs = nil
+	seen := map[string]bool{url: true}
+	for _, u := range prev {
+		if !seen[u] {
+			seen[u] = true
+			c.FallbackURLs = append(c.FallbackURLs, u)
+		}
+	}
+}
 
 func LoadConfig(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
@@ -93,6 +129,7 @@ func (p Paths) TLSDir() string      { return filepath.Join(p.Root, "tls") }
 func (p Paths) CaddyDir() string    { return filepath.Join(p.Root, "caddy") }
 func (p Paths) FirewallDir() string { return filepath.Join(p.Root, "firewall") }
 func (p Paths) TmpDir() string      { return filepath.Join(p.Root, "tmp") }
+func (p Paths) MeshFile() string    { return filepath.Join(p.Root, "mesh", "mesh.json") }
 
 // writeFileAtomic writes to a temp file in the same dir, fsyncs and renames over path.
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {

@@ -136,6 +136,9 @@ func (s *Server) Handler() http.Handler {
 		return errf(404, "not_found", "no such endpoint: %s %s", r.Method, r.URL.Path)
 	})
 
+	// private network (network.go): server network actions, service migrate, bootstrap/ping
+	s.registerNetworkRoutes(mux, a, open)
+
 	// agent
 	open("POST /agent/v1/join", s.handleAgentJoin)
 	mux.HandleFunc("GET /agent/v1/connect", s.handleAgentConnect)
@@ -144,7 +147,7 @@ func (s *Server) Handler() http.Handler {
 
 	// web UI (SPA)
 	mux.Handle("/", spaHandler(webui.FS()))
-	return securityHeaders(mux)
+	return securityHeaders(s.agentGate(mux))
 }
 
 func securityHeaders(h http.Handler) http.Handler {

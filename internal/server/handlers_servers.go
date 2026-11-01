@@ -96,6 +96,9 @@ func (s *Server) checkServerEmpty(ctx context.Context, id string) error {
 	if len(ps) > 0 {
 		return errf(409, "server_in_use", "server still hosts %d project(s); migrate or delete them first", len(ps))
 	}
+	if n, err := s.st.CountServicesOnNode(ctx, id); err == nil && n > 0 {
+		return errf(409, "server_in_use", "server still runs %d service(s) of other servers' projects; migrate or delete them first", n)
+	}
 	return nil
 }
 

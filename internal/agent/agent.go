@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/Sakuralaaa/Atoll/internal/agent/tailnet"
 	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/coder/websocket"
 )
@@ -45,6 +47,20 @@ type Agent struct {
 	MetricsEvery time.Duration
 	MaxBackoff   time.Duration
 	HelloFunc    func(ctx context.Context) api.HelloPayload
+	// FailoverAfter is how many failed connection attempts on one control URL make the agent
+	// try the next one (fallback URLs, e.g. public after a tailnet switch). Default 3.
+	FailoverAfter int
+	// ProbeTimeout bounds the reachability check before switching the control URL (60s).
+	ProbeTimeout time.Duration
+	HTTPClient   *http.Client // probes; nil = default with 10s timeout
+	// CfgPath is where Cfg is persisted when the control URL changes ("" = memory only).
+	CfgPath string
+	Tailnet *tailnet.Client // nil = real tailscale CLI
+	// MeshErr reports the cross-server forwarder status for the hello frame (optional).
+	MeshErr      func() string
+	cfgMu        sync.Mutex
+	connURL      string
+	switched     atomic.Bool
 	sampler      NodeSampler
 	connMu       sync.Mutex
 	conn         *websocket.Conn
@@ -249,13 +265,34 @@ func (a *Agent) connectLoop(ctx context.Context) {
 	if maxBackoff <= 0 {
 		maxBackoff = 30 * time.Second
 	}
+	failover := a.FailoverAfter
+	if failover <= 0 {
+		failover = 3
+	}
 	initial := min(time.Second, maxBackoff)
 	backoff := initial
+	idx, fails := 0, 0
 	for ctx.Err() == nil {
+		urls := a.controlURLs()
+		if idx >= len(urls) {
+			idx = 0
+		}
+		u := urls[idx]
 		start := time.Now()
-		err := a.session(ctx)
+		connected, err := a.session(ctx, u)
 		if ctx.Err() != nil {
 			return
+		}
+		if a.switched.Swap(false) {
+			// The primary URL changed: reconnect right away, starting with the new primary.
+			idx, fails, backoff = 0, 0, initial
+			continue
+		}
+		if connected {
+			idx, fails = 0, 0 // after a working session always prefer the primary again
+		} else if fails++; fails >= failover && len(urls) > 1 {
+			idx, fails = (idx+1)%len(urls), 0
+			a.Log.Warn("control URL keeps failing; trying the next one", "failed", u, "next", urls[idx])
 		}
 		if time.Since(start) > time.Minute {
 			backoff = initial
@@ -278,11 +315,12 @@ type inbound struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-// session runs one WebSocket connection until it fails.
-func (a *Agent) session(ctx context.Context) error {
-	u, err := wsURL(a.Cfg.ServerURL)
+// session runs one WebSocket connection to server until it fails. connected reports whether
+// the connection was established (hello sent).
+func (a *Agent) session(ctx context.Context, server string) (connected bool, err error) {
+	u, err := wsURL(server)
 	if err != nil {
-		return err
+		return false, err
 	}
 	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	hdr := http.Header{}
@@ -291,18 +329,30 @@ func (a *Agent) session(ctx context.Context) error {
 	cancel()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-			return fmt.Errorf("server rejected node token (401); re-run `atoll-agent join`: %w", err)
+			return false, fmt.Errorf("server rejected node token (401); re-run `atoll-agent join`: %w", err)
 		}
-		return err
+		return false, err
 	}
 	defer c.CloseNow()
 	c.SetReadLimit(64 << 20)
 
+	a.connMu.Lock()
+	a.connURL = strings.TrimRight(server, "/")
+	a.connMu.Unlock()
 	hctx, hcancel := context.WithTimeout(ctx, 15*time.Second)
 	hello := a.HelloFunc(hctx)
+	if hello.TailnetIP == "" || hello.Network == nil {
+		ip, nn := a.networkInfo(hctx)
+		if hello.TailnetIP == "" {
+			hello.TailnetIP = ip
+		}
+		if hello.Network == nil {
+			hello.Network = nn
+		}
+	}
 	hcancel()
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
-		return err
+		return false, err
 	}
 	a.connMu.Lock()
 	a.conn = c
@@ -320,7 +370,7 @@ func (a *Agent) session(ctx context.Context) error {
 	}()
 	for _, env := range queued {
 		if err := a.write(c, env); err != nil {
-			return err
+			return true, err
 		}
 	}
 	go a.sendStatus(ctx, true)
@@ -349,7 +399,7 @@ func (a *Agent) session(ctx context.Context) error {
 	for {
 		_, data, err := c.Read(ctx)
 		if err != nil {
-			return err
+			return true, err
 		}
 		var msg inbound
 		if err := json.Unmarshal(data, &msg); err != nil {
@@ -455,6 +505,12 @@ func (a *Agent) Handle(ctx context.Context, msgType string, raw json.RawMessage)
 			return "", err
 		}
 		return a.exec(ctx, p)
+	case api.MsgNetwork:
+		p, err := decode[api.NetworkPayload](raw)
+		if err != nil {
+			return "", err
+		}
+		return a.handleNetwork(ctx, p)
 	case api.MsgVolumeExport, api.MsgVolumeImport:
 		p, err := decode[api.VolumeTransferPayload](raw)
 		if err != nil {

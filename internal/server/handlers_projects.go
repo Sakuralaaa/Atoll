@@ -163,13 +163,22 @@ func (s *Server) execDeleteProject(ctx context.Context, id, actor string) error 
 	if err != nil {
 		return err
 	}
+	nodes := map[string]bool{p.ServerID: true}
 	for i := range svcs {
-		s.teardownService(ctx, &svcs[i], p.ServerID, false)
+		node := svcs[i].ServerID
+		if node == "" {
+			node = p.ServerID
+		}
+		nodes[node] = true
+		s.teardownService(ctx, &svcs[i], node, false)
 	}
 	if err := s.st.DeleteProject(ctx, id); err != nil {
 		return err
 	}
-	s.pushIngress(ctx, p.ServerID)
+	for n := range nodes {
+		s.pushIngress(ctx, n)
+	}
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	s.st.Audit(ctx, actor, "project.delete", id, map[string]string{"name": p.Name})
 	s.publish("project", map[string]any{"id": id, "deleted": true})
 	return nil
@@ -219,13 +228,28 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 	if err := decode(r, &req); err != nil {
 		return err
 	}
+	placement := strings.TrimSpace(req.ServerID)
+	if placement != "" && placement != p.ServerID {
+		if _, err := s.st.GetNode(r.Context(), placement); err != nil {
+			return badRequest("unknown server_id %q", placement)
+		}
+		if err := s.checkPlacement(r.Context(), p.ID, "", placement); err != nil { // network.go
+			return err
+		}
+	}
 	svc, err := s.createService(r.Context(), p, req.Service, req.Env, true)
 	if err != nil {
 		return err
 	}
+	if placement != "" && placement != p.ServerID {
+		if err := s.st.SetServiceServer(r.Context(), svc.ID, placement); err != nil {
+			return err
+		}
+	}
 	if _, err := s.deploy(r.Context(), svc.ID, "create"); err != nil {
 		return err
 	}
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.create", svc.ID, map[string]string{"name": svc.Name, "image": svc.Image})
 	svc, _, err = s.st.GetService(r.Context(), svc.ID)
 	if err != nil {
@@ -322,7 +346,14 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 	if err := decode(r, &raw); err != nil {
 		return err
 	}
-	for _, f := range []string{"id", "project_id", "kind", "status", "replicas", "created_at", "domains"} {
+	if v, ok := raw["server_id"]; ok {
+		var to string
+		json.Unmarshal(v, &to)
+		if to != "" && to != svc.ServerID {
+			return badRequest("to move a service to another server use POST /api/v1/services/%s/migrate", svc.ID)
+		}
+	}
+	for _, f := range []string{"id", "project_id", "kind", "status", "replicas", "created_at", "domains", "server_id"} {
 		delete(raw, f)
 	}
 	merged, _ := json.Marshal(svc)
@@ -354,6 +385,7 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 			s.pushIngress(r.Context(), nodeID)
 		}
 	}
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) }) // name or ports may have changed
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.update", svc.ID, keys(raw))
 	out, _, err := s.st.GetService(r.Context(), svc.ID)
 	if err != nil {
@@ -396,6 +428,7 @@ func (s *Server) execDeleteService(ctx context.Context, id, actor string) error 
 		return err
 	}
 	s.pushIngress(ctx, nodeID)
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	s.st.Audit(ctx, actor, "service.delete", id, map[string]string{"name": svc.Name})
 	s.publish("service", map[string]any{"id": id, "project_id": svc.ProjectID, "deleted": true})
 	return nil

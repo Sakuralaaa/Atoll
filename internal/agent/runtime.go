@@ -68,6 +68,9 @@ type PortBinding struct {
 	ContainerPort int
 	HostPort      int
 	Protocol      string // "tcp" | "udp"
+	// HostIP restricts the published port to one host address ("" = all). Mesh exports bind
+	// to the node's tailnet IP only, so they are never reachable from the public interface.
+	HostIP string
 }
 
 type HealthSpec struct {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
 func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {
@@ -86,13 +87,85 @@ func (s *Server) startMigration(ctx context.Context, projectID, toID, base, acto
 		return nil, err
 	}
 	s.st.Audit(ctx, actor, "project.migrate", projectID, map[string]string{"from": p.ServerID, "to": toID, "job": job.ID})
+	return s.launchMigration(job, base), nil
+}
+
+// startServiceMigration moves one service (container + volumes) to another server. The rest
+// of the project stays and reaches it under the same name over the tailnet mesh.
+func (s *Server) startServiceMigration(ctx context.Context, serviceID, toID, base, actor string) (*api.MigrationJob, error) {
+	svc, _, err := s.st.GetService(ctx, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	from := svc.ServerID
+	if from == toID {
+		return nil, badRequest("service already runs on that server")
+	}
+	if _, err := s.st.GetNode(ctx, toID); err != nil {
+		return nil, badRequest("unknown target server")
+	}
+	if err := s.checkPlacement(ctx, svc.ProjectID, svc.ID, toID); err != nil {
+		return nil, err
+	}
+	if !s.hub.Online(from) {
+		return nil, errf(409, "server_offline", "source server is offline; data cannot be exported")
+	}
+	if !s.hub.Online(toID) {
+		return nil, errf(409, "server_offline", "target server is offline")
+	}
+	if !s.lockJob(svc.ProjectID) {
+		return nil, errf(409, "busy", "another migration or import is running for this project")
+	}
+	job := api.MigrationJob{ID: newID("mig"), ProjectID: svc.ProjectID, ServiceID: svc.ID, FromServer: from, ToServer: toID, Status: "running",
+		Steps: []api.ImportStep{}, CreatedAt: time.Now().UTC()}
+	if err := s.st.SaveMigration(ctx, job); err != nil {
+		s.unlockJob(svc.ProjectID)
+		return nil, err
+	}
+	s.st.Audit(ctx, actor, "service.migrate", svc.ID, map[string]string{"from": from, "to": toID, "job": job.ID})
+	return s.launchMigration(job, base), nil
+}
+
+func (s *Server) handleServiceMigrate(w http.ResponseWriter, r *http.Request) error {
+	svc, _, err := s.st.GetService(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	var req api.ServiceMigrateRequest
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	to, err := s.st.GetNode(r.Context(), req.ServerID)
+	if err != nil {
+		return badRequest("unknown target server_id %q", req.ServerID)
+	}
+	if to.ID == svc.ServerID {
+		return badRequest("service already runs on %s", to.Name)
+	}
+	if err := s.checkPlacement(r.Context(), svc.ProjectID, svc.ID, to.ID); err != nil {
+		return err
+	}
+	fromName := svc.ServerID
+	if n, err := s.st.GetNode(r.Context(), svc.ServerID); err == nil {
+		fromName = n.Name
+	}
+	base := s.publicURL(r.Context(), r)
+	return s.requireConfirm(w, r, "service.migrate", svc.ID, fmt.Sprintf("Move service %s from %s to %s (it stops during the data copy; the project reaches it over the tailnet)", svc.Name, fromName, to.Name),
+		req, func(ctx context.Context) (int, any, error) {
+			job, err := s.startServiceMigration(ctx, svc.ID, req.ServerID, base, principalFrom(r.Context()).actor())
+			return 200, job, err
+		})
+}
+
+func (s *Server) launchMigration(job api.MigrationJob, base string) *api.MigrationJob {
 	s.publish("migration", job)
 	snapshot := job
 	s.goBG(func(bg context.Context) {
-		defer s.unlockJob(projectID)
+		defer s.unlockJob(job.ProjectID)
 		s.runMigration(bg, &job, base)
+		s.pushMeshAll(bg) // names of moved services now resolve across servers
 	})
-	return &snapshot, nil
+	return &snapshot
 }
 
 func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base string) {
@@ -111,10 +184,28 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		st.save()
 	}
 	from, to := job.FromServer, job.ToServer
-	svcs, err := s.st.ListServices(ctx, job.ProjectID)
+	all, err := s.st.ListServices(ctx, job.ProjectID)
 	if err != nil {
 		finish(err)
 		return
+	}
+	// The services that move: one (service migration) or every service on the source server
+	// (project migration; services placed on other servers stay where they are).
+	var svcs []api.Service
+	for _, v := range all {
+		if (job.ServiceID != "" && v.ID == job.ServiceID) || (job.ServiceID == "" && v.ServerID == from) {
+			svcs = append(svcs, v)
+		}
+	}
+	if job.ServiceID != "" && len(svcs) == 0 {
+		finish(fmt.Errorf("service %s not found", job.ServiceID))
+		return
+	}
+	setNode := func(node string) error {
+		if job.ServiceID != "" {
+			return s.st.SetServiceServer(ctx, job.ServiceID, node)
+		}
+		return s.st.SetProjectServer(ctx, job.ProjectID, node)
 	}
 	// pre-plan all steps so the UI shows the whole path
 	for _, n := range []string{"Stop services on source"} {
@@ -168,21 +259,25 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		}
 	}
 
-	// switch the project and deploy on target
-	if err := s.st.SetProjectServer(ctx, job.ProjectID, to); err != nil {
+	// switch the placement and deploy on target
+	if err := setNode(to); err != nil {
 		restartSource()
 		finish(err)
 		return
 	}
 	revert := func(cause error) {
-		s.st.SetProjectServer(ctx, job.ProjectID, from)
+		setNode(from)
 		for _, v := range svcs {
 			s.hub.Call(ctx, to, api.MsgRemove, api.RemovePayload{ServiceID: v.ID, KeepVolumes: true}, 0)
 		}
 		restartSource()
 		s.pushIngress(ctx, to)
 		s.pushIngress(ctx, from)
-		finish(fmt.Errorf("%w (rolled back: project stays on source server)", cause))
+		what := "project stays"
+		if job.ServiceID != "" {
+			what = "service stays"
+		}
+		finish(fmt.Errorf("%w (rolled back: %s on source server)", cause, what))
 	}
 	if err := st.do("Start services on target", func() (string, error) {
 		var ids []string
@@ -212,9 +307,19 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		return "routes moved to target", nil
 	})
 	dnsErr := st.do("Switch DNS", func() (string, error) {
-		doms, err := s.st.ListDomains(ctx, "", job.ProjectID)
+		all, err := s.st.ListDomains(ctx, job.ServiceID, job.ProjectID)
 		if err != nil {
 			return "", err
+		}
+		moved := map[string]bool{}
+		for _, v := range svcs {
+			moved[v.ID] = true
+		}
+		var doms []store.DomainRow
+		for _, d := range all {
+			if moved[d.ServiceID] {
+				doms = append(doms, d)
+			}
 		}
 		if len(doms) == 0 {
 			return "no domains", nil
@@ -257,6 +362,9 @@ func (s *Server) relayVolume(ctx context.Context, from, to, serviceID, volume, b
 	if err != nil {
 		return "", err
 	}
+	// Each agent reaches the blob relay through the URL it is connected with (tailnet or public).
+	putURL = s.agentURL(ctx, from, base, putURL)
+	getURL = s.agentURL(ctx, to, base, getURL)
 	defer s.removeBlob(blobID)
 	if _, err := s.hub.Call(ctx, from, api.MsgVolumeExport, api.VolumeTransferPayload{ServiceID: serviceID, Volume: volume, URL: putURL}, s.cfg.TransferTimeout); err != nil {
 		return "", fmt.Errorf("export: %w", err)

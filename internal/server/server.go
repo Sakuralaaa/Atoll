@@ -55,7 +55,8 @@ type Server struct {
 	jobMu   sync.Mutex
 	jobBusy map[string]bool
 
-	upd *updater // image update detection (imageupdates.go)
+	upd *updater  // image update detection (imageupdates.go)
+	net *netState // private network provider + mesh (network.go)
 
 	bg     context.Context
 	cancel context.CancelFunc

@@ -45,11 +45,11 @@ type BackupPolicyRow struct {
 
 // ListBackupPolicies returns every stored policy ("" nodeID = all nodes) with the service's node.
 func (s *Store) ListBackupPolicies(ctx context.Context, nodeID string) ([]BackupPolicyRow, error) {
-	q := `SELECT b.service_id, b.enabled, b.schedule, b.timezone, b.keep_daily, b.keep_weekly, b.keep_monthly, b.include_volumes, b.updated_at, p.server_id
+	q := `SELECT b.service_id, b.enabled, b.schedule, b.timezone, b.keep_daily, b.keep_weekly, b.keep_monthly, b.include_volumes, b.updated_at, COALESCE(NULLIF(v.server_id, ''), p.server_id)
 		FROM backup_policies b JOIN services v ON v.id=b.service_id JOIN projects p ON p.id=v.project_id`
 	args := []any{}
 	if nodeID != "" {
-		q += ` WHERE p.server_id=?`
+		q += ` WHERE COALESCE(NULLIF(v.server_id, ''), p.server_id)=?`
 		args = append(args, nodeID)
 	}
 	rows, err := s.DB.QueryContext(ctx, q+` ORDER BY b.service_id`, args...)

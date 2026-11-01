@@ -85,7 +85,7 @@ func TestIngressCaddyContainerSpec(t *testing.T) {
 	if !reflect.DeepEqual(s.Networks, []agent.NetworkAttach{{Name: agent.IngressNetwork}}) {
 		t.Fatalf("networks %+v", s.Networks)
 	}
-	wantPorts := []agent.PortBinding{{80, 80, "tcp"}, {443, 443, "tcp"}, {443, 443, "udp"}}
+	wantPorts := []agent.PortBinding{{ContainerPort: 80, HostPort: 80, Protocol: "tcp"}, {ContainerPort: 443, HostPort: 443, Protocol: "tcp"}, {ContainerPort: 443, HostPort: 443, Protocol: "udp"}}
 	if !reflect.DeepEqual(s.Ports, wantPorts) {
 		t.Fatalf("ports %+v", s.Ports)
 	}
