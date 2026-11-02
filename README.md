@@ -15,6 +15,7 @@
 - **定时备份**：restic 直传任意 S3 兼容存储（R2 / B2 / S3 / MinIO），数据库逻辑导出 + 卷快照，保留策略可配；由各节点 agent 本地调度，中控离线也照常备份；恢复前自动保留一份当前数据，原机器宕机时可恢复到另一台 VPS。详见 [docs/api.md](docs/api.md#backups)。
 - **镜像更新检测**：定期比对镜像仓库的 digest 与新的 semver tag，可仅提醒或在时间窗内自动更新（同 tag 新 digest），一键应用、可回滚。
 - **CLI / API / MCP**：`atoll` 命令行、按权限细分（read / deploy / delete / migrate / domains / restore / servers / settings / tokens）并可限定项目的 `atl_pat_` token（`atoll token create ci --perm deploy --project shop`）、`atoll mcp` 供 Claude Code / Codex 等外部 agent 使用，只暴露 token 有权限的工具；有权限的操作直接执行，缺权限返回 403 并指明所需权限，仅对开启 `require_approval` 的 token 需在面板确认。
+- **CLI 从源码构建**：`atoll deploy --git https://github.com/OWNER/REPO [--branch main] [--context DIR] [--dockerfile F] [--build-arg K=V] -p PROJECT` 在服务所在的机器上构建；新服务只在创建时打印一次 GitHub push webhook 的 URL 和 secret（`atoll services webhook SERVICE` 查看 URL / 分支），私有仓库用 `--git-token-env VAR` 从环境变量读取 token；`atoll logs SERVICE --build [-f]` 查看构建日志。MCP 的 `deploy` 支持 `repo` 等参数（不接受 token），`get_build_logs` 读取构建日志。
 
 ## 组成
 

@@ -32,6 +32,8 @@ type fakePanel struct {
 	me        map[string]any // GET /auth/me answer (default {"username":"chen"})
 	denyPerm  string         // when set, mutating token/migrate/network/delete routes answer 403 missing_permission for it
 	approve   bool           // when set, DELETE routes answer 202 + a pending confirmation (require_approval token)
+	// extra, when set, may answer a request before the built-in routes (returns true if it did).
+	extra func(w http.ResponseWriter, r *http.Request, key string, body []byte) bool
 }
 
 func init() { importPoll = 10 * time.Millisecond }
@@ -71,6 +73,9 @@ func (f *fakePanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.calls = append(f.calls, key)
 	f.bodies[key] = body
 	f.mu.Unlock()
+	if f.extra != nil && f.extra(w, r, key, body) {
+		return
+	}
 	cf := api.Confirmation{ID: "cfm_aaaaaaaaaaaa", Action: "service.migrate", Summary: "move web to s2", Status: "pending"}
 	switch key {
 	case "GET /auth/me":

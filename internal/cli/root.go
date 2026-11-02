@@ -81,7 +81,7 @@ func NewRoot(app *App) *cobra.Command {
 		newActionCmd(app, "restart", "Restart a service's container"),
 		newActionCmd(app, "stop", "Stop a service"),
 		newActionCmd(app, "start", "Start a stopped service"),
-		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, recreate container)"),
+		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, or build the branch head of a git service; recreate container)"),
 		newRollbackCmd(app), newDomainCmd(app), newMigrateCmd(app), newExecCmd(app),
 		newMCPCmd(app), newZeaburCmd(app), newImportCmd(app),
 		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app),

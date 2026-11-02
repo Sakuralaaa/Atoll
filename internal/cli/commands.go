@@ -187,7 +187,7 @@ func newProjectsCmd(app *App) *cobra.Command {
 // ---------- services ----------
 
 func newServicesCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List, delete and move services"}
+	cmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "List, delete and move services; show a git service's webhook"}
 	var project string
 	ls := &cobra.Command{
 		Use: "ls -p PROJECT", Aliases: []string{"list"}, Short: "List services of a project", Args: cobra.NoArgs,
@@ -246,7 +246,7 @@ func newServicesCmd(app *App) *cobra.Command {
 		},
 	}
 	rm.Flags().StringVarP(&rmProject, "project", "p", "", "project name or id (to disambiguate service names)")
-	cmd.AddCommand(ls, rm, newServiceMigrateCmd(app))
+	cmd.AddCommand(ls, rm, newServiceMigrateCmd(app), newServiceWebhookCmd(app))
 	return cmd
 }
 
@@ -300,9 +300,12 @@ func imageName(image string) string {
 func newDeployCmd(app *App) *cobra.Command {
 	var project, name, server, template string
 	var ports, envs, domains []string
+	var gitFlags GitFlags
 	cmd := &cobra.Command{
-		Use: "deploy IMAGE -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER]",
+		Use: "deploy [IMAGE] -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER] [--git URL [--branch B] [--context DIR] [--dockerfile F] [--build-arg K=V] [--git-token-env VAR]]",
 		Example: "  atoll deploy ghcr.io/me/app:v2 -p shop --port web:3000/http --domain app.example.com\n" +
+			"  atoll deploy --git https://github.com/me/app --branch main -p shop --port 3000\n" +
+			"  GH_TOKEN=... atoll deploy --git https://github.com/me/private -p shop --git-token-env GH_TOKEN\n" +
 			"  atoll deploy --template postgres db -p shop\n" +
 			"  atoll deploy --template mongodb -p shop -e MONGO_USERNAME=app",
 		Long: "Creates the service when the project has none by that name, otherwise updates it and redeploys.\n" +
@@ -310,16 +313,27 @@ func newDeployCmd(app *App) *cobra.Command {
 			"--server places a NEW service on a server other than the project's (both on the tailnet);\n" +
 			"to move an existing service use `atoll services migrate`.\n" +
 			"--template creates a database service from a template instead (same as `atoll templates deploy`);\n" +
-			"the optional argument is then the service name (default: the template kind).",
-		Short: "Deploy an image or a database template: create the service, or update its image/ports/env and redeploy",
+			"the optional argument is then the service name (default: the template kind).\n" +
+			"--git builds the service from a GitHub repository on the service's own server instead of\n" +
+			"pulling IMAGE (give one or the other). A new git service prints its GitHub push webhook URL\n" +
+			"and secret once. For an existing service a changed source is updated, an unchanged one is\n" +
+			"redeployed (which builds the branch head). A private repo's token is read from the\n" +
+			"environment variable named by --git-token-env, never from a flag value.",
+		Short: "Deploy an image, a GitHub repo or a database template: create the service, or update it and redeploy",
 		Args: func(cmd *cobra.Command, args []string) error {
-			if template != "" {
+			if template != "" || gitFlags.Repo != "" {
 				return cobra.MaximumNArgs(1)(cmd, args)
+			}
+			if len(args) == 0 {
+				return fmt.Errorf("give an IMAGE, --git URL or --template KIND")
 			}
 			return cobra.ExactArgs(1)(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if template != "" {
+				if gitFlags.Repo != "" || gitFlags.set(cmd) {
+					return fmt.Errorf("--git and the build flags do not apply to --template")
+				}
 				if project == "" {
 					return fmt.Errorf("-p PROJECT is required")
 				}
@@ -342,9 +356,26 @@ func newDeployCmd(app *App) *cobra.Command {
 			if project == "" {
 				return fmt.Errorf("-p PROJECT is required")
 			}
-			image := args[0]
-			if name == "" {
-				name = imageName(image)
+			var image string
+			var git *api.GitSource
+			if gitFlags.Repo != "" {
+				if len(args) == 1 {
+					return fmt.Errorf("give either IMAGE or --git URL, not both")
+				}
+				if git, err = gitFlags.Source(os.Getenv); err != nil {
+					return err
+				}
+				if name == "" {
+					name = repoName(git.Repo)
+				}
+			} else {
+				if gitFlags.set(cmd) {
+					return fmt.Errorf("--branch, --context, --dockerfile, --build-arg and --git-token-env need --git URL")
+				}
+				image = args[0]
+				if name == "" {
+					name = imageName(image)
+				}
 			}
 			envMap, envOrder, err := parseKV(envs)
 			if err != nil {
@@ -358,7 +389,7 @@ func newDeployCmd(app *App) *cobra.Command {
 				}
 				parsed = append(parsed, pp)
 			}
-			res, err := Deploy(ctxOf(cmd), c, DeployRequest{Project: project, Image: image, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains, Server: server})
+			res, err := Deploy(ctxOf(cmd), c, DeployRequest{Project: project, Image: image, Git: git, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains, Server: server})
 			if res != nil && len(res.Pending) > 0 {
 				for _, p := range res.Pending {
 					fmt.Fprintln(app.Err, "pending approval:", p)
@@ -369,6 +400,10 @@ func newDeployCmd(app *App) *cobra.Command {
 			}
 			if app.JSON {
 				return app.printJSON(res)
+			}
+			if git != nil {
+				printGitDeploy(app, res, git)
+				return nil
 			}
 			fmt.Fprintf(app.Out, "%s service %s (%s) with %s\n", res.Action, res.Service.Name, res.Service.ID, image)
 			return nil
@@ -382,13 +417,18 @@ func newDeployCmd(app *App) *cobra.Command {
 	f.StringArrayVar(&domains, "domain", nil, "hostname to route to the first http port, repeatable (needs the domains permission)")
 	f.StringVar(&server, "server", "", "server name or id for a new service (default: the project's server)")
 	f.StringVar(&template, "template", "", "deploy a database template (postgres, mysql, redis, mongodb) instead of an image")
+	gitFlags.register(f)
 	return cmd
 }
 
 // DeployRequest is shared by the CLI and the MCP tool.
 type DeployRequest struct {
-	Project  string
-	Image    string
+	Project string
+	Image   string
+	// Git builds the service from a GitHub repository instead of pulling Image (exactly one
+	// of Image and Git is set). For an existing service only the non-empty fields are compared
+	// and sent (the server keeps omitted ones).
+	Git      *api.GitSource
 	Name     string
 	Ports    []api.Port
 	Env      map[string]string
@@ -406,8 +446,11 @@ type DeployResult struct {
 	Pending []string    `json:"pending_confirmations,omitempty"`
 }
 
-// Deploy creates or updates a service from an image.
+// Deploy creates or updates a service from an image or a git source.
 func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResult, error) {
+	if (r.Image == "") == (r.Git == nil) {
+		return nil, fmt.Errorf("give either an image or a git source")
+	}
 	p, err := c.ResolveProject(ctx, r.Project)
 	if err != nil {
 		return nil, err
@@ -462,11 +505,21 @@ func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResu
 		if ports == nil {
 			ports = []api.Port{}
 		}
-		svc, err = c.CreateService(ctx, p.ID, api.Service{Name: r.Name, Kind: "image", Image: r.Image, Ports: ports, Volumes: []api.Volume{}, ServerID: serverID})
-		if err != nil {
-			return nil, err
+		if r.Git != nil {
+			// env goes into the create request so it does not trigger a second build
+			svc, err = c.CreateServiceWithEnv(ctx, p.ID, api.Service{Name: r.Name, Kind: "image", Git: r.Git, Ports: ports, Volumes: []api.Volume{}, ServerID: serverID}, set)
+			if err != nil {
+				return nil, err
+			}
+			res.Action = "created"
+			set = nil
+		} else {
+			svc, err = c.CreateService(ctx, p.ID, api.Service{Name: r.Name, Kind: "image", Image: r.Image, Ports: ports, Volumes: []api.Volume{}, ServerID: serverID})
+			if err != nil {
+				return nil, err
+			}
+			res.Action = "created"
 		}
-		res.Action = "created"
 		if len(set) > 0 {
 			if _, err := c.PutEnv(ctx, svc.ID, set); err != nil {
 				return nil, err
@@ -474,8 +527,17 @@ func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResu
 		}
 	} else {
 		patch := map[string]any{}
-		if existing.Image != r.Image {
-			patch["image"] = r.Image
+		if r.Git != nil {
+			if gitChanged(existing.Git, r.Git) {
+				patch["git"] = gitPatch(r.Git)
+			}
+		} else {
+			if existing.Git != nil {
+				patch["git"] = nil // back to a registry image
+				patch["image"] = r.Image
+			} else if existing.Image != r.Image {
+				patch["image"] = r.Image
+			}
 		}
 		if len(r.Ports) > 0 {
 			patch["ports"] = r.Ports
@@ -498,7 +560,9 @@ func Deploy(ctx context.Context, c *client.Client, r DeployRequest) (*DeployResu
 			res.Action = "updated"
 		} else {
 			svc = existing
-			if !envChanged {
+			// an env change deploys the last built image; a git deploy should build the
+			// branch head, so redeploy in that case too
+			if !envChanged || r.Git != nil {
 				if err := c.ServiceAction(ctx, existing.ID, client.ActionRedeploy); err != nil {
 					return nil, err
 				}
@@ -652,8 +716,20 @@ func newLogsCmd(app *App) *cobra.Command {
 	var follow bool
 	var tail int
 	var project string
+	var build bool
 	cmd := &cobra.Command{
-		Use: "logs SERVICE [-f] [--tail N]", Short: "Show service logs", Args: cobra.ExactArgs(1),
+		Use:   "logs SERVICE [-f] [--tail N] | logs SERVICE --build [DEPLOYMENT] [-f]",
+		Short: "Show service logs, or the build log of a deployment (--build)",
+		Long: "Without --build: the container's logs.\n" +
+			"With --build: the build log of a service built from git; DEPLOYMENT (dep_...) defaults to the\n" +
+			"newest deployment, -f keeps polling until the deployment finishes.",
+		Example: "  atoll logs web -f\n  atoll logs web --build -f\n  atoll logs web --build dep_abc123",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if build {
+				return cobra.RangeArgs(1, 2)(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {
@@ -663,6 +739,17 @@ func newLogsCmd(app *App) *cobra.Command {
 			defer stop()
 			s, err := c.ResolveService(ctx, project, args[0])
 			if err != nil {
+				return err
+			}
+			if build {
+				dep := ""
+				if len(args) == 2 {
+					dep = args[1]
+				}
+				err = printBuildLogs(ctx, app, c, s, dep, follow)
+				if ctx.Err() != nil {
+					return nil
+				}
 				return err
 			}
 			err = c.StreamLogs(ctx, s.ID, client.LogsOptions{Tail: tail, Follow: follow}, func(l api.LogLine) error {
@@ -686,8 +773,9 @@ func newLogsCmd(app *App) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "keep streaming")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "keep streaming (with --build: until the deployment finishes)")
 	cmd.Flags().IntVar(&tail, "tail", 200, "lines of history")
+	cmd.Flags().BoolVar(&build, "build", false, "show a deployment's build log (services built from git)")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "project name or id")
 	return cmd
 }

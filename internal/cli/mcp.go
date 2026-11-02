@@ -53,6 +53,7 @@ var mcpToolPerm = map[string]string{
 	"list_services":        api.PermRead,
 	"get_logs":             api.PermRead,
 	"get_deployment":       api.PermRead,
+	"get_build_logs":       api.PermRead,
 	"zeabur_scan":          api.PermRead,
 	"zeabur_import_status": api.PermRead,
 	"list_updates":         api.PermRead,
@@ -260,10 +261,18 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.ListServices(ctx, p.ID)
 			}),
-		t(tool("deploy", "Deploy an image to a project: creates the service or updates its image/ports/env and redeploys. Same as `atoll deploy`.", false, false,
+		t(tool("deploy", "Deploy an image, or build from a GitHub repository, to a project: creates the service or updates its image/source/ports/env and redeploys. Give exactly one of image and repo. "+
+			"A git service is built on its own server (follow it with get_build_logs); an unchanged repo is redeployed, which builds the branch head. "+
+			"Private repositories need a token that can only be set in the panel or with `atoll deploy --git-token-env`, never here. "+
+			"A NEW git service's response contains its GitHub webhook URL and secret once: pass them to the user. Same as `atoll deploy`.", false, false,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
-			mcp.WithString("image", mcp.Required(), mcp.Description("image ref, e.g. ghcr.io/me/app:sha-abc")),
-			mcp.WithString("name", mcp.Description("service name (default: image name)")),
+			mcp.WithString("image", mcp.Description("image ref, e.g. ghcr.io/me/app:sha-abc (or give repo)")),
+			mcp.WithString("repo", mcp.Description("build from this GitHub repository instead: https://github.com/OWNER/REPO")),
+			mcp.WithString("branch", mcp.Description("git branch (default main)")),
+			mcp.WithString("context", mcp.Description("build context: subdirectory of the repository (default root)")),
+			mcp.WithString("dockerfile", mcp.Description("Dockerfile path inside the context (default Dockerfile)")),
+			mcp.WithObject("build_args", mcp.Description("docker build args {KEY: VALUE} (not secret: visible in the image history)")),
+			mcp.WithString("name", mcp.Description("service name (default: image or repository name)")),
 			mcp.WithArray("ports", mcp.WithStringItems(), mcp.Description("ports as [name:]PORT[/http|tcp|udp]")),
 			mcp.WithObject("env", mcp.Description("environment variables to set, {KEY: VALUE}")),
 			mcp.WithArray("domains", mcp.WithStringItems(), mcp.Description("hostnames to route to the first http port (needs the domains permission; runs immediately)")),
@@ -273,13 +282,21 @@ func MCPTools(app *App) []server.ServerTool {
 				if err != nil {
 					return nil, err
 				}
-				image, err := reqStr(r, "image")
+				image := strings.TrimSpace(r.GetString("image", ""))
+				git, err := mcpGitSource(r)
 				if err != nil {
 					return nil, err
 				}
+				if (image == "") == (git == nil) {
+					return nil, fmt.Errorf("give exactly one of image and repo")
+				}
 				name := r.GetString("name", "")
 				if name == "" {
-					name = imageName(image)
+					if git != nil {
+						name = repoName(git.Repo)
+					} else {
+						name = imageName(image)
+					}
 				}
 				var ports []api.Port
 				for i, p := range r.GetStringSlice("ports", nil) {
@@ -290,7 +307,7 @@ func MCPTools(app *App) []server.ServerTool {
 					ports = append(ports, pp)
 				}
 				env := argMap(r, "env")
-				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil), Server: r.GetString("server", "")})
+				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Git: git, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil), Server: r.GetString("server", "")})
 			}),
 		t(tool("list_templates", "List the one-click database templates (postgres, mysql, redis, mongo) with their image, ports and the exposed variables other services can reference (e.g. ${POSTGRES_CONNECTION_STRING}).", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -382,7 +399,7 @@ func MCPTools(app *App) []server.ServerTool {
 			}),
 		t(tool("restart", "Restart a service's container.", false, false, svcArgs()...),
 			actionBody(client.ActionRestart)),
-		t(tool("redeploy", "Redeploy a service (pull the image again and recreate the container).", false, false, svcArgs()...),
+		t(tool("redeploy", "Redeploy a service (pull the image again and recreate the container; a service built from git builds its branch head).", false, false, svcArgs()...),
 			actionBody(client.ActionRedeploy)),
 		t(tool("rollback", "Roll a service back to a previous deployment (default: the last good one before the current). Runs immediately; confirm with the user first.", false, true,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... to roll back to")))...),
@@ -520,6 +537,26 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return deps, nil
 			}),
+		t(tool("get_build_logs", "Read the build log of a service built from git: the newest deployment unless deployment_id is given. Poll with after = last_seq until status is running or failed.", true, false,
+			append(svcArgs(),
+				mcp.WithString("deployment_id", mcp.Description("dep_... (default: the newest deployment)")),
+				mcp.WithNumber("after", mcp.Description("only lines after this sequence number (last_seq of a previous call)")),
+				mcp.WithNumber("tail", mcp.Description("keep at most this many of the newest lines (default 300, max 5000)")))...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				after := int64(r.GetInt("after", 0))
+				if after < 0 {
+					after = 0
+				}
+				n := r.GetInt("tail", 300)
+				if n <= 0 || n > 5000 {
+					n = 300
+				}
+				return GetBuildLogs(ctx, c, s, r.GetString("deployment_id", ""), after, n)
+			}),
 		t(tool("zeabur_scan", "Scan what Zeabur runs on one of the user's servers (agent installed on the same VPS). Env values are masked.", true, false,
 			mcp.WithString("server", mcp.Required(), mcp.Description("server name or id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -606,6 +643,33 @@ func MCPTools(app *App) []server.ServerTool {
 				return c.RestoreBackup(ctx, b.ID, target)
 			}),
 	}
+}
+
+// mcpGitSource reads the deploy tool's git arguments (nil when repo is not given). There is
+// deliberately no token argument: a private repo's token is set in the panel or the CLI.
+func mcpGitSource(r mcp.CallToolRequest) (*api.GitSource, error) {
+	repo := strings.TrimSpace(r.GetString("repo", ""))
+	args := r.GetArguments()
+	if repo == "" {
+		for _, k := range []string{"branch", "context", "dockerfile", "build_args"} {
+			if v, ok := args[k]; ok && v != nil && v != "" {
+				return nil, fmt.Errorf("%s needs repo", k)
+			}
+		}
+		return nil, nil
+	}
+	if _, ok := args["token"]; ok {
+		return nil, fmt.Errorf("a git token cannot be passed through MCP; ask the user to set it in the panel or with `atoll deploy --git-token-env`")
+	}
+	g := GitFlags{Repo: repo, Branch: r.GetString("branch", ""), Context: r.GetString("context", ""), Dockerfile: r.GetString("dockerfile", "")}
+	src, err := g.Source(func(string) string { return "" })
+	if err != nil {
+		return nil, fmt.Errorf("%s", strings.ReplaceAll(err.Error(), "--git", "repo"))
+	}
+	if _, ok := args["build_args"]; ok {
+		src.BuildArgs = argMap(r, "build_args")
+	}
+	return src, nil
 }
 
 func actionBody(action string) mcpBody {
