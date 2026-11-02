@@ -34,7 +34,7 @@ export default function BackupStorageSettings({ s }: { s: Settings }) {
 
 function Row({ t, d, right, children }: { t: string; d?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="px-6 py-5 grid grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
+    <div className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-start">
       <div><div className="text-[13px] font-semibold flex items-center gap-2 flex-wrap">{t}{right}</div>{d && <div className="text-[12.5px] text-muted mt-1 leading-5">{d}</div>}</div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -120,7 +120,7 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
             {test.message && <div className="font-mono text-[12px] mt-0.5 break-all">{test.message}</div>}</div>
         </Card>
       )}
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         {(s.backup_bucket || s.has_backup_credentials) && <Button variant="danger-outline" size="sm" disabled={busy} onClick={() => setClear(true)}><Trash2 size={14} />清除存储配置</Button>}
         <span className="flex-1" />
         {dirty && <span className="text-[12.5px] text-muted">有未保存的修改</span>}

@@ -36,7 +36,7 @@ export default function NetworkSettings({ s }: { s: Settings }) {
 
 function Row({ t, d, right, children }: { t: string; d?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="px-6 py-5 grid grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
+    <div className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-start">
       <div><div className="text-[13px] font-semibold flex items-center gap-2 flex-wrap">{t}{right}</div>{d && <div className="text-[12.5px] text-muted mt-1 leading-5">{d}</div>}</div>
       <div className="min-w-0">{children}</div>
     </div>

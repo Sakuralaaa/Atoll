@@ -39,19 +39,19 @@ export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f
       <Label t={t('仓库地址', 'Repository URL')} d={t('公开仓库直接填写；私有仓库在下方填写 Token。', 'Public repos work as is; for a private repo add a token below.')}>
         <TextInput autoFocus={autoFocus} mono className="w-full" placeholder="https://github.com/owner/repo" value={f.repo} onChange={up('repo')} />
       </Label>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
         <Label t={t('分支', 'Branch')}><TextInput mono className="w-full" value={f.branch} onChange={up('branch')} placeholder="main" /></Label>
         <Label t={t('构建目录', 'Context dir')}><TextInput mono className="w-full" value={f.context} onChange={up('context')} placeholder={t('仓库根目录', 'repo root')} /></Label>
         <Label t="Dockerfile"><TextInput mono className="w-full" value={f.dockerfile} onChange={up('dockerfile')} placeholder="Dockerfile" /></Label>
       </div>
       <div className="mb-4">
-        <div className="flex items-center mb-1.5"><span className="text-[13px] font-semibold">{t('构建参数', 'Build args')}</span><span className="text-[12px] text-dim ml-2">--build-arg KEY=VALUE</span>
+        <div className="flex flex-wrap items-center gap-x-2 mb-1.5"><span className="text-[13px] font-semibold">{t('构建参数', 'Build args')}</span><span className="text-[12px] text-dim">--build-arg KEY=VALUE</span>
           <button type="button" onClick={() => set({ ...f, args: [...f.args, { k: '', v: '' }] })} className="ml-auto text-accent text-[12.5px] flex items-center gap-1"><Plus size={13} />{t('添加', 'Add')}</button></div>
         {f.args.length ? <div className="space-y-2">{f.args.map((a, i) => (
           <div key={i} className="flex items-center gap-2">
-            <TextInput mono className="w-[40%]" placeholder="KEY" value={a.k} onChange={e => setArg(i, { ...a, k: e.target.value.trim() })} />
+            <TextInput mono className="w-[40%] min-w-0" placeholder="KEY" value={a.k} onChange={e => setArg(i, { ...a, k: e.target.value.trim() })} />
             <span className="text-muted font-mono">=</span>
-            <TextInput mono className="flex-1" placeholder="value" value={a.v} onChange={e => setArg(i, { ...a, v: e.target.value })} />
+            <TextInput mono className="flex-1 min-w-0" placeholder="value" value={a.v} onChange={e => setArg(i, { ...a, v: e.target.value })} />
             <button type="button" title={t('删除', 'Remove')} onClick={() => set({ ...f, args: f.args.filter((_, j) => j !== i) })} className="text-muted hover:text-[#ef4444] px-1"><Trash2 size={15} /></button>
           </div>
         ))}</div> : <div className="h-11 rounded-lg border-2 border-dashed border-line2 px-3.5 flex items-center text-[13px] text-dim">{t('没有构建参数', 'No build args')}</div>}
@@ -123,17 +123,17 @@ export function SourceCard({ s }: { s: Service }) {
   const rebuild = () => wrap(() => run(() => api.action(s.id, 'redeploy'), { ok: t('已开始构建最新提交', 'Building the latest commit'), invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] }))
   const building = last && buildActive(last.status) && last.status !== 'pulling' && last.status !== 'starting'
   return (
-    <Card className="mt-6 p-6">
+    <Card className="mt-6 p-4 @2xl:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <GithubIcon size={18} />
         <span className="text-[15px] font-semibold tracking-tight">{t('源码构建', 'Build from source')}</span>
         {last?.status === 'building' ? <Badge tone="amber"><Loader2 size={11} className="animate-spin" />{t('构建中', 'Building')}</Badge> : last?.status === 'failed' ? <Badge tone="red">{t('上次失败', 'Last build failed')}</Badge> : null}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setEdit(true)}><Pencil size={13} />{t('编辑', 'Edit')}</Button>
           <Button size="sm" variant="primary" disabled={busy || !!building} onClick={rebuild}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}{t('重新构建最新提交', 'Rebuild latest')}</Button>
         </div>
       </div>
-      <div className="mt-5 grid grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
+      <div className="mt-5 grid grid-cols-[84px_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
         <span className="text-muted">{t('仓库', 'Repository')}</span>
         <a href={repoUrl(g.repo)} target="_blank" rel="noreferrer" className="font-mono hover:underline truncate">{repoPath(g.repo)}</a>
         <span className="text-muted">{t('分支', 'Branch')}</span>
@@ -174,10 +174,10 @@ function WebhookSection({ s }: { s: Service }) {
         <button onClick={() => setSetup(true)} disabled={!wh} className="ml-auto text-accent text-[12.5px]">{t('设置步骤', 'Setup steps')}</button></div>
       {q.error && !wh ? <div className="text-[13px] text-[#ef4444]">{q.error.message}</div> : !wh ? <Skeleton className="h-24 w-full" /> : (
         <div className="space-y-2">
-          <div className="h-11 rounded-lg field px-3.5 flex items-center gap-3 font-mono text-[13px]"><span className="text-muted font-sans text-[12px] w-[52px] shrink-0">URL</span><span className="truncate flex-1">{wh.url}</span><CopyButton text={wh.url} /></div>
-          <div className="h-11 rounded-lg field px-3.5 flex items-center gap-3 font-mono text-[13px]">
+          <div className="h-11 rounded-lg field px-3.5 flex items-center gap-3 font-mono text-[13px] min-w-0"><span className="text-muted font-sans text-[12px] w-[52px] shrink-0 @max-md:hidden">URL</span><span className="truncate flex-1 min-w-0" title={wh.url}>{wh.url}</span><CopyButton text={wh.url} /></div>
+          <div className="min-h-11 py-1.5 rounded-lg field px-3.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[13px] min-w-0">
             <span className="text-muted font-sans text-[12px] w-[52px] shrink-0">Secret</span>
-            <span className="truncate flex-1">{!wh.has_secret ? <span className="text-dim font-sans">{t('未设置', 'not set')}</span> : show && secret ? secret : '••••••••••••••••••••••••'}</span>
+            <span className="truncate flex-1 min-w-[min(100%,120px)]">{!wh.has_secret ? <span className="text-dim font-sans">{t('未设置', 'not set')}</span> : show && secret ? secret : '••••••••••••••••••••••••'}</span>
             {secret ? <>
               <Button size="sm" variant="ghost" onClick={() => setShow(v => !v)}>{show ? <EyeOff size={14} /> : <Eye size={14} />}{show ? t('隐藏', 'Hide') : t('显示', 'Reveal')}</Button>
               <CopyButton text={secret} />

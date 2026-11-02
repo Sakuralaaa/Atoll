@@ -25,14 +25,14 @@ export default function LogsPage() {
   const view = sp.get('view') ?? 'logs'
   return (
     <div className="h-full flex flex-col topline bg-bg">
-      <div className="px-10 pt-8 pb-5 flex items-end justify-between border-b border-line">
+      <div className="px-4 md:px-10 pt-6 md:pt-8 pb-5 flex flex-wrap items-end justify-between gap-3 border-b border-line">
         <div>
           <Link to={`/projects/${pid}/services/${sid}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2"><ArrowLeft size={15} />返回</Link>
           <div className="text-[13px] text-muted mt-3">{s?.name ?? '…'} · 服务 ID</div>
           <div className="mt-1"><CopyId v={sid ?? ''} /></div>
-          <div className="mt-4 inline-flex rounded-lg field p-0.5 gap-1">
+          <div className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg field p-0.5 gap-1">
             {[['logs', '运行日志'], ['deploys', '部署记录'], ['exec', '命令']].map(([k, l]) => (
-              <button key={k} onClick={() => setSp(k === 'logs' ? {} : { view: k })} className={cx('h-9 px-4 rounded-md inline-flex items-center text-[13.5px]', view === k ? 'nav-active font-semibold' : 'text-muted hover:text-fg')}>{l}</button>
+              <button key={k} onClick={() => setSp(k === 'logs' ? {} : { view: k })} className={cx('h-9 px-3 md:px-4 rounded-md inline-flex items-center whitespace-nowrap text-[13.5px]', view === k ? 'nav-active font-semibold' : 'text-muted hover:text-fg')}>{l}</button>
             ))}
           </div>
         </div>
@@ -71,30 +71,30 @@ function Logs({ sid, name }: { sid?: string; name?: string }) {
     <>
       <Portal>
         <div className="relative">
-          <button onClick={() => setWinOpen(v => !v)} className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
+          <button onClick={() => setWinOpen(v => !v)} className="h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
           {winOpen && <div className="absolute right-0 top-12 z-20 surface bg-pop p-1 w-44">{WINDOWS.map(w => <button key={w.k} onClick={() => { setWin(w.k); setWinOpen(false) }} className={cx('w-full text-left px-3 h-9 rounded-md text-[13px]', w.k === win ? 'nav-active' : 'hover:bg-ov/5')}>{w.l}</button>)}</div>}
         </div>
-        <button onClick={exportLogs} className="h-11 px-4 rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Download size={16} />导出</button>
+        <button onClick={exportLogs} className="h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Download size={16} />导出</button>
       </Portal>
-      <div className="px-10 pt-5 pb-3 border-b border-line">
-        <div className="flex gap-3 h-[150px]">
+      <div className="px-4 md:px-10 pt-5 pb-3 border-b border-line">
+        <div className="flex gap-3 h-[110px] md:h-[150px]">
           <div className="flex flex-col justify-between text-[11.5px] text-dim pb-5 tnum w-6 text-right"><span>{top}</span><span>{Math.round(top * 0.6)}</span><span>{Math.round(top * 0.3)}</span><span>0</span></div>
           <div className="flex-1 flex flex-col">
             <div className="flex-1 flex items-end gap-[3px]">{bars.map((b, i) => <div key={i} className="flex-1 bg-[#8b5cf6] rounded-t-[2px]" style={{ height: `${(b / top) * 100}%` }} />)}</div>
-            <div className="flex justify-between text-[11.5px] text-dim mt-1.5 tnum">{ticks.map((t, i) => <span key={i}>{t}</span>)}</div>
+            <div className="flex justify-between text-[11.5px] text-dim mt-1.5 tnum whitespace-nowrap overflow-hidden">{ticks.map((t, i) => <span key={i} className={cx(i % 2 === 1 && 'max-md:hidden')}>{t}</span>)}</div>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-[130px_150px_1fr] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">SEVERITY</span><span>TIME</span><span>SUMMARY</span></div>
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">SEVERITY</span><span className="max-md:hidden">TIME</span><span>SUMMARY</span></div>
       <div ref={box} onScroll={e => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40) }} className="flex-1 overflow-auto font-mono text-[13px] relative">
         {!lines.length && !live && <div className="p-4"><RowsSkeleton n={6} /></div>}
         {!shown.length && live && <div className="h-24 grid place-items-center text-[13px] text-muted font-sans">{lines.length ? '这个时间段没有日志' : '还没有日志输出'}</div>}
         {shown.map((l, i) => {
           const lv = level(l), isOpen = open.has(i)
           return (
-            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); n.has(i) ? n.delete(i) : n.add(i); return n })} className={cx('grid grid-cols-[130px_150px_1fr] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
+            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); n.has(i) ? n.delete(i) : n.add(i); return n })} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
               <span className="flex items-center gap-2">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
-              <span className="text-muted">{fmt(l.at)}</span><span className={cx('text-fg2', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}>{l.line}{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
+              <span className="text-muted max-md:hidden">{fmt(l.at)}</span><span className={cx('text-fg2 min-w-0', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}>{l.line}{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
             </div>
           )
         })}
@@ -119,16 +119,16 @@ function Deploys({ s }: { s: Service }) {
   const [target, setTarget] = useState<Deployment>()
   const [logs, setLogs] = useState<Deployment>()
   return (
-    <div className="flex-1 overflow-auto px-10 py-6">
+    <div className="flex-1 overflow-auto px-4 md:px-10 py-6">
       {!q.data ? <RowsSkeleton n={4} /> : !q.data.length ? <div className="text-[13px] text-muted">还没有部署记录</div> : (
         <div className="surface divide-y divide-line">
           {q.data.map((d, i) => (
-            <div key={d.id} className="px-6 h-16 flex items-center gap-4 text-[13px]">
+            <div key={d.id} className="px-4 md:px-6 py-3 min-h-16 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
-              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
+              <div className="flex-1 min-w-[calc(100%-32px)] sm:min-w-0"><div className="font-semibold flex flex-wrap items-center gap-x-2 gap-y-0.5">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
-              <span className="text-muted tnum">{dateTime(d.started_at)}</span>
-              {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
+              <span className="text-muted tnum whitespace-nowrap max-sm:ml-[23px]">{dateTime(d.started_at)}</span>
+              {i > 0 && d.image_digest ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
         </div>
@@ -154,14 +154,14 @@ function Exec({ sid }: { sid: string }) {
     catch (e) { setHist(h => [...h, { cmd: c, out: (e as Error).message, ok: false }]) }
   })
   return (
-    <div className="flex-1 flex flex-col px-10 py-6 min-h-0">
+    <div className="flex-1 flex flex-col px-4 md:px-10 py-6 min-h-0">
       <div className="text-[13px] text-muted mb-3">在容器内用 <span className="font-mono">sh -c</span> 执行一次性命令（非交互，超时 30 秒）。</div>
       <div ref={box} className="flex-1 surface bg-sunk overflow-auto p-5 font-mono text-[13px] leading-6 min-h-0">
         {!hist.length && <div className="text-dim">例如：ls -la /app、env | sort、cat /etc/os-release</div>}
         {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-[#ef4444]')}>{h.out || '(无输出)'}</pre></div>)}
         {busy && <Loader2 size={14} className="animate-spin text-muted" />}
       </div>
-      <div className="mt-4 flex gap-2"><input value={cmd} onChange={e => setCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="输入命令，回车执行" className="flex-1 h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none text-fg placeholder:text-dim" /><Button variant="primary" size="lg" disabled={busy || !cmd.trim()} onClick={go}><Play size={14} />执行</Button></div>
+      <div className="mt-4 flex gap-2"><input value={cmd} onChange={e => setCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="输入命令，回车执行" className="flex-1 min-w-0 h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none text-fg placeholder:text-dim" /><Button variant="primary" size="lg" disabled={busy || !cmd.trim()} onClick={go}><Play size={14} />执行</Button></div>
     </div>
   )
 }

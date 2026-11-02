@@ -25,16 +25,16 @@ export default function Domains() {
   const cfOk = !!settings?.base_domain && settings.has_cloudflare_token
   return (
     <MainShell>
-      <div className="max-w-[1240px] mx-auto px-14 pt-12 pb-16">
-        <div className="flex items-center justify-between mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">域名</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />绑定域名</Button></div>
+      <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">域名</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />绑定域名</Button></div>
         {!settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
-          <Card className="p-6 flex items-center gap-5 mb-8">
+          <Card className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5 mb-8">
             <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-[15px] font-semibold">{settings.base_domain || '未设置主域名'}{cfOk ? <Badge tone="green">已连接</Badge> : <Badge tone="amber">未连接</Badge>}</div>
+            <div className="flex-1 min-w-[min(100%,240px)]">
+              <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || '未设置主域名'}{cfOk ? <Badge tone="green">已连接</Badge> : <Badge tone="amber">未连接</Badge>}</div>
               <div className="text-[13px] text-muted mt-1">{cfOk ? `Cloudflare · ${settings.tls_mode === 'acme' ? 'ACME 证书' : 'Origin CA 证书'} · 绑定 *.${settings.base_domain} 子域名时自动创建 DNS 记录` : '设置主域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。'}</div>
             </div>
-            {cfOk ? <div className="text-right text-[13px] text-muted shrink-0"><div className="tnum">{q.data?.length ?? '—'} 条记录由 Atoll 管理</div><div className="mt-1 flex items-center gap-1 justify-end text-fg2"><ShieldCheck size={13} className="text-emerald-500" />令牌权限：Zone.DNS 编辑</div></div>
+            {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 @max-3xl:w-full @max-3xl:pl-[68px]"><div className="tnum">{q.data?.length ?? '—'} 条记录由 Atoll 管理</div><div className="mt-1 flex items-center gap-1 @3xl:justify-end text-fg2"><ShieldCheck size={13} className="text-emerald-500" />令牌权限：Zone.DNS 编辑</div></div>
               : <Link to="/settings"><Button><Settings2 size={14} />去设置<ArrowRight size={14} /></Button></Link>}
           </Card>
         )}
@@ -43,17 +43,17 @@ export default function Domains() {
         {q.data && !q.data.length && <Empty icon={<Globe size={22} />} title="还没有绑定域名" desc="给有 HTTP 端口的服务绑定域名后，atoll-caddy 会自动签发证书并反代到容器。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />绑定域名</Button>} />}
         {q.data && q.data.length > 0 && (
           <Card className="overflow-hidden">
-            <div className="grid grid-cols-[1.5fr_1.2fr_1.5fr_1fr_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>域名</span><span>服务</span><span>指向服务器</span><span>记录</span><span>状态</span><span /></div>
+            <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>域名</span><span>服务</span><span>指向服务器</span><span>记录</span><span>状态</span><span /></div>
             {q.data.map(d => {
               const o = svcOf(d), srv = servers?.find(x => x.id === o?.p.server_id)
               return (
-                <div key={d.id} className="grid grid-cols-[1.5fr_1.2fr_1.5fr_1fr_110px_72px] gap-4 px-6 min-h-14 py-2 items-center text-[13px] border-b border-line last:border-0">
-                  <div className="min-w-0"><div className="font-semibold truncate">{d.hostname}</div><DomainNote d={d} /></div>
-                  {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate">{o.p.name} / {o.s.name}</Link> : <span className="text-dim">—</span>}
-                  <span className="flex items-center gap-2 text-fg2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
-                  <span className="font-mono text-[12.5px] text-muted truncate">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
-                  <span><DomainBadge d={d} /></span>
-                  <span className="flex items-center gap-1 justify-end">
+                <div key={d.id} className="flex flex-wrap @4xl:grid @4xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-x-4 gap-y-1.5 px-4 @2xl:px-6 min-h-14 py-3 @4xl:py-2 items-center text-[13px] border-b border-line last:border-0">
+                  <div className="min-w-0 @max-4xl:flex-1"><div className="font-semibold truncate" title={d.hostname}>{d.hostname}</div><DomainNote d={d} /></div>
+                  {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate @max-4xl:order-2 @max-4xl:basis-full" title={`${o.p.name} / ${o.s.name}`}>{o.p.name} / {o.s.name}</Link> : <span className="text-dim @max-4xl:order-2 @max-4xl:basis-full">—</span>}
+                  <span className="flex items-center gap-2 text-fg2 min-w-0 @max-4xl:order-3 @max-4xl:max-w-full">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
+                  <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
+                  <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
+                  <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">
                     <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title="打开" className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
                     <button title="解绑" onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
                   </span>

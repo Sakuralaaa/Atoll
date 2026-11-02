@@ -6,6 +6,7 @@ import { ApiError } from './client'
 import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
 import { makeDemoGit } from './demo-git'
+import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
   LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
@@ -89,6 +90,7 @@ const confirmations: Confirmation[] = [
   { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: '把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix', status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
   { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: '删除项目 old-blog（3 个服务）', status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
 ]
+if (stressEnabled()) addStressData({ now, servers, projects, services, domains, env, deployments, tokens, confirmations })
 const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true,
   network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true }
 const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
@@ -296,6 +298,14 @@ function route(method: string, path: string, body: any): unknown {
   if (P && m('auth/2fa/enable')) { if (!/^\d{6}$/.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); Object.assign(demo2fa, { enabled: true, at: new Date().toISOString(), left: 10 }); return { recovery_codes: demoCodes() } }
   if (P && m('auth/2fa/disable')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.enabled = false; return {} }
   if (P && m('auth/2fa/recovery-codes')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.left = 10; return { recovery_codes: demoCodes() } }
+  if (P && m('auth/password')) {
+    if (!body?.current_password) throw new ApiError(401, 'invalid credentials', 'invalid_credentials')
+    if (demo2fa.enabled && !/^\d{6}$/.test(String(body?.code ?? ''))) throw new ApiError(400, 'two-factor code required', 'code_required')
+    const np = String(body?.new_password ?? '')
+    if (np.length < 8 || np.length > 72) fail(400, 'new password must be 8-72 characters')
+    if (np === body.current_password) fail(400, 'new password must differ from the current one')
+    const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked_sessions: n }
+  }
   if (G && m('auth/sessions')) return demoSessions
   if (P && m('auth/sessions/revoke-others')) { const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked: n } }
   if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }

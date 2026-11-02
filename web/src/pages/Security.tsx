@@ -15,7 +15,7 @@ export function SettingsTabs() {
   const { t } = useT()
   const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-[#fde047] text-[#141414]' : 'border-transparent text-muted hover:text-fg')
   return (
-    <div className="flex gap-2 mb-8">
+    <div className="flex flex-wrap gap-2 mb-8">
       <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>
       <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
     </div>
@@ -29,7 +29,7 @@ export default function Security() {
   const q = useQuery('auth:2fa', api.twoFactor)
   return (
     <MainShell>
-      <div className="max-w-[1000px] mx-auto px-14 pt-12 pb-16">
+      <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <p className="text-[13px] text-muted mt-2 mb-6">{t('面板账号的密码、两步验证和登录会话。API 令牌（atl_pat_）不受影响，在「CLI 与 API」里管理。', 'Password, two-factor authentication and sessions for your panel account. API tokens (atl_pat_) are not affected; manage them under "CLI & API".')}</p>
         <SettingsTabs />
@@ -38,7 +38,7 @@ export default function Security() {
         {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
         {q.data && <TwoFactorCard st={q.data} />}
         <Sessions />
-        <Card className="p-5 mt-8 flex gap-3 items-start">
+        <Card className="p-5 mt-8 flex gap-3 items-start [overflow-wrap:anywhere]">
           <Terminal size={17} className="text-muted mt-0.5 shrink-0" />
           <div className="text-[12.5px] text-muted leading-6">
             {t('手机和恢复码都丢了：在中控服务器上运行', 'Lost your phone and the recovery codes? On the control host run')}{' '}
@@ -54,7 +54,7 @@ export default function Security() {
 function Section({ icon, title, right, children }: { icon: React.ReactNode; title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-8">
-      <div className="text-[15px] font-semibold flex items-center gap-2 mb-3">{icon}{title}<span className="ml-auto">{right}</span></div>
+      <div className="text-[15px] font-semibold flex flex-wrap items-center gap-2 mb-3"><span className="shrink-0">{icon}</span>{title}<span className="ml-auto">{right}</span></div>
       <Card>{children}</Card>
     </div>
   )
@@ -89,10 +89,10 @@ function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
   const hint = tooShort ? t('新密码至少 8 个字符', 'At least 8 characters') : tooLong ? t('新密码最多 72 个字符', 'At most 72 characters') : same ? t('新密码不能和当前密码相同', 'Must differ from the current password') : mismatch ? t('两次输入的新密码不一致', 'The new passwords do not match') : undefined
   return (
     <Section icon={<LockKeyhole size={17} />} title={t('修改密码', 'Change password')}>
-      <form className="px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
+      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
         <div className="text-[13.5px] text-fg2 leading-6">{t('修改后当前设备保持登录，其他设备上的会话会全部退出。', 'This device stays signed in; every other session is signed out.')}</div>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4 mt-4">
-          <label className="col-span-2 max-w-[calc(50%-10px)]">
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-x-5 gap-y-4 mt-4">
+          <label className="@2xl:col-span-2 @2xl:max-w-[calc(50%-10px)]">
             <div className="text-[13px] font-semibold mb-1.5">{t('当前密码', 'Current password')}</div>
             <TextInput type="password" autoComplete="current-password" className="w-full" value={cur} onChange={e => setCur(e.target.value)} />
           </label>
@@ -104,7 +104,7 @@ function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
             <div className="text-[13px] font-semibold mb-1.5">{t('确认新密码', 'Confirm new password')}</div>
             <TextInput type="password" autoComplete="new-password" className="w-full" value={pw2} onChange={e => setPw2(e.target.value)} />
           </label>
-          {twoFactor && <label className="col-span-2 max-w-[calc(50%-10px)]">
+          {twoFactor && <label className="@2xl:col-span-2 @2xl:max-w-[calc(50%-10px)]">
             <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
             <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
           </label>}
@@ -125,7 +125,7 @@ function TwoFactorCard({ st }: { st: TwoFactorStatus }) {
   return (
     <Section icon={<ShieldCheck size={17} />} title={t('两步验证（TOTP）', 'Two-factor authentication (TOTP)')}
       right={st.enabled ? <Badge tone="green"><Check size={11} strokeWidth={3} />{t('已启用', 'On')}</Badge> : <Badge tone="red">{t('未启用', 'Off')}</Badge>}>
-      <div className="px-6 py-5">
+      <div className="px-4 @2xl:px-6 py-5">
         {!st.enabled ? <>
           <div className="text-[13.5px] text-fg2 leading-6">{t('面板可以从公网访问。启用后，登录除了密码还需要验证器 App 里的 6 位动态码，密码泄露也进不来。', 'The panel is reachable from the internet. With 2FA, signing in needs the 6-digit code from an authenticator app as well as the password, so a leaked password is not enough.')}</div>
           <Button variant="primary" className="mt-4" onClick={() => setFlow('enroll')}><ShieldCheck size={15} />{t('启用两步验证', 'Turn on 2FA')}</Button>
@@ -135,7 +135,7 @@ function TwoFactorCard({ st }: { st: TwoFactorStatus }) {
             <div><div className="text-muted text-[12px]">{t('剩余恢复码', 'Recovery codes left')}</div><div className={cx('font-semibold mt-0.5 font-mono', low && 'text-[#ef4444]')}>{st.recovery_codes_left} / 10</div></div>
           </div>
           {low && <div className="mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-[#fde047] text-[#141414] px-3.5 py-2.5 text-[13px] font-semibold flex items-center gap-2"><AlertTriangle size={15} className="shrink-0" />{t('恢复码快用完了，建议重新生成。', 'You are running out of recovery codes — regenerate them.')}</div>}
-          <div className="flex gap-3 mt-5">
+          <div className="flex flex-wrap gap-3 mt-5">
             <Button onClick={() => setFlow('regen')}><RefreshCw size={14} />{t('重新生成恢复码', 'Regenerate recovery codes')}</Button>
             <Button variant="danger-outline" onClick={() => setFlow('disable')}><ShieldOff size={14} />{t('停用两步验证', 'Turn off 2FA')}</Button>
           </div>
@@ -186,9 +186,9 @@ function EnrollModal({ onClose, onDone }: { onClose: () => void; onDone: (codes:
             <li>{t('用验证器 App（Google Authenticator、Microsoft Authenticator、1Password、Bitwarden 等）扫描二维码。', 'Scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Bitwarden, …).')}</li>
             <li>{t('输入 App 显示的 6 位验证码确认。', 'Enter the 6-digit code it shows to confirm.')}</li>
           </ol>
-          <div className="flex gap-6 items-start mt-5">
+          <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start mt-5">
             <QRCode value={en.otpauth_uri} label={t('两步验证二维码', '2FA QR code')} />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 w-full">
               <div className="text-[12px] text-muted">{t('无法扫码？手动输入密钥：', 'Can’t scan? Enter this key manually:')}</div>
               <div className="mt-1.5 flex items-center gap-2">
                 <code className="font-mono text-[13px] font-bold break-all bg-sunk border-2 border-[var(--edge)] rounded-[4px] px-2.5 py-1.5">{secretGroups}</code>
@@ -252,10 +252,10 @@ function RecoveryCodesModal({ codes, onClose }: { codes: string[]; onClose: () =
     <Modal width={560} title={<><KeyRound size={17} className="text-accent" />{t('保存恢复码', 'Save your recovery codes')}</>} onClose={() => saved && onClose()}
       footer={<Button size="sm" variant="primary" disabled={!saved} onClick={onClose}>{t('我已保存好', 'I saved them')}</Button>}>
       <div className="text-[13.5px] text-fg2 leading-6">{t('手机丢失时可以用这些恢复码登录，每个只能用一次。它们只显示这一次——请下载或复制，存到密码管理器里。', 'If you lose your phone, each of these codes signs you in once. They are shown only now — download or copy them into your password manager.')}</div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-sunk px-5 py-4 font-mono text-[14px] font-bold">
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-x-6 gap-y-1.5 mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-sunk px-5 py-4 font-mono text-[14px] font-bold">
         {codes.map(c => <div key={c}>{c}</div>)}
       </div>
-      <div className="flex gap-3 mt-4">
+      <div className="flex flex-wrap gap-3 mt-4">
         <Button size="sm" onClick={download}><Download size={14} />{t('下载 .txt', 'Download .txt')}</Button>
         <Button size="sm" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? t('已复制', 'Copied') : t('复制全部', 'Copy all')}</Button>
       </div>
@@ -286,10 +286,10 @@ function Sessions() {
       {!q.data && !q.error && <div className="p-5 space-y-3"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>}
       {q.data && <div className="divide-y divide-line">
         {q.data.map(s => { const d = device(s.user_agent); return (
-          <div key={s.id} className="px-6 py-4 flex items-center gap-4">
+          <div key={s.id} className="px-4 @2xl:px-6 py-4 flex items-center gap-3 @2xl:gap-4">
             <div className="h-9 w-9 rounded-[4px] border-2 border-[var(--edge)] bg-sunk grid place-items-center shrink-0">{d.mobile ? <Smartphone size={16} /> : <Monitor size={16} />}</div>
             <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-semibold flex items-center gap-2">{d.name}{s.current && <Badge tone="violet">{t('当前', 'This device')}</Badge>}</div>
+              <div className="text-[13.5px] font-semibold flex flex-wrap items-center gap-x-2 gap-y-1">{d.name}{s.current && <Badge tone="violet">{t('当前', 'This device')}</Badge>}</div>
               <div className="text-[12px] text-muted mt-0.5 font-mono truncate">{s.ip || '—'} · {t('登录于', 'signed in')} {fmt(s.created_at)}</div>
             </div>
             {!s.current && <Button size="sm" disabled={busy} onClick={() => revoke(s)}>{t('退出', 'Sign out')}</Button>}

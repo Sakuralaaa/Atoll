@@ -19,7 +19,7 @@ export default function ProjectIndex() {
   const closeAdd = () => { const n = new URLSearchParams(sp); n.delete('add'); setSp(n, { replace: true }) }
   return (
     <ProjectShell project={p ?? placeholder(pid)}>
-      <div className="max-w-[1100px] mx-auto px-14 pt-12 pb-16">
+      <div className="max-w-[1100px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         {q.error && !p && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!p && !q.error && <CardSkeleton n={1} cols={1} h={200} />}
         {p && !first && <>

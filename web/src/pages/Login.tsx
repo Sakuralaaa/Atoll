@@ -58,11 +58,11 @@ export default function Login() {
   return (
     <div className="h-full canvas topline flex flex-col">
       <div className="flex justify-end gap-2 p-5"><LangToggle /><ThemeToggle /></div>
-      <div className="flex-1 grid place-items-center px-6 pb-20">
-        <div className="w-[420px] max-w-full">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 pb-20">
+        <div className="w-full max-w-[420px] min-w-0">
           <div className="flex justify-center mb-8"><Logo /></div>
           {pending ? (
-            <form onSubmit={submitCode} className="rise surface p-8">
+            <form onSubmit={submitCode} className="rise surface p-6 sm:p-8">
               <h1 className="text-[22px] font-extrabold italic tracking-[-0.03em] flex items-center gap-2"><ShieldCheck size={20} className="text-accent" />{t('两步验证', 'Two-factor authentication')}</h1>
               <p className="text-[13px] text-muted mt-1.5 leading-6">{useRecovery
                 ? t('输入一个还没用过的恢复码（如 k7m2q-x9tpw）。每个恢复码只能用一次。', 'Enter one of your unused recovery codes (like k7m2q-x9tpw). Each code works once.')
@@ -75,13 +75,13 @@ export default function Login() {
               </label>
               {errBox}
               <Button type="submit" variant="primary" size="lg" className="w-full mt-6 h-11" disabled={!codeOk || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <LogIn size={15} />}{t('验证并登录', 'Verify and sign in')}</Button>
-              <div className="mt-5 flex items-center justify-between text-[12.5px]">
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12.5px]">
                 <button type="button" onClick={back} className="text-muted hover:text-fg flex items-center gap-1"><ArrowLeft size={13} />{t('返回', 'Back')}</button>
                 <button type="button" onClick={() => { setUseRecovery(!useRecovery); setCode(''); setErr(undefined) }} className="text-accent font-semibold hover:underline">{useRecovery ? t('改用验证码', 'Use authenticator code') : t('手机丢了？用恢复码', 'Lost your phone? Use a recovery code')}</button>
               </div>
             </form>
           ) : (
-            <form onSubmit={submit} className="rise surface p-8">
+            <form onSubmit={submit} className="rise surface p-6 sm:p-8">
               {!status.data && !status.error ? <div className="space-y-4"><Skeleton className="h-7 w-40" /><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></div> : <>
                 <h1 className="text-[22px] font-extrabold italic tracking-[-0.03em] flex items-center gap-2">{setup ? <><Sparkles size={20} className="text-accent" />{t('创建管理员账号', 'Create the admin account')}</> : t('登录 Atoll', 'Sign in to Atoll')}</h1>
                 <p className="text-[13px] text-muted mt-1.5 leading-6">{setup
@@ -98,7 +98,7 @@ export default function Login() {
               </>}
             </form>
           )}
-          <div className="text-center text-[12px] text-dim mt-6 leading-5">{isDemo()
+          <div className="text-center text-[12px] text-dim mt-6 leading-5 [overflow-wrap:anywhere]">{isDemo()
             ? t('演示模式：任意用户名和密码都能登录（加 &2fa=1 体验两步验证，任意 6 位数字）', 'Demo mode: any username and password work (add &2fa=1 to try 2FA; any 6 digits)')
             : pending
               ? t('验证器和恢复码都丢了？在中控服务器上运行 atoll-server admin reset-2fa <用户名>', 'Lost both? On the control host run: atoll-server admin reset-2fa <user>')

@@ -49,8 +49,8 @@ function Configured({ p, s, policy, onPolicy }: { p: Project; s: Service; policy
     <>
       <PolicyForm key={policy.updated_at ?? 'default'} s={s} policy={policy} onSaved={onPolicy} />
       <RestoreStatus s={s} />
-      <div className="mt-8 flex items-end justify-between gap-4 mb-3">
-        <div>
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-4 mb-3">
+        <div className="flex-1 min-w-[min(100%,260px)]">
           <div className="text-[15px] font-semibold flex items-center gap-2"><ArchiveRestore size={17} />快照</div>
           <div className="text-[13px] text-muted mt-1">每次备份产生一个或多个 restic 快照：数据库是逻辑 dump，其余是卷目录。重复数据只上传一次。</div>
         </div>
@@ -86,8 +86,8 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
     if (r) onSaved(r)
   })
   return (
-    <Card className="p-6">
-      <div className="flex items-center gap-3">
+    <Card className="p-4 @2xl:p-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <CalendarClock size={18} className={policy.enabled ? 'text-accent' : 'text-muted'} />
         <span className="text-[15px] font-semibold tracking-tight">定时备份</span>
         <Badge tone={policy.enabled ? 'green' : 'zinc'}>{policy.enabled ? '已开启' : '未开启'}</Badge>
@@ -95,30 +95,30 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
         <span className="ml-auto flex items-center gap-1.5">{(policy.parts ?? []).map(x => <PartBadge key={x} part={x} />)}</span>
       </div>
       <div className="text-[13px] text-muted mt-1.5 leading-5">计划由服务所在服务器的 Agent 自己执行，中控离线时也照常备份。</div>
-      <div className="mt-5 grid grid-cols-[150px_minmax(0,1fr)] gap-x-6 gap-y-5 items-center text-[13px]">
+      <div className="mt-5 grid grid-cols-1 @2xl:grid-cols-[150px_minmax(0,1fr)] gap-x-6 gap-y-2 @2xl:gap-y-5 items-center text-[13px] [&>span]:@max-2xl:mt-3 [&>*]:min-w-0">
         <span className="font-semibold">启用</span>
-        <div className="flex items-center gap-3"><Toggle on={v.enabled} onChange={on => setV(x => ({ ...x, enabled: on }))} /><span className="text-muted">{v.enabled ? '按计划自动备份' : '只在手动点击时备份'}</span></div>
+        <div className="flex items-center gap-3 min-w-0"><Toggle on={v.enabled} onChange={on => setV(x => ({ ...x, enabled: on }))} /><span className="text-muted">{v.enabled ? '按计划自动备份' : '只在手动点击时备份'}</span></div>
 
-        <span className="font-semibold self-start mt-2.5">计划（cron）</span>
+        <span className="font-semibold self-start @2xl:mt-2.5">计划（cron）</span>
         <div>
           <div className="flex flex-wrap items-center gap-2">
             {PRESETS.map(x => (
               <button key={x.v} type="button" onClick={() => setV(y => ({ ...y, schedule: x.v }))}
                 className={cx('h-9 px-3 rounded-lg text-[12.5px] font-semibold border-2 transition-all', preset?.v === x.v ? 'nav-active' : 'border-[var(--edge)] bg-card text-fg2 hover:bg-ov/5')}>{x.l}</button>
             ))}
-            <TextInput mono aria-label="cron 表达式" className="w-[180px]" value={v.schedule} onChange={e => setV(x => ({ ...x, schedule: e.target.value }))} placeholder="0 3 * * *" />
+            <TextInput mono aria-label="cron 表达式" className="w-full max-w-[180px]" value={v.schedule} onChange={e => setV(x => ({ ...x, schedule: e.target.value }))} placeholder="0 3 * * *" />
           </div>
           <div className={cx('text-[12px] mt-1.5', cronOk ? 'text-dim' : 'text-[#ef4444]')}>{cronOk ? '5 段：分 时 日 月 周。例如 30 2 * * * 表示每天 02:30' : '需要 5 段 cron 表达式，例如 0 3 * * *'}</div>
         </div>
 
         <span className="font-semibold">时区</span>
-        <div className="flex items-center gap-3">
-          <TextInput mono list="backup-tz" className="w-[240px]" value={v.timezone} onChange={e => setV(x => ({ ...x, timezone: e.target.value }))} placeholder="Asia/Shanghai" />
+        <div className="flex flex-wrap items-center gap-3">
+          <TextInput mono list="backup-tz" className="w-full max-w-[240px]" value={v.timezone} onChange={e => setV(x => ({ ...x, timezone: e.target.value }))} placeholder="Asia/Shanghai" />
           <datalist id="backup-tz">{ZONES.map(z => <option key={z} value={z} />)}</datalist>
           <span className="text-[12px] text-dim">计划按这个 IANA 时区解读</span>
         </div>
 
-        <span className="font-semibold self-start mt-2.5">保留</span>
+        <span className="font-semibold self-start @2xl:mt-2.5">保留</span>
         <div>
           <div className="flex flex-wrap items-center gap-4">
             {([['daily', '每日'], ['weekly', '每周'], ['monthly', '每月']] as const).map(([k, l]) => (
@@ -131,10 +131,10 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
 
         {isDb && <>
           <span className="font-semibold">同时备份卷</span>
-          <div className="flex items-center gap-3"><Toggle on={v.include_volumes} onChange={on => setV(x => ({ ...x, include_volumes: on }))} /><span className="text-muted">数据库总是先做逻辑 dump；开启后再额外快照数据目录</span></div>
+          <div className="flex items-center gap-3 min-w-0"><Toggle on={v.include_volumes} onChange={on => setV(x => ({ ...x, include_volumes: on }))} /><span className="text-muted">数据库总是先做逻辑 dump；开启后再额外快照数据目录</span></div>
         </>}
       </div>
-      <div className="mt-6 pt-5 border-t-2 border-dashed border-line flex items-center justify-end gap-3">
+      <div className="mt-6 pt-5 border-t-2 border-dashed border-line flex flex-wrap items-center justify-end gap-3">
         {dirty && <span className="text-[12.5px] text-muted">有未保存的修改</span>}
         {dirty && <Button size="sm" onClick={() => setV(init)}>还原修改</Button>}
         <Button size="sm" variant="primary" disabled={!dirty || !cronOk || !keepOk || !v.timezone.trim() || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存策略</Button>
@@ -150,7 +150,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore: (b: Bac
   const [open, setOpen] = useState<string | undefined>()
   const live = (b: Backup) => b.snapshots.filter(x => !x.pruned)
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-x-auto"><div className="min-w-[960px]">
       <div className="grid grid-cols-[170px_150px_150px_100px_110px_minmax(0,1fr)_96px] gap-4 px-6 h-11 items-center text-[12px] font-semibold text-muted border-b-2 border-[var(--edge)] bg-ov/5">
         <span>时间</span><span>类型</span><span>大小</span><span>耗时</span><span>状态</span><span>快照 ID</span><span />
       </div>
@@ -191,7 +191,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore: (b: Bac
           )
         })}
       </div>
-    </Card>
+    </div></Card>
   )
 }
 
@@ -260,8 +260,8 @@ function RestoreStatus({ s }: { s: Service }) {
   const recent = active || (j.finished_at && Date.now() - new Date(j.finished_at).getTime() < 24 * 3600e3)
   if (!recent) return null
   return (
-    <Card className={cx('mt-6 px-6 py-4', j.status === 'failed' && '!bg-[#fca5a5] text-[#141414]')}>
-      <div className="flex items-center gap-3 text-[13px]">
+    <Card className={cx('mt-6 px-4 @2xl:px-6 py-4', j.status === 'failed' && '!bg-[#fca5a5] text-[#141414]')}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
         {active ? <Loader2 size={16} className="animate-spin text-accent" /> : j.status === 'done' ? <CheckCircle2 size={16} className="text-[#22c55e]" /> : <XCircle size={16} />}
         <span className="font-semibold">{active ? '正在还原' : j.status === 'done' ? '还原完成' : '还原失败'}</span>
         <span className={j.status === 'failed' ? '' : 'text-muted'}>{ago(j.created_at)} 开始{j.to_server_id !== j.from_server_id ? ' · 跨服务器灾难恢复' : ''}</span>

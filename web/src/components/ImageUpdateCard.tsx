@@ -63,13 +63,13 @@ function RegistryUpdateCard({ s }: { s: Service }) {
   const [label, tone] = STATUS[u.status] ?? [u.status, 'zinc']
   const checkable = u.status !== 'unsupported' && u.status !== 'disabled'
   return (
-    <Card className="mt-6 p-6">
+    <Card className="mt-6 p-4 @2xl:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <ArrowUpCircle size={18} className={u.update_available ? 'text-accent' : 'text-muted'} />
         <span className="text-[15px] font-semibold tracking-tight">镜像更新</span>
         <Badge tone={tone}>{label}</Badge>
         <span className="text-[12.5px] text-dim">{u.checked_at ? `检查于 ${ago(u.checked_at)}` : '尚未检查'}{u.next_check_at && u.status !== 'disabled' ? ` · 下次 ${new Date(u.next_check_at).toLocaleString('zh-CN', { hour12: false, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Select aria-label="更新策略" className="h-9 w-[132px]" value={u.policy} disabled={busy} onChange={e => setPolicy(e.target.value as ImageUpdatePolicyKind)}>
             <option value="notify">仅通知</option>
             <option value="auto">自动更新</option>
@@ -79,21 +79,21 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         </div>
       </div>
 
-      {checkable && <div className="mt-5 grid grid-cols-[100px_minmax(0,1fr)_minmax(0,1fr)] gap-y-3 gap-x-6 text-[13px]">
+      {checkable && <div className="mt-5 grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)_minmax(0,1fr)] gap-y-3 gap-x-3 @2xl:gap-x-6 text-[13px]">
         <span />
         <span className="text-[12px] text-muted">当前运行</span>
         <span className="text-[12px] text-muted">仓库最新</span>
         <span className="text-muted">标签</span>
-        <span className="font-mono truncate">{u.current_tag ?? '—'}</span>
-        <span className="font-mono truncate flex items-center gap-2">
-          {u.newer_tag ? <><span className="text-accent font-semibold">{u.newer_tag}</span><Button size="sm" disabled={busy} onClick={() => setConfirm({ tag: u.newer_tag })}>更新到 {u.newer_tag}</Button></> : <span className="text-fg2">{u.current_tag ?? '—'}</span>}
+        <span className="font-mono truncate" title={u.current_tag}>{u.current_tag ?? '—'}</span>
+        <span className="font-mono flex flex-wrap items-center gap-2 min-w-0">
+          {u.newer_tag ? <><span className="text-accent font-semibold truncate max-w-full" title={u.newer_tag}>{u.newer_tag}</span><Button size="sm" disabled={busy} onClick={() => setConfirm({ tag: u.newer_tag })}>更新到 {u.newer_tag}</Button></> : <span className="text-fg2 truncate" title={u.current_tag}>{u.current_tag ?? '—'}</span>}
         </span>
         <span className="text-muted">摘要</span>
         <span className="font-mono text-fg2 truncate" title={u.current_digest}>{shortDigest(u.current_digest)}</span>
         <span className={cx('font-mono truncate', u.digest_changed ? 'text-accent font-semibold' : 'text-fg2')} title={u.latest_digest}>{shortDigest(u.latest_digest)}</span>
         {u.major_tag && <>
           <span className="text-muted">大版本</span>
-          <span className="col-span-2 flex items-center gap-2 text-fg2"><TriangleAlert size={14} className="text-[#f59e0b] shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">主版本号变化，可能不兼容，请先看更新日志</span>
+          <span className="col-span-2 flex flex-wrap items-center gap-2 text-fg2 min-w-0"><TriangleAlert size={14} className="text-[#f59e0b] shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">主版本号变化，可能不兼容，请先看更新日志</span>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ tag: u.major_tag })}>切换</Button></span>
         </>}
       </div>}
@@ -119,7 +119,7 @@ function RegistryUpdateCard({ s }: { s: Service }) {
           const d = await run(() => updatesApi.apply(s.id, confirm.tag), { ok: '正在更新镜像', invalidate: [...keys, `deployments:${s.id}`, `project:${s.project_id}`, 'projects'] })
           if (d) { setConfirm(undefined); invalidate(...keys) }
         })}>{busy && <Loader2 size={14} className="animate-spin" />}确认更新</Button></>}>
-        <div className="text-[13.5px] text-fg2 leading-6">
+        <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">
           {confirm.tag
             ? <>将 <span className="font-mono font-semibold">{s.name}</span> 的镜像标签从 <span className="font-mono">{u.current_tag}</span> 切换到 <span className="font-mono font-semibold">{confirm.tag}</span>，并按该标签当前的摘要重新部署。</>
             : <>按 <span className="font-mono">{u.current_tag}</span> 在仓库中的最新摘要 <span className="font-mono font-semibold">{shortDigest(u.latest_digest)}</span> 重新部署 <span className="font-mono font-semibold">{s.name}</span>（当前 {shortDigest(u.current_digest)}）。</>}

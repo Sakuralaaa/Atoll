@@ -94,8 +94,8 @@ export function Ticks({ value, color, n = 44 }: { value: number; color?: string;
   color = color ?? (value >= 80 ? '#f43f5e' : value >= 60 ? '#f59e0b' : '#60a5fa')
   const on = Math.round((value / 100) * n)
   return (
-    <div className="flex gap-[2px] items-center h-3">
-      {Array.from({ length: n }, (_, i) => <span key={i} className="w-[4px] h-[12px] rounded-[1px]" style={{ background: i < Math.max(on, 1) ? color : 'var(--tick-off)',  }} />)}
+    <div className="flex gap-[2px] items-center h-3 min-w-0 max-w-full">
+      {Array.from({ length: n }, (_, i) => <span key={i} className="flex-1 min-w-px max-w-[4px] w-[4px] h-[12px] rounded-[1px]" style={{ background: i < Math.max(on, 1) ? color : 'var(--tick-off)',  }} />)}
     </div>
   )
 }

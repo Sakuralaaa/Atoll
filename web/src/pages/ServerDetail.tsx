@@ -32,9 +32,9 @@ export default function ServerDetail() {
   const tab = sp.get('tab') ?? 'info'
   return (
     <MainShell>
-      <div className="max-w-[1480px] mx-auto px-20 pt-10 pb-16">
+      <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
         <Link to="/servers" className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />返回</Link>
-        {s ? <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] mt-2">{s.name}</h1> : <Skeleton className="h-8 w-80 mt-3" />}
+        {s ? <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] mt-2 [overflow-wrap:anywhere]">{s.name}</h1> : <Skeleton className="h-8 w-80 mt-3" />}
         <div className="mt-1"><CopyId v={id} /></div>
         <Tabs className="mt-6" items={TABS} value={tab} onChange={k => setSp({ tab: k })} />
         <div className="mt-6">
@@ -53,7 +53,7 @@ export default function ServerDetail() {
 }
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
-  return <div className="flex items-center justify-between h-10 text-[13px]"><span className="text-muted">{k}</span><span className="text-fg">{v}</span></div>
+  return <div className="flex items-start justify-between gap-4 min-h-10 py-2.5 text-[13px] leading-5"><span className="text-muted shrink-0 whitespace-nowrap">{k}</span><span className="text-fg min-w-0 text-right [overflow-wrap:anywhere]">{v}</span></div>
 }
 
 function InfoTab({ s }: { s: Server }) {
@@ -61,12 +61,12 @@ function InfoTab({ s }: { s: Server }) {
   const u = usagePct(s), on = s.status === 'online'
   return (
     <>
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">运行信息</div>
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
           <KV k="Agent" v={s.agent_version || '—'} />
-          <KV k={t('管理通道', 'Agent channel')} v={<span className="flex items-center gap-2">{s.tailnet_host && <span className="font-mono text-[12.5px]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
+          <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<span className="font-mono text-[13px]">{s.tailnet_ip || '—'}</span>} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
           <KV k="区域" v={`${flagFor(s.region)} ${s.region || '—'}`} />
@@ -104,15 +104,15 @@ function ProjectsTab({ s }: { s: Server }) {
   const ps = projectsOn(q.data, s.id)
   if (!ps.length) return <Empty icon={<Code2 size={22} />} title="这台服务器上还没有项目" desc={s.role === 'control' ? '中控节点只运行面板与调度。' : '创建项目时选择这台服务器，或把其他服务器上的项目迁移过来。'} />
   return (
-    <div className="grid grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
       {ps.map(p => {
         const ss = p.services ?? []
         const run = ss.filter(x => x.status === 'running').length
         return (
           <Link key={p.id} to={`/projects/${p.id}`} className="rounded-2xl surface surface-hover p-5">
-            <div className="flex items-center gap-3"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold">{p.name}</span></div>
-            <div className="mt-8 grid grid-cols-[auto_1fr] gap-y-3.5 text-[13px]">
-              <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2">{s.provider && <Mini provider={s.provider} />}{s.name}</span>
+            <div className="flex items-center gap-3 min-w-0"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold truncate min-w-0" title={p.name}>{p.name}</span></div>
+            <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3.5 text-[13px]">
+              <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{s.provider && <Mini provider={s.provider} />}<span className="truncate" title={s.name}>{s.name}</span></span>
               <span className="text-muted">服务</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} 运行中</span>
               <span className="text-muted">成员</span><span className="flex justify-end"><Avatar size={22} /></span>
             </div>
@@ -150,16 +150,16 @@ function MetricsTab({ s }: { s: Server }) {
   const aggAts = (per.data ?? []).find(a => a.length)?.map(x => x.at) ?? []
   return (
     <>
-      <div className="flex items-center justify-between mb-5"><h2 className="text-[20px] font-semibold tracking-tight">监控指标</h2><div className="flex gap-2"><RangePicker v={range} set={setRange} />{isDemo() && <Button variant="primary"><Bell size={15} />设置告警</Button>}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="text-[20px] font-semibold tracking-tight">监控指标</h2><div className="flex flex-wrap gap-2"><RangePicker v={range} set={setRange} />{isDemo() && <Button variant="primary"><Bell size={15} />设置告警</Button>}</div></div>
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Chart title="CPU 使用率" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
         <Chart title="内存使用率" icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="#38bdf8" max={100} labels={labels} />
         <Chart title="硬盘空间使用率" icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
       </div>
-      <div className="flex items-center justify-between mt-9 mb-3"><h3 className="text-[15px] font-semibold">项目分布</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2"><span className="h-3 w-3 rounded-full" style={{ background: colors[i % 6] }} />{p.name}</span>)}</div>
-      <div className="grid grid-cols-2 gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-9 mb-3"><h3 className="text-[15px] font-semibold">项目分布</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2 min-w-0 max-w-full"><span className="h-3 w-3 rounded-full shrink-0" style={{ background: colors[i % 6] }} />{p.name}</span>)}</div>
+      <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
         <Chart title="CPU 使用率（容器合计）" icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="#a855f7" labels={timeLabels(aggAts)} />
         <Chart title="内存（容器合计）" icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="#eab308" unit=" MB" labels={timeLabels(aggAts)} />
       </div>
@@ -171,7 +171,7 @@ function Section({ title, children }: { title: React.ReactNode; children: React.
   return <div className="mb-8"><div className="text-[13px] font-semibold mb-3 flex items-center gap-2">{title}</div><Card className="divide-y divide-line">{children}</Card></div>
 }
 function Row({ t, d, children }: { t: React.ReactNode; d?: string; children?: React.ReactNode }) {
-  return <div className="px-6 py-5 flex items-center gap-6"><div className="flex-1"><div className="text-[13px] font-semibold flex items-center gap-2">{t}</div>{d && <div className="text-[13.5px] text-muted mt-1">{d}</div>}</div>{children}</div>
+  return <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold flex flex-wrap items-center gap-2">{t}</div>{d && <div className="text-[13.5px] text-muted mt-1 [overflow-wrap:anywhere]">{d}</div>}</div>{children}</div>
 }
 
 function Stepper({ l, v, max }: { l: string; v: number; max: string }) {
@@ -193,10 +193,10 @@ function SettingsTab({ s }: { s: Server }) {
   return (
     <>
       <Section title="基本">
-        <Row t="服务器名称"><TextInput className="w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
-        <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、Vultr"><TextInput className="w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
-        <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US"><TextInput className="w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
-        <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-[480px] h-11 rounded-lg field px-3.5 flex items-center text-[13px] font-mono">{s.public_ipv4 || '—'}</div></Row>
+        <Row t="服务器名称"><TextInput className="w-full @4xl:w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
+        <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、Vultr"><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
+        <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US"><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
+        <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]">{s.public_ipv4 || '—'}</div></Row>
         <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>取消</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>保存配置</Button></div>
       </Section>
       <NetworkSection s={s} />
@@ -207,7 +207,7 @@ function SettingsTab({ s }: { s: Server }) {
       {isDemo() && <Section title="资源保留">
         <div className="p-6">
           <div className="text-[13.5px] text-muted mb-4">为 Docker、Caddy 和系统进程保留 CPU 与内存，项目容器不会占满整台机器。</div>
-          <div className="rounded-xl border border-line bg-card2/60 p-5 flex gap-5"><Stepper l="CPU" v={250} max={`${s.cpu_cores * 1000} m`} /><Stepper l="内存" v={512} max={`${s.mem_mb} Mi`} /></div>
+          <div className="rounded-xl border border-line bg-card2/60 p-5 flex flex-col @2xl:flex-row gap-5"><Stepper l="CPU" v={250} max={`${s.cpu_cores * 1000} m`} /><Stepper l="内存" v={512} max={`${s.mem_mb} Mi`} /></div>
           <div className="flex justify-end gap-2 mt-5"><Button variant="primary" size="sm">保存</Button><Button size="sm">取消</Button></div>
         </div>
       </Section>}
@@ -233,7 +233,7 @@ function NetworkSection({ s }: { s: Server }) {
         <ServerNetworkAction s={s} />
       </Row>
       <Row t={t('管理通道', 'Agent channel')} d={n?.fallback_urls?.length ? `${t('备用', 'Fallback')}: ${n.fallback_urls.join(', ')}` : undefined}>
-        <span className="font-mono text-[12.5px] text-fg2 truncate max-w-[420px]">{n?.control_url || '—'}</span>
+        <span className="font-mono text-[12.5px] text-fg2 truncate max-w-full @4xl:max-w-[420px]">{n?.control_url || '—'}</span>
       </Row>
       {n?.mesh_error && <Row t={t('跨服务器转发', 'Cross-server mesh')} d={n.mesh_error}><Badge tone="red">{t('异常', 'Error')}</Badge></Row>}
     </Section>
@@ -268,8 +268,8 @@ function SshTab({ s }: { s: Server }) {
   )
   return (
     <Card className="bg-sunk overflow-hidden">
-      <div className="h-10 px-4 flex items-center text-[13px] text-muted border-b border-line gap-2"><SquareTerminal size={14} />root@{s.name.split(' ')[0].toLowerCase()} · 经 Tailscale</div>
-      <pre className="p-5 font-mono text-[13px] leading-7 text-fg2 h-[460px]">{`Welcome to ${s.os} (GNU/Linux ${s.arch})
+      <div className="h-10 px-4 flex items-center text-[13px] text-muted border-b border-line gap-2 min-w-0 whitespace-nowrap overflow-hidden"><SquareTerminal size={14} className="shrink-0" />root@{s.name.split(' ')[0].toLowerCase()} · 经 Tailscale</div>
+      <pre className="p-5 font-mono text-[13px] leading-7 text-fg2 h-[460px] overflow-auto">{`Welcome to ${s.os} (GNU/Linux ${s.arch})
 Last login: Thu Oct 29 20:58:11 2026 from 100.88.12.4
 root@${s.id}:~# docker ps --format 'table {{.Names}}\\t{{.Status}}'
 NAMES                 STATUS
@@ -293,17 +293,17 @@ function StatusTab({ s }: { s: Server }) {
   const find = (sid: string) => { for (const p of ps ?? []) { const x = p.services?.find(v => v.id === sid); if (x) return { p, x } } return undefined }
   const st = (state: string) => state === 'running' ? 'running' : state === 'restarting' ? 'failed' : state === 'created' ? 'deploying' : 'stopped'
   return (
-    <Card className="overflow-hidden">
-      <div className="grid grid-cols-[1.4fr_1fr_1.6fr_1fr_1fr] px-6 h-11 items-center text-[12.5px] text-muted border-b border-line"><span>容器</span><span>项目</span><span>镜像</span><span>状态</span><span>重启次数</span></div>
+    <Card className="overflow-x-auto"><div className="min-w-[720px]">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-11 items-center text-[12.5px] text-muted border-b border-line"><span>容器</span><span>项目</span><span>镜像</span><span>状态</span><span>重启次数</span></div>
       {c.data.map(row => {
         const f = find(row.service_id)
         return (
-          <div key={row.service_id} className="grid grid-cols-[1.4fr_1fr_1.6fr_1fr_1fr] px-6 h-12 items-center text-[13px] border-b border-line last:border-0">
-            <span className="font-mono text-[13px] truncate">{f ? <Link to={`/projects/${f.p.id}/services/${f.x.id}`} className="hover:underline">atoll-{f.x.name}</Link> : `atoll-${row.service_id}`}</span><span>{f?.p.name ?? '—'}</span><span className="font-mono text-[12.5px] text-muted truncate">{f?.x.image ?? row.image_digest ?? '—'}</span>
+          <div key={row.service_id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-12 items-center text-[13px] border-b border-line last:border-0">
+            <span className="font-mono text-[13px] truncate">{f ? <Link to={`/projects/${f.p.id}/services/${f.x.id}`} className="hover:underline">atoll-{f.x.name}</Link> : `atoll-${row.service_id}`}</span><span className="truncate" title={f?.p.name}>{f?.p.name ?? '—'}</span><span className="font-mono text-[12.5px] text-muted truncate">{f?.x.image ?? row.image_digest ?? '—'}</span>
             <span className="flex items-center gap-2"><Dot status={st(row.state)} />{row.state}{row.health ? ` · ${row.health}` : ''}</span><span className={row.restart_count ? 'text-[#f59e0b] font-semibold' : 'text-muted'}>{row.restart_count}</span>
           </div>
         )
       })}
-    </Card>
+    </div></Card>
   )
 }

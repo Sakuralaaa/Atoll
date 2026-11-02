@@ -114,10 +114,10 @@ export default function FilesPage() {
 
   const lines = text.split('\n').length
   return (
-    <div className="h-full flex topline">
-      <aside className="w-[340px] shrink-0 bg-side border-r border-line flex flex-col px-5 pt-7 min-h-0">
-        <Link to={`/projects/${pid}/services/${sid}`} className="flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ChevronLeft size={16} />返回 {s?.name ?? ''}</Link>
-        <div className="flex items-center mt-5">
+    <div className="h-full flex flex-col md:flex-row topline">
+      <aside className="w-full md:w-[300px] lg:w-[340px] shrink-0 bg-side md:border-r border-line flex flex-col px-4 md:px-5 pt-6 md:pt-7 min-h-0 max-md:max-h-[45%] max-md:border-b-2 max-md:border-[var(--edge)]">
+        <Link to={`/projects/${pid}/services/${sid}`} className="flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg min-w-0"><ChevronLeft size={16} className="shrink-0" /><span className="truncate">返回 {s?.name ?? ''}</span></Link>
+        <div className="flex items-center mt-3 md:mt-5">
           <h1 className="text-[17px] font-extrabold italic tracking-[-0.02em] flex-1">文件管理</h1>
           <span className="flex gap-1 text-muted">
             <button title="新建文件夹" onClick={() => { setCreating('dir'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FolderPlus size={16} /></button>
@@ -125,7 +125,7 @@ export default function FilesPage() {
             <button title="刷新" onClick={() => { setDirs({}); [...open].forEach(list) }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><RefreshCw size={15} /></button>
           </span>
         </div>
-        <div className="text-[12.5px] text-muted mt-1 mb-3 leading-5">已挂载的卷以<span className="text-accent font-semibold">紫色</span>显示，重新部署后仍保留；其他位置的修改会在重新部署时丢失。</div>
+        <div className="text-[12.5px] text-muted mt-1 mb-3 leading-5 max-md:hidden">已挂载的卷以<span className="text-accent font-semibold">紫色</span>显示，重新部署后仍保留；其他位置的修改会在重新部署时丢失。</div>
         {creating && (
           <div className="mb-3">
             <div className="text-[12px] text-dim mb-1.5 font-mono truncate">在 {target} 下新建{creating === 'dir' ? '文件夹' : '文件'}</div>
@@ -144,18 +144,18 @@ export default function FilesPage() {
             </>}
         </div>
       </aside>
-      <main className="flex-1 flex flex-col bg-bg min-w-0">
-        <div className="h-14 border-b-2 border-[var(--edge)] flex items-center px-5 text-[13.5px] gap-3 shrink-0">
+      <main className="flex-1 flex flex-col bg-bg min-w-0 min-h-0">
+        <div className="min-h-14 py-2 border-b-2 border-[var(--edge)] flex items-center px-4 md:px-5 text-[13.5px] gap-3 shrink-0">
           {file ? <>
             <span className="font-mono truncate">{file}</span>
             {orig !== undefined && <span className="text-dim shrink-0 tnum">· {bytes(new TextEncoder().encode(text).length)}</span>}
-            {isVol(file) ? <span className="text-[12px] text-accent shrink-0">· 卷内文件</span> : <span className="text-[12px] text-dim shrink-0">· 不在卷内，重新部署后恢复原样</span>}
+            {isVol(file) ? <span className="text-[12px] text-accent shrink-0">· 卷内文件</span> : <span className="text-[12px] text-dim shrink-0 max-lg:hidden">· 不在卷内，重新部署后恢复原样</span>}
             {dirty && <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" title="未保存" />}
             <span className="ml-auto" />
             <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}保存</Button>
           </> : <span className="text-muted">从左侧选择一个文件</span>}
         </div>
-        {!file ? <div className="flex-1 grid place-items-center p-10"><Empty icon={<FileText size={22} />} title="浏览容器里的文件" desc="通过容器内的 ls / cat 读取，保存时写回原路径。适合改配置文件，大文件和二进制文件请用命令行。" /></div>
+        {!file ? <div className="flex-1 flex items-center justify-center p-6 md:p-10 min-w-0 [&>*]:max-w-full"><Empty icon={<FileText size={22} />} title="浏览容器里的文件" desc="通过容器内的 ls / cat 读取，保存时写回原路径。适合改配置文件，大文件和二进制文件请用命令行。" /></div>
           : loadingFile ? <div className="p-5 space-y-3">{[60, 40, 75, 30, 55].map((w, i) => <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />)}</div>
           : fileErr ? <div className="p-6 flex items-start gap-2 text-[13px] text-[#ef4444]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="break-all">{fileErr}</span></div>
           : (

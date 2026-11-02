@@ -42,9 +42,9 @@ export default function ServicePage() {
   const refresh = () => invalidate(`project:${pid}`, 'projects')
   return (
     <ProjectShell project={p ?? placeholder(pid)} active={sid}>
-      <div className="max-w-[1320px] mx-auto px-6 lg:px-10 xl:px-14 pt-10 pb-16">
+      <div className="max-w-[1320px] mx-auto px-4 @2xl:px-8 @5xl:px-10 @6xl:px-14 pt-6 @2xl:pt-10 pb-16">
         {pq.error && !p && <ErrorState error={pq.error} onRetry={pq.refetch} />}
-        {!p && !pq.error && <><div className="flex gap-4"><Skeleton className="h-[52px] w-[52px]" /><div className="space-y-2 flex-1"><Skeleton className="h-7 w-64" /><Skeleton className="h-3.5 w-96" /></div></div><div className="mt-10"><CardSkeleton n={1} cols={1} h={260} /></div></>}
+        {!p && !pq.error && <><div className="flex gap-4"><Skeleton className="h-[52px] w-[52px]" /><div className="space-y-2 flex-1 min-w-0"><Skeleton className="h-7 w-64 max-w-full" /><Skeleton className="h-3.5 w-96 max-w-full" /></div></div><div className="mt-10"><CardSkeleton n={1} cols={1} h={260} /></div></>}
         {p && !s && <Empty title="找不到这个服务" desc="它可能已被删除。" action={<Link to={`/projects/${p.id}`}><Button>返回项目</Button></Link>} />}
         {p && s && <>
           <Header s={s} onChange={refresh} />
@@ -75,8 +75,8 @@ function Header({ s, onChange }: { s: Service; onChange: () => void }) {
   return (
     <div className="flex flex-wrap items-start gap-4">
       <ServiceIcon s={svcIcon(s)} size={52} />
-      <div className="flex-1 min-w-[220px]">
-        <div className="flex flex-wrap items-center gap-3"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
+      <div className="flex-1 min-w-[min(100%,220px)]">
+        <div className="flex flex-wrap items-center gap-3"><h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
       </div>
       <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
@@ -97,12 +97,12 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
   const doms = s.domains ?? []
   return (
     <>
-      <Card className="p-6">
-        <div className="flex flex-col xl:flex-row xl:items-start gap-6 xl:gap-8">
+      <Card className="p-4 @2xl:p-6">
+        <div className="flex flex-col @5xl:flex-row @5xl:items-start gap-6 @5xl:gap-8">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3"><Dot status={s.status} /><span className="text-[17px] font-semibold tracking-tight">{statusText[s.status] ?? s.status}</span><span className="text-muted text-[13px]">· {s.replicas}</span></div>
             <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]" title={last?.message}>{last ? <>最近一次部署 {ago(last.started_at)} · 由「{triggerText[last.trigger] ?? last.trigger}」触发{last.message ? ` · ${shortDigests(last.message)}` : ''}</> : deps.data ? '还没有部署记录' : <Skeleton className="h-3.5 w-64" />}</div>
-            <div className="mt-6 grid grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
+            <div className="mt-6 grid grid-cols-[84px_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
               {s.git ? <>
                 <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><GithubIcon size={14} /><span className="truncate" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">源码构建</span></span>
                 <span className="text-muted">提交</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
@@ -114,13 +114,13 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
               <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : '不限'} · 重启策略 unless-stopped</span>
             </div>
           </div>
-          <div className="w-full xl:w-[380px] xl:shrink-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-1 gap-3">
+          <div className="w-full @5xl:w-[380px] @5xl:shrink-0 grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @5xl:grid-cols-1 gap-3">
             {isDemo() ? <Uptime failed={s.status === 'failed'} /> : <RecentDeploys deps={deps.data} />}
             <div className="grid grid-cols-2 gap-3">
               {([['CPU', cpu.length ? `${cpu[cpu.length - 1].toFixed(1)}%` : '—', cpu, '#8b5cf6'], ['内存', mem.length ? `${Math.round(mem[mem.length - 1])} MB` : '—', mem, '#38bdf8']] as const).map(([l, v, d, c]) => (
                 <div key={l} className="rounded-xl field px-4 py-3">
                   <div className="text-[12px] text-muted">{l}</div>
-                  <div className="flex items-end justify-between mt-1"><span className="text-[17px] font-semibold tnum">{v}</span><Spark data={[...d]} color={c} /></div>
+                  <div className="flex items-end justify-between gap-2 mt-1 min-w-0"><span className="text-[17px] font-semibold tnum whitespace-nowrap">{v}</span><span className="min-w-0 overflow-hidden"><Spark data={[...d]} color={c} /></span></div>
                 </div>
               ))}
             </div>
@@ -130,7 +130,7 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
           <Button size="sm" onClick={() => setHist(true)}><History size={14} />部署记录</Button>
           {stopped ? <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'start'), { ok: '正在启动', invalidate: [`project:${p.id}`] }))}><Play size={13} />启动</Button>
             : <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'stop'), { ok: '已停止', invalidate: [`project:${p.id}`] }))}><Square size={13} />停止</Button>}
-          <span className="ml-auto text-[13px] text-dim">回滚到任意历史镜像摘要</span>
+          <span className="ml-auto text-[13px] text-dim @max-md:hidden">回滚到任意历史镜像摘要</span>
         </div>
       </Card>
 
@@ -139,22 +139,22 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
 
       <div className="mt-6 text-[13px] font-semibold mb-3">域名</div>
       {doms.length ? <div className="space-y-3">{doms.map(d => (
-        <Card key={d.id} className="px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Globe size={18} className="text-accent" />
-          <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold flex items-center gap-1.5 hover:underline min-w-0 [overflow-wrap:anywhere]">{d.hostname}<ExternalLink size={13} /></a>
+        <Card key={d.id} className="px-4 @2xl:px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Globe size={18} className="text-accent shrink-0" />
+          <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold flex items-center gap-1.5 hover:underline min-w-0 [overflow-wrap:anywhere]">{d.hostname}<ExternalLink size={13} className="shrink-0" /></a>
           <DomainBadge d={d} />
-          <span className="ml-auto flex items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />Cloudflare 代理</> : '仅 DNS'} → {srv?.public_ipv4 ?? '—'}</span>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />Cloudflare 代理</> : '仅 DNS'} → {srv?.public_ipv4 ?? '—'}</span>
         </Card>
       ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex flex-wrap gap-3 items-center justify-between">此服务未公开访问，仅项目内网可达<Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />绑定域名</Button></Card>}
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="mt-6 grid grid-cols-1 @4xl:grid-cols-3 gap-5">
         {([
           [<FolderOpen size={22} />, '文件', '浏览容器与卷中的文件', `${base}/files`],
           [<ScrollText size={22} />, '日志', '实时运行日志', `${base}/logs`],
           [<SquareTerminal size={22} />, '命令', '在容器内执行命令', `${base}/logs?view=exec`],
         ] as const).map(([i, t, d, to]) => (
-          <Link key={t} to={to} className="rounded-2xl surface surface-hover px-6 py-5 flex items-center gap-4">
-            <div className="h-11 w-11 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center text-fg">{i}</div>
+          <Link key={t} to={to} className="rounded-2xl surface surface-hover px-5 @2xl:px-6 py-5 flex items-center gap-4 min-w-0">
+            <div className="h-11 w-11 shrink-0 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center text-fg">{i}</div>
             <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[13px] text-muted mt-0.5">{d}</div></div>
           </Link>
         ))}
@@ -198,13 +198,13 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
       {!deps ? <RowsSkeleton n={3} /> : !deps.length ? <div className="text-[13px] text-muted">还没有部署记录</div> : (
         <div className="divide-y divide-line -my-2">
           {deps.map((d, i) => (
-            <div key={d.id} className="py-3 flex items-center gap-4 text-[13px]">
+            <div key={d.id} className="py-3 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
-              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status} <span className="text-muted font-normal">· {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div>
+              <div className="flex-1 min-w-[calc(100%-32px)] sm:min-w-0"><div className="font-semibold flex flex-wrap items-center gap-x-2 gap-y-0.5">{deployStatusText[d.status] ?? d.status} <span className="text-muted font-normal">· {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div>
                 <div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
-              <span className="text-muted tnum">{dateTime(d.started_at)}</span>
-              {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
+              <span className="text-muted tnum whitespace-nowrap max-sm:ml-[23px]">{dateTime(d.started_at)}</span>
+              {i > 0 && d.image_digest ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
         </div>
@@ -227,10 +227,10 @@ function BindDomain({ s, onClose }: { s: Service; onClose: () => void }) {
   return (
     <Modal title="绑定域名" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!hostname || !port || busy} onClick={submit}>绑定</Button></>}>
       <Label t="域名" d={settings?.base_domain ? `只填前缀则使用 *.${settings.base_domain}；完整域名需由同一 Cloudflare 账号托管` : '尚未设置主域名，请填写完整域名'}>
-        <div className="flex items-center gap-2"><TextInput autoFocus mono className="flex-1" value={host} onChange={e => setHost(e.target.value.trim())} placeholder={settings?.base_domain ? 'app' : 'app.example.com'} />{settings?.base_domain && !host.includes('.') && <span className="font-mono text-[13px] text-muted">.{settings.base_domain}</span>}</div>
+        <div className="flex items-center gap-2 min-w-0"><TextInput autoFocus mono className="flex-1 min-w-0" value={host} onChange={e => setHost(e.target.value.trim())} placeholder={settings?.base_domain ? 'app' : 'app.example.com'} />{settings?.base_domain && !host.includes('.') && <span className="font-mono text-[13px] text-muted truncate max-w-[50%]">.{settings.base_domain}</span>}</div>
       </Label>
       <Label t="端口">{httpPorts.length ? <Select className="w-full" value={port} onChange={e => setPort(e.target.value)}>{httpPorts.map(p => <option key={p.name} value={p.name}>{p.name} · {p.container_port}</option>)}</Select> : <div className="text-[13px] text-muted">没有 HTTP 端口，请先在「网络」里添加。</div>}</Label>
-      <div className="flex items-center justify-between"><div><div className="text-[13px] font-semibold">Cloudflare 代理</div><div className="text-[12px] text-dim mt-0.5">橙色云朵：隐藏源站 IP，80/443 只放行 Cloudflare</div></div><Toggle on={proxied} onChange={setProxied} /></div>
+      <div className="flex items-center justify-between gap-4"><div><div className="text-[13px] font-semibold">Cloudflare 代理</div><div className="text-[12px] text-dim mt-0.5">橙色云朵：隐藏源站 IP，80/443 只放行 Cloudflare</div></div><Toggle on={proxied} onChange={setProxied} /></div>
     </Modal>
   )
 }
@@ -251,17 +251,17 @@ function EnvTab({ s }: { s: Service }) {
   const byService = (refs.data ?? []).reduce<Record<string, EnvVar[]>>((a, v) => { (a[v.service ?? '同项目服务'] ??= []).push(v); return a }, {})
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div><div className="text-[15px] font-semibold">用户变量</div><div className="text-[13px] text-muted mt-0.5">修改后需重新部署生效。可用 {'${变量名}'} 引用同项目其他服务暴露的变量。</div></div>
-        <div className="flex gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? '隐藏私有值' : '显示私有值'}</Button><Button onClick={() => setRaw(true)}><Pencil size={14} />编辑原始环境变量</Button><Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button></div>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+        <div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">用户变量</div><div className="text-[13px] text-muted mt-0.5">修改后需重新部署生效。可用 {'${变量名}'} 引用同项目其他服务暴露的变量。</div></div>
+        <div className="flex flex-wrap gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? '隐藏私有值' : '显示私有值'}</Button><Button onClick={() => setRaw(true)}><Pencil size={14} />编辑原始环境变量</Button><Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button></div>
       </div>
       {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.refetch} /> : !q.data ? <RowsSkeleton n={5} /> : !rows.length ? <Empty icon={<KeyRound size={22} />} title="还没有环境变量" action={<Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button>} /> : (
         <Card className="divide-y divide-line">
           {rows.map((v, i) => (
-            <div key={v.key} className="px-6 h-[52px] grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_170px] items-center gap-6 group hover:bg-ov/[0.02] transition-colors">
-              <span className="font-mono text-[13px] font-medium truncate">{v.key}</span>
-              <span className={cx('font-mono text-[13px] truncate', v.value.includes('${') ? 'text-accent-soft' : 'text-fg2')}>{v.secret && !v.value ? '••••••••••••••••' : v.value}</span>
-              <span className="flex items-center justify-end gap-3 text-dim group-hover:text-muted transition-colors">
+            <div key={v.key} className="px-4 @2xl:px-6 py-3 @3xl:py-0 @3xl:h-[52px] grid grid-cols-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_170px] items-center gap-x-6 gap-y-1 group hover:bg-ov/[0.02] transition-colors">
+              <span className="font-mono text-[13px] font-medium truncate" title={v.key}>{v.key}</span>
+              <span title={v.secret && !v.value ? undefined : v.value} className={cx('font-mono text-[13px] truncate @max-3xl:col-span-2 @max-3xl:row-start-2', v.value.includes('${') ? 'text-accent-soft' : 'text-fg2')}>{v.secret && !v.value ? '••••••••••••••••' : v.value}</span>
+              <span className="flex items-center justify-end gap-3 text-dim group-hover:text-muted transition-colors @max-3xl:row-start-1 @max-3xl:col-start-2">
                 {v.exposed && <span title="同项目其他服务可引用" className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Share2 size={11} />暴露</span>}
                 {v.secret && <span className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Lock size={11} />私有</span>}
                 <button title="编辑" onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title="删除" onClick={() => setDel(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>
@@ -276,10 +276,10 @@ function EnvTab({ s }: { s: Service }) {
           <div className="text-[13px] text-muted mb-4">来自同项目服务 {svc}</div>
           <Card className="divide-y divide-line">
             {vars.map(v => (
-              <div key={v.key} className="px-6 h-12 grid grid-cols-[1fr_1.4fr_auto] items-center gap-6 text-[13px]">
-                <span className="font-mono text-accent-soft">{v.key}</span>
-                <span className="font-mono text-dim truncate">{v.secret || !v.value ? '••••••••' : v.value}</span>
-                <button title="复制引用" onClick={() => navigator.clipboard?.writeText(`\${${v.key}}`)}><Copy size={14} className="text-muted hover:text-fg" /></button>
+              <div key={v.key} className="px-4 @2xl:px-6 py-3 @3xl:py-0 @3xl:h-12 grid grid-cols-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-x-6 gap-y-1 text-[13px]">
+                <span className="font-mono text-accent-soft truncate" title={v.key}>{v.key}</span>
+                <span className="font-mono text-dim truncate @max-3xl:col-span-2 @max-3xl:row-start-2">{v.secret || !v.value ? '••••••••' : v.value}</span>
+                <button className="@max-3xl:row-start-1 @max-3xl:col-start-2" title="复制引用" onClick={() => navigator.clipboard?.writeText(`\${${v.key}}`)}><Copy size={14} className="text-muted hover:text-fg" /></button>
               </div>
             ))}
           </Card>
@@ -301,8 +301,8 @@ function EnvEditor({ init, isNew, onClose, onSave }: { init: EnvVar; isNew: bool
     <Modal title={isNew ? '添加环境变量' : '编辑环境变量'} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!ok || busy} onClick={() => wrap(async () => { if (await onSave(v)) onClose() })}>保存</Button></>}>
       <Label t="变量名"><TextInput autoFocus={isNew} mono className="w-full" value={v.key} onChange={e => setV({ ...v, key: e.target.value.trim() })} placeholder="DATABASE_URL" /></Label>
       <Label t="值" d={v.secret && !isNew ? '私有变量：留空保持原值不变' : '可用 ${OTHER_KEY} 引用其他变量'}><TextInput autoFocus={!isNew} mono className="w-full" value={v.value} onChange={e => setV({ ...v, value: e.target.value })} /></Label>
-      <div className="flex items-center justify-between mb-3"><div className="text-[13px] font-semibold">私有<span className="text-dim font-normal ml-2 text-[12px]">面板与 API 默认隐藏值</span></div><Toggle on={v.secret} onChange={x => setV({ ...v, secret: x })} /></div>
-      <div className="flex items-center justify-between"><div className="text-[13px] font-semibold">暴露给同项目服务<span className="text-dim font-normal ml-2 text-[12px]">其他服务可用 {'${' + (v.key || 'KEY') + '}'} 引用</span></div><Toggle on={v.exposed} onChange={x => setV({ ...v, exposed: x })} /></div>
+      <div className="flex items-center justify-between gap-4 mb-3"><div className="text-[13px] font-semibold">私有<span className="text-dim font-normal ml-2 text-[12px]">面板与 API 默认隐藏值</span></div><Toggle on={v.secret} onChange={x => setV({ ...v, secret: x })} /></div>
+      <div className="flex items-center justify-between gap-4"><div className="text-[13px] font-semibold">暴露给同项目服务<span className="text-dim font-normal ml-2 text-[12px]">其他服务可用 {'${' + (v.key || 'KEY') + '}'} 引用</span></div><Toggle on={v.exposed} onChange={x => setV({ ...v, exposed: x })} /></div>
     </Modal>
   )
 }
@@ -317,7 +317,7 @@ function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void
   return (
     <Modal title="编辑原始环境变量" width={720} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={busy} onClick={() => wrap(async () => { if (await onSave(parse())) onClose() })}>保存</Button></>}>
       <div className="text-[12.5px] text-muted mb-3">每行一个 KEY=VALUE。私有变量显示为空值，保持为空即不修改。</div>
-      <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} className="w-full h-[320px] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
+      <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} wrap="off" className="w-full h-[320px] max-h-[50vh] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
     </Modal>
   )
 }
@@ -330,9 +330,9 @@ function UsageTab({ s }: { s: Service }) {
   const tx = d.reduce((a, x, i) => a + (i ? x.net_tx_bps * ((new Date(x.at).getTime() - new Date(d[i - 1].at).getTime()) / 1000) : 0), 0)
   return (
     <>
-      <div className="flex items-center justify-between mb-4"><div className="text-[15px] font-semibold">用量</div><RangePicker v={range} set={setRange} /></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><div className="text-[15px] font-semibold">用量</div><RangePicker v={range} set={setRange} /></div>
       {q.error && !q.data && <div className="mb-4"><ErrorState error={q.error} onRetry={q.refetch} /></div>}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 [&>*]:min-w-0">
         <Chart title="CPU" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" labels={labels} />
         <Chart title="内存" icon={<MemoryStick size={15} />} data={d.map(x => x.mem_mb)} color="#38bdf8" unit=" MB" labels={labels} />
       </div>
@@ -351,31 +351,31 @@ function NetworkTab({ s, srv }: { s: Service; srv?: Server }) {
     <>
       <div className="text-[15px] font-semibold mb-1">内网访问</div>
       <div className="text-[13px] text-muted mb-4">同项目的服务通过 Docker 内网直接互通，不经过公网。</div>
-      <Card className="px-6 py-5 grid grid-cols-2 gap-6">
-        <div><div className="text-[13px] text-muted mb-2">主机名</div><div className="h-11 rounded-lg field px-3.5 flex items-center justify-between font-mono text-[13.5px]">{s.name}<button onClick={() => navigator.clipboard?.writeText(s.name)}><Copy size={14} className="text-muted hover:text-fg" /></button></div></div>
+      <Card className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @2xl:grid-cols-2 gap-6 [&>div]:min-w-0">
+        <div><div className="text-[13px] text-muted mb-2">主机名</div><div className="h-11 rounded-lg field px-3.5 flex items-center justify-between gap-3 font-mono text-[13.5px]"><span className="truncate" title={s.name}>{s.name}</span><button className="shrink-0" onClick={() => navigator.clipboard?.writeText(s.name)}><Copy size={14} className="text-muted hover:text-fg" /></button></div></div>
         <div><div className="text-[13px] text-muted mb-2 flex items-center">端口<button onClick={() => setAddPort(true)} className="ml-auto text-accent text-[12.5px] flex items-center gap-1"><Plus size={13} />添加</button></div>
           {(s.ports ?? []).length ? <div className="space-y-2">{s.ports.map(p => <div key={p.name} className="h-11 rounded-lg field px-3.5 flex items-center justify-between font-mono text-[13.5px]">{p.container_port}<span className="text-[12px] text-dim">{p.name} · {p.protocol.toUpperCase()}{p.public_port ? ` · 公网 ${p.public_port}` : ''}</span></div>)}</div>
             : <div className="h-11 rounded-lg field px-3.5 flex items-center text-[13px] text-dim">未暴露端口</div>}
         </div>
       </Card>
 
-      <div className="mt-8 flex items-end justify-between mb-4">
-        <div><div className="text-[15px] font-semibold">公网访问</div><div className="text-[13px] text-muted mt-0.5">绑定后自动在 Cloudflare 建代理记录，直接指向服务器，不经过中控。</div></div>
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-3 mb-4">
+        <div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">公网访问</div><div className="text-[13px] text-muted mt-0.5">绑定后自动在 Cloudflare 建代理记录，直接指向服务器，不经过中控。</div></div>
         <div className="flex gap-2"><Button disabled={!s.ports?.some(p => p.protocol === 'http')} onClick={() => setBind(true)}><Plus size={15} />绑定域名</Button></div>
       </div>
-      <Card className="p-6">
-        <div className="flex items-center justify-center gap-0 py-4">
+      <Card className="p-4 @2xl:p-6">
+        <div className="flex flex-col @4xl:flex-row items-center justify-center gap-0 py-4">
           {([['用户', <Globe key="g" size={18} />], ['Cloudflare', <Cloud key="c" size={18} className="text-[#f6821f]" />], [`Caddy · ${srv?.name.split(' ')[0] ?? '…'}`, <ShieldCheck key="s" size={18} className="text-emerald-400" />], [`${s.name}:${port?.container_port ?? '—'}`, <Box key="b" size={18} className="text-accent" />]] as const).map(([l, i], idx, a) => (
-            <div key={idx} className="flex items-center">
-              <div className="rounded-xl border border-line2 bg-card2 px-4 h-12 flex items-center gap-2.5 text-[13px] font-semibold">{i}{l}</div>
-              {idx < a.length - 1 && <div className="w-16 border-t-2 border-dashed border-[#7c3aed]/60 relative"><span className="absolute -right-1 -top-[5px] text-[#7c3aed] text-[10px]">▶</span></div>}
+            <div key={idx} className="flex flex-col @4xl:flex-row items-center min-w-0 max-w-full">
+              <div className="rounded-xl border border-line2 bg-card2 px-4 h-12 flex items-center gap-2.5 text-[13px] font-semibold min-w-0 max-w-full [&>svg]:shrink-0">{i}<span className="truncate" title={l}>{l}</span></div>
+              {idx < a.length - 1 && <><div className="@4xl:hidden h-6 border-l-2 border-dashed border-[#7c3aed]/60 relative"><span className="absolute -left-[5px] -bottom-[6px] text-[#7c3aed] text-[10px] leading-none">▼</span></div><div className="@max-4xl:hidden w-16 shrink-0 border-t-2 border-dashed border-[#7c3aed]/60 relative"><span className="absolute -right-1 -top-[5px] text-[#7c3aed] text-[10px]">▶</span></div></>}
             </div>
           ))}
         </div>
         {(s.domains ?? []).map(d => (
-          <div key={d.id} className="mt-4 rounded-lg border border-line bg-bg/50 px-5 h-14 flex items-center gap-3">
-            <Dot status={d.status} /><span className="font-semibold text-[15px]">{d.hostname}</span><DomainBadge d={d} />
-            <span className="text-[13px] text-muted ml-3">A {srv?.public_ipv4 ?? '—'} · {d.proxied ? '已代理 · Full (strict)' : '仅 DNS'} · 端口 {d.port_name}</span>
+          <div key={d.id} className="mt-4 rounded-lg border border-line bg-bg/50 px-4 @2xl:px-5 py-3 min-h-14 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <Dot status={d.status} /><span className="font-semibold text-[15px] min-w-0 [overflow-wrap:anywhere]">{d.hostname}</span><DomainBadge d={d} />
+            <span className="text-[13px] text-muted @4xl:ml-3 [overflow-wrap:anywhere]">A {srv?.public_ipv4 ?? '—'} · {d.proxied ? '已代理 · Full (strict)' : '仅 DNS'} · 端口 {d.port_name}</span>
             <span className="ml-auto flex gap-3 text-muted"><a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="hover:text-fg"><ExternalLink size={15} /></a><button onClick={() => setDel(d)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></span>
           </div>
         ))}
@@ -392,7 +392,7 @@ function AddPort({ s, onClose }: { s: Service; onClose: () => void }) {
   const submit = () => run(() => api.updateService(s.id, { ports: [...(s.ports ?? []), { name, container_port: +port, protocol: proto, public_port: pub ? +pub : undefined }] }), { ok: '已添加端口，正在重新部署', invalidate: [`project:${s.project_id}`] }).then(r => r && onClose())
   return (
     <Modal title="添加端口" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!name || !port} onClick={submit}>添加</Button></>}>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <Label t="名称" d="用于 ${NAME_PORT} 变量"><TextInput mono className="w-full" value={name} onChange={e => setName(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase())} /></Label>
         <Label t="容器端口"><TextInput mono className="w-full" value={port} onChange={e => setPort(e.target.value.replace(/\D/g, ''))} /></Label>
         <Label t="协议"><Select className="w-full" value={proto} onChange={e => setProto(e.target.value)}><option value="http">HTTP</option><option value="tcp">TCP</option><option value="udp">UDP</option></Select></Label>
@@ -408,15 +408,15 @@ function DiskTab({ s }: { s: Service }) {
   const p = useParams()
   return (
     <>
-      <div className="flex items-center justify-between mb-4"><div><div className="text-[15px] font-semibold">硬盘</div><div className="text-[13px] text-muted mt-0.5">卷保存在服务器本地 /var/lib/atoll/volumes，迁移时随服务一起搬走。</div></div><Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />挂载卷</Button></div>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4"><div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">硬盘</div><div className="text-[13px] text-muted mt-0.5">卷保存在服务器本地 /var/lib/atoll/volumes，迁移时随服务一起搬走。</div></div><Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />挂载卷</Button></div>
       {!vols.length ? <Empty icon={<HardDrive size={22} />} title="没有挂载卷" desc="不挂载卷时，容器重新部署后文件会丢失。" /> : (
         <Card className="divide-y divide-line">
           {vols.map((v, i) => (
-            <div key={v.name} className="px-6 h-16 flex items-center gap-4">
-              <HardDrive size={18} className="text-accent" />
-              <div className="flex-1"><div className="font-mono text-[13px]">{v.mount_path}</div><div className="text-[12.5px] text-muted mt-0.5 font-mono">/var/lib/atoll/volumes/{s.id}/{v.name}</div></div>
-              {isDemo() && <div className="w-56"><div className="flex justify-between text-[12.5px] mb-1.5"><span className="text-muted">已用</span><span>{i ? '86 MB' : '1.4 GB'}</span></div><div className="h-2.5 rounded-[4px] field"><div className="h-full bg-[#8b5cf6]" style={{ width: i ? '6%' : '28%' }} /></div></div>}
-              <span className="flex gap-3 text-muted ml-4"><Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link><button onClick={() => setDel(v.name)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></span>
+            <div key={v.name} className="px-4 @2xl:px-6 py-3.5 min-h-16 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-2.5">
+              <HardDrive size={18} className="text-accent shrink-0" />
+              <div className="flex-1 min-w-0"><div className="font-mono text-[13px] [overflow-wrap:anywhere]">{v.mount_path}</div><div className="text-[12.5px] text-muted mt-0.5 font-mono [overflow-wrap:anywhere]">/var/lib/atoll/volumes/{s.id}/{v.name}</div></div>
+              {isDemo() && <div className="w-56 @max-3xl:order-last @max-3xl:w-full @max-3xl:pl-[34px]"><div className="flex justify-between text-[12.5px] mb-1.5"><span className="text-muted">已用</span><span>{i ? '86 MB' : '1.4 GB'}</span></div><div className="h-2.5 rounded-[4px] field"><div className="h-full bg-[#8b5cf6]" style={{ width: i ? '6%' : '28%' }} /></div></div>}
+              <span className="flex gap-3 text-muted @3xl:ml-4 shrink-0"><Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link><button onClick={() => setDel(v.name)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></span>
             </div>
           ))}
         </Card>
@@ -438,7 +438,7 @@ function AddVolume({ s, onClose }: { s: Service; onClose: () => void }) {
   )
 }
 
-export const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => <div className="px-6 py-5 flex items-center gap-6"><div className="flex-1"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1">{d}</div>}</div>{children}</div>
+export const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]">{d}</div>}</div>{children}</div>
 export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div className="mb-8"><div className="text-[13px] font-semibold mb-3">{t}</div><Card className="divide-y divide-line">{children}</Card></div>
 
 function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
@@ -456,20 +456,20 @@ function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: (
   return (
     <>
       <Sec t="基本">
-        <Row t="服务名称" d="也是项目内网的主机名"><TextInput className="w-[420px]" value={f.name} onChange={set('name')} /></Row>
+        <Row t="服务名称" d="也是项目内网的主机名"><TextInput className="w-full @4xl:w-[420px]" value={f.name} onChange={set('name')} /></Row>
         {git && s.git
           ? <Row t={t('源码', 'Source')} d={t(`从 GitHub 构建：${repoPath(s.git.repo)}@${s.git.branch || 'main'}`, `Built from GitHub: ${repoPath(s.git.repo)}@${s.git.branch || 'main'}`)}><Button size="sm" onClick={() => setGitEdit(true)}><Pencil size={13} />{t('编辑源码设置', 'Edit git settings')}</Button></Row>
-          : <Row t="镜像" d="Docker Hub、GHCR 或私有仓库"><div className="flex items-center gap-2"><TextInput mono className="w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
+          : <Row t="镜像" d="Docker Hub、GHCR 或私有仓库"><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
       </Sec>
       <Sec t="启动">
-        <Row t="启动命令" d="覆盖镜像的 CMD"><TextInput mono className="w-[420px]" value={f.command} onChange={set('command')} placeholder="使用镜像默认值" /></Row>
-        <Row t="健康检查" d="HTTP 路径，失败 3 次后自动重启"><TextInput mono className="w-[420px]" value={f.health} onChange={set('health')} placeholder="例如 /health" /></Row>
+        <Row t="启动命令" d="覆盖镜像的 CMD"><TextInput mono className="w-full @4xl:w-[420px]" value={f.command} onChange={set('command')} placeholder="使用镜像默认值" /></Row>
+        <Row t="健康检查" d="HTTP 路径，失败 3 次后自动重启"><TextInput mono className="w-full @4xl:w-[420px]" value={f.health} onChange={set('health')} placeholder="例如 /health" /></Row>
       </Sec>
       <Sec t="资源限制">
-        <Row t="CPU" d="核，留空不限"><TextInput className="w-[420px]" value={f.cpu} onChange={set('cpu')} placeholder="不限" /></Row>
-        <Row t="内存" d="MB，超出后容器会被 OOM 重启"><TextInput className="w-[420px]" value={f.mem} onChange={set('mem')} placeholder="不限" /></Row>
+        <Row t="CPU" d="核，留空不限"><TextInput className="w-full @4xl:w-[420px]" value={f.cpu} onChange={set('cpu')} placeholder="不限" /></Row>
+        <Row t="内存" d="MB，超出后容器会被 OOM 重启"><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder="不限" /></Row>
       </Sec>
-      {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex items-center gap-3 text-[13px]"><span className="flex-1 font-semibold">有未保存的修改，保存后会重新部署</span><Button size="sm" onClick={() => setF({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />放弃</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}保存并部署</Button></div>}
+      {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">有未保存的修改，保存后会重新部署</span><Button size="sm" onClick={() => setF({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />放弃</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}保存并部署</Button></div>}
       <Sec t="危险区域">
         <Row t={t('迁移到其他服务器', 'Move to another server')} d={t('只搬这个服务（容器与卷），项目其他服务经 tailnet 用同一个服务名访问它；迁移期间服务会停止。', 'Moves only this service (container and volumes); the rest of the project reaches it over the tailnet under the same name. It stops during the copy.')}>
           <Link to={`/projects/${p.id}/settings`}><Button variant="ghost" size="sm">{t('迁移整个项目', 'Move whole project')}</Button></Link>

@@ -15,7 +15,7 @@ export default function Settings() {
   const q = useQuery('settings', api.settings)
   return (
     <MainShell>
-      <div className="max-w-[1000px] mx-auto px-14 pt-12 pb-16">
+      <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
         <p className="text-[13px] text-muted mt-2 mb-6">域名、证书、面板地址和备份存储。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
         <SettingsTabs />
@@ -41,7 +41,7 @@ function Section({ icon, t, d, children }: { icon: React.ReactNode; t: string; d
 }
 function Field({ t, d, children, right }: { t: string; d?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="px-6 py-5 grid grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
+    <div className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-start">
       <div><div className="text-[13px] font-semibold flex items-center gap-2 flex-wrap">{t}{right}</div>{d && <div className="text-[12.5px] text-muted mt-1 leading-5">{d}</div>}</div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -105,7 +105,7 @@ function Form({ s }: { s: S }) {
           </Field>
         </>}
       </Section>
-      <div className="flex items-center justify-end gap-3 sticky bottom-6">
+      <div className={cx('flex flex-wrap items-center justify-end gap-3', changed && 'sticky bottom-6')}>
         {changed && <span className="text-[12.5px] text-muted">有未保存的修改</span>}
         <Button variant="primary" size="lg" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Cloud size={15} />}保存设置</Button>
       </div>

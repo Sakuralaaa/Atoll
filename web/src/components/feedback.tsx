@@ -17,12 +17,12 @@ export function toast(msg: string, tone: Tone = 'info') {
 export function Toaster() {
   const list = useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => toasts)
   return (
-    <div className="fixed right-6 bottom-6 z-[70] flex flex-col gap-3 w-[380px]">
+    <div className="fixed left-4 right-4 bottom-4 sm:left-auto sm:right-6 sm:bottom-6 z-[70] flex flex-col gap-3 sm:w-[380px]">
       {list.map(t => (
         <div key={t.id} role="status" className={cx('rise surface px-4 py-3 flex items-start gap-3 text-[13px] font-semibold',
           t.tone === 'error' && '!bg-[#fca5a5] text-[#141414]', t.tone === 'ok' && '!bg-[#86efac] text-[#141414]')}>
           {t.tone === 'error' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : t.tone === 'ok' ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <Info size={16} className="mt-0.5 shrink-0 text-accent" />}
-          <span className="flex-1 break-words">{t.msg}</span>
+          <span className="flex-1 min-w-0 [overflow-wrap:anywhere]">{t.msg}</span>
           <button onClick={() => { toasts = toasts.filter(x => x.id !== t.id); emit() }} className="opacity-60 hover:opacity-100"><X size={14} /></button>
         </div>
       ))}
@@ -37,7 +37,7 @@ export function Modal({ title, onClose, children, width = 560, footer }: { title
     <div className="fixed inset-0 z-50 bg-black/65 flex items-start justify-center pt-[12vh]" onClick={onClose}>
       <div style={{ width }} className="rise surface bg-pop overflow-hidden max-h-[80vh] max-w-[calc(100vw-32px)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-5 h-14 border-b-2 border-[var(--edge)] shrink-0">
-          <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex-1 flex items-center gap-2">{title}</div>
+          <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex-1 min-w-0 flex items-center gap-2 [&>svg]:shrink-0"><span className="contents">{title}</span></div>
           <button onClick={onClose} className="text-muted hover:text-fg"><X size={18} /></button>
         </div>
         <div className="p-5 overflow-auto">{children}</div>
@@ -58,9 +58,9 @@ export function ConfirmDialog({ title, description, name, action = '确认删除
   return (
     <Modal title={<><AlertTriangle size={17} className={danger ? 'text-[#ef4444]' : 'text-accent'} />{title}</>} onClose={onClose}
       footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
-      <div className="text-[13.5px] text-fg2 leading-6">{description}</div>
+      <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">{description}</div>
       {children}
-      <div className="mt-5 text-[13px] text-muted">输入 <span className="font-mono font-bold text-fg">{name}</span> 以确认</div>
+      <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span className="font-mono font-bold text-fg">{name}</span> 以确认</div>
       <input autoFocus value={v} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
     </Modal>
   )
@@ -74,11 +74,11 @@ export function Select({ className, children, ...p }: React.SelectHTMLAttributes
   return <select {...p} className={cx('h-11 rounded-lg field px-3 text-[13px] outline-none text-fg', className)}>{children}</select>
 }
 export function Label({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) {
-  return <label className="block mb-4"><div className="text-[13px] font-semibold mb-1.5">{t}</div>{children}{d && <div className="text-[12px] text-dim mt-1.5">{d}</div>}</label>
+  return <label className="block mb-4 min-w-0"><div className="text-[13px] font-semibold mb-1.5">{t}</div>{children}{d && <div className="text-[12px] text-dim mt-1.5 [overflow-wrap:anywhere]">{d}</div>}</label>
 }
 export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" onClick={() => onChange(!on)} className={cx('h-6 w-11 rounded-full relative border-2 border-[var(--edge)] transition-colors', on ? 'bg-[#7c3aed]' : 'bg-sunk')}>
+    <button type="button" onClick={() => onChange(!on)} className={cx('h-6 w-11 shrink-0 rounded-full relative border-2 border-[var(--edge)] transition-colors', on ? 'bg-[#7c3aed]' : 'bg-sunk')}>
       <span className={cx('absolute top-[1px] h-[18px] w-[18px] rounded-full border-2 border-[var(--edge)] bg-[#fde047] transition-all', on ? 'right-[1px]' : 'left-[1px]')} />
     </button>
   )
@@ -102,7 +102,7 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
 }
 export function CardSkeleton({ h = 180, n = 3, cols = 3 }: { h?: number; n?: number; cols?: number }) {
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    <div className={cx('grid gap-4 grid-cols-1', cols >= 2 && '@2xl:grid-cols-2', cols >= 3 && '@6xl:grid-cols-3')}>
       {Array.from({ length: n }, (_, i) => (
         <Card key={i} className="p-5" ><div style={{ height: h }} className="flex flex-col gap-3"><div className="flex items-center gap-3"><Skeleton className="h-10 w-10" /><div className="flex-1 space-y-2"><Skeleton className="h-3.5 w-2/3" /><Skeleton className="h-3 w-1/3" /></div></div><div className="flex-1" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-4/5" /></div></Card>
       ))}

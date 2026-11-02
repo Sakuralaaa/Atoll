@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal } from 'lucide-react'
+import { Menu, X, Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot, cx } from './ui'
@@ -70,6 +70,32 @@ function SearchBox() {
   )
 }
 
+
+/** App frame: the sidebar is a fixed column from lg up; below that it becomes an off-canvas drawer
+ *  opened from a sticky top bar, so phones and portrait tablets keep the full width for content. */
+function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; top: React.ReactNode; children: React.ReactNode; pad?: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="h-full flex topline">
+      {open && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setOpen(false)} />}
+      <aside onClick={e => { if ((e.target as HTMLElement).closest('a')) setOpen(false) }}
+        className={cx('w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pb-4 overflow-y-auto', pad,
+          'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[min(280px,86vw)] max-lg:border-r-2 max-lg:border-[var(--edge)] max-lg:transition-transform max-lg:duration-200',
+          open ? 'max-lg:translate-x-0 max-lg:shadow-[6px_0_0_0_var(--edge)]' : 'max-lg:-translate-x-full max-lg:invisible')}>
+        <button onClick={() => setOpen(false)} title="关闭菜单" className="lg:hidden absolute right-3 top-5 h-8 w-8 grid place-items-center rounded-md text-muted hover:text-fg"><X size={18} /></button>
+        {side}
+      </aside>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="lg:hidden shrink-0 h-[60px] pt-1 flex items-center gap-3 px-3 bg-side border-b-2 border-[var(--edge)]">
+          <button onClick={() => setOpen(true)} title="打开菜单" aria-label="打开菜单" className="chip h-9 w-9 grid place-items-center bg-[var(--card)] text-fg shrink-0"><Menu size={18} /></button>
+          <div className="min-w-0 flex-1 flex items-center gap-2">{top}</div>
+        </header>
+        <main className="flex-1 min-h-0 overflow-auto canvas @container">{children}</main>
+      </div>
+    </div>
+  )
+}
+
 export function MainShell({ children }: { children: React.ReactNode }) {
   const servers = useServers().data
   const pending = usePending().data?.length ?? 0
@@ -81,8 +107,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
       {!!badge && <span className="ml-auto min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono not-italic grid place-items-center tnum">{badge}</span>}</NavLink>
   )
   return (
-    <div className="h-full flex topline">
-      <aside className="w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pt-7 pb-4">
+    <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title="待确认">{pending}</Link>}</>} side={<>
         <Link to="/" className="px-2 mb-6"><Logo /></Link>
         <Team />
         <div className="mt-3"><SearchBox /></div>
@@ -100,9 +125,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         <div className="rounded-xl surface px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</div>
         <div className="h-px bg-line mb-3" />
         <UserRow />
-      </aside>
-      <main className="flex-1 overflow-auto canvas">{children}</main>
-    </div>
+    </>}>{children}</Frame>
   )
 }
 
@@ -114,8 +137,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const updates = useUpdatesByService()
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
-    <div className="h-full flex topline">
-      <aside className="w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pt-6 pb-4">
+    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{project.name}</span></>} side={<>
         <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
         <div className="px-2 mt-3">
           <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{project.name}</h1><ChevronsUpDown size={14} className="text-muted" /></div>
@@ -139,10 +161,8 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         </div>
         <div className="flex-1" />
         <div className="h-px bg-line mb-3" />
-        <div className="px-2 flex items-center"><div><div className="text-[11.5px] text-dim">项目 ID</div>
-        <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg">{project.id}<Copy size={11} /></button></div><div className="ml-auto"><ThemeToggle /></div></div>
-      </aside>
-      <main className="flex-1 overflow-auto canvas">{children}</main>
-    </div>
+        <div className="px-2 flex items-center gap-2"><div className="min-w-0"><div className="text-[11.5px] text-dim">项目 ID</div>
+        <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg max-w-full"><span className="truncate">{project.id}</span><Copy size={11} className="shrink-0" /></button></div><div className="ml-auto"><ThemeToggle /></div></div>
+    </>}>{children}</Frame>
   )
 }

@@ -20,7 +20,7 @@ export default function ProjectSettings() {
   const servers = useQuery('servers', api.servers).data
   return (
     <ProjectShell project={p ?? placeholder(pid)}>
-      <div className="max-w-[1100px] mx-auto px-14 pt-12 pb-16">
+      <div className="max-w-[1100px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] mb-8">项目设置</h1>
         {q.error && !p && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!p && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></Card>}

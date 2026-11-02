@@ -20,8 +20,8 @@ export default function Servers() {
   const list = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   return (
     <MainShell>
-      <div className="max-w-[1240px] mx-auto px-14 pt-12 pb-16">
-        <div className="flex items-center justify-between mb-5">
+      <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-4 mb-5">
           <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的服务器</h1>
           <div className="flex items-center gap-3">
             <button onClick={() => setSort(v => !v)} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
@@ -29,7 +29,7 @@ export default function Servers() {
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
               <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
             </div>
-            <Button variant="primary" size="lg" className="w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
+            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
           </div>
         </div>
         <Segment value="s" items={[{ k: 's', l: '服务器', icon: <Server size={15} /> }]} />
@@ -38,7 +38,7 @@ export default function Servers() {
           {!q.data && !q.error && <CardSkeleton n={3} h={220} />}
           {q.data && !list.length && <Empty icon={<Server size={22} />} title="还没有服务器" desc="在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />添加服务器</Button>} />}
         </div>
-        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-3')}>
+        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(s => {
             const u = usagePct(s), on = s.status === 'online'
             return (
@@ -48,24 +48,24 @@ export default function Servers() {
                   <div className="flex items-start gap-3">
                     <ProviderIcon provider={s.provider || '?'} online={on} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2"><span className="text-[15px] font-semibold truncate">{s.name}</span>
+                      <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold truncate min-w-0">{s.name}</span>
                         {needsAttention(s) && <Badge><AlertCircle size={12} />需要处理</Badge>}
                         {s.role === 'control' && <Badge tone="violet">中控</Badge>}
                         {s.status === 'pending' && <Badge tone="zinc">等待连接</Badge>}
                       </div>
-                      <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2">
-                        <span>{s.os || '—'}</span>
+                      <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
+                        <span className="truncate">{s.os || '—'}</span>
                         <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : '离线'}</span>
                       </div>
                     </div>
                     <MoreVertical size={16} className="text-dim" />
                   </div>
-                  <div className="mt-6 grid grid-cols-2 text-[13px]">
-                    <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5">{s.public_ipv4 || '—'}</div></div>
-                    <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-center gap-2">{flagFor(s.region)} {s.region || '—'}</div></div>
+                  <div className="mt-6 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
+                    <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
+                    <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]">{flagFor(s.region)} {s.region || '—'}</div></div>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 text-[13px]">
-                    <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5">{s.tailnet_ip || '—'}</div></div>
+                  <div className="mt-4 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
+                    <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5 truncate">{s.tailnet_ip || '—'}</div></div>
                     <div><div className="text-muted">{t('管理通道', 'Agent channel')}</div><div className="mt-1.5"><NetBadge s={s} /></div></div>
                   </div>
                   <div className="mt-5 space-y-2.5 text-[13px]">
@@ -73,7 +73,7 @@ export default function Servers() {
                     <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">内存使用率</span><Ticks value={on ? u.mem : 0} n={34} /></div>
                   </div>
                 </div>
-                <div className="border-t border-line bg-sunk/60 px-6 h-11 flex items-center text-[13.5px] text-muted">
+                <div className="border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
                   {s.role === 'control' ? '仅运行面板与调度，不承载项目' : `${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
                 </div>
               </Link>
