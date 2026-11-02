@@ -3,6 +3,8 @@
 //	atoll-server serve [--listen :7300] [--data /var/lib/atoll-server] [--public-url URL]
 //	atoll-server reset-password [--data DIR] [--user NAME] [--password PW]
 //	atoll-server admin reset-2fa [--data DIR] <user>
+//	atoll-server export --out FILE --passphrase-file F [--data DIR]
+//	atoll-server restore --bundle FILE --passphrase-file F [--data DIR] [--force] [--adopt-public-ip]
 //	atoll-server version
 package main
 
@@ -11,10 +13,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +41,8 @@ Usage:
   atoll-server admin reset-2fa <user>
                                 turn off two-factor login for a user (lost phone);
                                 signs the user out everywhere
+  atoll-server export           write an encrypted control bundle (offline; see docs/control.md)
+  atoll-server restore          install a control bundle into the data dir (stop the server first)
   atoll-server version
 
 Flags (serve):
@@ -46,6 +52,9 @@ Flags (serve):
   --log-level LEVEL  debug|info|warn|error (env ATOLL_LOG_LEVEL, default info)
   --trusted-proxies  comma-separated IPs/CIDRs whose X-Forwarded-For is believed for the
                      client address (env ATOLL_TRUSTED_PROXIES, default loopback; "none")
+  --adopt-public-ip  point the panel's DNS record (public URL host inside the Cloudflare zone)
+                     at this host's public IPv4 on start (env ATOLL_ADOPT_PUBLIC_IP=1;
+                     ATOLL_PUBLIC_IP overrides detection). Used after moving the control server.
 
 Private network (Tailscale), env only:
   ATOLL_AGENT_LISTEN=tailscale:7301   extra listener for agent endpoints on this host's tailnet IP
@@ -57,6 +66,17 @@ Flags (reset-password):
 
 Flags (admin reset-2fa):
   --data DIR
+
+Flags (export):
+  --out FILE  --passphrase-file F (min 12 characters; "-" = stdin)  --data DIR
+  --env-file PATH (default /etc/atoll/server.env)  --caddyfile PATH (default /etc/caddy/Caddyfile)
+
+Flags (restore):
+  --bundle FILE  --passphrase-file F ("-" = stdin)  --data DIR
+  --env-file PATH   merge the bundle's server.env into PATH (existing keys win; "" = skip)
+  --force           replace an existing database (kept in DATA/pre-restore-<time>/)
+  --adopt-public-ip on the next start, point the panel's DNS record at this host
+  --keep-tailnet-url  keep a stored tailnet control URL that is an IP address
 `, server.Version)
 }
 
@@ -75,6 +95,12 @@ func main() {
 		os.Exit(resetPassword(args))
 	case "admin":
 		os.Exit(admin(args))
+	case "export":
+		os.Exit(exportCmd(args))
+	case "restore":
+		os.Exit(restoreCmd(args))
+	case "control-helper":
+		os.Exit(controlHelper(args))
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -91,6 +117,7 @@ func serve(args []string) int {
 	public := fs.String("public-url", env("ATOLL_PUBLIC_URL", ""), "public URL")
 	level := fs.String("log-level", env("ATOLL_LOG_LEVEL", "info"), "log level")
 	proxies := fs.String("trusted-proxies", env("ATOLL_TRUSTED_PROXIES", ""), "trusted proxies")
+	adopt := fs.Bool("adopt-public-ip", truthy(env("ATOLL_ADOPT_PUBLIC_IP", "")), "update the panel DNS record to this host")
 	fs.Parse(args)
 	tp, err := server.ParseTrustedProxies(*proxies)
 	if err != nil {
@@ -105,7 +132,10 @@ func serve(args []string) int {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
 	slog.SetDefault(log)
 
-	srv, err := server.New(server.Config{DataDir: *data, PublicURL: *public, Logger: log, TrustedProxies: tp})
+	srv, err := server.New(server.Config{DataDir: *data, PublicURL: *public, Logger: log, TrustedProxies: tp,
+		ListenAddr: *listen, ServerEnvPath: env("ATOLL_SERVER_ENV", server.DefaultServerEnvPath),
+		CaddyfilePath: env("ATOLL_CADDYFILE", server.DefaultCaddyfilePath), UnitName: env("ATOLL_SYSTEMD_UNIT", "atoll-server"),
+		AdoptPublicIP: *adopt, PublicIP: env("ATOLL_PUBLIC_IP", "")})
 	if err != nil {
 		log.Error("start", "err", err)
 		return 1
@@ -194,5 +224,129 @@ func admin(args []string) int {
 		return 1
 	}
 	fmt.Printf("two-factor authentication for %s turned off; all sessions signed out\nlog in with the password and enable it again under Settings -> Security\n", name)
+	return 0
+}
+
+func truthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+// readPassphrase reads the first line of path ("-" = stdin).
+func readPassphrase(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("--passphrase-file is required")
+	}
+	var b []byte
+	var err error
+	if path == "-" {
+		b, err = io.ReadAll(io.LimitReader(os.Stdin, 4096))
+	} else {
+		b, err = os.ReadFile(path)
+	}
+	if err != nil {
+		return "", err
+	}
+	line, _, _ := strings.Cut(string(b), "\n")
+	return strings.TrimRight(line, "\r"), nil
+}
+
+func exportCmd(args []string) int {
+	fs := flag.NewFlagSet("export", flag.ExitOnError)
+	fs.Usage = usage
+	data := fs.String("data", env("ATOLL_DATA", "/var/lib/atoll-server"), "data directory")
+	out := fs.String("out", "", "output file")
+	pf := fs.String("passphrase-file", "", "file holding the passphrase")
+	envFile := fs.String("env-file", env("ATOLL_SERVER_ENV", server.DefaultServerEnvPath), "server.env to include")
+	caddy := fs.String("caddyfile", env("ATOLL_CADDYFILE", server.DefaultCaddyfilePath), "Caddyfile to include")
+	fs.Parse(args)
+	if *out == "" {
+		fmt.Fprintln(os.Stderr, "export: --out FILE is required")
+		return 2
+	}
+	pass, err := readPassphrase(*pf)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "export:", err)
+		return 2
+	}
+	m, err := server.ExportControl(context.Background(), *data, *out, pass, *envFile, *caddy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "export:", err)
+		return 1
+	}
+	fmt.Printf("wrote %s (%s, files: %s)\nkeep the passphrase: the bundle cannot be opened without it\n", *out, m.Version, strings.Join(m.Files, ", "))
+	return 0
+}
+
+func restoreCmd(args []string) int {
+	fs := flag.NewFlagSet("restore", flag.ExitOnError)
+	fs.Usage = usage
+	data := fs.String("data", env("ATOLL_DATA", "/var/lib/atoll-server"), "data directory")
+	bundle := fs.String("bundle", "", "bundle file")
+	pf := fs.String("passphrase-file", "", "file holding the passphrase")
+	envFile := fs.String("env-file", "", "merge the bundle's server.env into this file")
+	force := fs.Bool("force", false, "replace an existing database")
+	adopt := fs.Bool("adopt-public-ip", false, "point the panel DNS record at this host on the next start")
+	keepTS := fs.Bool("keep-tailnet-url", false, "keep a stored tailnet control URL that is an IP")
+	fs.Parse(args)
+	if *bundle == "" {
+		fmt.Fprintln(os.Stderr, "restore: --bundle FILE is required")
+		return 2
+	}
+	pass, err := readPassphrase(*pf)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "restore:", err)
+		return 2
+	}
+	res, err := server.RestoreControl(context.Background(), server.RestoreOptions{Bundle: *bundle, Passphrase: pass, DataDir: *data,
+		EnvFile: *envFile, Force: *force, AdoptPublicIP: *adopt, KeepTailnetURL: *keepTS})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "restore:", err)
+		return 1
+	}
+	m := res.Manifest
+	fmt.Printf("restored control state from %s (atoll-server %s on %s, %s) into %s; %d servers\n", *bundle, m.Version, m.Hostname, m.CreatedAt.Format(time.RFC3339), *data, res.Nodes)
+	if res.MovedAside != "" {
+		fmt.Printf("the previous database and key were moved to %s\n", res.MovedAside)
+	}
+	if res.EnvWritten {
+		fmt.Printf("merged server.env into %s\n", *envFile)
+	}
+	if res.CaddyfileSaved != "" {
+		fmt.Printf("the old Caddyfile is at %s (for reference; not installed)\n", res.CaddyfileSaved)
+	}
+	if res.TailnetCleared != "" {
+		fmt.Printf("cleared the stored tailnet control URL %s (this host announces its own)\n", res.TailnetCleared)
+	}
+	if *adopt {
+		fmt.Println("on its next start atoll-server points the panel's DNS record at this host")
+	}
+	fmt.Println("start it with: systemctl start atoll-server")
+	return 0
+}
+
+// controlHelper is the detached self-update helper started by systemd-run (control_update.go).
+func controlHelper(args []string) int {
+	fs := flag.NewFlagSet("control-helper", flag.ExitOnError)
+	var o server.HelperOptions
+	fs.StringVar(&o.Mode, "mode", "update", "update | rollback")
+	fs.StringVar(&o.Target, "target", "/usr/local/bin/atoll-server", "installed binary")
+	fs.StringVar(&o.New, "new", "", "verified new binary (update)")
+	fs.StringVar(&o.Unit, "unit", "atoll-server", "systemd unit")
+	fs.StringVar(&o.Health, "health", "http://127.0.0.1:7300", "local base URL")
+	fs.StringVar(&o.Result, "result", "", "result file")
+	fs.DurationVar(&o.Timeout, "timeout", 60*time.Second, "health timeout")
+	fs.Parse(args)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	res := server.RunHelper(ctx, o)
+	if !res.OK {
+		fmt.Fprintln(os.Stderr, "control-helper:", res.Error)
+		return 1
+	}
+	fmt.Printf("control-helper: %s %s -> %s ok\n", res.Mode, res.FromVersion, res.ToVersion)
 	return 0
 }

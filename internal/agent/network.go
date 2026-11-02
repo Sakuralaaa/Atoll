@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -132,6 +133,17 @@ func (a *Agent) handleNetwork(ctx context.Context, p api.NetworkPayload) (string
 	switch {
 	case want == "":
 		res.Message = "control URL unchanged"
+		if fb := strings.TrimRight(strings.TrimSpace(p.FallbackURL), "/"); fb != "" {
+			a.cfgMu.Lock()
+			if !slices.Contains(a.Cfg.ControlURLs(), fb) {
+				a.Cfg.FallbackURLs = append(a.Cfg.FallbackURLs, fb)
+				if a.CfgPath != "" {
+					_ = SaveConfig(a.CfgPath, a.Cfg)
+				}
+				res.Message = "added fallback " + fb
+			}
+			a.cfgMu.Unlock()
+		}
 	case want == res.ControlURL:
 		res.Message = "already using " + want
 		if p.FallbackURL != "" {

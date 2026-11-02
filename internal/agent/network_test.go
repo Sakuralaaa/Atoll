@@ -129,3 +129,24 @@ func TestNetworkSwitchKeepsOldURLOnFailure(t *testing.T) {
 		t.Fatalf("config changed: %+v", saved)
 	}
 }
+
+// A fallback-only push (no control URL) adds the URL and keeps the primary.
+func TestNetworkAddsFallbackOnly(t *testing.T) {
+	const token = "atl_node_secret"
+	pub := newFakeServer(t, token)
+	a, _ := newTestAgent(t, pub.srv.URL, token)
+	a.CfgPath = filepath.Join(t.TempDir(), "agent.json")
+	agent.SaveConfig(a.CfgPath, a.Cfg)
+	runAgent(t, a)
+	pub.wait("hello", func(f frame) bool { return f.Type == api.MsgHello })
+	pub.send(api.MsgNetwork, "f1", api.NetworkPayload{FallbackURL: "https://panel.example.com/"})
+	if res := pub.result("f1"); !res.OK || !strings.Contains(res.Output, "added fallback https://panel.example.com") {
+		t.Fatalf("result %+v", res)
+	}
+	pub.send(api.MsgNetwork, "f2", api.NetworkPayload{FallbackURL: "https://panel.example.com"})
+	pub.result("f2")
+	saved, _ := agent.LoadConfig(a.CfgPath)
+	if saved.ServerURL != pub.srv.URL || len(saved.FallbackURLs) != 1 || saved.FallbackURLs[0] != "https://panel.example.com" {
+		t.Fatalf("saved config %+v", saved)
+	}
+}

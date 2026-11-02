@@ -28,16 +28,25 @@ type testEnv struct {
 	cf  *fakeCloudflare
 }
 
-func newTestEnv(t *testing.T) *testEnv {
+func newTestEnv(t *testing.T) *testEnv { return newTestEnvWith(t, nil) }
+
+// newTestEnvWith is newTestEnv with a hook to adjust the server config.
+func newTestEnvWith(t *testing.T, mod func(*Config)) *testEnv {
 	t.Helper()
 	cf := &fakeCloudflare{records: map[string]string{}}
 	cfts := httptest.NewServer(cf)
 	t.Cleanup(cfts.Close)
-	srv, err := New(Config{DataDir: t.TempDir(), CloudflareBaseURL: cfts.URL, DeployWaitTimeout: 10 * time.Second,
+	cfg := Config{DataDir: t.TempDir(), CloudflareBaseURL: cfts.URL, DeployWaitTimeout: 10 * time.Second,
 		VerifyTimeout: 10 * time.Second, TransferTimeout: 10 * time.Second, RequestTimeout: 5 * time.Second,
 		// public DNS answers with what the fake Cloudflare zone holds; HTTPS always works
 		ResolvePublic: cf.resolve, ProbeHTTPS: func(context.Context, string) error { return nil },
-		ProvisionPoll: 10 * time.Millisecond, DNSWaitTimeout: 3 * time.Second, CertWaitTimeout: 3 * time.Second})
+		ProvisionPoll: 10 * time.Millisecond, DNSWaitTimeout: 3 * time.Second, CertWaitTimeout: 3 * time.Second,
+		// never read the host's real config files or GitHub in tests
+		ServerEnvPath: "/nonexistent/server.env", CaddyfilePath: "/nonexistent/Caddyfile", GitHubAPI: "http://127.0.0.1:1"}
+	if mod != nil {
+		mod(&cfg)
+	}
+	srv, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

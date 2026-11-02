@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -375,24 +376,67 @@ func (s *Server) agentURL(ctx context.Context, nodeID, base, u string) string {
 // ---------- node network actions ----------
 
 // reconcileNetwork moves an agent that is on the tailnet but still connected publicly to the
-// tailnet control URL (the agent verifies it first and keeps the public URL as fallback).
+// tailnet control URL (the agent verifies it first and keeps the public URL as fallback), and
+// makes sure every agent keeps the panel's public domain URL as a fallback.
 func (s *Server) reconcileNetwork(ctx context.Context, nodeID string, h api.HelloPayload) {
+	if !s.reconcileTailnet(ctx, nodeID, h) {
+		s.ensurePublicFallback(ctx, nodeID, h)
+	}
+}
+
+// reconcileTailnet reports whether it sent the agent a MsgNetwork (which carries the public URL
+// as fallback).
+func (s *Server) reconcileTailnet(ctx context.Context, nodeID string, h api.HelloPayload) bool {
 	if s.networkProvider(ctx) != api.NetworkProviderTailscale || h.Network == nil {
-		return
+		return false
 	}
 	cu := s.tailnetControlURL(ctx)
 	pub := s.publicURL(ctx, nil)
 	if cu == "" {
-		return
+		return false
 	}
 	switch {
 	case !h.Network.ViaTailnet && tailnet.IsTailnetIP(h.TailnetIP):
 		s.log.Info("moving agent to the tailnet control URL", "node", nodeID, "url", cu)
 		s.hub.Fire(nodeID, api.MsgNetwork, api.NetworkPayload{Provider: api.NetworkProviderTailscale, ControlURL: cu, FallbackURL: pub})
+		return true
 	case h.Network.ViaTailnet && pub != "" && !contains(h.Network.FallbackURLs, pub) && strings.TrimRight(h.Network.ControlURL, "/") == cu:
 		// make sure the public URL is a fallback (e.g. node joined directly over the tailnet)
 		s.hub.Fire(nodeID, api.MsgNetwork, api.NetworkPayload{Provider: api.NetworkProviderTailscale, ControlURL: cu, FallbackURL: pub})
+		return true
 	}
+	return false
+}
+
+// domainURL reports whether u is an http(s) URL whose host is a DNS name (not an IP address or
+// localhost): the only kind of control URL that survives moving the control server.
+func domainURL(u string) bool {
+	pu, err := url.Parse(u)
+	if err != nil || (pu.Scheme != "http" && pu.Scheme != "https") {
+		return false
+	}
+	h := strings.ToLower(pu.Hostname())
+	return h != "" && h != "localhost" && net.ParseIP(h) == nil && strings.Contains(h, ".")
+}
+
+// ensurePublicFallback pushes the panel's public URL to an agent that does not have it among its
+// control URLs, when that URL is domain-based: after the control server moves to another
+// machine, agents find it again through DNS (docs/control.md). The URL the agent is connected
+// through stays its primary (an agent connected through a fallback only gets the URL added).
+func (s *Server) ensurePublicFallback(ctx context.Context, nodeID string, h api.HelloPayload) {
+	if h.Network == nil {
+		return
+	}
+	pub := s.publicURL(ctx, nil)
+	if !domainURL(pub) || strings.TrimRight(h.Network.ControlURL, "/") == pub || contains(h.Network.FallbackURLs, pub) {
+		return
+	}
+	cur := strings.TrimRight(h.Network.ControlURL, "/")
+	if contains(h.Network.FallbackURLs, cur) {
+		cur = "" // connected through a fallback: do not make it the primary
+	}
+	s.log.Info("adding the public control URL as agent fallback", "node", nodeID, "url", pub)
+	s.hub.Fire(nodeID, api.MsgNetwork, api.NetworkPayload{Provider: h.Network.Provider, ControlURL: cur, FallbackURL: pub})
 }
 
 func contains(list []string, v string) bool {

@@ -55,6 +55,25 @@ type Config struct {
 	// build images a service keeps on its server for rollback (3).
 	BuildTimeout time.Duration
 	BuildKeep    int
+
+	// 中控 / control (control*.go)
+	ListenAddr    string // main listener (health checks of the self-update helper)
+	GitHubAPI     string // default https://api.github.com (tests)
+	GitHubRepo    string // default Sakuralaaa/Atoll
+	UnitName      string // systemd unit, default atoll-server
+	ServerEnvPath string // default /etc/atoll/server.env (included in control backups)
+	CaddyfilePath string // default /etc/caddy/Caddyfile (included when readable)
+	BinaryPath    string // default os.Executable() (tests)
+	// SpawnHelper starts the detached self-update helper (default systemd-run); tests stub it.
+	SpawnHelper func(ctx context.Context, args []string) error
+	// Journalctl runs journalctl with args (default exec); tests stub it.
+	Journalctl func(ctx context.Context, args ...string) ([]byte, error)
+	S3HTTP     *http.Client // HTTP client for the control backup bucket (tests)
+	// AdoptPublicIP points the panel's DNS record (public URL host under the Cloudflare zone)
+	// at this host's public IPv4 on start (--adopt-public-ip). PublicIP overrides detection.
+	AdoptPublicIP    bool
+	PublicIP         string
+	LookupPublicIPv4 func(ctx context.Context) (string, error)
 }
 
 // Server is the control plane.
@@ -76,8 +95,9 @@ type Server struct {
 	holdMu sync.Mutex
 	held   map[string]int // hostnames kept out of pushed route tables (provision.go)
 
-	upd *updater  // image update detection (imageupdates.go)
-	net *netState // private network provider + mesh (network.go)
+	upd *updater      // image update detection (imageupdates.go)
+	net *netState     // private network provider + mesh (network.go)
+	ctl *controlState // 中控: the control server itself (control*.go)
 
 	bg     context.Context
 	cancel context.CancelFunc
@@ -139,6 +159,7 @@ func New(cfg Config) (*Server, error) {
 	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
+	s.ctl = newControlState()
 	s.bg, s.cancel = context.WithCancel(context.Background())
 	// Nobody is connected right after start.
 	nodes, _ := st.ListNodes(s.bg)
@@ -163,6 +184,11 @@ func New(cfg Config) (*Server, error) {
 	s.wg.Add(1)
 	go s.imageUpdateLoop()
 	s.startBackupScheduler() // backups.go
+	// control*.go: own metrics, daily control backup, panel DNS after a move, update result
+	s.controlSampleLoop()
+	s.startControlBackupScheduler()
+	s.startAdoptPublicIP()
+	s.clearStalePending()
 	return s, nil
 }
 

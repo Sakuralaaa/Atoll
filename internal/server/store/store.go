@@ -149,10 +149,97 @@ func mapErr(err error) error {
 	return err
 }
 
+// AuditMeta is request information Audit records with every entry (set by the API layer).
+type AuditMeta struct {
+	IP        string
+	TokenID   string
+	SessionID string // first 16 hex chars of the session hash
+}
+
+type auditMetaKey struct{}
+
+// WithAuditMeta attaches request information to ctx for Audit.
+func WithAuditMeta(ctx context.Context, m AuditMeta) context.Context {
+	return context.WithValue(ctx, auditMetaKey{}, m)
+}
+
 // Audit appends an audit log entry; errors are ignored by design.
 func (s *Store) Audit(ctx context.Context, actor, action, target string, detail any) {
-	s.DB.ExecContext(ctx, `INSERT INTO audit_log(actor, action, target, detail, created_at) VALUES(?,?,?,?,?)`,
-		actor, action, target, mustJSON(detail), TS(time.Now()))
+	m, _ := ctx.Value(auditMetaKey{}).(AuditMeta)
+	s.DB.ExecContext(ctx, `INSERT INTO audit_log(actor, action, target, detail, created_at, ip, token_id, session_id) VALUES(?,?,?,?,?,?,?,?)`,
+		actor, action, target, mustJSON(detail), TS(time.Now()), m.IP, m.TokenID, m.SessionID)
+}
+
+// AuditRow is one audit_log row.
+type AuditRow struct {
+	ID        int64
+	Actor     string
+	Action    string
+	Target    string
+	Detail    string
+	IP        string
+	TokenID   string
+	SessionID string
+	CreatedAt time.Time
+}
+
+// AuditFilter selects audit rows: newest first, ids below Before (0 = from the newest).
+// Actor matches exactly or as a prefix ending in ':' ("token:" = every token); Action matches
+// exactly or, ending in '.' or '*', as a prefix ("control." = every control action).
+type AuditFilter struct {
+	Limit  int
+	Before int64
+	Actor  string
+	Action string
+}
+
+// ListAudit returns audit rows matching f.
+func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRow, error) {
+	q := `SELECT id, actor, action, target, detail, ip, token_id, session_id, created_at FROM audit_log WHERE 1=1`
+	args := []any{}
+	if f.Before > 0 {
+		q += ` AND id < ?`
+		args = append(args, f.Before)
+	}
+	likeEsc := func(v string) string {
+		return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(v)
+	}
+	if a := f.Actor; a != "" {
+		if strings.HasSuffix(a, ":") {
+			q += ` AND actor LIKE ? ESCAPE '\'`
+			args = append(args, likeEsc(a)+"%")
+		} else {
+			q += ` AND actor = ?`
+			args = append(args, a)
+		}
+	}
+	if a := f.Action; a != "" {
+		if strings.HasSuffix(a, "*") || strings.HasSuffix(a, ".") {
+			q += ` AND action LIKE ? ESCAPE '\'`
+			args = append(args, likeEsc(strings.TrimSuffix(a, "*"))+"%")
+		} else {
+			q += ` AND action = ?`
+			args = append(args, a)
+		}
+	}
+	q += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, f.Limit)
+	rows, err := s.DB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AuditRow{}
+	for rows.Next() {
+		var r AuditRow
+		var c string
+		if err := rows.Scan(&r.ID, &r.Actor, &r.Action, &r.Target, &r.Detail, &r.IP, &r.TokenID, &r.SessionID, &c); err != nil {
+			return nil, err
+		}
+		r.CreatedAt = parseTS(c)
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // encryptJSON marshals v and encrypts it.

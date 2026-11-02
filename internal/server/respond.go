@@ -53,6 +53,8 @@ type handlerFunc func(w http.ResponseWriter, r *http.Request) error
 
 func (s *Server) wrap(fn handlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// every audit entry written while serving r records the client address
+		r = r.WithContext(store.WithAuditMeta(r.Context(), store.AuditMeta{IP: s.clientIP(r)}))
 		if err := fn(w, r); err != nil {
 			s.writeErr(w, r, err)
 		}

@@ -3,7 +3,8 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh \
 #     | sudo sh -s -- [--domain atoll.example.com] [--public-url URL] [--listen :7300] [--version v0.1.0] \
-#       [--tailscale-authkey tskey-auth-... [--agent-tailnet-only]]
+#       [--tailscale-authkey tskey-auth-... [--agent-tailnet-only]] \
+#       [--restore BUNDLE --restore-passphrase-file FILE [--adopt-public-ip]]
 #
 # What it does (safe to re-run; upgrades in place):
 #   1. detects the architecture (amd64 / arm64)
@@ -31,6 +32,14 @@
 #   --tailscale-hostname NAME  tailnet machine name (default atoll-control)
 #   --agent-tailnet-only  stop answering /agent/* on the public URL (ATOLL_AGENT_TAILNET_ONLY=1;
 #                      POST /agent/v1/bootstrap stays public so new nodes can join)
+#   --restore BUNDLE   move a control server here: install, then restore this encrypted control
+#                      bundle (panel 中控 → export, or `atoll-server export`) before the first
+#                      start. The bundle's server.env is merged (flags given here win); with no
+#                      --domain, the domain of its https public URL is used. See docs/control.md
+#   --restore-passphrase-file FILE  file whose first line is the bundle passphrase
+#   --restore-force    replace an existing database here (it is kept in DATA/pre-restore-*)
+#   --adopt-public-ip  on its first start, atoll-server points the panel's DNS record (public URL
+#                      host inside the Cloudflare zone from Settings) at this host's public IPv4
 set -eu
 
 PUBLIC_URL=""
@@ -44,6 +53,10 @@ TS_AUTHKEY=""
 TS_HOSTNAME="atoll-control"
 AGENT_TAILNET_ONLY=0
 AGENT_LISTEN_DEFAULT="tailscale:7301"
+RESTORE=""
+RESTORE_PASS_FILE=""
+RESTORE_FORCE=0
+ADOPT_PUBLIC_IP=0
 
 BIN=${ATOLL_SERVER_BIN:-/usr/local/bin/atoll-server}
 ENV_FILE=${ATOLL_SERVER_ENV:-/etc/atoll/server.env}
@@ -83,6 +96,12 @@ while [ $# -gt 0 ]; do
 	--tailscale-hostname) need_arg "$@"; TS_HOSTNAME=$2; shift 2 ;;
 	--tailscale-hostname=*) TS_HOSTNAME=${1#*=}; shift ;;
 	--agent-tailnet-only) AGENT_TAILNET_ONLY=1; shift ;;
+	--restore) need_arg "$@"; RESTORE=$2; shift 2 ;;
+	--restore=*) RESTORE=${1#*=}; shift ;;
+	--restore-passphrase-file) need_arg "$@"; RESTORE_PASS_FILE=$2; shift 2 ;;
+	--restore-passphrase-file=*) RESTORE_PASS_FILE=${1#*=}; shift ;;
+	--restore-force) RESTORE_FORCE=1; shift ;;
+	--adopt-public-ip) ADOPT_PUBLIC_IP=1; shift ;;
 	-h | --help) usage ;;
 	*) die "unknown option: $1" ;;
 	esac
@@ -98,6 +117,13 @@ fi
 
 if [ -n "$TS_AUTHKEY" ]; then
 	case "$TS_AUTHKEY" in tskey-*) ;; *) die "--tailscale-authkey must be a Tailscale auth key (tskey-auth-...)" ;; esac
+fi
+if [ -n "$RESTORE" ]; then
+	[ -f "$RESTORE" ] || die "--restore: $RESTORE not found"
+	[ -n "$RESTORE_PASS_FILE" ] || die "--restore needs --restore-passphrase-file FILE (first line = the bundle passphrase)"
+	[ -r "$RESTORE_PASS_FILE" ] || die "--restore-passphrase-file: cannot read $RESTORE_PASS_FILE"
+elif [ "$ADOPT_PUBLIC_IP" = 1 ] || [ "$RESTORE_FORCE" = 1 ]; then
+	die "--adopt-public-ip and --restore-force are used with --restore BUNDLE"
 fi
 case "$TS_HOSTNAME" in "" | *[!a-z0-9-]* | -*) die "--tailscale-hostname must be lowercase letters, digits and dashes" ;; esac
 
@@ -333,6 +359,33 @@ if [ "$AGENT_BINARIES" = 1 ]; then
 			warn "could not mirror atoll-agent-linux-$a; new nodes will download it from GitHub"
 		fi
 	done
+fi
+
+# 2b. restore a control bundle before the first start (moving the control server here)
+if [ -n "$RESTORE" ]; then
+	systemctl stop atoll-server >/dev/null 2>&1 || true
+	install -d -m 0755 "$(dirname "$ENV_FILE")"
+	set -- --bundle "$RESTORE" --passphrase-file "$RESTORE_PASS_FILE" --data "$DATA" --env-file "$ENV_FILE"
+	[ "$RESTORE_FORCE" = 1 ] && set -- "$@" --force
+	[ "$ADOPT_PUBLIC_IP" = 1 ] && set -- "$@" --adopt-public-ip
+	log "restoring the control bundle $RESTORE into $DATA"
+	"$BIN" restore "$@" || die "restore failed (wrong passphrase, or an existing database here: add --restore-force)"
+	chmod 0600 "$ENV_FILE" 2>/dev/null || true
+	restored_url=$(env_get ATOLL_PUBLIC_URL)
+	if [ -z "$DOMAIN" ] && [ -z "$PUBLIC_URL" ]; then
+		case "$restored_url" in
+		https://*)
+			DOMAIN=$(printf '%s' "$restored_url" | sed -e 's#^https://##' -e 's#[:/].*$##')
+			PUBLIC_URL="https://$DOMAIN"
+			[ "$LISTEN_SET" = 1 ] || LISTEN="127.0.0.1:7300"
+			LISTEN_SET=1
+			log "serving the restored panel domain $DOMAIN (Caddy)"
+			;;
+		esac
+	fi
+	if [ -n "$(env_get ATOLL_AGENT_LISTEN)" ] && [ -z "$TS_AUTHKEY" ] && ! tailscale_running; then
+		warn "the restored server.env has ATOLL_AGENT_LISTEN but this host is not on the tailnet: re-run with --tailscale-authkey KEY (agents use the public URL until then)"
+	fi
 fi
 
 # 3. Tailscale on the control server (agents reach it over the tailnet)

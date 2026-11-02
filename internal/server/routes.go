@@ -138,6 +138,9 @@ func (s *Server) Handler() http.Handler {
 	// live events
 	a("GET "+v+"/events", lvlRead, s.handleEvents)
 
+	// 中控 / control server itself (control*.go)
+	s.registerControlRoutes(a)
+
 	// unknown API paths answer JSON, not the SPA
 	open(v+"/", func(w http.ResponseWriter, r *http.Request) error {
 		return errf(404, "not_found", "no such endpoint: %s %s", r.Method, r.URL.Path)
