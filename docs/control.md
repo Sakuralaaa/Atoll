@@ -59,7 +59,7 @@ API 细节见 [api.md → Control](api.md#control-中控)。
 
 适用于：中控 VPS 到期不续费、换配置、换机房。全程业务不停，只有面板/API 和 agent 的控制连接中断几分钟。
 
-前提（强烈建议）：面板用**域名**访问（`ATOLL_PUBLIC_URL=https://panel.example.com`），且这个域名在 设置 → DNS 配置的 Cloudflare 区域里。agent 正是靠这个域名找到新中控的。从 v0.2 起，中控会自动把这个域名推送给每个 agent 作为备用地址（agent 连上时检查，缺了就补）——迁移前确认所有服务器都已在线连过一次新版本中控。
+前提（强烈建议）：面板用**域名**访问（`ATOLL_PUBLIC_URL=https://panel.example.com`），且这个域名在 设置 → DNS 配置的 Cloudflare 区域里。agent 正是靠这个域名找到新中控的。从 v0.1.5 起，中控会自动把这个域名推送给每个 agent 作为备用地址（agent 连上时检查，缺了就补）——迁移前确认所有服务器都已在线连过一次 v0.1.5 及以上的中控（v0.1.4 的中控没有导出功能，要先升级）。
 
 ### 1. 在旧中控导出
 
