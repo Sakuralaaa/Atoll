@@ -14,6 +14,7 @@ import Login from './pages/Login'
 import Settings from './pages/Settings'
 import Security from './pages/Security'
 import Confirmations from './pages/Confirmations'
+import Control from './pages/Control'
 import { Toaster } from './components/feedback'
 import { api } from './api/client'
 import { useQuery } from './api/hooks'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/" element={<Projects />} />
         <Route path="/servers" element={<Servers />} />
         <Route path="/servers/:id" element={<ServerDetail />} />
+        <Route path="/control" element={<Control />} />
         <Route path="/domains" element={<Domains />} />
         <Route path="/developer" element={<Developer />} />
         <Route path="/confirmations" element={<Confirmations />} />

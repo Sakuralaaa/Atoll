@@ -7,7 +7,9 @@ export const API = '/api/v1'
 
 export class ApiError extends Error {
   status: number; code?: string
-  constructor(status: number, message: string, code?: string) { super(message); this.status = status; this.code = code }
+  /** seconds, from Retry-After (429 lockouts) */
+  retryAfter?: number
+  constructor(status: number, message: string, code?: string, retryAfter?: number) { super(message); this.status = status; this.code = code; this.retryAfter = retryAfter }
 }
 
 let demo: boolean | undefined
@@ -24,7 +26,7 @@ export function isDemo(): boolean {
 
 type Opts = { noRedirect?: boolean; raw?: BodyInit; signal?: AbortSignal }
 
-function toLogin() {
+export function toLogin() {
   if (!location.hash.startsWith('#/login')) location.hash = '#/login'
 }
 
@@ -52,7 +54,8 @@ export async function request<T>(method: string, path: string, body?: unknown, o
     const msg = (data && typeof data === 'object' && 'error' in data) ? String((data as { error: string }).error) : (typeof data === 'string' && data) || `${res.status} ${res.statusText}`
     const code = data && typeof data === 'object' && 'code' in data ? String((data as { code: string }).code) : undefined
     if (res.status === 401 && !o.noRedirect) toLogin()
-    throw new ApiError(res.status, msg, code)
+    const ra = Number(res.headers.get('Retry-After'))
+    throw new ApiError(res.status, msg, code, ra > 0 ? ra : undefined)
   }
   return (data === undefined ? {} : data) as T
 }

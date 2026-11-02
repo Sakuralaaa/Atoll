@@ -6,6 +6,7 @@ import { ApiError } from './client'
 import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
 import { makeDemoGit } from './demo-git'
+import { makeDemoControl } from './demo-control'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
@@ -19,7 +20,8 @@ let seq = 1000
 const nid = (p: string) => `${p}_demo${(seq++).toString(36)}`
 
 const TAILNET: Record<string, [string, boolean]> = { phx: ['100.64.0.10', true], fra: ['100.64.0.20', false], tyo: ['100.64.0.4', true] }
-const servers: Server[] = mockServers.map(s => ({
+// the control host is not a worker: it has its own 中控 page (/control), never a row in /servers
+const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s => ({
   id: s.id, name: s.name, role: s.role ?? 'worker', status: s.status, public_ipv4: s.ip, provider: s.provider, region: s.region,
   tailnet_host: `${s.id}.tail3c1a.ts.net`, os: s.os, arch: s.arch, cpu_cores: s.cpu, mem_mb: s.memGB * 1024, disk_gb: s.diskGB,
   agent_version: 'v0.1.0', last_seen_at: iso(s.status === 'online' ? 8e3 : 12 * 60e3), created_at: '2026-10-12T08:00:00Z',
@@ -251,6 +253,7 @@ const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
 const demo2fa = { enabled: false, at: '', left: 10 }
+const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: () => demo2fa.enabled })
 const demoCodes = () => ['k7m2q-x9tpw', 'h4rcz-m8vne', 'p3dqs-w7kua', 'y9bft-c2hrm', 'n6gxe-t4jqp', 'r2wmk-z8cdv', 'e5ujn-q3fyb', 'a8tpc-v6sgh', 'w4hzr-k9nem', 'f7qdy-b3xut']
 const demoSessions: SessionInfo[] = [
   { id: '3f9a1c0d7e2b4a65', ip: '203.0.113.24', user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 Safari/605.1.15', current: true, created_at: iso(2 * H), expires_at: new Date(now + 30 * D).toISOString() },
@@ -356,6 +359,7 @@ function route(method: string, path: string, body: any): unknown {
     return fullProject(pr)
   }
 
+  { const r = demoControl(method, seg, body, q); if (r !== undefined) return r }
   { const r = demoGit.route(method, seg, body, q); if (r !== undefined) return r }
   { const r = demoUpdates(method, seg, body); if (r !== undefined) return r }
   { const r = demoBackups.route(method, seg, body); if (r !== undefined) return r }

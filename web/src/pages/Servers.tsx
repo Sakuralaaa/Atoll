@@ -10,6 +10,7 @@ import { flagFor, gb, needsAttention, usagePct } from '../api/view'
 import type { JoinToken } from '../api/types'
 import { NetBadge } from '../components/ServerNetwork'
 import { useT } from '../i18n'
+import { ControlCard } from './Control'
 
 export default function Servers() {
   const { t } = useT()
@@ -17,7 +18,8 @@ export default function Servers() {
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [add, setAdd] = useState(false)
-  const list = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
+  // the control host has its own card above the list and the 中控 page; it is not a server
+  const list = (q.data ?? []).filter(s => s.role !== 'control').sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
@@ -32,6 +34,7 @@ export default function Servers() {
             <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
           </div>
         </div>
+        <ControlCard />
         <Segment value="s" items={[{ k: 's', l: '服务器', icon: <Server size={15} /> }]} />
         <div className="mt-6">
           {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}

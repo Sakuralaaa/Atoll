@@ -278,3 +278,40 @@ export interface ChangePasswordRequest { current_password: string; new_password:
 export interface ChangePasswordResponse { revoked_sessions: number }
 export interface RecoveryCodes { recovery_codes: string[] }
 export interface SessionInfo { id: string; ip?: string; user_agent?: string; current: boolean; created_at: string; expires_at: string }
+
+// ---------- 中控 / Control (internal/api/control.go) ----------
+export interface ControlHost { hostname: string; os: string; kernel: string; arch: string; cpu_cores: number; uptime_seconds: number }
+export interface ControlTailnet { ip?: string; control_url?: string; listen?: string; listen_error?: string }
+export interface ReleaseInfo { tag: string; name?: string; url?: string; published_at: string; prerelease?: boolean; checked_at: string }
+export interface UpdateResult { mode: 'update' | 'rollback' | string; from_version?: string; to_version?: string; ok: boolean; rolled_back?: boolean; error?: string; started_at: string; finished_at: string }
+export interface ControlBackup {
+  id: string; created_at: string; trigger: 'scheduled' | 'manual' | 'pre-update' | 'unknown' | string; version: string; size_bytes: number
+  sha256?: string; local: boolean; remote: boolean; remote_key?: string; error?: string
+}
+export interface ControlStatus {
+  version: string; commit?: string; go_version: string; started_at: string; uptime_seconds: number
+  host: ControlHost
+  cpu_pct: number; load1: number; load5: number; load15: number
+  mem_used_mb: number; mem_total_mb: number; disk_used_gb: number; disk_total_gb: number
+  data_dir: string; data_dir_bytes: number; database_bytes: number
+  public_url: string; tailnet?: ControlTailnet; agents_connected: number; agents_total: number
+  last_backup?: ControlBackup
+  latest_release?: ReleaseInfo; update_available: boolean; release_error?: string
+  self_update_supported: boolean; update_in_progress: boolean; update_phase?: string
+  last_update_result?: UpdateResult; rollback_version?: string
+}
+export interface ReauthFields { password?: string; code?: string }
+export interface ControlReauth { expires_at: string }
+export interface ControlUpdateResponse { mode: string; version?: string; phase: string; message?: string }
+export interface ControlUpdateCheck { latest_release?: ReleaseInfo; current: string; update_available: boolean; release_error?: string }
+export interface ControlLogs { available: boolean; source: string; lines: string[]; message?: string }
+export interface ControlBackupList {
+  backups: ControlBackup[]; remote_enabled: boolean; remote_error?: string; keep_local: number; keep_remote: number
+  next_scheduled?: string; passphrase_from: 'control_backup_passphrase' | 'backup_repo_password' | 'generated' | string
+}
+export interface ControlPassphrase { passphrase: string; from: string }
+export interface AuditEntry {
+  id: number; actor: string; actor_kind: 'session' | 'token' | 'cli' | 'system' | string; action: string; target: string
+  ip?: string; token_id?: string; session_id?: string; detail: unknown; created_at: string
+}
+export interface AuditPage { entries: AuditEntry[]; next_before?: number }

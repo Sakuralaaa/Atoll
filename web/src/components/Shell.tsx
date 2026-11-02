@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal } from 'lucide-react'
+import { Menu, X, Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot, cx } from './ui'
@@ -99,7 +99,8 @@ function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; t
 export function MainShell({ children }: { children: React.ReactNode }) {
   const servers = useServers().data
   const pending = usePending().data?.length ?? 0
-  const workers = servers ?? []
+  // the control host is not a worker: it has its own 中控 entry, never counted as a server
+  const workers = (servers ?? []).filter(s => s.role !== 'control')
   const online = workers.filter(s => s.status === 'online').length
   const item = (to: string, icon: React.ReactNode, l: string, badge?: number) => (
     <NavLink to={to} end={to === '/'} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13.5px] font-medium',
@@ -115,6 +116,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         <nav className="flex flex-col gap-1">
           {item('/', <Package size={16} />, '项目')}
           {item('/servers', <Server size={16} />, '服务器')}
+          {item('/control', <ServerCog size={16} />, '中控')}
           {item('/domains', <Globe size={16} />, '域名')}
           {item('/developer', <Terminal size={16} />, 'CLI 与 API')}
           {item('/confirmations', <ShieldAlert size={16} />, '待确认', pending)}
@@ -122,7 +124,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
           {item('/settings', <SlidersHorizontal size={16} />, '设置')}
         </nav>
         <div className="flex-1" />
-        <div className="rounded-xl surface px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</div>
+        <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</Link>
         <div className="h-px bg-line mb-3" />
         <UserRow />
     </>}>{children}</Frame>
