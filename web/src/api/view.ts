@@ -73,3 +73,6 @@ export function bytes(n: number) {
   if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${n} B`
 }
+
+/** Long sha256 digests inside free text (deploy messages, errors) -> "sha256:<12 hex>…"; keep the full text for a title tooltip. */
+export const shortDigests = (text?: string) => (text ?? '').replace(/sha256:([0-9a-f]{12})[0-9a-f]{20,}/gi, 'sha256:$1…')

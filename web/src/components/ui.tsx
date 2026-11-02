@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Copy } from 'lucide-react'
+import { Copy, Server as ServerGlyph } from 'lucide-react'
 import * as si from 'simple-icons'
 export { si }
 import type { IconSpec } from '../api/view'
@@ -129,7 +129,9 @@ const PROVIDER: Record<string, { path?: string; hex: string; ring?: boolean; let
   RackNerd: { hex: '22C55E', letter: 'R' },
 }
 function ProviderGlyph({ provider, size }: { provider: string; size: number }) {
-  const p = PROVIDER[provider] ?? { hex: '888888', letter: provider[0] }
+  // provider is optional on servers (pages pass '?' when unset): show a generic server glyph, not a stray "?"
+  if (!PROVIDER[provider] && !/^[A-Za-z0-9]/.test(provider)) return <ServerGlyph size={size} strokeWidth={2.2} className="text-muted" />
+  const p = PROVIDER[provider] ?? { hex: '888888', letter: provider[0].toUpperCase() }
   if (p.ring) return <span className="rounded-full" style={{ width: size, height: size * 0.6, border: `${Math.max(2, size * 0.15)}px solid #${p.hex}` }} />
   if (p.path) return <Glyph path={p.path} size={size} color={`#${p.hex}`} />
   return <span className="font-bold" style={{ color: `#${p.hex}`, fontSize: size * 0.9, lineHeight: 1 }}>{p.letter}</span>

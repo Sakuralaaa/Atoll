@@ -37,7 +37,7 @@ export default function ImageUpdateCard({ s }: { s: Service }) {
 function SourceBuildNote() {
   const { t } = useT()
   return (
-    <Card className="mt-6 px-6 py-4 flex items-center gap-3">
+    <Card className="mt-6 px-6 py-4 flex flex-wrap items-center gap-3">
       <ArrowUpCircle size={18} className="text-muted" />
       <span className="text-[15px] font-semibold tracking-tight">{t('镜像更新', 'Image updates')}</span>
       <Badge tone="zinc">{t('不适用', 'N/A')}</Badge>
@@ -64,7 +64,7 @@ function RegistryUpdateCard({ s }: { s: Service }) {
   const checkable = u.status !== 'unsupported' && u.status !== 'disabled'
   return (
     <Card className="mt-6 p-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <ArrowUpCircle size={18} className={u.update_available ? 'text-accent' : 'text-muted'} />
         <span className="text-[15px] font-semibold tracking-tight">镜像更新</span>
         <Badge tone={tone}>{label}</Badge>
@@ -98,9 +98,9 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         </>}
       </div>}
 
-      {(u.error || u.note) && <div className={cx('mt-4 text-[12.5px] leading-5', u.error ? 'text-[#ef4444]' : 'text-muted')}>{u.error || u.note}</div>}
+      {(u.error || u.note) && <div className={cx('mt-4 text-[12.5px] leading-5 [overflow-wrap:anywhere]', u.error ? 'text-[#ef4444]' : 'text-muted')}>{u.error || u.note}</div>}
 
-      {u.policy === 'auto' && checkable && <div className="mt-4 flex items-center gap-3 text-[13px]">
+      {u.policy === 'auto' && checkable && <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px]">
         <span className="text-muted">自动更新时段</span>
         <TextInput mono className={cx('h-9 w-[150px]', winBad && 'ring-2 ring-[#ef4444]')} placeholder="任意时间" value={winValue}
           onChange={e => setWin(e.target.value.trim())} onKeyDown={e => e.key === 'Enter' && !winBad && setPolicy('auto', winValue)} />
@@ -108,7 +108,7 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         {win !== undefined && win !== (u.window ?? '') && <Button size="sm" disabled={busy || winBad} onClick={() => setPolicy('auto', winValue)}>保存</Button>}
       </div>}
 
-      <div className="mt-5 pt-4 border-t border-line flex items-center gap-3">
+      <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-3">
         {u.changelog_url && <a href={u.changelog_url} target="_blank" rel="noreferrer" className="text-[13px] text-fg2 hover:text-fg flex items-center gap-1.5 hover:underline">更新日志<ExternalLink size={13} /></a>}
         <span className="text-[12.5px] text-dim">更新会创建一次新部署，旧部署保留在部署记录中，可随时回滚。</span>
         <Button className="ml-auto" variant="primary" size="sm" disabled={busy || !u.digest_changed} onClick={() => setConfirm({})}><Rocket size={14} />更新</Button>

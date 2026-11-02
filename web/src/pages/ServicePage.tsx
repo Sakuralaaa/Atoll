@@ -11,7 +11,7 @@ import { BuildLogModal, CommitLink, EditGitModal, GithubIcon, SourceCard } from 
 import { commitUrl, hasBuildLog, isGit, repoPath, shortSha } from '../api/git'
 import { api, isDemo, type Range } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
-import { ago, bytesRate, day, dateTime, deployStatusText, latestDeploy, primaryPort, svcIcon, timeLabels, triggerText } from '../api/view'
+import { ago, bytesRate, day, dateTime, deployStatusText, latestDeploy, primaryPort, shortDigests, svcIcon, timeLabels, triggerText } from '../api/view'
 import type { Deployment, Domain, EnvVar, Project, Server, Service } from '../api/types'
 import { RangePicker } from './ServerDetail'
 import { useT } from '../i18n'
@@ -42,7 +42,7 @@ export default function ServicePage() {
   const refresh = () => invalidate(`project:${pid}`, 'projects')
   return (
     <ProjectShell project={p ?? placeholder(pid)} active={sid}>
-      <div className="max-w-[1320px] mx-auto px-14 pt-10 pb-16">
+      <div className="max-w-[1320px] mx-auto px-6 lg:px-10 xl:px-14 pt-10 pb-16">
         {pq.error && !p && <ErrorState error={pq.error} onRetry={pq.refetch} />}
         {!p && !pq.error && <><div className="flex gap-4"><Skeleton className="h-[52px] w-[52px]" /><div className="space-y-2 flex-1"><Skeleton className="h-7 w-64" /><Skeleton className="h-3.5 w-96" /></div></div><div className="mt-10"><CardSkeleton n={1} cols={1} h={260} /></div></>}
         {p && !s && <Empty title="找不到这个服务" desc="它可能已被删除。" action={<Link to={`/projects/${p.id}`}><Button>返回项目</Button></Link>} />}
@@ -73,13 +73,13 @@ function Header({ s, onChange }: { s: Service; onChange: () => void }) {
   const git = isGit(s)
   const act = (a: 'restart' | 'redeploy') => wrap(() => run(() => api.action(s.id, a), { ok: a === 'restart' ? '正在重新启动' : git ? t('已开始构建最新提交', 'Building the latest commit') : '已触发重新部署', invalidate: [`deployments:${s.id}`] }).then(onChange))
   return (
-    <div className="flex items-start gap-4">
+    <div className="flex flex-wrap items-start gap-4">
       <ServiceIcon s={svcIcon(s)} size={52} />
-      <div className="flex-1">
-        <div className="flex items-center gap-3"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
-        <div className="mt-1 flex items-center gap-4 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
+      <div className="flex-1 min-w-[220px]">
+        <div className="flex flex-wrap items-center gap-3"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
       </div>
-      <div className="flex gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
     </div>
   )
 }
@@ -98,23 +98,23 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
   return (
     <>
       <Card className="p-6">
-        <div className="flex items-start gap-8">
-          <div className="flex-1">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-6 xl:gap-8">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3"><Dot status={s.status} /><span className="text-[17px] font-semibold tracking-tight">{statusText[s.status] ?? s.status}</span><span className="text-muted text-[13px]">· {s.replicas}</span></div>
-            <div className="text-[13px] text-muted mt-1">{last ? <>最近一次部署 {ago(last.started_at)} · 由「{triggerText[last.trigger] ?? last.trigger}」触发{last.message ? ` · ${last.message}` : ''}</> : deps.data ? '还没有部署记录' : <Skeleton className="h-3.5 w-64" />}</div>
-            <div className="mt-6 grid grid-cols-[100px_1fr] gap-y-3.5 text-[13px]">
+            <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]" title={last?.message}>{last ? <>最近一次部署 {ago(last.started_at)} · 由「{triggerText[last.trigger] ?? last.trigger}」触发{last.message ? ` · ${shortDigests(last.message)}` : ''}</> : deps.data ? '还没有部署记录' : <Skeleton className="h-3.5 w-64" />}</div>
+            <div className="mt-6 grid grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
               {s.git ? <>
-                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><GithubIcon size={14} /><span className="truncate">{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">源码构建</span></span>
+                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><GithubIcon size={14} /><span className="truncate" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">源码构建</span></span>
                 <span className="text-muted">提交</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
               </> : <>
-                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><span className="truncate">{s.image || '—'}</span></span>
-                <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2">{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
+                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><span className="truncate" title={s.image}>{s.image || '—'}</span></span>
+                <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
-              <span className="text-muted">服务器</span><span className="flex items-center gap-2">{srv ? <><Mini provider={srv.provider ?? '?'} />{srv.name}</> : '—'}</span>
-              <span className="text-muted">资源</span><span>CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : '不限'} · 重启策略 unless-stopped</span>
+              <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
+              <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : '不限'} · 重启策略 unless-stopped</span>
             </div>
           </div>
-          <div className="w-[380px] space-y-3">
+          <div className="w-full xl:w-[380px] xl:shrink-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-1 gap-3">
             {isDemo() ? <Uptime failed={s.status === 'failed'} /> : <RecentDeploys deps={deps.data} />}
             <div className="grid grid-cols-2 gap-3">
               {([['CPU', cpu.length ? `${cpu[cpu.length - 1].toFixed(1)}%` : '—', cpu, '#8b5cf6'], ['内存', mem.length ? `${Math.round(mem[mem.length - 1])} MB` : '—', mem, '#38bdf8']] as const).map(([l, v, d, c]) => (
@@ -126,7 +126,7 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
             </div>
           </div>
         </div>
-        <div className="mt-6 pt-5 border-t border-line flex items-center gap-2">
+        <div className="mt-6 pt-5 border-t border-line flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setHist(true)}><History size={14} />部署记录</Button>
           {stopped ? <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'start'), { ok: '正在启动', invalidate: [`project:${p.id}`] }))}><Play size={13} />启动</Button>
             : <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'stop'), { ok: '已停止', invalidate: [`project:${p.id}`] }))}><Square size={13} />停止</Button>}
@@ -139,15 +139,15 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
 
       <div className="mt-6 text-[13px] font-semibold mb-3">域名</div>
       {doms.length ? <div className="space-y-3">{doms.map(d => (
-        <Card key={d.id} className="px-6 py-4 flex items-center gap-4">
+        <Card key={d.id} className="px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
           <Globe size={18} className="text-accent" />
-          <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold flex items-center gap-1.5 hover:underline">{d.hostname}<ExternalLink size={13} /></a>
+          <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold flex items-center gap-1.5 hover:underline min-w-0 [overflow-wrap:anywhere]">{d.hostname}<ExternalLink size={13} /></a>
           <DomainBadge d={d} />
           <span className="ml-auto flex items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />Cloudflare 代理</> : '仅 DNS'} → {srv?.public_ipv4 ?? '—'}</span>
         </Card>
-      ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex items-center justify-between">此服务未公开访问，仅项目内网可达<Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />绑定域名</Button></Card>}
+      ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex flex-wrap gap-3 items-center justify-between">此服务未公开访问，仅项目内网可达<Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />绑定域名</Button></Card>}
 
-      <div className="mt-6 grid grid-cols-3 gap-5">
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
         {([
           [<FolderOpen size={22} />, '文件', '浏览容器与卷中的文件', `${base}/files`],
           [<ScrollText size={22} />, '日志', '实时运行日志', `${base}/logs`],
@@ -201,7 +201,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
             <div key={d.id} className="py-3 flex items-center gap-4 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
               <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status} <span className="text-muted font-normal">· {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div>
-                <div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+                <div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
               <span className="text-muted tnum">{dateTime(d.started_at)}</span>
               {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}

@@ -124,7 +124,7 @@ export function SourceCard({ s }: { s: Service }) {
   const building = last && buildActive(last.status) && last.status !== 'pulling' && last.status !== 'starting'
   return (
     <Card className="mt-6 p-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <GithubIcon size={18} />
         <span className="text-[15px] font-semibold tracking-tight">{t('源码构建', 'Build from source')}</span>
         {last?.status === 'building' ? <Badge tone="amber"><Loader2 size={11} className="animate-spin" />{t('构建中', 'Building')}</Badge> : last?.status === 'failed' ? <Badge tone="red">{t('上次失败', 'Last build failed')}</Badge> : null}
@@ -133,14 +133,14 @@ export function SourceCard({ s }: { s: Service }) {
           <Button size="sm" variant="primary" disabled={busy || !!building} onClick={rebuild}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}{t('重新构建最新提交', 'Rebuild latest')}</Button>
         </div>
       </div>
-      <div className="mt-5 grid grid-cols-[100px_1fr] gap-y-3.5 text-[13px]">
+      <div className="mt-5 grid grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
         <span className="text-muted">{t('仓库', 'Repository')}</span>
         <a href={repoUrl(g.repo)} target="_blank" rel="noreferrer" className="font-mono hover:underline truncate">{repoPath(g.repo)}</a>
         <span className="text-muted">{t('分支', 'Branch')}</span>
-        <span className="flex items-center gap-2 font-mono"><GitBranch size={14} className="text-accent shrink-0" />{g.branch || 'main'}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono min-w-0 [overflow-wrap:anywhere]"><GitBranch size={14} className="text-accent shrink-0" />{g.branch || 'main'}
           <span className="text-dim font-sans text-[12.5px]">· {g.context ? `${g.context}/` : ''}{g.dockerfile || 'Dockerfile'}{g.has_token ? ` · ${t('私有仓库 Token 已保存', 'private repo token saved')}` : ''}</span></span>
         <span className="text-muted">{t('最近提交', 'Last commit')}</span>
-        <span className="flex items-center gap-2">{g.last_commit
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{g.last_commit
           ? <a href={commitUrl(g.repo, g.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(g.last_commit)}</a>
           : <span className="text-dim">{t('还没有成功的构建', 'No successful build yet')}</span>}
           {last && <span className="text-dim text-[12.5px]">· {t('最近部署', 'latest deploy')} {ago(last.started_at)} · {deployStatusText[last.status] ?? last.status}</span>}
@@ -151,7 +151,7 @@ export function SourceCard({ s }: { s: Service }) {
       {edit && <EditGitModal s={s} onClose={() => setEdit(false)} />}
       {toImage && <SwitchToImageModal s={s} onClose={() => setToImage(false)} />}
       {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}
-      <div className="mt-5 pt-4 border-t border-line flex items-center gap-3 text-[12.5px] text-dim">
+      <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-3 text-[12.5px] text-dim">
         <span>{t('构建在服务所在的服务器上进行，每台服务器同时只跑一个构建，超时 20 分钟。', "Builds run on the service's own server, one at a time per server, 20 min timeout.")}</span>
         <Button className="ml-auto" size="sm" variant="ghost" onClick={() => setToImage(true)}><Box size={13} />{t('改回镜像部署', 'Switch back to image')}</Button>
       </div>
@@ -169,7 +169,7 @@ function WebhookSection({ s }: { s: Service }) {
   const secret = wh?.secret
   return (
     <div className="mt-6">
-      <div className="flex items-center gap-2 mb-2"><Webhook size={15} className="text-accent" /><span className="text-[13px] font-semibold">GitHub Webhook</span>
+      <div className="flex flex-wrap items-center gap-2 mb-2"><Webhook size={15} className="text-accent" /><span className="text-[13px] font-semibold">GitHub Webhook</span>
         <span className="text-[12.5px] text-dim">{t(`推送到 ${s.git?.branch || 'main'} 后自动构建`, `Pushes to ${s.git?.branch || 'main'} build automatically`)}</span>
         <button onClick={() => setSetup(true)} disabled={!wh} className="ml-auto text-accent text-[12.5px]">{t('设置步骤', 'Setup steps')}</button></div>
       {q.error && !wh ? <div className="text-[13px] text-[#ef4444]">{q.error.message}</div> : !wh ? <Skeleton className="h-24 w-full" /> : (
@@ -259,7 +259,7 @@ export function BuildLogModal({ s, d, onClose }: { s: Service; d: Deployment; on
   const tone = st === 'failed' ? 'red' : st === 'running' ? 'green' : live ? 'amber' : 'zinc'
   return (
     <Modal width={920} onClose={onClose} title={<><ScrollText size={17} />{t('构建日志', 'Build log')} · {s.name}<Badge tone={tone}>{live && <Loader2 size={11} className="animate-spin" />}{deployStatusText[st] ?? st}</Badge></>}>
-      <div className="flex items-center gap-3 text-[12.5px] text-muted mb-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted mb-3">
         <span className="font-mono">{d.id}</span><span>· {triggerText[d.trigger] ?? d.trigger}</span><span>· {dateTime(d.started_at)}</span>
         {d.commit && <span>· <CommitLink s={s} d={d} /></span>}
         {truncated && <span className="ml-auto text-[#f59e0b]">{t('日志过长，只保留了最新的部分', 'Log truncated: only the newest lines are kept')}</span>}

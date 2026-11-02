@@ -7,7 +7,7 @@ import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { useLogStream } from '../api/ws'
-import { dateTime, deployStatusText, triggerText } from '../api/view'
+import { dateTime, deployStatusText, shortDigests, triggerText } from '../api/view'
 import type { Deployment, LogLine, Service } from '../api/types'
 import { useProject } from './ServicePage'
 import { BuildLogModal, CommitLink } from '../components/GitSource'
@@ -125,7 +125,7 @@ function Deploys({ s }: { s: Service }) {
           {q.data.map((d, i) => (
             <div key={d.id} className="px-6 h-16 flex items-center gap-4 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
-              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
               <span className="text-muted tnum">{dateTime(d.started_at)}</span>
               {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
