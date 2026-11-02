@@ -41,4 +41,7 @@ jobs:
         run: |
           pre=""
           case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --title "Atoll $GITHUB_REF_NAME" $pre
+          notes=""
+          # hand-written upgrade notes come first, the generated commit list after them
+          if [ -f "docs/releases/$GITHUB_REF_NAME.md" ]; then notes="docs/releases/$GITHUB_REF_NAME.md"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* --generate-notes ${notes:+--notes-file "$notes"} --title "Atoll $GITHUB_REF_NAME" $pre

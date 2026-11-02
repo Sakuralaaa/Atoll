@@ -172,7 +172,7 @@ CI（[.github/workflows/ci.yml](.github/workflows/ci.yml)）会跑 gofmt、vet�
 | Web 面板 | `web/`（React + Vite + Tailwind，页面按路由懒加载） |
 | 安装脚本 / systemd | `install/`、`deploy/` |
 
-贡献和 review 约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。推送 `v*` tag 会触发 [release 工作流](.github/workflows/release.yml)，构建、测试、打包、签发 provenance 并发布 Release：
+贡献和 review 约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。发版前在 `docs/releases/<tag>.md` 写好说明和升级步骤（会附在 Release 上），再在 [CHANGELOG.md](CHANGELOG.md) 加一行。推送 `v*` tag 会触发 [release 工作流](.github/workflows/release.yml)，构建、测试、打包、签发 provenance 并发布 Release：
 
 ```bash
 git tag v0.1.0 && git push --tags
