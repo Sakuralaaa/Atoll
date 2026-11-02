@@ -5,6 +5,7 @@ import { series } from '../components/ui'
 import { ApiError } from './client'
 import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
+import { makeDemoGit } from './demo-git'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
   LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
@@ -240,6 +241,7 @@ function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
 }
 
 // ---------- router ----------
+const demoGit = makeDemoGit(services, deployments, nid)
 const demoUpdates = makeDemoUpdates(services, deployments)
 const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p => p.id === pid)?.server_id ?? '', settings)
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
@@ -333,6 +335,7 @@ function route(method: string, path: string, body: any): unknown {
     const t = templates.find(x => x.kind === body.kind)
     const s: Service = { id: nid('svc'), project_id: a[0], server_id: body.server_id || projects.find(x => x.id === a![0])?.server_id, name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString() }
     services.push(s); env[s.id] = []; deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: new Date().toISOString() }]
+    if (body.git) return { ...withSvc(s), ...demoGit.create(s, body.git) }
     return withSvc(s)
   }
   if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; services.filter(x => x.project_id === pr.id).forEach(x => { x.server_id = body.server_id }); return {} }
@@ -343,6 +346,7 @@ function route(method: string, path: string, body: any): unknown {
     return fullProject(pr)
   }
 
+  { const r = demoGit.route(method, seg, body, q); if (r !== undefined) return r }
   { const r = demoUpdates(method, seg, body); if (r !== undefined) return r }
   { const r = demoBackups.route(method, seg, body); if (r !== undefined) return r }
   if ((a = m('services/*/actions'))) { const s = svc(a[0]); s.status = body.action === 'stop' ? 'stopped' : 'running'; s.replicas = body.action === 'stop' ? '0/1' : '1/1'; return {} }

@@ -53,8 +53,8 @@ export const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('sv
 export const dateTime = (iso?: string) => (iso ? new Date(iso).toLocaleString('sv-SE', { hour12: false }).slice(0, 16) : '—')
 export const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-export const triggerText: Record<string, string> = { create: '创建服务', redeploy: '重新部署', env: '修改环境变量', rollback: '回滚', import: '从 Zeabur 导入', migrate: '迁移服务器', 'image-update': '镜像更新' }
-export const deployStatusText: Record<string, string> = { queued: '排队中', pulling: '拉取镜像', starting: '启动中', running: '运行中', failed: '失败', superseded: '已替换' }
+export const triggerText: Record<string, string> = { create: '创建服务', redeploy: '重新部署', env: '修改环境变量', rollback: '回滚', import: '从 Zeabur 导入', migrate: '迁移服务器', 'image-update': '镜像更新', webhook: 'GitHub 推送' }
+export const deployStatusText: Record<string, string> = { queued: '排队中', building: '构建中', pulling: '拉取镜像', starting: '启动中', running: '运行中', failed: '失败', superseded: '已替换' }
 export const latestDeploy = (ds?: Deployment[]) => ds?.slice().sort((a, b) => b.started_at.localeCompare(a.started_at))[0]
 
 /** Pick ~6 evenly spaced time labels for a chart. */

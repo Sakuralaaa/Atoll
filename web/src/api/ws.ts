@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { API, isDemo } from './client'
 import { invalidate } from './hooks'
-import type { LiveEvent, LogLine } from './types'
+import type { BuildLogEvent, LiveEvent, LogLine } from './types'
 
 export function wsUrl(path: string) {
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${API}${path}`
@@ -31,7 +31,12 @@ const KEYS: Record<string, string[]> = {
   deployment: ['deployments:', 'service:', 'project:', 'projects', 'image-update'],
   confirmation: ['confirmations'],
   image_update: ['image-update'],
+  build_log: [], // high-volume: delivered to onBuildLog subscribers instead of invalidating queries
 }
+
+const buildLogSubs = new Set<(e: BuildLogEvent) => void>()
+/** Subscribe to build_log frames of the shared /events socket. Returns an unsubscribe function. */
+export function onBuildLog(fn: (e: BuildLogEvent) => void) { buildLogSubs.add(fn); return () => { buildLogSubs.delete(fn) } }
 
 /** Live refresh: one /events socket; each frame invalidates the queries its type affects (batched). */
 export function useLiveEvents(enabled: boolean) {
@@ -40,7 +45,10 @@ export function useLiveEvents(enabled: boolean) {
     let pending = new Set<string>(), t: ReturnType<typeof setTimeout> | undefined
     const close = openSocket('/events', d => {
       const ev = d as LiveEvent
-      ;(KEYS[ev.type] ?? ['']).forEach(k => pending.add(k))
+      if (ev.type === 'build_log' && ev.payload) buildLogSubs.forEach(f => f(ev.payload as BuildLogEvent))
+      const keys = KEYS[ev.type] ?? ['']
+      if (!keys.length) return
+      keys.forEach(k => pending.add(k))
       if (!t) t = setTimeout(() => { const p = [...pending]; pending = new Set(); t = undefined; invalidate(...p) }, 300)
     })
     return () => { close(); if (t) clearTimeout(t) }

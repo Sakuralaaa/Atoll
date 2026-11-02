@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Loader2, Undo2 } from 'lucide-react'
+import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Loader2, Undo2, ScrollText } from 'lucide-react'
 import { Button, CopyId, Dot, cx } from '../components/ui'
 import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
@@ -10,6 +10,8 @@ import { useLogStream } from '../api/ws'
 import { dateTime, deployStatusText, triggerText } from '../api/view'
 import type { Deployment, LogLine, Service } from '../api/types'
 import { useProject } from './ServicePage'
+import { BuildLogModal, CommitLink } from '../components/GitSource'
+import { hasBuildLog } from '../api/git'
 
 const level = (l: LogLine) => /\b(ERROR|FATAL|CRITICAL|panic)\b/i.test(l.line) ? 'ERROR' : /\bWARN(ING)?\b/i.test(l.line) ? 'WARN' : 'INFO'
 const fmt = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
@@ -115,6 +117,7 @@ function PortalInner({ el, children }: { el: HTMLElement; children: React.ReactN
 function Deploys({ s }: { s: Service }) {
   const q = useQuery(`deployments:${s.id}`, () => api.deployments(s.id), { interval: 10000 })
   const [target, setTarget] = useState<Deployment>()
+  const [logs, setLogs] = useState<Deployment>()
   return (
     <div className="flex-1 overflow-auto px-10 py-6">
       {!q.data ? <RowsSkeleton n={4} /> : !q.data.length ? <div className="text-[13px] text-muted">还没有部署记录</div> : (
@@ -122,7 +125,8 @@ function Deploys({ s }: { s: Service }) {
           {q.data.map((d, i) => (
             <div key={d.id} className="px-6 h-16 flex items-center gap-4 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
-              <div className="flex-1 min-w-0"><div className="font-semibold">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span></div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+              {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
               <span className="text-muted tnum">{dateTime(d.started_at)}</span>
               {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
             </div>
@@ -132,6 +136,7 @@ function Deploys({ s }: { s: Service }) {
       {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} name={s.name} onClose={() => setTarget(undefined)}
         description={<>将用 {dateTime(target.started_at)} 的镜像摘要重新部署 {s.name}。</>}
         onConfirm={() => run(() => api.rollback(s.id, target.id), { ok: '正在回滚', invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] })} />}
+      {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}
     </div>
   )
 }

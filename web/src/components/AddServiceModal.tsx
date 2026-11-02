@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Search, Box, Database, LayoutTemplate, FileCode2, ChevronRight, X, ArrowLeft, Loader2 } from 'lucide-react'
+import { Search, Box, Database, LayoutTemplate, FileCode2, ChevronRight, X, ArrowLeft, Loader2, Webhook } from 'lucide-react'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import type { Service } from '../api/types'
+import type { GitSource, Service } from '../api/types'
+import { autoName, emptyGitForm, gitBody, gitFormError, type GitForm } from '../api/git'
+import { GitFields, SourceToggle, WebhookSetup, type SourceKind } from './GitSource'
 import { Badge, Button, ServiceIcon, cx } from './ui'
 import { Label, Select, TextInput } from './feedback'
 import { useT } from '../i18n'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'soon'; i: React.ReactNode; t: string; d: string }[] = [
-  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: 'Docker 容器镜像', d: '从 Docker Hub、GHCR 或私有仓库部署' },
+  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: 'Docker 容器镜像 / GitHub 仓库', d: '从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建' },
   { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: '数据库', d: 'PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量' },
   { k: 'soon', i: <LayoutTemplate size={20} className="text-accent" />, t: '模板', d: '一键部署常用开源应用' },
   { k: 'soon', i: <FileCode2 size={20} className="text-[#34d399]" />, t: 'Docker Compose', d: '粘贴 compose 文件，拆成多个服务' },
@@ -32,15 +34,16 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
   }, [step, sel, list, onClose])
   const done = (s?: Service) => { if (s) { onCreated?.(s); onClose() } }
   const [serverId, setServerId] = useState('')
+  const [showWebhook, setShowWebhook] = useState(false)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 flex items-start justify-center pt-[14vh]" onClick={onClose}>
-      <div className="w-[620px] rounded-2xl border border-line2 bg-pop shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="w-[620px] max-h-[82vh] overflow-y-auto rounded-2xl border border-line2 bg-pop shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-5 h-16 border-b border-line">
           {step === 'pick' ? <Search size={18} className="text-muted" /> : <button onClick={() => setStep('pick')} className="text-muted hover:text-fg"><ArrowLeft size={18} /></button>}
           {step === 'pick'
             ? <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} placeholder="要部署什么服务？" className="text-[16px] flex-1 bg-transparent outline-none placeholder:text-dim text-fg" />
-            : <span className="text-[16px] font-semibold flex-1">{step === 'image' ? 'Docker 容器镜像' : '数据库'}</span>}
+            : <span className="text-[16px] font-semibold flex-1">{step === 'image' ? '部署服务' : '数据库'}</span>}
           <button onClick={onClose} className="text-muted"><X size={18} /></button>
         </div>
         {step === 'pick' && <>
@@ -55,8 +58,8 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
           </div>
           <div className="border-t border-line px-5 h-11 flex items-center gap-4 text-[12px] text-dim"><span>↑↓ 选择</span><span>↵ 确认</span><span>Esc 关闭</span></div>
         </>}
-        {step !== 'pick' && <Placement projectId={projectId} value={serverId} onChange={setServerId} />}
-        {step === 'image' && <ImageForm projectId={projectId} serverId={serverId} onDone={done} />}
+        {step !== 'pick' && !showWebhook && <Placement projectId={projectId} value={serverId} onChange={setServerId} />}
+        {step === 'image' && <ImageForm projectId={projectId} serverId={serverId} onDone={done} onWebhook={() => setShowWebhook(true)} />}
         {step === 'db' && <DbPicker projectId={projectId} serverId={serverId} onDone={done} />}
       </div>
     </div>
@@ -87,29 +90,54 @@ function Placement({ projectId, value, onChange }: { projectId: string; value: s
   )
 }
 
-function ImageForm({ projectId, serverId, onDone }: { projectId: string; serverId: string; onDone: (s?: Service) => void }) {
+function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: string; serverId: string; onDone: (s?: Service) => void; onWebhook: () => void }) {
+  const { t } = useT()
+  const [source, setSource] = useState<SourceKind>('image')
   const [image, setImage] = useState(''); const [name, setName] = useState(''); const [port, setPort] = useState('8080'); const [proto, setProto] = useState('http')
+  const [git, setGit] = useState<GitForm>(emptyGitForm)
   const [busy, setBusy] = useState(false)
-  const auto = image.split('/').pop()?.split(':')[0]?.replace(/[^a-z0-9-]/gi, '-').toLowerCase() ?? ''
+  const [created, setCreated] = useState<Service>()
+  const auto = source === 'git' ? autoName(git.repo) : image.split('/').pop()?.split(':')[0]?.replace(/[^a-z0-9-]/gi, '-').toLowerCase() ?? ''
+  const gitErr = source === 'git' ? gitFormError(git, t) : undefined
+  const ready = source === 'image' ? !!image.trim() : !gitErr
   const submit = async () => {
-    if (!image.trim()) return
+    if (!ready || busy) return
     setBusy(true)
-    const ref = image.includes(':') || image.includes('@') ? image.trim() : `${image.trim()}:latest`
-    const s = await run(() => api.createService(projectId, {
-      name: name || auto, kind: 'image', image: ref, volumes: [], ...(serverId ? { server_id: serverId } : {}),
-      ports: port ? [{ name: 'web', container_port: +port, protocol: proto }] : [],
-    }), { ok: '服务已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
-    setBusy(false); onDone(s)
+    const ports = port ? [{ name: 'web', container_port: +port, protocol: proto }] : []
+    const place = serverId ? { server_id: serverId } : {}
+    const s = source === 'image'
+      ? await run(() => api.createService(projectId, { name: name || auto, kind: 'image', image: image.includes(':') || image.includes('@') ? image.trim() : `${image.trim()}:latest`, volumes: [], ports, ...place }),
+        { ok: '服务已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
+      : await run(() => api.createService(projectId, { name: name || auto, kind: 'image', git: gitBody(git) as GitSource, volumes: [], ports, ...place }),
+        { ok: t('服务已创建，正在构建', 'Service created, building'), invalidate: [`project:${projectId}`, 'projects'] })
+    setBusy(false)
+    if (s?.webhook?.secret) { setCreated(s); onWebhook() }
+    else onDone(s)
   }
+  if (created?.webhook) return (
+    <div className="p-5">
+      <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex items-center gap-2 mb-1"><Webhook size={17} />{t('配置 GitHub Webhook', 'Set up the GitHub webhook')}</div>
+      <div className="text-[13px] text-muted mb-4 leading-6">{t('服务已创建，正在构建。添加下面的 Webhook 后，推送代码会自动构建并部署。密钥只在这里完整显示一次。', 'The service is created and building. Add this webhook so pushes build and deploy automatically. The secret is shown here once.')}</div>
+      <WebhookSetup wh={created.webhook} secret={created.webhook.secret} />
+      <div className="flex justify-end gap-2 mt-5"><Button variant="primary" onClick={() => onDone(created)}>{t('我已保存', 'Done')}</Button></div>
+    </div>
+  )
   return (
     <div className="p-5">
-      <Label t="镜像" d="例如 ghcr.io/me/app:v1；不写标签时使用 latest"><TextInput autoFocus mono className="w-full" placeholder="ghcr.io/owner/image:tag" value={image} onChange={e => setImage(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Label>
+      <div className="mb-4"><SourceToggle value={source} onChange={setSource} /></div>
+      {source === 'image'
+        ? <Label t="镜像" d="例如 ghcr.io/me/app:v1；不写标签时使用 latest"><TextInput autoFocus mono className="w-full" placeholder="ghcr.io/owner/image:tag" value={image} onChange={e => setImage(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Label>
+        : <GitFields f={git} set={setGit} autoFocus />}
       <Label t="服务名称" d="也是项目内网的主机名"><TextInput className="w-full" placeholder={auto || 'my-service'} value={name} onChange={e => setName(e.target.value)} /></Label>
       <div className="grid grid-cols-2 gap-4">
         <Label t="容器端口"><TextInput mono className="w-full" value={port} onChange={e => setPort(e.target.value.replace(/\D/g, ''))} placeholder="留空表示不暴露" /></Label>
         <Label t="协议"><Select className="w-full" value={proto} onChange={e => setProto(e.target.value)}><option value="http">HTTP（可绑定域名）</option><option value="tcp">TCP</option><option value="udp">UDP</option></Select></Label>
       </div>
-      <div className="flex justify-end gap-2 mt-2"><Button variant="primary" disabled={!image.trim() || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}部署</Button></div>
+      {source === 'git' && <div className="text-[12px] text-dim -mt-1 mb-3">{t('在服务所在的服务器上执行 docker build，需要仓库里有 Dockerfile（不支持自动识别）。', "Runs docker build on the service's server; the repo needs a Dockerfile (no auto-detection).")}</div>}
+      <div className="flex items-center justify-end gap-2 mt-2">
+        {source === 'git' && git.repo && gitErr && <span className="mr-auto text-[12.5px] text-[#ef4444]">{gitErr}</span>}
+        <Button variant="primary" disabled={!ready || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}{source === 'git' ? t('构建并部署', 'Build and deploy') : '部署'}</Button>
+      </div>
     </div>
   )
 }

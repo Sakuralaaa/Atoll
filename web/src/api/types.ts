@@ -49,7 +49,30 @@ export interface Service {
   status: 'running' | 'deploying' | 'stopped' | 'failed' | 'unknown' | string
   replicas: string; created_at: string; domains?: Domain[]
   /** server the service runs on (read-only); usually the project's server */ server_id?: string
+  /** read-only: "image" (pulled from a registry) or "git" (built from GitHub on its own server) */ source?: 'image' | 'git' | string
+  /** set = built from a GitHub repository (see docs/api.md "Builds from source") */ git?: GitSource
+  /** returned once, when a git service is created or first switched to git */ webhook?: GitWebhook
 }
+
+/** Builds a service from source on its own server. PATCH is partial (omitted fields and the token are kept). */
+export interface GitSource {
+  /** https://github.com/OWNER/REPO */ repo: string
+  /** default "main" */ branch?: string
+  /** build context: subdirectory of the repo ("" = root) */ context?: string
+  /** relative to the context, default "Dockerfile" */ dockerfile?: string
+  /** docker build --build-arg (not secret: visible in the image history) */ build_args?: Record<string, string>
+  /** write-only GitHub token for a private repo */ token?: string
+  has_token?: boolean
+  /** PATCH only: remove the stored token */ clear_token?: boolean
+  /** read-only: commit of the last successful build */ last_commit?: string
+}
+/** GET /services/{id}/webhook. Secret only at creation / rotation and to a panel session. */
+export interface GitWebhook { url: string; secret?: string; has_secret: boolean; content_type: string; events: string; branch: string }
+export interface DeploymentLogLine { seq: number; at: string; line: string }
+/** GET /services/{id}/deployments/{dep}/logs?after=SEQ */
+export interface DeploymentLogs { deployment_id: string; status: string; lines: DeploymentLogLine[]; truncated?: boolean }
+/** /events {type: "build_log"} payload */
+export interface BuildLogEvent { deployment_id: string; service_id: string; lines: string[] }
 
 export interface Project {
   id: string; name: string; description?: string; server_id: string; created_at: string; services?: Service[]
@@ -59,8 +82,9 @@ export interface EnvVar { key: string; value: string; secret: boolean; exposed: 
 
 export interface Deployment {
   id: string; service_id: string; server_id: string; image_digest?: string
-  status: 'queued' | 'pulling' | 'starting' | 'running' | 'failed' | 'superseded' | string
-  trigger: 'create' | 'redeploy' | 'env' | 'rollback' | 'import' | 'migrate' | string
+  status: 'queued' | 'building' | 'pulling' | 'starting' | 'running' | 'failed' | 'superseded' | string
+  trigger: 'create' | 'redeploy' | 'env' | 'rollback' | 'import' | 'migrate' | 'image-update' | 'webhook' | string
+  /** git services: the commit built (set once the build finished) */ commit?: string
   message?: string; started_at: string; finished_at?: string
 }
 
@@ -200,7 +224,7 @@ export interface Template { kind: string; name: string; description: string; ima
 /** GET /services/{id}/env/references item; `service` (name of the exposing service) is optional. */
 export interface EnvReference extends EnvVar { service?: string }
 /** /events frame */
-export interface LiveEvent { type: 'service' | 'server' | 'deployment' | 'confirmation' | string; payload?: unknown }
+export interface LiveEvent { type: 'service' | 'server' | 'deployment' | 'build_log' | 'confirmation' | string; payload?: unknown }
 
 // ---- image update detection (GET /image-updates, /services/{id}/image-update) ----
 export type ImageUpdatePolicyKind = 'notify' | 'auto' | 'off'

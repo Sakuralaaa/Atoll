@@ -6,6 +6,8 @@ import { invalidate, run, useBusy } from '../api/hooks'
 import { ago } from '../api/view'
 import { shortDigest, updatesApi, useImageUpdate } from '../api/updates'
 import type { ImageUpdate, ImageUpdatePolicyKind, Service } from '../api/types'
+import { isGit } from '../api/git'
+import { useT } from '../i18n'
 
 const STATUS: Record<string, [string, 'amber' | 'green' | 'red' | 'zinc']> = {
   update_available: ['有更新', 'amber'],
@@ -25,8 +27,26 @@ export function UpdateBadge({ u, compact }: { u?: ImageUpdate; compact?: boolean
 
 const WINDOW_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/
 
-/** Update card on the service 服务状态 tab: running vs registry digest/tag, policy, 更新 button. */
+/** Update card on the service 服务状态 tab: running vs registry digest/tag, policy, 更新 button. Not for git builds. */
 export default function ImageUpdateCard({ s }: { s: Service }) {
+  if (isGit(s)) return <SourceBuildNote />
+  return <RegistryUpdateCard s={s} />
+}
+
+/** Services built from source have no registry image to compare: pushes / "Rebuild latest" update them. */
+function SourceBuildNote() {
+  const { t } = useT()
+  return (
+    <Card className="mt-6 px-6 py-4 flex items-center gap-3">
+      <ArrowUpCircle size={18} className="text-muted" />
+      <span className="text-[15px] font-semibold tracking-tight">{t('镜像更新', 'Image updates')}</span>
+      <Badge tone="zinc">{t('不适用', 'N/A')}</Badge>
+      <span className="text-[12.5px] text-dim">{t('源码构建的服务不检查镜像仓库更新；推送代码或点「重新构建最新提交」即可更新。', 'Not applicable for source builds: push to the branch or use "Rebuild latest" to update.')}</span>
+    </Card>
+  )
+}
+
+function RegistryUpdateCard({ s }: { s: Service }) {
   const q = useImageUpdate(s.id)
   const u = q.data
   const [busy, wrap] = useBusy()

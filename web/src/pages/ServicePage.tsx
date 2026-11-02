@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Activity, KeyRound, ArchiveRestore, BarChart3, Network, HardDrive, Settings, RotateCw, Rocket, Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, History, ShieldCheck, Check, X, Loader2, Undo2, Share2 } from 'lucide-react'
+import { Activity, KeyRound, ArchiveRestore, BarChart3, Network, HardDrive, Settings, RotateCw, Rocket, Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, History, ShieldCheck, Check, X, Loader2, Undo2, Share2, Hammer, GitCommitHorizontal } from 'lucide-react'
 import { ProjectShell } from '../components/Shell'
 import { Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Spark, Tabs, statusText, cx } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Label, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle, CardSkeleton } from '../components/feedback'
 import AddServiceModal from '../components/AddServiceModal'
 import ImageUpdateCard from '../components/ImageUpdateCard'
 import BackupPanel from '../components/BackupPanel'
+import { BuildLogModal, CommitLink, EditGitModal, GithubIcon, SourceCard } from '../components/GitSource'
+import { commitUrl, hasBuildLog, isGit, repoPath, shortSha } from '../api/git'
 import { api, isDemo, type Range } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import { ago, bytesRate, day, dateTime, deployStatusText, latestDeploy, primaryPort, svcIcon, timeLabels, triggerText } from '../api/view'
@@ -67,7 +69,9 @@ const tone = (st: string) => st === 'running' ? 'green' : st === 'failed' ? 'red
 
 function Header({ s, onChange }: { s: Service; onChange: () => void }) {
   const [busy, wrap] = useBusy()
-  const act = (a: 'restart' | 'redeploy') => wrap(() => run(() => api.action(s.id, a), { ok: a === 'restart' ? '正在重新启动' : '已触发重新部署' }).then(onChange))
+  const { t } = useT()
+  const git = isGit(s)
+  const act = (a: 'restart' | 'redeploy') => wrap(() => run(() => api.action(s.id, a), { ok: a === 'restart' ? '正在重新启动' : git ? t('已开始构建最新提交', 'Building the latest commit') : '已触发重新部署', invalidate: [`deployments:${s.id}`] }).then(onChange))
   return (
     <div className="flex items-start gap-4">
       <ServiceIcon s={svcIcon(s)} size={52} />
@@ -75,7 +79,7 @@ function Header({ s, onChange }: { s: Service; onChange: () => void }) {
         <div className="flex items-center gap-3"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
         <div className="mt-1 flex items-center gap-4 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
       </div>
-      <div className="flex gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}><Rocket size={15} />重新部署</Button></div>
+      <div className="flex gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
     </div>
   )
 }
@@ -99,8 +103,13 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
             <div className="flex items-center gap-3"><Dot status={s.status} /><span className="text-[17px] font-semibold tracking-tight">{statusText[s.status] ?? s.status}</span><span className="text-muted text-[13px]">· {s.replicas}</span></div>
             <div className="text-[13px] text-muted mt-1">{last ? <>最近一次部署 {ago(last.started_at)} · 由「{triggerText[last.trigger] ?? last.trigger}」触发{last.message ? ` · ${last.message}` : ''}</> : deps.data ? '还没有部署记录' : <Skeleton className="h-3.5 w-64" />}</div>
             <div className="mt-6 grid grid-cols-[100px_1fr] gap-y-3.5 text-[13px]">
-              <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><span className="truncate">{s.image || '—'}</span></span>
-              <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2">{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
+              {s.git ? <>
+                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><GithubIcon size={14} /><span className="truncate">{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">源码构建</span></span>
+                <span className="text-muted">提交</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
+              </> : <>
+                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><span className="truncate">{s.image || '—'}</span></span>
+                <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2">{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
+              </>}
               <span className="text-muted">服务器</span><span className="flex items-center gap-2">{srv ? <><Mini provider={srv.provider ?? '?'} />{srv.name}</> : '—'}</span>
               <span className="text-muted">资源</span><span>CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : '不限'} · 重启策略 unless-stopped</span>
             </div>
@@ -125,6 +134,7 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
         </div>
       </Card>
 
+      <SourceCard s={s} />
       <ImageUpdateCard s={s} />
 
       <div className="mt-6 text-[13px] font-semibold mb-3">域名</div>
@@ -182,6 +192,7 @@ function RecentDeploys({ deps }: { deps?: Deployment[] }) {
 }
 function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; onClose: () => void }) {
   const [target, setTarget] = useState<Deployment>()
+  const [logs, setLogs] = useState<Deployment>()
   return (
     <Modal title={<><History size={17} />部署记录 · {s.name}</>} width={760} onClose={onClose}>
       {!deps ? <RowsSkeleton n={3} /> : !deps.length ? <div className="text-[13px] text-muted">还没有部署记录</div> : (
@@ -189,8 +200,9 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
           {deps.map((d, i) => (
             <div key={d.id} className="py-3 flex items-center gap-4 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
-              <div className="flex-1 min-w-0"><div className="font-semibold">{deployStatusText[d.status] ?? d.status} <span className="text-muted font-normal">· {triggerText[d.trigger] ?? d.trigger}</span></div>
+              <div className="flex-1 min-w-0"><div className="font-semibold flex items-center gap-2">{deployStatusText[d.status] ?? d.status} <span className="text-muted font-normal">· {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div>
                 <div className="font-mono text-[12px] text-muted truncate mt-0.5">{d.image_digest ?? d.id}{d.message ? ` · ${d.message}` : ''}</div></div>
+              {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />构建日志</Button>}
               <span className="text-muted tnum">{dateTime(d.started_at)}</span>
               {i > 0 && d.image_digest ? <Button size="sm" onClick={() => setTarget(d)}><Undo2 size={13} />回滚</Button> : <span className="w-[74px]" />}
             </div>
@@ -200,6 +212,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
       {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} name={s.name} onClose={() => setTarget(undefined)}
         description={<>将用 <span className="font-mono">{target.image_digest?.slice(0, 19)}</span>（{dateTime(target.started_at)}）重新部署 {s.name}。</>}
         onConfirm={() => run(() => api.rollback(s.id, target.id), { ok: '正在回滚', invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] })} />}
+      {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}
     </Modal>
   )
 }
@@ -430,20 +443,23 @@ export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) =
 
 function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
   const [f, setF] = useState({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
-  const [del, setDel] = useState(false); const [move, setMove] = useState(false)
+  const [del, setDel] = useState(false); const [move, setMove] = useState(false); const [gitEdit, setGitEdit] = useState(false)
   const { t } = useT()
+  const git = isGit(s)
   const [busy, wrap] = useBusy()
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const dirty = f.name !== s.name || f.image !== s.image || f.command !== (s.command ?? []).join(' ') || f.health !== (s.health?.http_path ?? '') || f.cpu !== (s.cpu_limit ? String(s.cpu_limit) : '') || f.mem !== (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
   const save = () => wrap(() => run(() => api.updateService(s.id, {
-    name: f.name, image: f.image, command: f.command.trim() ? f.command.trim().split(/\s+/) : [],
+    name: f.name, ...(git ? {} : { image: f.image }), command: f.command.trim() ? f.command.trim().split(/\s+/) : [],
     health: f.health ? { ...s.health, http_path: f.health } : undefined, cpu_limit: +f.cpu || 0, mem_limit_mb: +f.mem || 0,
   }), { ok: '已保存，正在重新部署', invalidate: [`project:${p.id}`, 'projects'] }))
   return (
     <>
       <Sec t="基本">
         <Row t="服务名称" d="也是项目内网的主机名"><TextInput className="w-[420px]" value={f.name} onChange={set('name')} /></Row>
-        <Row t="镜像" d="Docker Hub、GHCR 或私有仓库"><TextInput mono className="w-[420px]" value={f.image} onChange={set('image')} /></Row>
+        {git && s.git
+          ? <Row t={t('源码', 'Source')} d={t(`从 GitHub 构建：${repoPath(s.git.repo)}@${s.git.branch || 'main'}`, `Built from GitHub: ${repoPath(s.git.repo)}@${s.git.branch || 'main'}`)}><Button size="sm" onClick={() => setGitEdit(true)}><Pencil size={13} />{t('编辑源码设置', 'Edit git settings')}</Button></Row>
+          : <Row t="镜像" d="Docker Hub、GHCR 或私有仓库"><div className="flex items-center gap-2"><TextInput mono className="w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
       </Sec>
       <Sec t="启动">
         <Row t="启动命令" d="覆盖镜像的 CMD"><TextInput mono className="w-[420px]" value={f.command} onChange={set('command')} placeholder="使用镜像默认值" /></Row>
@@ -462,6 +478,7 @@ function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: (
         <Row t="删除服务" d="容器、卷与域名记录都会被删除"><Button variant="danger" size="sm" onClick={() => setDel(true)}>删除服务</Button></Row>
       </Sec>
       {move && <MigrateService p={p} s={s} onClose={() => setMove(false)} />}
+      {gitEdit && <EditGitModal s={s} onClose={() => setGitEdit(false)} />}
       {del && <ConfirmDialog title="删除服务" name={s.name} onClose={() => setDel(false)}
         description={<>将删除 <b>{p.name} / {s.name}</b> 的容器、{s.volumes?.length ?? 0} 个卷{s.domains?.length ? ` 和 ${s.domains.length} 条域名记录` : ''}。此操作不可撤销。</>}
         onConfirm={async () => { const r = await run(() => api.deleteService(s.id), { ok: '服务已删除', invalidate: [`project:${p.id}`, 'projects', 'domains'] }); if (r !== undefined) onDeleted() }} />}

@@ -43,6 +43,7 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
     }
     const u = state[s.id]
     u.image = s.image; u.service = s.name
+    if (s.git) return { ...u, status: 'unsupported', update_available: false, digest_changed: false, newer_tag: undefined, major_tag: undefined, note: 'built from source' }
     if (u.policy === 'off') return { ...u, status: 'disabled', update_available: false, digest_changed: false }
     if (u.status === 'unknown') return u
     u.digest_changed = !!u.current_digest && !!u.latest_digest && u.current_digest !== u.latest_digest
