@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -21,6 +23,10 @@ import (
 //     the domain goes from "provisioning" to "active".
 //
 // Removal is the reverse: the route leaves Caddy first, then the DNS record is deleted.
+// The same order holds for the other paths that create or remove records: a Zeabur cutover
+// (zeabur.go), a move to another server (migrate.go: record switched first, routes pushed on
+// the target once it resolves, then withdrawn from the source) and deleting a service or a
+// project (handlers_projects.go: routes and containers go before the records).
 
 const statusProvisioning = "provisioning"
 
@@ -73,6 +79,13 @@ func (s *Server) provisionDomain(ctx context.Context, d api.Domain, nodeID, want
 	if err := s.pushIngressSync(ctx, nodeID); err != nil {
 		s.log.Warn("domain: ingress push failed (the agent gets it on reconnect)", "host", d.Hostname, "node", nodeID, "err", err)
 	}
+	s.confirmHTTPS(ctx, d)
+}
+
+// confirmHTTPS is step 4 for a domain whose route has been pushed: it probes HTTPS (when a
+// probe can tell) and moves the domain from "provisioning" to "active", with a note when the
+// certificate was not confirmed in time. Caddy keeps retrying the certificate on its own.
+func (s *Server) confirmHTTPS(ctx context.Context, d api.Domain) {
 	note := ""
 	if s.needsHTTPSProbe(ctx, d.Proxied) {
 		if err := s.waitHTTPS(ctx, d.Hostname); err != nil {
@@ -202,4 +215,44 @@ func (s *Server) domainTarget(ctx context.Context, serviceID string) (nodeID, ip
 		ipv4 = n.PublicIPv4
 	}
 	return nodeID, ipv4
+}
+
+// holdRoutes holds every hostname and returns a func that releases them (once).
+func (s *Server) holdRoutes(hosts []string) (release func()) {
+	for _, h := range hosts {
+		s.holdRoute(h)
+	}
+	done := false
+	return func() {
+		if done {
+			return
+		}
+		done = true
+		for _, h := range hosts {
+			s.releaseRoute(h)
+		}
+	}
+}
+
+// waitAllResolve runs waitResolves for every domain in parallel and returns the hostnames
+// that were not visible in time (their routes are pushed anyway, as for a new domain).
+func (s *Server) waitAllResolve(ctx context.Context, doms []api.Domain, wantIP string) []string {
+	var mu sync.Mutex
+	var late []string
+	var wg sync.WaitGroup
+	for _, d := range doms {
+		wg.Add(1)
+		go func(d api.Domain) {
+			defer wg.Done()
+			if err := s.waitResolves(ctx, d.Hostname, d.Proxied, wantIP); err != nil {
+				s.log.Warn("domain: DNS not visible in time, pushing the route anyway", "host", d.Hostname, "err", err)
+				mu.Lock()
+				late = append(late, d.Hostname)
+				mu.Unlock()
+			}
+		}(d)
+	}
+	wg.Wait()
+	sort.Strings(late)
+	return late
 }

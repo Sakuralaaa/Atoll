@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -216,7 +217,7 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 			st.idx(fmt.Sprintf("Copy volume %s/%s", v.Name, vol.Name))
 		}
 	}
-	for _, n := range []string{"Start services on target", "Update ingress", "Switch DNS", "Remove from source"} {
+	for _, n := range []string{"Start services on target", "Switch DNS", "Update ingress", "Remove from source"} {
 		st.idx(n)
 	}
 	st.save()
@@ -259,13 +260,36 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		}
 	}
 
+	// The moved services' domains. Their hostnames stay out of every route table from the
+	// moment the placement switches until DNS points at the target: a deploy on the target
+	// pushes its route table, and Caddy there would otherwise ask the CA for a certificate
+	// while the name still resolves to the source (HTTP-01 fails, retry backs off).
+	moved := map[string]bool{}
+	for _, v := range svcs {
+		moved[v.ID] = true
+	}
+	var doms []store.DomainRow
+	var hosts []string
+	if all, err := s.st.ListDomains(ctx, job.ServiceID, job.ProjectID); err == nil {
+		for _, d := range all {
+			if moved[d.ServiceID] {
+				doms = append(doms, d)
+				hosts = append(hosts, d.Hostname)
+			}
+		}
+	}
+	releaseHosts := s.holdRoutes(hosts)
+	defer releaseHosts()
+
 	// switch the placement and deploy on target
 	if err := setNode(to); err != nil {
+		releaseHosts()
 		restartSource()
 		finish(err)
 		return
 	}
 	revert := func(cause error) {
+		releaseHosts() // DNS never moved: the source serves the names again
 		setNode(from)
 		for _, v := range svcs {
 			s.hub.Call(ctx, to, api.MsgRemove, api.RemovePayload{ServiceID: v.ID, KeepVolumes: true}, 0)
@@ -299,28 +323,15 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		revert(err)
 		return
 	}
-	st.do("Update ingress", func() (string, error) {
-		if err := s.pushIngressSync(ctx, to); err != nil {
-			return "", err
-		}
-		s.pushIngress(ctx, from)
-		return "routes moved to target", nil
-	})
+	// DNS first: the record is switched to the target, and the step waits until public
+	// resolvers see it (proxied: Cloudflare's edge follows the record at once; direct: the
+	// name must resolve to the target's IP), bounded by DNSWaitTimeout.
+	var provisioning []api.Domain
+	toIP := ""
+	if n, err := s.st.GetNode(ctx, to); err == nil {
+		toIP = n.PublicIPv4
+	}
 	dnsErr := st.do("Switch DNS", func() (string, error) {
-		all, err := s.st.ListDomains(ctx, job.ServiceID, job.ProjectID)
-		if err != nil {
-			return "", err
-		}
-		moved := map[string]bool{}
-		for _, v := range svcs {
-			moved[v.ID] = true
-		}
-		var doms []store.DomainRow
-		for _, d := range all {
-			if moved[d.ServiceID] {
-				doms = append(doms, d)
-			}
-		}
 		if len(doms) == 0 {
 			return "no domains", nil
 		}
@@ -328,7 +339,9 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 		manual := false
 		for _, d := range doms {
 			dd := d.Domain
-			s.applyDNS(ctx, &dd, to)
+			if s.upsertDNS(ctx, &dd, to, statusProvisioning) {
+				provisioning = append(provisioning, dd)
+			}
 			if dd.Status == "error" {
 				failed = append(failed, dd.Hostname+": "+dd.Error)
 			}
@@ -336,15 +349,40 @@ func (s *Server) runMigration(ctx context.Context, job *api.MigrationJob, base s
 				manual = true
 			}
 		}
+		late := s.waitAllResolve(ctx, provisioning, toIP)
 		if len(failed) > 0 {
 			return "", errors.New("DNS update failed for " + fmt.Sprint(failed))
 		}
 		if manual {
-			n, _ := s.st.GetNode(ctx, to)
-			return fmt.Sprintf("DNS not managed by Atoll: point %d record(s) at %s manually", len(doms), orUnknown(n.PublicIPv4)), nil
+			return fmt.Sprintf("DNS not managed by Atoll: point %d record(s) at %s manually", len(doms), orUnknown(toIP)), nil
 		}
-		return fmt.Sprintf("%d record(s) now point at target", len(doms)), nil
+		msg := fmt.Sprintf("%d record(s) now point at target", len(doms))
+		if len(late) > 0 {
+			msg += fmt.Sprintf(" (not visible yet after %s: %s; routed anyway)", s.cfg.DNSWaitTimeout, strings.Join(late, ", "))
+		}
+		return msg, nil
 	})
+	// Then the routes: pushed to the target (whose Caddy now gets a certificate for a name
+	// that resolves to it), and only after that withdrawn from the source.
+	releaseHosts()
+	st.do("Update ingress", func() (string, error) {
+		if err := s.pushIngressSync(ctx, to); err != nil {
+			return "", err
+		}
+		if s.hub.Online(from) {
+			if err := s.pushIngressSync(ctx, from); err != nil {
+				return "", fmt.Errorf("routes pushed to target; withdrawing them from source: %w", err)
+			}
+		}
+		return "routes moved to target", nil
+	})
+	// HTTPS on the target is confirmed in the background (provisioning -> active), as for a
+	// new domain: behind Cloudflare the first requests may see a 525 until the target's
+	// certificate is issued.
+	for _, d := range provisioning {
+		d := d
+		s.goBG(func(bg context.Context) { s.confirmHTTPS(bg, d) })
+	}
 	st.do("Remove from source", func() (string, error) {
 		for _, v := range svcs {
 			if _, err := s.hub.Call(ctx, from, api.MsgRemove, api.RemovePayload{ServiceID: v.ID, KeepVolumes: true}, 2*s.cfg.RequestTimeout); err != nil {

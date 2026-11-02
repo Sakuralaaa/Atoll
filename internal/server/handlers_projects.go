@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/Sakuralaaa/Atoll/internal/server/dns"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 	"github.com/Sakuralaaa/Atoll/internal/server/templates"
 )
 
@@ -164,14 +166,17 @@ func (s *Server) execDeleteProject(ctx context.Context, id, actor string) error 
 		return err
 	}
 	nodes := map[string]bool{p.ServerID: true}
+	var targets []serviceOnNode
 	for i := range svcs {
 		node := svcs[i].ServerID
 		if node == "" {
 			node = p.ServerID
 		}
 		nodes[node] = true
-		s.teardownService(ctx, &svcs[i], node, false)
+		targets = append(targets, serviceOnNode{svc: &svcs[i], node: node})
 	}
+	release := s.teardownServices(ctx, targets, false)
+	defer release()
 	if err := s.st.DeleteProject(ctx, id); err != nil {
 		return err
 	}
@@ -184,20 +189,55 @@ func (s *Server) execDeleteProject(ctx context.Context, id, actor string) error 
 	return nil
 }
 
-// teardownService removes DNS records and the container (best effort; logs failures).
-func (s *Server) teardownService(ctx context.Context, svc *api.Service, nodeID string, keepVolumes bool) {
-	doms, _ := s.st.ListDomains(ctx, svc.ID, "")
+type serviceOnNode struct {
+	svc  *api.Service
+	node string
+}
+
+// teardownServices takes services off the air in the safe order (best effort; failures are
+// logged): their hostnames leave the route tables first (held, then the tables are pushed to
+// each node and acknowledged), then the containers are removed, and only then are the DNS
+// records deleted — so a record never outlives the route by sending visitors (or a CA) to a
+// Caddy that is still asking for a certificate, and a route never points at a name that no
+// longer resolves. The returned func releases the holds; call it once the rows are deleted.
+func (s *Server) teardownServices(ctx context.Context, svcs []serviceOnNode, keepVolumes bool) (release func()) {
+	var doms []store.DomainRow
+	var hosts []string
+	nodes := map[string]bool{}
+	for _, t := range svcs {
+		ds, _ := s.st.ListDomains(ctx, t.svc.ID, "")
+		for _, d := range ds {
+			doms = append(doms, d)
+			hosts = append(hosts, d.Hostname)
+		}
+		nodes[t.node] = true
+	}
+	release = s.holdRoutes(hosts)
+	if len(hosts) > 0 {
+		for n := range nodes {
+			if !s.hub.Online(n) {
+				continue
+			}
+			if err := s.pushIngressSync(ctx, n); err != nil {
+				s.log.Warn("teardown: route removal push failed", "node", n, "err", err)
+			}
+		}
+	}
+	for _, t := range svcs {
+		if !s.hub.Online(t.node) {
+			continue
+		}
+		if _, err := s.hub.Call(ctx, t.node, api.MsgRemove, api.RemovePayload{ServiceID: t.svc.ID, KeepVolumes: keepVolumes}, 2*s.cfg.RequestTimeout); err != nil {
+			s.log.Warn("agent remove", "service", t.svc.ID, "err", err)
+		}
+	}
 	prov := s.dnsProvider(ctx)
 	for _, d := range doms {
-		if err := prov.Delete(ctx, d.Hostname, d.RecordID); err != nil && err != dns.ErrNotConfigured {
+		if err := prov.Delete(ctx, d.Hostname, d.RecordID); err != nil && !errors.Is(err, dns.ErrNotConfigured) {
 			s.log.Warn("dns delete", "host", d.Hostname, "err", err)
 		}
 	}
-	if s.hub.Online(nodeID) {
-		if _, err := s.hub.Call(ctx, nodeID, api.MsgRemove, api.RemovePayload{ServiceID: svc.ID, KeepVolumes: keepVolumes}, 2*s.cfg.RequestTimeout); err != nil {
-			s.log.Warn("agent remove", "service", svc.ID, "err", err)
-		}
-	}
+	return release
 }
 
 // ---------- services ----------
@@ -423,7 +463,8 @@ func (s *Server) execDeleteService(ctx context.Context, id, actor string) error 
 	if err != nil {
 		return err
 	}
-	s.teardownService(ctx, svc, nodeID, false)
+	release := s.teardownServices(ctx, []serviceOnNode{{svc: svc, node: nodeID}}, false)
+	defer release()
 	if err := s.st.DeleteService(ctx, id); err != nil {
 		return err
 	}

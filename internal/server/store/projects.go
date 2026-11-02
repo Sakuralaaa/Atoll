@@ -320,6 +320,12 @@ func (s *Store) SetDomainStatus(ctx context.Context, id, status, errMsg, recordI
 	return err
 }
 
+// ClearDomainRecord sets a domain's status and forgets its DNS record ID (the record was deleted).
+func (s *Store) ClearDomainRecord(ctx context.Context, id, status, errMsg string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE domains SET status=?, error=?, cf_record_id='' WHERE id=?`, status, errMsg, id)
+	return err
+}
+
 // GetDomain returns one domain.
 func (s *Store) GetDomain(ctx context.Context, id string) (*DomainRow, error) {
 	return scanDomain(s.DB.QueryRowContext(ctx, `SELECT `+domCols+` FROM domains WHERE id=?`, id))

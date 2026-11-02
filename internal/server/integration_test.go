@@ -34,7 +34,10 @@ func newTestEnv(t *testing.T) *testEnv {
 	cfts := httptest.NewServer(cf)
 	t.Cleanup(cfts.Close)
 	srv, err := New(Config{DataDir: t.TempDir(), CloudflareBaseURL: cfts.URL, DeployWaitTimeout: 10 * time.Second,
-		VerifyTimeout: 10 * time.Second, TransferTimeout: 10 * time.Second, RequestTimeout: 5 * time.Second})
+		VerifyTimeout: 10 * time.Second, TransferTimeout: 10 * time.Second, RequestTimeout: 5 * time.Second,
+		// public DNS answers with what the fake Cloudflare zone holds; HTTPS always works
+		ResolvePublic: cf.resolve, ProbeHTTPS: func(context.Context, string) error { return nil },
+		ProvisionPoll: 10 * time.Millisecond, DNSWaitTimeout: 3 * time.Second, CertWaitTimeout: 3 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +108,24 @@ type fakeCloudflare struct {
 	mu      sync.Mutex
 	records map[string]string // hostname -> content
 	created []string
+	deleted []string
+	onEvent func(ev string) // optional: "cf:create host" / "cf:delete host", in order
+}
+
+func (f *fakeCloudflare) event(ev string) {
+	if f.onEvent != nil {
+		f.onEvent(ev)
+	}
+}
+
+// resolve answers like a public resolver would for the fake zone.
+func (f *fakeCloudflare) resolve(_ context.Context, host string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if ip, ok := f.records[host]; ok {
+		return []string{ip}, nil
+	}
+	return nil, fmt.Errorf("NXDOMAIN %s", host)
 }
 
 func (f *fakeCloudflare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +153,14 @@ func (f *fakeCloudflare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&rec)
 		f.records[rec.Name] = rec.Content
 		f.created = append(f.created, rec.Name)
+		f.event("cf:create " + rec.Name)
 		reply(map[string]any{"id": "rec-" + rec.Name, "name": rec.Name, "content": rec.Content})
+	case r.Method == "DELETE" && strings.Contains(r.URL.Path, "/dns_records/rec-"):
+		name := r.URL.Path[strings.LastIndex(r.URL.Path, "/rec-")+len("/rec-"):]
+		delete(f.records, name)
+		f.deleted = append(f.deleted, name)
+		f.event("cf:delete " + name)
+		reply(map[string]any{"id": "rec-" + name})
 	case r.Method == "PUT":
 		reply(map[string]any{"id": "rec-x"})
 	default:
@@ -158,9 +186,15 @@ type fakeAgent struct {
 
 func startFakeAgent(t *testing.T, e *testEnv, inv api.ZeaburInventory) (*fakeAgent, string) {
 	t.Helper()
+	return startFakeAgentAs(t, e, inv, "zeabur-box", "203.0.113.7")
+}
+
+// startFakeAgentAs joins a fake agent with the given hostname and public IPv4.
+func startFakeAgentAs(t *testing.T, e *testEnv, inv api.ZeaburInventory, hostname, ipv4 string) (*fakeAgent, string) {
+	t.Helper()
 	var jt api.JoinToken
 	e.mustDo("POST", "/api/v1/servers/join-token", nil, &jt, 201)
-	hello := api.HelloPayload{AgentVersion: "test", Hostname: "zeabur-box", OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 4096, DiskGB: 80, PublicIPv4: "203.0.113.7"}
+	hello := api.HelloPayload{AgentVersion: "test", Hostname: hostname, OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 4096, DiskGB: 80, PublicIPv4: ipv4}
 	var jr api.JoinResponse
 	if code := e.doWith(http.DefaultClient, "", "POST", "/agent/v1/join", api.JoinRequest{JoinToken: jt.Token, Hello: hello}, &jr); code != 201 {
 		t.Fatalf("join: %d", code)
@@ -554,12 +588,13 @@ func TestZeaburTakeover(t *testing.T) {
 	if len(parks) != 1 || !strings.Contains(string(parks[0]), `"park":true`) {
 		t.Fatalf("ingress park: %s", parks)
 	}
-	ings := agent.received(api.MsgIngress)
 	var last api.IngressPayload
-	json.Unmarshal(ings[len(ings)-1], &last)
-	if len(last.Routes) != 2 {
-		t.Fatalf("routes after cutover: %+v", last.Routes)
-	}
+	waitFor(t, "both routes after cutover (the new name once it resolves)", func() bool {
+		ings := agent.received(api.MsgIngress)
+		last = api.IngressPayload{}
+		json.Unmarshal(ings[len(ings)-1], &last)
+		return len(last.Routes) == 2
+	})
 	e.cf.mu.Lock()
 	created := append([]string(nil), e.cf.created...)
 	e.cf.mu.Unlock()
@@ -597,12 +632,12 @@ func TestZeaburTakeover(t *testing.T) {
 		t.Fatalf("second cutover: %+v", job.Steps)
 	}
 	// the rollback stopped Atoll's copies: the second cutover must start them and route again
-	ings = agent.received(api.MsgIngress)
-	last = api.IngressPayload{}
-	json.Unmarshal(ings[len(ings)-1], &last)
-	if len(last.Routes) != 2 {
-		t.Fatalf("routes after second cutover: %+v", last.Routes)
-	}
+	waitFor(t, "both routes after second cutover", func() bool {
+		ings := agent.received(api.MsgIngress)
+		last = api.IngressPayload{}
+		json.Unmarshal(ings[len(ings)-1], &last)
+		return len(last.Routes) == 2
+	})
 	var again api.Project
 	e.mustDo("GET", "/api/v1/projects/"+job.ProjectID, nil, &again, 200)
 	for _, sv := range again.Services {

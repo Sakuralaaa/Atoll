@@ -38,6 +38,12 @@ func (l *provLog) snapshot() []string {
 
 func (l *provLog) index(ev string) int { return slices.Index(l.snapshot(), ev) }
 
+// resolvedTo reports whether host was seen resolving to ip before event index before.
+func (l *provLog) resolvedTo(host, ip string, before int) bool {
+	i := l.index("resolved-to " + host + " " + ip)
+	return i >= 0 && i < before
+}
+
 func (l *provLog) set(f func()) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -83,6 +89,7 @@ func newProvEnv(t *testing.T) *provEnv {
 			return nil, fmt.Errorf("NXDOMAIN %s", host)
 		}
 		l.add("resolved " + host)
+		l.add("resolved-to " + host + " " + ip)
 		return []string{ip}, nil
 	}
 	e.srv.cfg.ProbeHTTPS = func(ctx context.Context, host string) error {

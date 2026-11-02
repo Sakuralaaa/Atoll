@@ -67,6 +67,9 @@ type zeaburMeta struct {
 	Scaled []string `json:"scaled,omitempty"`
 	// IngressParked is the cutover marker: Zeabur's ingress was parked successfully.
 	IngressParked bool `json:"ingress_parked"`
+	// CreatedRecords: DNS records the cutover created (hostname -> record ID), deleted again
+	// by a rollback after the routes are withdrawn. Records that existed before are left alone.
+	CreatedRecords map[string]string `json:"created_records,omitempty"`
 	// Cutovers counts successful cutovers; cleanup requires at least one.
 	Cutovers         int       `json:"cutovers"`
 	RollbackDisabled bool      `json:"rollback_disabled"`
@@ -434,6 +437,9 @@ type zrun struct {
 	meta *zeaburMeta
 	node string
 	st   *stepper
+	// held: remapped hostnames kept out of the route table during a cutover until their DNS
+	// record is in place (handed over to provisionDomain, or released by configureDNS).
+	held map[string]bool
 }
 
 func (s *Server) newZrun(ctx context.Context, j *api.ImportJob, m *zeaburMeta) *zrun {
@@ -769,6 +775,7 @@ func (s *Server) startCutover(ctx context.Context, id, actor string) (*api.Impor
 
 func (z *zrun) cutover() error {
 	z.resetSteps(cutoverSteps)
+	defer z.releaseHeld() // after a rollback too: the project's ingress hold covers it then
 	err := z.doCutover()
 	if err == nil {
 		z.meta.Cutovers++
@@ -904,6 +911,11 @@ func (z *zrun) doCutover() error {
 	}); err != nil {
 		return err
 	}
+	// Hostnames that replace *.zeabur.app ones are new names: they may have no DNS record yet.
+	// They stay out of the route table until configureDNS has created the record and public
+	// resolvers see it (provision.go), so Caddy never asks the CA about an NXDOMAIN name. The
+	// other (custom) domains already point here and are routed at once.
+	z.holdRemapped()
 	if err := z.st.do(stepIngress, func() (string, error) {
 		// Marked before the call: a park that fails halfway (DaemonSet patched, operator
 		// stopped, ports still busy) must still be undone by the rollback.
@@ -948,6 +960,7 @@ func (z *zrun) configureDNS() (string, error) {
 	finder, _ := prov.(dns.Finder)
 	created, kept, custom, resolved := 0, 0, 0, 0
 	var bad, manual []string
+	var provision []api.Domain
 	for _, d := range doms {
 		dd := d.Domain
 		if !remapped[dd.Hostname] {
@@ -985,12 +998,38 @@ func (z *zrun) configureDNS() (string, error) {
 			continue
 		}
 		created++
-		s.st.SetDomainStatus(ctx, dd.ID, "active", "", recID)
+		if finder != nil { // known not to exist before: a rollback may delete it again
+			if z.meta.CreatedRecords == nil {
+				z.meta.CreatedRecords = map[string]string{}
+			}
+			z.meta.CreatedRecords[dd.Hostname] = recID
+			z.save()
+		}
+		dd.Status, dd.Error, dd.Proxied = statusProvisioning, "", true
+		s.st.SetDomainStatus(ctx, dd.ID, statusProvisioning, "", recID)
+		s.publish("domain", dd)
+		provision = append(provision, dd)
 	}
 	if len(bad) > 0 {
 		return "", fmt.Errorf("DNS failed: %s", strings.Join(bad, "; "))
 	}
+	// New records: wait until they resolve, route, probe HTTPS (provision.go), in the
+	// background; the hold on each hostname passes to its provisioning run. Every other
+	// remapped host is routed now.
+	for _, dd := range provision {
+		dd := dd
+		delete(z.held, strings.ToLower(dd.Hostname))
+		s.goBG(func(bg context.Context) { s.provisionDomain(bg, dd, z.node, node.PublicIPv4) })
+	}
+	if z.releaseHeld() {
+		if err := s.pushIngressSync(ctx, z.node); err != nil {
+			s.log.Warn("cutover: ingress push failed (the agent gets it on reconnect)", "err", err)
+		}
+	}
 	msg := fmt.Sprintf("%d record(s) created, %d already present, %d custom domain(s) unchanged (same IP)", created, kept, custom)
+	if created > 0 {
+		msg += "; new names are routed once they resolve publicly, HTTPS confirmed in the background"
+	}
 	if resolved > 0 {
 		msg += fmt.Sprintf(", %d already resolve to this server", resolved)
 	}
@@ -998,6 +1037,78 @@ func (z *zrun) configureDNS() (string, error) {
 		msg += fmt.Sprintf("; no DNS provider: create A records to %s for %s", orUnknown(node.PublicIPv4), strings.Join(manual, ", "))
 	}
 	return msg, nil
+}
+
+// holdRemapped holds every bound hostname that replaces a *.zeabur.app one.
+func (z *zrun) holdRemapped() {
+	doms, err := z.s.st.ListDomains(z.ctx, "", z.job.ProjectID)
+	if err != nil {
+		return
+	}
+	remapped := map[string]bool{}
+	for _, n := range z.meta.DomainMap {
+		remapped[strings.ToLower(n)] = true
+	}
+	if z.held == nil {
+		z.held = map[string]bool{}
+	}
+	for _, d := range doms {
+		h := strings.ToLower(d.Hostname)
+		if remapped[h] && !z.held[h] {
+			z.held[h] = true
+			z.s.holdRoute(h)
+		}
+	}
+}
+
+// releaseHeld releases the hostnames still held by this run and reports whether there were any.
+func (z *zrun) releaseHeld() bool {
+	had := len(z.held) > 0
+	for h := range z.held {
+		z.s.releaseRoute(h)
+	}
+	z.held = nil
+	return had
+}
+
+// removeCreatedRecords deletes the DNS records the cutover created (routes must already be
+// withdrawn). The domains go back to "pending", as before the first cutover.
+func (z *zrun) removeCreatedRecords() error {
+	s, ctx := z.s, z.ctx
+	if len(z.meta.CreatedRecords) == 0 {
+		return nil
+	}
+	byHost := map[string]string{}
+	if doms, err := s.st.ListDomains(ctx, "", z.job.ProjectID); err == nil {
+		for _, d := range doms {
+			byHost[strings.ToLower(d.Hostname)] = d.ID
+		}
+	}
+	prov := s.dnsProvider(ctx)
+	var errs []string
+	hosts := make([]string, 0, len(z.meta.CreatedRecords))
+	for h := range z.meta.CreatedRecords {
+		hosts = append(hosts, h)
+	}
+	sort.Strings(hosts)
+	for _, h := range hosts {
+		if err := prov.Delete(ctx, h, z.meta.CreatedRecords[h]); err != nil && !errors.Is(err, dns.ErrNotConfigured) {
+			errs = append(errs, "delete DNS record "+h+": "+err.Error())
+			continue
+		}
+		delete(z.meta.CreatedRecords, h)
+		if id := byHost[strings.ToLower(h)]; id != "" {
+			s.st.ClearDomainRecord(ctx, id, "pending", "routed by Atoll after cutover")
+			if d, err := s.st.GetDomain(ctx, id); err == nil {
+				s.publish("domain", d.Domain)
+			}
+		}
+	}
+	z.save()
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // resolvesHere reports whether host already resolves to ip (best effort, short timeout).
@@ -1041,6 +1152,12 @@ func (z *zrun) doRollback() error {
 	}
 	if err := s.pushIngressSync(ctx, z.node); err != nil {
 		errs = append(errs, "withdraw Atoll routes: "+err.Error())
+		if len(z.meta.CreatedRecords) > 0 {
+			errs = append(errs, "DNS records created by the cutover kept until the routes are withdrawn (run rollback again)")
+		}
+	} else if err := z.removeCreatedRecords(); err != nil {
+		// routes first, records second: only once Caddy no longer serves the names
+		errs = append(errs, err.Error())
 	}
 	for _, sv := range z.meta.Services {
 		s.st.SetDesiredStopped(ctx, sv.AtollID, true)
