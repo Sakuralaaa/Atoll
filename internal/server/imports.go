@@ -28,9 +28,8 @@ func maskJob(j *api.ImportJob) *api.ImportJob {
 		sv.Env = maskEnv(sv.Env)
 		c.Plan.Services[i] = sv
 	}
-	if c.Steps == nil {
-		c.Steps = []api.ImportStep{}
-	}
+	// own copy: the job's background run keeps updating j.Steps while this one is encoded
+	c.Steps = append([]api.ImportStep{}, j.Steps...)
 	return &c
 }
 

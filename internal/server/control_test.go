@@ -489,7 +489,8 @@ func (g *fakeGitHub) sumsText() string {
 	return sb.String()
 }
 
-func newUpdateEnv(t *testing.T) (*testEnv, *fakeGitHub, *[][]string, string) {
+// spawned returns a copy of the helper invocations so far (the update runs in the background).
+func newUpdateEnv(t *testing.T) (*testEnv, *fakeGitHub, func() [][]string, string) {
 	gh := &fakeGitHub{files: map[string][]byte{}, tag: "v9.9.9"}
 	gh.server = httptest.NewServer(gh)
 	t.Cleanup(gh.server.Close)
@@ -508,7 +509,12 @@ func newUpdateEnv(t *testing.T) (*testEnv, *fakeGitHub, *[][]string, string) {
 		}
 	})
 	e.setup()
-	return e, gh, spawned, bin
+	snapshot := func() [][]string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([][]string(nil), *spawned...)
+	}
+	return e, gh, snapshot, bin
 }
 
 func TestControlUpdateFlow(t *testing.T) {
@@ -532,8 +538,8 @@ func TestControlUpdateFlow(t *testing.T) {
 	}
 	var ur api.ControlUpdateResponse
 	e.mustDo("POST", "/api/v1/control/update", api.ControlUpdateRequest{Version: "v9.9.9", ReauthFields: api.ReauthFields{Password: testPass}}, &ur, 202)
-	waitFor(t, "helper spawned", func() bool { return len(*spawned) == 1 })
-	args := (*spawned)[0]
+	waitFor(t, "helper spawned", func() bool { return len(spawned()) == 1 })
+	args := spawned()[0]
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "control-helper --mode update --target "+bin) || !strings.Contains(joined, "--new "+filepath.Join(e.srv.updateDir(), "atoll-server.new")) {
 		t.Fatalf("helper args %v", args)
@@ -578,7 +584,7 @@ func TestControlUpdateChecksumMismatch(t *testing.T) {
 	if st.LastUpdate.OK || !strings.Contains(st.LastUpdate.Error, "checksum mismatch") {
 		t.Fatalf("result %+v", st.LastUpdate)
 	}
-	if len(*spawned) != 0 {
+	if len(spawned()) != 0 {
 		t.Fatal("helper started for a binary with a bad checksum")
 	}
 	if _, err := os.Stat(filepath.Join(e.srv.updateDir(), "atoll-server.new")); err == nil {
@@ -609,8 +615,8 @@ func TestControlRollbackEndpoint(t *testing.T) {
 	}
 	var ur api.ControlUpdateResponse
 	e.mustDo("POST", "/api/v1/control/rollback", api.ReauthFields{Password: testPass}, &ur, 202)
-	if ur.Version != "v0.0.0" || len(*spawned) != 1 || !slices.Contains((*spawned)[0], "rollback") {
-		t.Fatalf("rollback %+v %v", ur, *spawned)
+	if ur.Version != "v0.0.0" || len(spawned()) != 1 || !slices.Contains(spawned()[0], "rollback") {
+		t.Fatalf("rollback %+v %v", ur, spawned())
 	}
 }
 
