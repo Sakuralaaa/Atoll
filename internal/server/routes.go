@@ -78,7 +78,7 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/services/{id}/webhook/rotate", lvlSession, s.handleRotateWebhook)
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
-	a("POST "+v+"/services/{id}/exec", lvlDeploy, s.handleExec)
+	a("POST "+v+"/services/{id}/exec", needExec, s.handleExec)
 
 	// image updates (imageupdates.go)
 	a("GET "+v+"/image-updates", needReadList, s.handleListImageUpdates)
@@ -160,12 +160,23 @@ func (s *Server) Handler() http.Handler {
 	return securityHeaders(s.agentGate(mux))
 }
 
+// panelCSP locks the embedded SPA to its own origin. The bundle has no inline scripts;
+// inline style attributes (React style props) still need 'unsafe-inline' for styles.
+const panelCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; " +
+	"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
 func securityHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/agent/") {
 			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Content-Security-Policy", panelCSP)
+		}
+		if isTLS(r) {
+			// The panel holds root on every server: once reached over HTTPS, never downgrade.
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		}
 		h.ServeHTTP(w, r)
 	})

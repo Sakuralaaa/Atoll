@@ -504,7 +504,7 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
 		}
 	}
-	if err := validateServiceSpec(&next); err != nil {
+	if err := validateServiceSpecKeeping(&next, svc.Ports); err != nil {
 		return err
 	}
 	if err := s.st.UpdateServiceSpec(r.Context(), next); err != nil {

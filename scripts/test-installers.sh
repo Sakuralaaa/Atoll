@@ -237,3 +237,28 @@ NOTS_PATH="$T/bin:$PATH"
 ROOT=$ROOT KEY=$KEY TS_STATE="$T/ts.state" TS_ARGS="$T/ts.args" STUB_BOOTSTRAP="$T/bootstrap.env" \
 	NOTS_PATH=$NOTS_PATH PATH="$T/bin:$T/tsbin:$PATH" sh "$T/agent.sh"
 echo "installer tests ok"
+
+# release checksum verification (both installers carry the same helpers)
+for script in install/install-agent.sh install/install-server.sh; do
+	V=$(mktemp -d)
+	{
+		echo 'set -eu'
+		echo "TMP=$V"
+		echo 'log() { :; }'
+		echo 'die() { echo "die: $*" >&2; exit 1; }'
+		echo 'fetch() { cp "$V_SRC/$(basename "$1")" "$2"; }'
+		sed -n '/^sha256_of() {/,/^}/p; /^verify_release_file() {/,/^}/p' "$script"
+		echo 'verify_release_file "https://example.invalid/rel" "$1" "$2"'
+	} >"$V/verify.sh"
+	mkdir "$V/src"
+	printf 'binary\n' >"$V/good"
+	printf 'tampered\n' >"$V/bad"
+	(cd "$V" && sha256sum good | sed 's/ good$/ atoll-agent-linux-amd64/' >"$V/src/SHA256SUMS")
+	V_SRC="$V/src" sh "$V/verify.sh" atoll-agent-linux-amd64 "$V/good" || { echo "verify rejected a good file ($script)"; exit 1; }
+	rm -f "$V"/SHA256SUMS.*
+	if V_SRC="$V/src" sh "$V/verify.sh" atoll-agent-linux-amd64 "$V/bad" 2>/dev/null; then echo "verify accepted a tampered file ($script)"; exit 1; fi
+	rm -f "$V"/SHA256SUMS.*
+	if V_SRC="$V/src" sh "$V/verify.sh" atoll-server-linux-amd64 "$V/good" 2>/dev/null; then echo "verify accepted an unlisted file ($script)"; exit 1; fi
+	rm -rf "$V"
+done
+echo "installer checksum verification ok"

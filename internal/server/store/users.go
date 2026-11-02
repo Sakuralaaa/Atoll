@@ -56,10 +56,10 @@ func (s *Store) CreateOwner(ctx context.Context, username, hash string) (*User, 
 	return &User{ID: uid, Username: username, PasswordHash: hash, CreatedAt: now}, tx.Commit()
 }
 
-func scanUser(row interface{ Scan(...any) error }) (*User, error) {
+func scanUser(row interface{ Scan(...any) error }, extra ...any) (*User, error) {
 	var u User
 	var c string
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &c); err != nil {
+	if err := row.Scan(append([]any{&u.ID, &u.Username, &u.PasswordHash, &c}, extra...)...); err != nil {
 		return nil, mapErr(err)
 	}
 	u.CreatedAt = parseTS(c)
@@ -85,9 +85,33 @@ func (s *Store) CreateSession(ctx context.Context, hash string, userID int64, tt
 }
 
 // SessionUser returns the user for a valid session.
+// SessionIdle signs a panel session out after this long without a request, even before
+// its fixed expiry: a forgotten browser tab is not a 30-day key to every server.
+var SessionIdle = 7 * 24 * time.Hour
+
+// sessionTouchEvery limits last_seen_at writes to one per session per interval.
+const sessionTouchEvery = 5 * time.Minute
+
 func (s *Store) SessionUser(ctx context.Context, hash string) (*User, error) {
-	return scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.username, u.password_hash, u.created_at
-		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash=? AND s.expires_at > ?`, hash, TS(time.Now())))
+	now := time.Now()
+	var lastSeen string
+	u, err := scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.username, u.password_hash, u.created_at, s.last_seen_at
+		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash=? AND s.expires_at > ?`, hash, TS(now)), &lastSeen)
+	if err != nil {
+		return nil, err
+	}
+	if lastSeen != "" {
+		seen := parseTS(lastSeen)
+		if now.Sub(seen) > SessionIdle {
+			s.DB.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash=?`, hash)
+			return nil, ErrNotFound
+		}
+		if now.Sub(seen) < sessionTouchEvery {
+			return u, nil
+		}
+	}
+	s.DB.ExecContext(ctx, `UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, TS(now), hash)
+	return u, nil
 }
 
 // DeleteSession removes a session.

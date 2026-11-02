@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -403,6 +404,11 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) err
 		return errf(401, "bad_signature", "X-Hub-Signature-256 does not match this service's webhook secret")
 	}
 	event := r.Header.Get("X-GitHub-Event")
+	if id := r.Header.Get("X-GitHub-Delivery"); id != "" && !s.deliveries.first(svcID+"/"+id, time.Now()) {
+		// a replayed (or redelivered) signed payload: building the same commit again only burns the server
+		writeJSON(w, 202, map[string]any{"ignored": true, "reason": "delivery " + id + " was already handled"})
+		return nil
+	}
 	switch event {
 	case "ping":
 		writeJSON(w, 200, map[string]any{"ok": true, "event": "ping"})
@@ -439,4 +445,46 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) err
 	s.st.Audit(ctx, "github-webhook", "service.redeploy", svcID, map[string]string{"commit": push.After, "deployment": d.ID})
 	writeJSON(w, 202, map[string]any{"deployment_id": d.ID, "commit": push.After})
 	return nil
+}
+
+// deliverySet remembers recent webhook delivery ids so a captured, validly signed payload
+// cannot be replayed to queue builds. Bounded: entries expire after deliveryTTL and the
+// set never holds more than deliveryMax ids.
+type deliverySet struct {
+	mu   sync.Mutex
+	seen map[string]time.Time
+}
+
+const (
+	deliveryTTL = 24 * time.Hour
+	deliveryMax = 10000
+)
+
+// first records id and reports whether it had not been seen within deliveryTTL.
+func (d *deliverySet) first(id string, now time.Time) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.seen == nil {
+		d.seen = map[string]time.Time{}
+	}
+	if at, ok := d.seen[id]; ok && now.Sub(at) < deliveryTTL {
+		return false
+	}
+	if len(d.seen) >= deliveryMax {
+		oldestID, oldest := "", now
+		for k, at := range d.seen {
+			if now.Sub(at) >= deliveryTTL {
+				delete(d.seen, k)
+				continue
+			}
+			if at.Before(oldest) {
+				oldestID, oldest = k, at
+			}
+		}
+		if len(d.seen) >= deliveryMax && oldestID != "" {
+			delete(d.seen, oldestID)
+		}
+	}
+	d.seen[id] = now
+	return true
 }

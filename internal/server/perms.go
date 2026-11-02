@@ -42,6 +42,7 @@ var (
 	needDeployGlobal = access{perm: api.PermDeploy, res: resGlobal}
 	needReadGlobal   = access{perm: api.PermRead, res: resGlobalRead}
 	needReadList     = access{perm: api.PermRead, res: resList}
+	needExec         = access{perm: api.PermExec}
 	needDelete       = access{perm: api.PermDelete}
 	needMigrate      = access{perm: api.PermMigrate}
 	needDomains      = access{perm: api.PermDomains}
@@ -53,12 +54,12 @@ var (
 
 // destructivePerm marks permissions whose every token request is audited.
 var destructivePerm = map[string]bool{
-	api.PermDelete: true, api.PermMigrate: true, api.PermDomains: true, api.PermRestore: true,
+	api.PermExec: true, api.PermDelete: true, api.PermMigrate: true, api.PermDomains: true, api.PermRestore: true,
 	api.PermServers: true, api.PermSettings: true, api.PermTokens: true,
 }
 
 var permLabel = map[string]string{
-	api.PermRead: "read", api.PermDeploy: "deploy", api.PermDelete: "delete", api.PermMigrate: "migrate",
+	api.PermRead: "read", api.PermDeploy: "deploy", api.PermExec: "exec", api.PermDelete: "delete", api.PermMigrate: "migrate",
 	api.PermDomains: "domains", api.PermRestore: "restore", api.PermServers: "servers",
 	api.PermSettings: "settings", api.PermTokens: "tokens",
 }

@@ -1,20 +1,22 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Projects from './pages/Projects'
-import Servers from './pages/Servers'
-import ServerDetail from './pages/ServerDetail'
-import ServicePage from './pages/ServicePage'
-import LogsPage from './pages/LogsPage'
-import FilesPage from './pages/FilesPage'
-import Domains from './pages/Domains'
-import Developer from './pages/Developer'
-import ProjectSettings from './pages/ProjectSettings'
-import ProjectIndex from './pages/ProjectIndex'
-import Import from './pages/Import'
 import Login from './pages/Login'
-import Settings from './pages/Settings'
-import Security from './pages/Security'
-import Confirmations from './pages/Confirmations'
-import Control from './pages/Control'
+const Servers = lazy(() => import('./pages/Servers'))
+const ServerDetail = lazy(() => import('./pages/ServerDetail'))
+const ServicePage = lazy(() => import('./pages/ServicePage'))
+const LogsPage = lazy(() => import('./pages/LogsPage'))
+const FilesPage = lazy(() => import('./pages/FilesPage'))
+const Domains = lazy(() => import('./pages/Domains'))
+const Developer = lazy(() => import('./pages/Developer'))
+const ProjectSettings = lazy(() => import('./pages/ProjectSettings'))
+const ProjectIndex = lazy(() => import('./pages/ProjectIndex'))
+const Import = lazy(() => import('./pages/Import'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Security = lazy(() => import('./pages/Security'))
+const Confirmations = lazy(() => import('./pages/Confirmations'))
+const Control = lazy(() => import('./pages/Control'))
+
 import { Toaster } from './components/feedback'
 import { api } from './api/client'
 import { useQuery } from './api/hooks'
@@ -27,6 +29,8 @@ export default function App() {
   useLiveEvents(!onLogin && !!me.data)
   return (
     <>
+      {/* pages load on first visit; Projects and Login stay in the entry chunk */}
+      <Suspense fallback={null}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Projects />} />
@@ -47,6 +51,7 @@ export default function App() {
         <Route path="/projects/:pid/services/:sid/files" element={<FilesPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
+      </Suspense>
       <Toaster />
     </>
   )

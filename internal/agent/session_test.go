@@ -35,6 +35,9 @@ type fakeServer struct {
 	conn   *websocket.Conn
 	ready  chan struct{}
 	once   sync.Once
+	// log lines read while waiting for something else, in arrival order: a line can
+	// overtake the logs.open result, and dropping it made the session test flaky.
+	backlog []frame
 }
 
 func newFakeServer(t *testing.T, token string) *fakeServer {
@@ -99,12 +102,21 @@ func (fs *fakeServer) send(typ, id string, payload any) {
 // wait returns the first frame matching pred; non-matching frames are dropped.
 func (fs *fakeServer) wait(what string, pred func(frame) bool) frame {
 	fs.t.Helper()
+	for i, f := range fs.backlog {
+		if pred(f) {
+			fs.backlog = append(fs.backlog[:i:i], fs.backlog[i+1:]...)
+			return f
+		}
+	}
 	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case f := <-fs.frames:
 			if pred(f) {
 				return f
+			}
+			if f.Type == api.MsgLogLine { // stream data is never stale; other frames are
+				fs.backlog = append(fs.backlog, f)
 			}
 		case <-timeout:
 			fs.t.Fatalf("timeout waiting for %s", what)

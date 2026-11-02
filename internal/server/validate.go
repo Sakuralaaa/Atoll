@@ -40,7 +40,36 @@ func sanitizeName(s string) string {
 	return out
 }
 
+// reservedPublicPort names what a host port is kept for, or "" when a service may publish
+// it. Docker-published ports bypass host firewalls (ufw), so a service that grabbed one of
+// these would shadow SSH or Atoll's own private-network traffic.
+func reservedPublicPort(port int) string {
+	switch {
+	case port == 22:
+		return "SSH"
+	case port == 7301:
+		return "Atoll agent endpoint on the tailnet"
+	case port == 41641:
+		return "Tailscale WireGuard"
+	case port >= 41000 && port <= 41999:
+		return "Atoll private-network mesh range 41000-41999"
+	}
+	return ""
+}
+
 func validateServiceSpec(v *api.Service) error {
+	return validateServiceSpecKeeping(v, nil)
+}
+
+// validateServiceSpecKeeping is validateServiceSpec, except that reserved public ports the
+// service already published (keep) are still accepted, so an existing service stays editable.
+func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
+	grandfathered := map[int]bool{}
+	for _, p := range keep {
+		if p.PublicPort > 0 {
+			grandfathered[p.PublicPort] = true
+		}
+	}
 	if !dnsLabelRe.MatchString(v.Name) {
 		return badRequest("service name %q must be a lowercase DNS label (a-z, 0-9, '-', max 63)", v.Name)
 	}
@@ -80,6 +109,9 @@ func validateServiceSpec(v *api.Service) error {
 		case "tcp", "udp":
 			if p.PublicPort < 0 || p.PublicPort > 65535 || p.PublicPort == 80 || p.PublicPort == 443 {
 				return badRequest("port %q: public_port must be 0 (internal) or 1-65535 except 80/443", p.Name)
+			}
+			if why := reservedPublicPort(p.PublicPort); why != "" && !grandfathered[p.PublicPort] {
+				return badRequest("port %q: public_port %d is reserved (%s)", p.Name, p.PublicPort, why)
 			}
 		default:
 			return badRequest("port %q: protocol must be http, tcp or udp", p.Name)

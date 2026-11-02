@@ -188,10 +188,8 @@ func (h *Hub) Disconnect(nodeID string) {
 // ---------- WebSocket endpoint ----------
 
 func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
+	// Header only: a token in the query string would end up in reverse-proxy access logs.
 	tok := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	if tok == "" {
-		tok = r.URL.Query().Get("token")
-	}
 	nodeID, err := s.st.NodeByToken(r.Context(), hashToken(tok))
 	if tok == "" || err != nil {
 		writeJSON(w, 401, api.ErrorBody{Error: "invalid node token", Code: "unauthorized"})

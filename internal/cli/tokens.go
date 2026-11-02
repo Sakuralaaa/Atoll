@@ -15,7 +15,8 @@ import (
 
 const permHelp = "Permissions (comma-separated or repeated):\n" +
 	"  read      every GET: projects, services, env (masked), logs, metrics (always included)\n" +
-	"  deploy    create/edit projects and services, env, start/stop/restart/redeploy, rollback, exec, backups\n" +
+	"  deploy    create/edit projects and services, env, start/stop/restart/redeploy, rollback, backups\n" +
+	"  exec      run commands inside service containers (atoll exec; reads their secrets)\n" +
 	"  delete    delete services and projects (with their volumes)\n" +
 	"  migrate   move projects/services between servers, Zeabur cutover/rollback/cleanup\n" +
 	"  domains   bind and remove domains (changes DNS)\n" +

@@ -927,7 +927,7 @@ func (z *zrun) doCutover() error {
 		if err := s.st.SetIngressHold(ctx, z.job.ProjectID, false); err != nil {
 			return "", err
 		}
-		if err := s.pushIngressSync(ctx, z.node); err != nil {
+		if err := s.pushIngressStrict(ctx, z.node); err != nil {
 			return "", fmt.Errorf("start Atoll ingress: %w", err)
 		}
 		return "Zeabur ingress parked; atoll-caddy serves 80/443", nil

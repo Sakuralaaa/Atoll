@@ -147,6 +147,33 @@ fetch() {
 	fi
 }
 
+# sha256_of prints a file's SHA-256 with whichever tool this host has.
+sha256_of() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" | awk '{print $1}'
+	elif command -v openssl >/dev/null 2>&1; then
+		openssl dgst -sha256 -r "$1" | awk '{print $1}'
+	else
+		return 1
+	fi
+}
+
+# verify_release_file BASE NAME FILE: FILE must match NAME's line in BASE/SHA256SUMS
+# (published with every release by scripts/build-release.sh). A mismatch aborts the install.
+verify_release_file() {
+	sums="$TMP/SHA256SUMS.$(printf %s "$1" | cksum | awk '{print $1}')"
+	if [ ! -s "$sums" ]; then
+		fetch "$1/SHA256SUMS" "$sums" || die "could not download $1/SHA256SUMS to verify $2"
+	fi
+	want=$(awk -v n="$2" '$2 == n || $2 == "*" n {print $1; exit}' "$sums")
+	[ -n "$want" ] || die "$2 is not listed in $1/SHA256SUMS"
+	got=$(sha256_of "$3") || die "need sha256sum, shasum or openssl to verify $2"
+	[ "$got" = "$want" ] || die "checksum mismatch for $2: got $got, SHA256SUMS says $want"
+	log "verified $2 (sha256 $(printf %.12s "$want")…)"
+}
+
 # http_post_json URL BODY OUT: POSTs BODY, writes the response to OUT and prints the HTTP
 # status (000 when the server could not be reached; wget only reports 200 or 000).
 http_post_json() {
@@ -480,6 +507,7 @@ install_binary() {
 		if [ -z "$ver" ]; then
 			warn "$SERVER/downloads/$name unavailable; using the latest GitHub release"
 			fetch "$GITHUB_RELEASE/$name" "$out" || die "could not download $name"
+			verify_release_file "$GITHUB_RELEASE" "$name" "$out"
 			chmod 0755 "$out"
 			ver=$("$out" version 2>/dev/null) || die "downloaded atoll-agent does not run on this host ($ARCH)"
 		fi

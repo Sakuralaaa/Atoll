@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/Sakuralaaa/Atoll/internal/server/store"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 func (s *Server) withUsage(ctx context.Context, n *api.Server) {
@@ -250,9 +252,12 @@ func (s *Server) writeBlob(id string, body io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(f, body); err != nil {
+	if _, err := io.Copy(f, &diskGuard{r: body, dir: filepath.Dir(tmp), free: blobMinFree}); err != nil {
 		f.Close()
 		os.Remove(tmp)
+		if errors.Is(err, errDiskLow) {
+			return errf(507, "insufficient_storage", "%v", err)
+		}
 		return errf(400, "upload_failed", "upload interrupted: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -277,4 +282,33 @@ func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) error {
 	}
 	io.Copy(w, f)
 	return nil
+}
+
+// blobMinFree is the free space a blob upload must leave on the control server's data disk:
+// an upload that would eat into it is aborted (507) instead of filling the disk the
+// database and backups live on.
+var blobMinFree uint64 = 2 << 30
+
+var errDiskLow = errors.New("not enough free disk space on the control server for this transfer")
+
+// diskGuard re-checks free space every diskGuardEvery bytes read through it.
+type diskGuard struct {
+	r     io.Reader
+	dir   string
+	free  uint64
+	since int64
+}
+
+const diskGuardEvery = 64 << 20
+
+func (g *diskGuard) Read(p []byte) (int, error) {
+	if g.since == 0 || g.since >= diskGuardEvery {
+		g.since = 1
+		if u, err := disk.Usage(g.dir); err == nil && u.Free < g.free {
+			return 0, errDiskLow
+		}
+	}
+	n, err := g.r.Read(p)
+	g.since += int64(n)
+	return n, err
 }

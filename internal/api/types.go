@@ -207,7 +207,8 @@ type APIToken struct {
 // With it the operation runs directly, unless the token has RequireApproval.
 const (
 	PermRead     = "read"     // every GET: projects, services, env (masked), logs, metrics, settings
-	PermDeploy   = "deploy"   // create/edit projects and services, env, start/stop/restart/redeploy, rollback, exec, image updates, backup policy + run, imports
+	PermDeploy   = "deploy"   // create/edit projects and services, env, start/stop/restart/redeploy, rollback, image updates, backup policy + run, imports
+	PermExec     = "exec"     // run commands inside service containers (a shell in the container: reads its secrets and data)
 	PermDelete   = "delete"   // delete services and projects (with their volumes)
 	PermMigrate  = "migrate"  // move projects between servers, Zeabur cutover / rollback
 	PermDomains  = "domains"  // bind and remove domains (changes DNS)
@@ -218,7 +219,7 @@ const (
 )
 
 // AllPermissions in display order.
-var AllPermissions = []string{PermRead, PermDeploy, PermDelete, PermMigrate, PermDomains, PermRestore, PermServers, PermSettings, PermTokens}
+var AllPermissions = []string{PermRead, PermDeploy, PermExec, PermDelete, PermMigrate, PermDomains, PermRestore, PermServers, PermSettings, PermTokens}
 
 // GlobalPermissions cannot be combined with a project-scoped token.
 var GlobalPermissions = []string{PermServers, PermSettings, PermTokens}

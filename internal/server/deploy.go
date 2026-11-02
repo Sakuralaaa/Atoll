@@ -422,14 +422,32 @@ func (s *Server) pushIngress(ctx context.Context, nodeID string) {
 	s.hub.Fire(nodeID, api.MsgIngress, ing)
 }
 
-// pushIngressSync sends the route table and waits for the agent's answer.
+// pushIngressSync sends the route table and waits for the agent's answer. An agent that
+// holds atoll-caddy back because Zeabur/k3s still owns 80/443 (before a cutover) keeps the
+// table and applies it once the ports are free, so that answer counts as success here.
 func (s *Server) pushIngressSync(ctx context.Context, nodeID string) error {
+	err := s.pushIngressStrict(ctx, nodeID)
+	if isIngressHeld(err) {
+		s.log.Info("ingress held on the agent until the Zeabur cutover frees 80/443; routes saved there", "node", nodeID)
+		return nil
+	}
+	return err
+}
+
+// pushIngressStrict is pushIngressSync without the held exception (the cutover needs
+// atoll-caddy actually serving).
+func (s *Server) pushIngressStrict(ctx context.Context, nodeID string) error {
 	ing, err := s.ingressFor(ctx, nodeID)
 	if err != nil {
 		return err
 	}
 	_, err = s.hub.Call(ctx, nodeID, api.MsgIngress, ing, 0)
 	return err
+}
+
+// isIngressHeld reports the agent's ingress guard refusal ("not starting atoll-caddy: …").
+func isIngressHeld(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not starting atoll-caddy")
 }
 
 func (s *Server) tlsPayload(ctx context.Context) *api.TLSPayload {

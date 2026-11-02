@@ -89,9 +89,9 @@ export interface Deployment {
 }
 
 // ---- API token permissions ----
-export type Permission = 'read' | 'deploy' | 'delete' | 'migrate' | 'domains' | 'restore' | 'servers' | 'settings' | 'tokens'
+export type Permission = 'read' | 'deploy' | 'exec' | 'delete' | 'migrate' | 'domains' | 'restore' | 'servers' | 'settings' | 'tokens'
 /** display order (api.AllPermissions) */
-export const ALL_PERMISSIONS: Permission[] = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
+export const ALL_PERMISSIONS: Permission[] = ['read', 'deploy', 'exec', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
 /** cannot be combined with a project-scoped token (api.GlobalPermissions) */
 export const GLOBAL_PERMISSIONS: Permission[] = ['servers', 'settings', 'tokens']
 
