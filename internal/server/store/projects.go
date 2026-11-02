@@ -38,7 +38,7 @@ func (s *Store) ListProjects(ctx context.Context, serverID string) ([]api.Projec
 		q += ` WHERE server_id=?`
 		args = append(args, serverID)
 	}
-	rows, err := s.DB.QueryContext(ctx, q+` ORDER BY created_at`, args...)
+	rows, err := s.r.QueryContext(ctx, q+` ORDER BY created_at`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (s *Store) GetService(ctx context.Context, id string) (*api.Service, bool, 
 
 // ListServices returns services of a project ordered by name.
 func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Service, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE project_id=? ORDER BY name`, projectID)
+	rows, err := s.r.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE project_id=? ORDER BY name`, projectID)
 	if err != nil {
 		return nil, err
 	}

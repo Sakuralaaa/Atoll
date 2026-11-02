@@ -51,7 +51,7 @@ func (s *Store) DeploymentSpec(ctx context.Context, id string) (*api.ResolvedSpe
 
 // ListDeployments returns newest first.
 func (s *Store) ListDeployments(ctx context.Context, serviceID string, limit int) ([]api.Deployment, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+depCols+` FROM deployments WHERE service_id=? ORDER BY started_at DESC LIMIT ?`, serviceID, limit)
+	rows, err := s.r.QueryContext(ctx, `SELECT `+depCols+` FROM deployments WHERE service_id=? ORDER BY started_at DESC LIMIT ?`, serviceID, limit)
 	if err != nil {
 		return nil, err
 	}

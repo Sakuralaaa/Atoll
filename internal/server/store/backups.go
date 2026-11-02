@@ -155,7 +155,7 @@ func (s *Store) ListBackups(ctx context.Context, serviceID string, limit int) ([
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+backupCols+` FROM backups WHERE service_id=? ORDER BY started_at DESC LIMIT ?`, serviceID, limit)
+	rows, err := s.r.QueryContext(ctx, `SELECT `+backupCols+` FROM backups WHERE service_id=? ORDER BY started_at DESC LIMIT ?`, serviceID, limit)
 	if err != nil {
 		return nil, err
 	}

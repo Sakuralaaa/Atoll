@@ -34,6 +34,8 @@ type fakeCmd struct {
 	fetchErr   error
 	buildBlock chan struct{} // docker build waits for it (or ctx) when set
 	started    chan string   // receives the tag of every docker build that starts
+	inspectErr error         // docker buildx inspect (dedicated builder exists?)
+	createErr  error         // docker buildx create
 
 	mu         sync.Mutex
 	calls      []cmdCall
@@ -66,7 +68,11 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 		}
 	case name == "git" && args[0] == "rev-parse":
 		out(c.sha)
-	case name == "docker" && args[0] == "build":
+	case name == "docker" && args[0] == "buildx" && args[1] == "inspect":
+		return c.inspectErr
+	case name == "docker" && args[0] == "buildx" && args[1] == "create":
+		return c.createErr
+	case name == "docker" && (args[0] == "build" || args[0] == "buildx" && args[1] == "build"):
 		tag := ""
 		for i, a := range args {
 			if a == "-t" && i+1 < len(args) {

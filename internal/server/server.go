@@ -95,7 +95,8 @@ type Server struct {
 	holdMu sync.Mutex
 	held   map[string]int // hostnames kept out of pushed route tables (provision.go)
 
-	deliveries deliverySet // GitHub webhook X-GitHub-Delivery ids already handled (git.go)
+	deliveries deliverySet   // GitHub webhook X-GitHub-Delivery ids already handled (git.go)
+	agentSums  agentSumCache // SHA-256 of hosted agent binaries for the join command (routes.go)
 
 	upd *updater      // image update detection (imageupdates.go)
 	net *netState     // private network provider + mesh (network.go)

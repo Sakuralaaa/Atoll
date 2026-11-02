@@ -29,9 +29,16 @@ var ErrConflict = errors.New("already exists")
 
 // Store wraps the database.
 type Store struct {
-	DB  *sql.DB
+	DB  *sql.DB // the one writer connection; also used for reads that must see a transaction
 	Box *secrets.Box
+	// r is a small pool of query-only connections for the panel's heavy reads (lists,
+	// metric ranges, audit), so they no longer queue behind writes from a dozen agents.
+	// WAL lets them read the last committed state while the writer works.
+	r *sql.DB
 }
+
+// readers is the size of the read pool.
+const readers = 4
 
 // Open opens (and migrates) the database at path.
 func Open(path string, box *secrets.Box) (*Store, error) {
@@ -40,18 +47,37 @@ func Open(path string, box *secrets.Box) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	// One writer at a time keeps SQLite happy; reads are fast enough for a control plane.
+	// One writer at a time keeps SQLite happy.
 	db.SetMaxOpenConns(1)
-	s := &Store{DB: db, Box: box}
+	s := &Store{DB: db, Box: box, r: db}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
 	}
+	// opened after migrate: the reader never sees a half-migrated schema
+	r, err := sql.Open("sqlite", dsn+"&_pragma=query_only(1)")
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	r.SetMaxOpenConns(readers)
+	r.SetMaxIdleConns(readers)
+	if err := r.Ping(); err != nil {
+		r.Close()
+		db.Close()
+		return nil, err
+	}
+	s.r = r
 	return s, nil
 }
 
 // Close closes the database.
-func (s *Store) Close() error { return s.DB.Close() }
+func (s *Store) Close() error {
+	if s.r != nil && s.r != s.DB {
+		s.r.Close()
+	}
+	return s.DB.Close()
+}
 
 func (s *Store) migrate() error {
 	if _, err := s.DB.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
@@ -224,7 +250,7 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRow, error
 	}
 	q += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, f.Limit)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.r.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

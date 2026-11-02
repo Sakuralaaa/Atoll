@@ -85,8 +85,12 @@ type Builder struct {
 	// FlushEvery batches log lines into MsgBuildLog frames (500ms).
 	FlushEvery time.Duration
 
-	once sync.Once
-	slot chan struct{}
+	// Limits caps builds (build_limits.go); the zero value runs plain `docker build`.
+	Limits BuildLimits
+
+	once   sync.Once
+	slot   chan struct{}
+	bstate builderState
 }
 
 // NewBuilder returns a builder using real git/docker commands.
@@ -94,7 +98,8 @@ func NewBuilder(rt Runtime, p Paths, emit EmitFunc, log *slog.Logger) *Builder {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Builder{RT: rt, Paths: p, Cmd: ExecRunner{}, Emit: emit, Log: log, FlushEvery: 500 * time.Millisecond}
+	return &Builder{RT: rt, Paths: p, Cmd: ExecRunner{}, Emit: emit, Log: log, FlushEvery: 500 * time.Millisecond,
+		Limits: BuildLimitsFromEnv(os.Getenv)}
 }
 
 func (b *Builder) init() {
@@ -292,6 +297,9 @@ func (b *Builder) run(ctx context.Context, lg *buildLog, dir string, env []strin
 }
 
 func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (api.BuildResult, error) {
+	if err := b.checkBuildDisk(); err != nil {
+		return api.BuildResult{}, err
+	}
 	if err := os.MkdirAll(b.Paths.BuildsDir(), 0o700); err != nil {
 		return api.BuildResult{}, err
 	}
@@ -373,7 +381,14 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 		args = append(args, "--build-arg", k+"="+p.BuildArgs[k])
 	}
 	args = append(args, ctxDir)
-	if err := b.run(ctx, lg, dir, []string{"DOCKER_BUILDKIT=1"}, nil, "docker", args...); err != nil {
+	builder := b.dedicatedBuilder(ctx, lg)
+	if builder != "" {
+		// same flags through buildx, in the capped builder, loaded back into Docker
+		args = append([]string{"buildx", "build", "--builder", builder, "--load"}, args[1:]...)
+	}
+	err = b.run(ctx, lg, dir, []string{"DOCKER_BUILDKIT=1"}, nil, "docker", args...)
+	b.pruneBuildCache(context.WithoutCancel(ctx), builder)
+	if err != nil {
 		return api.BuildResult{}, err
 	}
 	if _, err := b.RT.ImageInfo(ctx, tag); err != nil {

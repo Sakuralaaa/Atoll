@@ -161,7 +161,7 @@ func (s *Store) AddContainerMetrics(ctx context.Context, m api.ContainerMetrics)
 
 // NodeMetricsRange returns samples since `since`, averaged into buckets of `step` seconds.
 func (s *Store) NodeMetricsRange(ctx context.Context, nodeID string, since time.Time, step int64) ([]api.NodeMetrics, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT (at/?)*?, AVG(cpu_pct), AVG(mem_used_mb), MAX(mem_total_mb), MAX(disk_used_gb), MAX(disk_total_gb),
+	rows, err := s.r.QueryContext(ctx, `SELECT (at/?)*?, AVG(cpu_pct), AVG(mem_used_mb), MAX(mem_total_mb), MAX(disk_used_gb), MAX(disk_total_gb),
 		AVG(net_rx_bps), AVG(net_tx_bps), AVG(load1) FROM node_metrics WHERE node_id=? AND at>=? GROUP BY at/? ORDER BY 1`,
 		step, step, nodeID, since.Unix(), step)
 	if err != nil {
@@ -188,7 +188,7 @@ func (s *Store) LatestNodeMetrics(ctx context.Context, nodeID string) (*api.Node
 	var m api.NodeMetrics
 	var at int64
 	var used, total float64
-	err := s.DB.QueryRowContext(ctx, `SELECT at, cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, net_rx_bps, net_tx_bps, load1
+	err := s.r.QueryRowContext(ctx, `SELECT at, cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, net_rx_bps, net_tx_bps, load1
 		FROM node_metrics WHERE node_id=? ORDER BY at DESC LIMIT 1`, nodeID).
 		Scan(&at, &m.CPUPct, &used, &total, &m.DiskUsedGB, &m.DiskTotalGB, &m.NetRxBps, &m.NetTxBps, &m.Load1)
 	if err != nil {
@@ -201,7 +201,7 @@ func (s *Store) LatestNodeMetrics(ctx context.Context, nodeID string) (*api.Node
 
 // ContainerMetricsRange returns container samples bucketed by step seconds.
 func (s *Store) ContainerMetricsRange(ctx context.Context, serviceID string, since time.Time, step int64) ([]api.ContainerMetrics, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT (at/?)*?, AVG(cpu_pct), AVG(mem_mb), AVG(net_rx_bps), AVG(net_tx_bps)
+	rows, err := s.r.QueryContext(ctx, `SELECT (at/?)*?, AVG(cpu_pct), AVG(mem_mb), AVG(net_rx_bps), AVG(net_tx_bps)
 		FROM container_metrics WHERE service_id=? AND at>=? GROUP BY at/? ORDER BY 1`, step, step, serviceID, since.Unix(), step)
 	if err != nil {
 		return nil, err

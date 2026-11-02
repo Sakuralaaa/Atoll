@@ -49,7 +49,7 @@ func (s *Store) GetNode(ctx context.Context, id string) (*api.Server, error) {
 
 // ListNodes returns all nodes.
 func (s *Store) ListNodes(ctx context.Context) ([]api.Server, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+nodeCols+` FROM nodes ORDER BY created_at`)
+	rows, err := s.r.QueryContext(ctx, `SELECT `+nodeCols+` FROM nodes ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}

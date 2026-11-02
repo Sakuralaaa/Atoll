@@ -262,3 +262,30 @@ for script in install/install-agent.sh install/install-server.sh; do
 	rm -rf "$V"
 done
 echo "installer checksum verification ok"
+
+# pinned SHA-256 for the agent binary served from the control server's /downloads/
+P=$(mktemp -d)
+mkdir -p "$P/src" "$P/bin"
+printf '#!/bin/sh\necho v9.9.9\n' >"$P/src/atoll-agent-linux-amd64"
+good=$(sha256sum "$P/src/atoll-agent-linux-amd64" | awk '{print $1}')
+{
+	echo 'set -eu'
+	echo "TMP=$P BIN=$P/bin/atoll-agent ARCH=amd64 SERVER=http://ctl.example LOCAL_BINARY='' SHA256_ARM64=''"
+	echo 'GITHUB_RELEASE=https://example.invalid/rel'
+	echo 'log() { :; }; warn() { echo "warn: $*" >&2; }'
+	echo 'die() { echo "die: $*" >&2; exit 1; }'
+	echo 'same_file() { cmp -s "$1" "$2"; }'
+	echo 'fetch() { case "$1" in */downloads/*) cp "$P_SRC/$(basename "$1")" "$2" ;; *) exit 9 ;; esac; }'
+	sed -n '/^sha256_of() {/,/^}/p; /^install_binary() {/,/^}/p' install/install-agent.sh
+	echo 'SHA256_AMD64=$1; install_binary'
+} >"$P/pin.sh"
+P_SRC="$P/src" sh "$P/pin.sh" "$good" 2>/dev/null || fail "pinned download with the right checksum rejected"
+[ -x "$P/bin/atoll-agent" ] || fail "pinned download not installed"
+rm -f "$P/bin/atoll-agent"
+if P_SRC="$P/src" sh "$P/pin.sh" "$(printf %064d 0)" 2>"$P/err"; then fail "pinned download with a wrong checksum installed"; fi
+grep -q "checksum mismatch" "$P/err" || fail "no mismatch message: $(cat "$P/err")"
+[ ! -e "$P/bin/atoll-agent" ] || fail "tampered binary installed"
+P_SRC="$P/src" sh "$P/pin.sh" "" 2>"$P/err" || fail "unpinned download rejected"
+grep -q "not verified" "$P/err" || fail "unpinned download not flagged"
+rm -rf "$P"
+echo "installer pinned download ok"

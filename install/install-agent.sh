@@ -36,6 +36,8 @@ TS_HOSTNAME=""
 NO_TAILNET=0
 REJOIN=0
 LOCAL_BINARY=""
+SHA256_AMD64=""
+SHA256_ARM64=""
 
 BIN=${ATOLL_AGENT_BIN:-/usr/local/bin/atoll-agent}
 CONFIG=${ATOLL_AGENT_CONFIG:-/etc/atoll/agent.json}
@@ -62,6 +64,9 @@ usage: install-agent.sh --server URL --token atl_join_... [options]
   --no-tailnet                never install or use Tailscale; join over --server
   --rejoin                    join again even if already joined to --server
   --binary PATH               install this local atoll-agent binary instead of downloading
+  --sha256-amd64 HEX          expected SHA-256 of the server-hosted amd64 binary
+  --sha256-arm64 HEX          expected SHA-256 of the server-hosted arm64 binary
+                              (the panel's "add server" command fills both in)
 
 When the control server has the Tailscale network provider enabled, the node joins the
 tailnet automatically and talks to the control server over it (--server stays the fallback).
@@ -123,6 +128,16 @@ parse_args() {
 		--binary)
 			need_arg "$@"
 			LOCAL_BINARY=$2
+			shift 2
+			;;
+		--sha256-amd64)
+			need_arg "$@"
+			SHA256_AMD64=$(printf %s "$2" | tr 'A-F' 'a-f')
+			shift 2
+			;;
+		--sha256-arm64)
+			need_arg "$@"
+			SHA256_ARM64=$(printf %s "$2" | tr 'A-F' 'a-f')
 			shift 2
 			;;
 		--binary=*)
@@ -498,9 +513,21 @@ install_binary() {
 		name="atoll-agent-linux-$ARCH"
 		ver=""
 		log "downloading $name"
+		pin=""
+		case "$ARCH" in
+		amd64) pin=$SHA256_AMD64 ;;
+		arm64) pin=$SHA256_ARM64 ;;
+		esac
 		# The server may answer unknown paths with its web UI, so a download only counts
-		# when the file actually runs here.
+		# when the file actually runs here. With a pinned checksum it must match before it runs.
 		if fetch "$SERVER/downloads/$name" "$out" 2>/dev/null; then
+			if [ -n "$pin" ]; then
+				got=$(sha256_of "$out") || die "need sha256sum, shasum or openssl to verify $name"
+				[ "$got" = "$pin" ] || die "checksum mismatch for $SERVER/downloads/$name: got $got, expected $pin (refusing to install it)"
+				log "verified $name against the pinned SHA-256"
+			else
+				warn "$SERVER/downloads/$name is not verified (no --sha256-$ARCH given)"
+			fi
 			chmod 0755 "$out"
 			ver=$("$out" version 2>/dev/null) || ver=""
 		fi

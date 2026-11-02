@@ -2,11 +2,15 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -168,4 +172,26 @@ func TestIngressHeldIsNotAFailure(t *testing.T) {
 	if isIngressHeld(errors.New("docker: no such image")) || isIngressHeld(nil) {
 		t.Fatal("other errors treated as held")
 	}
+}
+
+func TestJoinCommandPinsHostedAgent(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	var jt api.JoinToken
+	e.mustDo("POST", "/api/v1/servers/join-token", nil, &jt, 201)
+	if strings.Contains(jt.Command, "--sha256-") {
+		t.Fatalf("pinned without hosted binaries: %s", jt.Command)
+	}
+	dir := filepath.Join(e.srv.cfg.DataDir, "downloads")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "atoll-agent-linux-arm64"), []byte("agent"), 0o755)
+	e.mustDo("POST", "/api/v1/servers/join-token", nil, &jt, 201)
+	if !strings.Contains(jt.Command, "--sha256-arm64 "+sha256hex([]byte("agent"))) || strings.Contains(jt.Command, "--sha256-amd64") {
+		t.Fatalf("command %s", jt.Command)
+	}
+}
+
+func sha256hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }

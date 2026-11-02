@@ -1,12 +1,17 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/server/webui"
 )
@@ -188,6 +193,49 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "ok", "version": Version})
+}
+
+// agentSumCache remembers the SHA-256 of each hosted agent binary by size and mtime.
+type agentSumCache struct {
+	mu sync.Mutex
+	m  map[string]agentSum
+}
+
+type agentSum struct {
+	size  int64
+	mtime time.Time
+	hex   string
+}
+
+// hostedAgentSum returns the SHA-256 of <data>/downloads/atoll-agent-linux-<arch>, or "" when
+// this server hosts no such binary.
+func (s *Server) hostedAgentSum(arch string) string {
+	p := filepath.Join(s.cfg.DataDir, "downloads", "atoll-agent-linux-"+arch)
+	st, err := os.Stat(p)
+	if err != nil || st.IsDir() {
+		return ""
+	}
+	c := &s.agentSums
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.m[arch]; ok && e.size == st.Size() && e.mtime.Equal(st.ModTime()) {
+		return e.hex
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	if c.m == nil {
+		c.m = map[string]agentSum{}
+	}
+	sum := hex.EncodeToString(h.Sum(nil))
+	c.m[arch] = agentSum{size: st.Size(), mtime: st.ModTime(), hex: sum}
+	return sum
 }
 
 // handleDownload serves agent binaries placed in <data>/downloads (atoll-agent-linux-amd64|arm64).
