@@ -30,6 +30,7 @@ Management (panel session only; PATs get 403):
 | POST | /auth/2fa/enable | `{code}` → RecoveryCodes `{recovery_codes: [10]}`; signs out every other session |
 | POST | /auth/2fa/recovery-codes | `{password, code}` (TOTP) → new RecoveryCodes; old ones stop working |
 | POST | /auth/2fa/disable | `{password, code}` (TOTP or recovery code) → 204; signs out every other session. With 2FA off it cancels a pending enrollment |
+| POST | /auth/password | `{current_password, new_password, code?}` → `{revoked_sessions: n}`. Panel session only (API tokens get `403 session_required`). `new_password` 8-72 chars (same rule as setup and `reset-password`) and different from the current one (`400`). Wrong current password → `401 invalid_credentials`; with 2FA on, `code` (current TOTP, not a recovery code) is required → `401 code_required` / `401 invalid_code`. Failures count toward the login lockout below (`429` while locked). Keeps the calling session and signs out every other one; audited as `auth.password_change`. Panel: Settings → 账号与安全 → 修改密码 |
 | GET | /auth/sessions | → []SessionInfo `{id, ip, user_agent, current, created_at, expires_at}` |
 | DELETE | /auth/sessions/{id} | sign out one session |
 | POST | /auth/sessions/revoke-others | → `{revoked: n}` |

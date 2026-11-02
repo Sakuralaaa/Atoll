@@ -269,3 +269,26 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string) (*User, 
 	u.PasswordHash = hash
 	return u, nil
 }
+
+// ChangePassword replaces a user's password hash and signs out every session except
+// keepHash, in one transaction. It returns how many sessions were signed out.
+func (s *Store) ChangePassword(ctx context.Context, userID int64, hash, keepHash string) (int64, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hash, userID)
+	if err != nil {
+		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return 0, ErrNotFound
+	}
+	res, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=? AND token_hash<>?`, userID, keepHash)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, tx.Commit()
+}

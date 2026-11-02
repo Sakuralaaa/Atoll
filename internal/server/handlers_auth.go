@@ -61,8 +61,8 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) error {
 	if !usernameRe.MatchString(c.Username) {
 		return badRequest("username must be 1-64 chars of letters, digits, _ . @ -")
 	}
-	if len(c.Password) < 8 || len(c.Password) > 72 {
-		return badRequest("password must be 8-72 characters")
+	if err := validPassword(c.Password); err != nil {
+		return err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(c.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -179,6 +179,72 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 	}
 	slices.Sort(me.Projects)
 	writeJSON(w, 200, me)
+	return nil
+}
+
+// validPassword applies the same rules as first-run setup and the reset-password CLI.
+func validPassword(pw string) error {
+	if len(pw) < 8 || len(pw) > 72 {
+		return badRequest("password must be 8-72 characters")
+	}
+	return nil
+}
+
+// handleChangePassword lets the logged-in user change their password (panel session only).
+// The current password (and the TOTP code when 2FA is on) is checked like a re-auth, with
+// failures counted toward the login lockout; every other session is signed out.
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) error {
+	p := principalFrom(r.Context())
+	if !p.Session {
+		return errf(403, "session_required", "only a panel session can change the password")
+	}
+	var req api.ChangePasswordRequest
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if err := validPassword(req.NewPassword); err != nil {
+		return err
+	}
+	ip := s.clientIP(r)
+	if wait := s.lock.wait(ipKey(ip), accountKey(p.User.Username)); wait > 0 {
+		return tooMany(w, wait)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(p.User.PasswordHash), []byte(req.CurrentPassword)) != nil {
+		s.loginFailed(ip, p.User.Username, "change-password current password")
+		return errf(401, "invalid_credentials", "current password is wrong")
+	}
+	// checked before the second factor so a rejected request does not spend the TOTP code
+	if req.NewPassword == req.CurrentPassword {
+		return badRequest("the new password must differ from the current one")
+	}
+	tf, err := s.st.TOTPState(r.Context(), p.User.ID)
+	if err != nil {
+		return err
+	}
+	if tf.Enabled {
+		if strings.TrimSpace(req.Code) == "" {
+			return errf(401, "code_required", "two-factor authentication is on; enter the current code from your authenticator")
+		}
+		m, err := s.checkSecondFactor(r.Context(), p.User, req.Code, false)
+		if err != nil {
+			return err
+		}
+		if m == "" {
+			s.loginFailed(ip, p.User.Username, "change-password code")
+			return errf(401, "invalid_code", "invalid verification code")
+		}
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	n, err := s.st.ChangePassword(r.Context(), p.User.ID, string(hash), p.SessionHash)
+	if err != nil {
+		return err
+	}
+	s.st.Audit(r.Context(), p.actor(), "auth.password_change", p.User.Username, map[string]string{"ip": ip, "sessions_revoked": strconv.FormatInt(n, 10)})
+	s.log.Info("password changed; other sessions signed out", "user", p.User.Username, "ip", ip, "revoked", n)
+	writeJSON(w, 200, api.ChangePasswordResponse{RevokedSessions: n})
 	return nil
 }
 

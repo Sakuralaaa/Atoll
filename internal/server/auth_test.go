@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"testing"
+	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 )
@@ -94,5 +95,112 @@ func TestResetPassword(t *testing.T) {
 	}
 	if _, _, err := ResetPassword(e.srv.cfg.DataDir, "ghost", "password123"); err == nil {
 		t.Fatal("unknown user accepted")
+	}
+}
+
+func TestChangePassword(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	const path = "/api/v1/auth/password"
+
+	// a second browser session that must be signed out by the change
+	other := newJarClient()
+	if c := e.doWith(other, "", "POST", "/api/v1/auth/login", credentials{"admin", "correct-horse"}, nil); c != 200 {
+		t.Fatalf("second login: %d", c)
+	}
+
+	// API tokens cannot change the password, even with every permission
+	var admin api.APIToken
+	e.mustDo("POST", "/api/v1/tokens", map[string]any{"name": "all", "permissions": api.AllPermissions}, &admin, 201)
+	if c := e.doWith(http.DefaultClient, admin.Token, "POST", path, api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "battery-staple"}, nil); c != 403 {
+		t.Fatalf("token change: %d", c)
+	}
+
+	// validation: too short, same as current
+	if c := e.do("POST", path, api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "short"}, nil); c != 400 {
+		t.Fatalf("short password: %d", c)
+	}
+	if c := e.do("POST", path, api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "correct-horse"}, nil); c != 400 {
+		t.Fatalf("same password: %d", c)
+	}
+
+	// wrong current password: 401 and counted toward the lockout
+	if c := e.do("POST", path, api.ChangePasswordRequest{CurrentPassword: "wrong-password", NewPassword: "battery-staple"}, nil); c != 401 {
+		t.Fatalf("wrong current: %d", c)
+	}
+	e.srv.lock.mu.Lock()
+	acct := e.srv.lock.entries[accountKey("admin")]
+	fails := 0
+	if acct != nil {
+		fails = acct.fails
+	}
+	e.srv.lock.mu.Unlock()
+	if fails != 1 {
+		t.Fatalf("account failures after wrong current password: %d", fails)
+	}
+	if c := e.do("POST", "/api/v1/auth/login", credentials{"admin", "battery-staple"}, nil); c != 401 {
+		t.Fatalf("password changed by a failed request: %d", c)
+	}
+
+	// success: current session kept, other session signed out, audit entry written
+	var res api.ChangePasswordResponse
+	e.mustDo("POST", path, api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "battery-staple"}, &res, 200)
+	if res.RevokedSessions < 1 {
+		t.Fatalf("revoked: %+v", res)
+	}
+	e.mustDo("GET", "/api/v1/auth/me", nil, nil, 200)
+	if c := e.doWith(other, "", "GET", "/api/v1/auth/me", nil, nil); c != 401 {
+		t.Fatalf("other session after change: %d", c)
+	}
+	var n int
+	e.srv.st.DB.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE action='auth.password_change'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("audit entries: %d", n)
+	}
+	fresh := newJarClient()
+	if c := e.doWith(fresh, "", "POST", "/api/v1/auth/login", credentials{"admin", "correct-horse"}, nil); c != 401 {
+		t.Fatalf("old password still works: %d", c)
+	}
+	if c := e.doWith(fresh, "", "POST", "/api/v1/auth/login", credentials{"admin", "battery-staple"}, nil); c != 200 {
+		t.Fatalf("new password: %d", c)
+	}
+}
+
+func TestChangePasswordRequires2FA(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	clock := pinClock(t, time.Now().Truncate(30*time.Second).Add(10*time.Second))
+	var en api.TwoFactorEnrollment
+	e.mustDo("POST", "/api/v1/auth/2fa/enroll", api.TwoFactorRequest{Password: "correct-horse"}, &en, 200)
+	c0, _ := totpCode(en.Secret, *clock)
+	e.mustDo("POST", "/api/v1/auth/2fa/enable", api.TwoFactorRequest{Code: c0}, nil, 200)
+	*clock = clock.Add(30 * time.Second)
+
+	const path = "/api/v1/auth/password"
+	req := api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "battery-staple"}
+	if c := e.do("POST", path, req, nil); c != 401 {
+		t.Fatalf("missing code: %d", c)
+	}
+	req.Code = "000000"
+	if c := e.do("POST", path, req, nil); c != 401 {
+		t.Fatalf("wrong code: %d", c)
+	}
+	req.Code, _ = totpCode(en.Secret, *clock)
+	e.mustDo("POST", path, req, nil, 200)
+	e.mustDo("GET", "/api/v1/auth/me", nil, nil, 200)
+}
+
+func TestChangePasswordLocked(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	bad := api.ChangePasswordRequest{CurrentPassword: "wrong-password", NewPassword: "battery-staple"}
+	for i := 0; i < ipBackoff.free; i++ {
+		if c := e.do("POST", "/api/v1/auth/password", bad, nil); c != 401 {
+			t.Fatalf("attempt %d: %d", i, c)
+		}
+	}
+	// locked: even the right current password gets 429
+	if c := e.do("POST", "/api/v1/auth/password", api.ChangePasswordRequest{CurrentPassword: "correct-horse", NewPassword: "battery-staple"}, nil); c != 429 {
+		t.Fatalf("locked: %d", c)
 	}
 }

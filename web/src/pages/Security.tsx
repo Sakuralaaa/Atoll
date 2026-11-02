@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal } from 'lucide-react'
+import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, cx } from '../components/ui'
 import { ErrorState, Modal, Skeleton, TextInput, toast } from '../components/feedback'
@@ -17,7 +17,7 @@ export function SettingsTabs() {
   return (
     <div className="flex gap-2 mb-8">
       <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>
-      <NavLink to="/settings/security" className={tab}>{t('安全', 'Security')}</NavLink>
+      <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
     </div>
   )
 }
@@ -31,8 +31,9 @@ export default function Security() {
     <MainShell>
       <div className="max-w-[1000px] mx-auto px-14 pt-12 pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
-        <p className="text-[13px] text-muted mt-2 mb-6">{t('面板登录的安全选项。API 令牌（atl_pat_）不受两步验证影响，在「CLI 与 API」里管理。', 'Sign-in security for the panel. API tokens (atl_pat_) are not affected by 2FA; manage them under "CLI & API".')}</p>
+        <p className="text-[13px] text-muted mt-2 mb-6">{t('面板账号的密码、两步验证和登录会话。API 令牌（atl_pat_）不受影响，在「CLI 与 API」里管理。', 'Password, two-factor authentication and sessions for your panel account. API tokens (atl_pat_) are not affected; manage them under "CLI & API".')}</p>
         <SettingsTabs />
+        <ChangePasswordCard twoFactor={q.data?.enabled} />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
         {q.data && <TwoFactorCard st={q.data} />}
@@ -56,6 +57,63 @@ function Section({ icon, title, right, children }: { icon: React.ReactNode; titl
       <div className="text-[15px] font-semibold flex items-center gap-2 mb-3">{icon}{title}<span className="ml-auto">{right}</span></div>
       <Card>{children}</Card>
     </div>
+  )
+}
+
+function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
+  const { t } = useT()
+  const [cur, setCur] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [code, setCode] = useState('')
+  const [err, setErr] = useState<string>()
+  const [busy, wrap] = useBusy()
+  const code6 = code.replace(/\s/g, '')
+  const tooShort = pw.length > 0 && pw.length < 8
+  const tooLong = pw.length > 72
+  const mismatch = pw2.length > 0 && pw !== pw2
+  const same = pw.length > 0 && pw === cur
+  const ok = !!cur && pw.length >= 8 && !tooLong && pw === pw2 && !same && (!twoFactor || /^\d{6}$/.test(code6))
+  const go = () => wrap(async () => {
+    setErr(undefined)
+    try {
+      await api.changePassword({ current_password: cur, new_password: pw, ...(twoFactor ? { code: code6 } : {}) })
+      setCur(''); setPw(''); setPw2(''); setCode('')
+      invalidate('auth:sessions')
+      toast(t('密码已修改，其他设备已退出', 'Password changed; other devices were signed out'), 'ok')
+    } catch (x) {
+      const e = x as ApiError
+      if (e.code === 'invalid_credentials') setErr(t('当前密码不正确', 'Current password is wrong'))
+      else if (e.code === 'code_required') setErr(t('已启用两步验证，请输入验证码', '2FA is on — enter the code'))
+      else setErr(errText(t, x))
+      setCode('')
+    }
+  })
+  const hint = tooShort ? t('新密码至少 8 个字符', 'At least 8 characters') : tooLong ? t('新密码最多 72 个字符', 'At most 72 characters') : same ? t('新密码不能和当前密码相同', 'Must differ from the current password') : mismatch ? t('两次输入的新密码不一致', 'The new passwords do not match') : undefined
+  return (
+    <Section icon={<LockKeyhole size={17} />} title={t('修改密码', 'Change password')}>
+      <form className="px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
+        <div className="text-[13.5px] text-fg2 leading-6">{t('修改后当前设备保持登录，其他设备上的会话会全部退出。', 'This device stays signed in; every other session is signed out.')}</div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-4 mt-4">
+          <label className="col-span-2 max-w-[calc(50%-10px)]">
+            <div className="text-[13px] font-semibold mb-1.5">{t('当前密码', 'Current password')}</div>
+            <TextInput type="password" autoComplete="current-password" className="w-full" value={cur} onChange={e => setCur(e.target.value)} />
+          </label>
+          <label>
+            <div className="text-[13px] font-semibold mb-1.5">{t('新密码', 'New password')}</div>
+            <TextInput type="password" autoComplete="new-password" className="w-full" value={pw} onChange={e => setPw(e.target.value)} placeholder={t('8–72 个字符', '8–72 characters')} />
+          </label>
+          <label>
+            <div className="text-[13px] font-semibold mb-1.5">{t('确认新密码', 'Confirm new password')}</div>
+            <TextInput type="password" autoComplete="new-password" className="w-full" value={pw2} onChange={e => setPw2(e.target.value)} />
+          </label>
+          {twoFactor && <label className="col-span-2 max-w-[calc(50%-10px)]">
+            <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
+            <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
+          </label>}
+        </div>
+        {hint && <div className="mt-3 text-[12.5px] text-muted font-semibold">{hint}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+        <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{t('修改密码', 'Change password')}</Button>
+      </form>
+    </Section>
   )
 }
 

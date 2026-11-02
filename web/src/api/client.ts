@@ -1,6 +1,6 @@
 import type {
   APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
 } from './types'
 
 export const API = '/api/v1'
@@ -79,6 +79,8 @@ export const api = {
   enable2fa: (code: string) => post<RecoveryCodes>('/auth/2fa/enable', { code }),
   disable2fa: (password: string, code: string) => post<void>('/auth/2fa/disable', { password, code }),
   regenRecovery: (password: string, code: string) => post<RecoveryCodes>('/auth/2fa/recovery-codes', { password, code }),
+  /** Panel session only. A wrong current password answers 401 without leaving the page. */
+  changePassword: (b: ChangePasswordRequest) => request<ChangePasswordResponse>('POST', '/auth/password', b, { noRedirect: true }),
   sessions: () => get<SessionInfo[]>('/auth/sessions'),
   revokeSession: (id: string) => del(`/auth/sessions/${e(id)}`),
   revokeOtherSessions: () => post<{ revoked: number }>('/auth/sessions/revoke-others'),

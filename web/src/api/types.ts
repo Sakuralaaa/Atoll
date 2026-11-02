@@ -274,5 +274,7 @@ export interface BackupTestResult { ok: boolean; server_id: string; message: str
 export interface LoginChallenge { two_factor_required: true; pending_token: string; expires_at: string }
 export interface TwoFactorStatus { enabled: boolean; enabled_at?: string; recovery_codes_left: number }
 export interface TwoFactorEnrollment { secret: string; otpauth_uri: string }
+export interface ChangePasswordRequest { current_password: string; new_password: string; code?: string }
+export interface ChangePasswordResponse { revoked_sessions: number }
 export interface RecoveryCodes { recovery_codes: string[] }
 export interface SessionInfo { id: string; ip?: string; user_agent?: string; current: boolean; created_at: string; expires_at: string }

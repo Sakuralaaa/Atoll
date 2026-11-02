@@ -276,6 +276,19 @@ type TwoFactorRequest struct {
 	Code     string `json:"code,omitempty"`
 }
 
+// ChangePasswordRequest is POST /auth/password (panel session only). Code is the
+// current TOTP code, required when two-factor authentication is on.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+	Code            string `json:"code,omitempty"`
+}
+
+// ChangePasswordResponse reports how many other sessions were signed out.
+type ChangePasswordResponse struct {
+	RevokedSessions int64 `json:"revoked_sessions"`
+}
+
 // RecoveryCodes are shown once, after enabling 2FA or regenerating.
 type RecoveryCodes struct {
 	Codes []string `json:"recovery_codes"`
