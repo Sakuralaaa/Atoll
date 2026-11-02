@@ -93,6 +93,60 @@ type Service struct {
 	// project's server; a service placed on another server (POST .../services with server_id,
 	// or POST /services/{id}/migrate) reaches its siblings over the tailnet mesh.
 	ServerID string `json:"server_id,omitempty"`
+	// Source is where the image comes from (read-only): "image" (pulled from a registry) or
+	// "git" (built from Git on the service's server; Image is then the last built local image).
+	Source string `json:"source,omitempty"`
+	// Git, when set, builds the service from a GitHub repository instead of pulling Image.
+	// PATCH {"git": {...}} replaces it (the token is kept unless given or cleared);
+	// PATCH {"git": null, "image": "..."} switches back to a registry image.
+	Git *GitSource `json:"git,omitempty"`
+	// Webhook is returned once, when a git service is created (or first switched to git): the
+	// GitHub push webhook URL and its secret. Later: GET /services/{id}/webhook (secret: panel session only).
+	Webhook *GitWebhook `json:"webhook,omitempty"`
+}
+
+// GitSource builds a service from source (see docs/api.md "Builds from source"). The build
+// runs on the service's own server, never on the control server.
+type GitSource struct {
+	Repo       string            `json:"repo"`                 // https://github.com/OWNER/REPO
+	Branch     string            `json:"branch,omitempty"`     // default "main"
+	Context    string            `json:"context,omitempty"`    // build context: subdirectory of the repo ("" = root)
+	Dockerfile string            `json:"dockerfile,omitempty"` // path inside the context, default "Dockerfile"
+	BuildArgs  map[string]string `json:"build_args,omitempty"` // docker build --build-arg (not secret: visible in image history)
+	// Token is a GitHub token for a private repository. Write-only: stored encrypted, never
+	// returned (HasToken says whether one is stored). ClearToken (PATCH) removes it.
+	Token      string `json:"token,omitempty"`
+	HasToken   bool   `json:"has_token"`
+	ClearToken bool   `json:"clear_token,omitempty"`
+	LastCommit string `json:"last_commit,omitempty"` // read-only: commit of the last successful build
+}
+
+// GitWebhook is GET /api/v1/services/{id}/webhook: configure it on GitHub as a push webhook
+// (content type application/json). Secret is only returned once at creation / rotation, and
+// to a panel session; API tokens get HasSecret only.
+type GitWebhook struct {
+	URL         string `json:"url"`
+	Secret      string `json:"secret,omitempty"`
+	HasSecret   bool   `json:"has_secret"`
+	ContentType string `json:"content_type"` // "application/json"
+	Events      string `json:"events"`       // "push"
+	Branch      string `json:"branch"`       // only pushes to this branch deploy
+}
+
+// DeploymentLogLine is one line of a deployment's build log.
+type DeploymentLogLine struct {
+	Seq  int64     `json:"seq"`
+	At   time.Time `json:"at"`
+	Line string    `json:"line"`
+}
+
+// DeploymentLogs is GET /api/v1/services/{id}/deployments/{dep}/logs (?after=SEQ for the
+// lines after a seen one). Only the newest lines of a long build are kept (Truncated).
+type DeploymentLogs struct {
+	DeploymentID string              `json:"deployment_id"`
+	Status       string              `json:"status"`
+	Lines        []DeploymentLogLine `json:"lines"`
+	Truncated    bool                `json:"truncated,omitempty"`
 }
 
 type EnvVar struct {
@@ -121,8 +175,9 @@ type Deployment struct {
 	ServiceID   string     `json:"service_id"`
 	ServerID    string     `json:"server_id"`
 	ImageDigest string     `json:"image_digest,omitempty"`
-	Status      string     `json:"status"`  // "queued" | "pulling" | "starting" | "running" | "failed" | "superseded"
-	Trigger     string     `json:"trigger"` // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update"
+	Status      string     `json:"status"`           // "queued" | "building" | "pulling" | "starting" | "running" | "failed" | "superseded"
+	Trigger     string     `json:"trigger"`          // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update" | "webhook"
+	Commit      string     `json:"commit,omitempty"` // git services: the commit built (set once the build finished)
 	Message     string     `json:"message,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
 	FinishedAt  *time.Time `json:"finished_at,omitempty"`
@@ -384,14 +439,16 @@ const (
 	MsgTLS          = "tls"           // TLSPayload: origin cert+key for Caddy
 	MsgNetwork      = "network"       // NetworkPayload: join the tailnet and/or switch the control URL (verified first); result Output = JSON NetworkResult
 	MsgMesh         = "mesh"          // MeshPayload: full cross-server service mesh of this node; agent persists it and runs forwarders
+	MsgBuild        = "build"         // BuildPayload: clone + docker build on this worker (one at a time); result Output = JSON BuildResult; log via MsgBuildLog
 
 	// agent -> server
-	MsgHello   = "hello"   // HelloPayload, first frame after connect
-	MsgStatus  = "status"  // StatusPayload, on change and every 30s
-	MsgMetrics = "metrics" // MetricsPayload, every 15s
-	MsgDeploy  = "deploy"  // DeployEvent
-	MsgLogLine = "log"     // LogEvent
-	MsgResult  = "result"  // ResultPayload
+	MsgHello    = "hello"     // HelloPayload, first frame after connect
+	MsgStatus   = "status"    // StatusPayload, on change and every 30s
+	MsgMetrics  = "metrics"   // MetricsPayload, every 15s
+	MsgDeploy   = "deploy"    // DeployEvent
+	MsgLogLine  = "log"       // LogEvent
+	MsgBuildLog = "build.log" // BuildLogEvent: build output lines (dropped while disconnected)
+	MsgResult   = "result"    // ResultPayload
 )
 
 // ResolvedSpec is what the agent runs: env fully expanded, nothing to look up.
@@ -412,7 +469,41 @@ type ResolvedSpec struct {
 	CPULimit     float64           `json:"cpu_limit,omitempty"`
 	MemLimitMB   int               `json:"mem_limit_mb,omitempty"`
 	RegistryAuth *RegistryAuth     `json:"registry_auth,omitempty"`
-	Stopped      bool              `json:"stopped"` // desired state is stopped
+	// LocalImage: Image only exists on this server (built from source); never pull it.
+	LocalImage bool `json:"local_image,omitempty"`
+	Stopped    bool `json:"stopped"` // desired state is stopped
+}
+
+// BuildPayload asks the service's server to build its image from Git: shallow fetch of Commit
+// (or the head of Branch) into a temp dir, then `docker build` (BuildKit) tagged
+// atoll-build/<service_id>:<commit12>. Only the newest Keep build images of the service are
+// kept (plus the one in use). Token is a secret: never log the payload.
+type BuildPayload struct {
+	DeploymentID string            `json:"deployment_id"`
+	ServiceID    string            `json:"service_id"`
+	Repo         string            `json:"repo"`
+	Branch       string            `json:"branch"`
+	Commit       string            `json:"commit,omitempty"` // exact commit to build ("" = head of Branch)
+	Context      string            `json:"context,omitempty"`
+	Dockerfile   string            `json:"dockerfile,omitempty"`
+	BuildArgs    map[string]string `json:"build_args,omitempty"`
+	Token        string            `json:"token,omitempty"`
+	TimeoutSec   int               `json:"timeout_sec"` // the build itself (default 1200)
+	QueueSec     int               `json:"queue_sec"`   // max wait for this server's build slot (default = TimeoutSec)
+	Keep         int               `json:"keep"`        // build images kept per service (default 3)
+}
+
+// BuildResult is the Output of MsgBuild.
+type BuildResult struct {
+	Image  string `json:"image"`  // local tag, e.g. atoll-build/svc_abc:0123456789ab
+	Commit string `json:"commit"` // full commit sha built
+}
+
+// BuildLogEvent carries build output lines of one deployment.
+type BuildLogEvent struct {
+	DeploymentID string   `json:"deployment_id"`
+	ServiceID    string   `json:"service_id"`
+	Lines        []string `json:"lines"`
 }
 
 type RegistryAuth struct {

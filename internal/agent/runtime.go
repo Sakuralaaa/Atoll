@@ -53,6 +53,19 @@ type Runtime interface {
 	// and returns the image references it contained.
 	LoadImage(ctx context.Context, archive io.Reader) ([]string, error)
 	TagImage(ctx context.Context, source, target string) error
+	// ListImages returns the local images of one repository (e.g. "atoll-build/svc_x"), one
+	// entry per tag.
+	ListImages(ctx context.Context, repo string) ([]ImageSummary, error)
+	// RemoveImage removes a local image reference (untag; the image goes with its last tag
+	// unless a container uses it). ErrNotFound when absent.
+	RemoveImage(ctx context.Context, ref string) error
+}
+
+// ImageSummary is one tagged local image.
+type ImageSummary struct {
+	Ref     string // repo:tag
+	ID      string
+	Created time.Time
 }
 
 type ImageInfo struct {

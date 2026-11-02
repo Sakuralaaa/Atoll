@@ -92,6 +92,14 @@ func trackedRef(image string, row *store.ImageUpdateRow) (registry.Ref, string, 
 	return ref, pinned, nil
 }
 
+// svcCheckable is checkable for a service: services built from git have no registry image.
+func svcCheckable(svc *api.Service, ref registry.Ref, err error) string {
+	if svc.Git != nil {
+		return "built from source; redeploy (or a GitHub push) builds the latest commit"
+	}
+	return checkable(ref, err)
+}
+
 // checkable says why an image cannot be checked ("" = it can).
 func checkable(ref registry.Ref, err error) string {
 	switch {
@@ -99,6 +107,8 @@ func checkable(ref registry.Ref, err error) string {
 		return "unrecognised image reference"
 	case strings.HasPrefix(ref.Name, "atoll-import/"):
 		return "local image (imported from Zeabur); not in a registry"
+	case strings.HasPrefix(ref.Name, BuildImageRepo):
+		return "built from source; redeploy (or a GitHub push) builds the latest commit"
 	case ref.Tag == "":
 		return "pinned to a digest; nothing to follow"
 	}
@@ -178,7 +188,7 @@ func (s *Server) checkImage(ctx context.Context, serviceID string) (api.ImageUpd
 	}
 	now := s.upd.now().UTC()
 	ref, _, perr := trackedRef(svc.Image, row)
-	if why := checkable(ref, perr); why != "" {
+	if why := svcCheckable(svc, ref, perr); why != "" {
 		row.Image, row.LatestDigest, row.NewerTag, row.MajorTag, row.Error = svc.Image, "", "", "", ""
 		row.CheckedAt, row.Failures, row.NextCheckAt = now, 0, time.Time{}
 		s.st.SaveImageUpdate(ctx, *row)
@@ -300,7 +310,7 @@ func (s *Server) imageUpdateView(ctx context.Context, svc *api.Service, row *sto
 	}
 	ref, pinned, perr := trackedRef(svc.Image, row)
 	v.CurrentDigest = s.runningDigest(ctx, svc, pinned)
-	if why := checkable(ref, perr); why != "" {
+	if why := svcCheckable(svc, ref, perr); why != "" {
 		v.Status, v.Note = "unsupported", why
 		return v
 	}
@@ -576,7 +586,7 @@ func (s *Server) handleApplyImageUpdate(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 	ref, _, perr := trackedRef(svc.Image, row)
-	if why := checkable(ref, perr); why != "" {
+	if why := svcCheckable(svc, ref, perr); why != "" {
 		return badRequest("cannot update %s: %s", svc.Image, why)
 	}
 	if req.Tag != "" && req.Tag != ref.Tag {

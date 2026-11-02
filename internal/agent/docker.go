@@ -493,3 +493,24 @@ func (d *DockerRuntime) LoadImage(ctx context.Context, archive io.Reader) ([]str
 func (d *DockerRuntime) TagImage(ctx context.Context, source, target string) error {
 	return mapErr(d.cli.ImageTag(ctx, source, target))
 }
+
+func (d *DockerRuntime) ListImages(ctx context.Context, repo string) ([]ImageSummary, error) {
+	list, err := d.cli.ImageList(ctx, image.ListOptions{Filters: filters.NewArgs(filters.Arg("reference", repo+":*"))})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	var out []ImageSummary
+	for _, im := range list {
+		for _, t := range im.RepoTags {
+			if strings.HasPrefix(t, repo+":") {
+				out = append(out, ImageSummary{Ref: t, ID: im.ID, Created: time.Unix(im.Created, 0).UTC()})
+			}
+		}
+	}
+	return out, nil
+}
+
+func (d *DockerRuntime) RemoveImage(ctx context.Context, ref string) error {
+	_, err := d.cli.ImageRemove(ctx, ref, image.RemoveOptions{PruneChildren: true})
+	return mapErr(err)
+}

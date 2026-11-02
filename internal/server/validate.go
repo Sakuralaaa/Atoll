@@ -44,8 +44,8 @@ func validateServiceSpec(v *api.Service) error {
 	if !dnsLabelRe.MatchString(v.Name) {
 		return badRequest("service name %q must be a lowercase DNS label (a-z, 0-9, '-', max 63)", v.Name)
 	}
-	if strings.TrimSpace(v.Image) == "" {
-		return badRequest("image is required")
+	if strings.TrimSpace(v.Image) == "" && v.Git == nil {
+		return badRequest("image is required (or a git source to build from)")
 	}
 	if strings.ContainsAny(v.Image, " \t\n") {
 		return badRequest("image must not contain whitespace")

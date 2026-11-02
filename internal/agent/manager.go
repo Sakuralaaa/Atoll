@@ -210,13 +210,20 @@ func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit 
 	if err != nil {
 		return fail("invalid spec", err)
 	}
-	m.deployEvent(spec, "pulling", "pulling "+spec.Image, "")
+	if !spec.LocalImage {
+		m.deployEvent(spec, "pulling", "pulling "+spec.Image, "")
+	}
 	for _, n := range cs.Networks {
 		if err := m.rt.EnsureNetwork(ctx, n.Name); err != nil {
 			return fail("network "+n.Name, err)
 		}
 	}
-	if perr := m.rt.PullImage(ctx, spec.Image, spec.RegistryAuth); perr != nil {
+	if spec.LocalImage {
+		// Built on this server from source: there is nothing to pull.
+		if _, ierr := m.rt.ImageInfo(ctx, spec.Image); ierr != nil {
+			return fail("image "+spec.Image+" is not on this server (built images are kept for the last few builds only); redeploy to build it again", ierr)
+		}
+	} else if perr := m.rt.PullImage(ctx, spec.Image, spec.RegistryAuth); perr != nil {
 		if explicit {
 			return fail("pull "+spec.Image, perr)
 		}

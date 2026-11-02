@@ -63,6 +63,10 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | DELETE | /domains/{id} | removes the route from Caddy first, then the DNS record (on a DNS error the route is restored and the domain stays bound) |
 | GET | /domains | all domains |
 | GET | /services/{id}/deployments | []Deployment |
+| GET | /services/{id}/deployments/{dep}/logs?after=SEQ | DeploymentLogs: build output of a deployment (see "Builds from source") |
+| GET | /services/{id}/webhook | GitWebhook of a git service (secret: panel session only) |
+| POST | /services/{id}/webhook/rotate | session only → GitWebhook with a new secret (shown once) |
+| POST | /hooks/github/{service_id} | GitHub push webhook, no login: verified by `X-Hub-Signature-256` |
 | GET | /services/{id}/metrics?range= | []ContainerMetrics |
 | GET (WS) | /services/{id}/logs?tail=200&follow=1 | stream of LogLine JSON frames |
 | POST | /services/{id}/exec | {cmd: []string} → ResultPayload |
@@ -89,7 +93,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | PUT | /imports/{id}/volumes/{service_name}/{volume} | raw tar.gz body, streamed to target agent via volume.import |
 | POST | /imports/{id}/start | deploy all services |
 | GET | /templates | []Template: db templates (postgres, mysql, redis, mongo); create one with POST /projects/{id}/services `{kind, name, env?}` |
-| GET | /events (WS) | live updates {type: "service"|"server"|"deployment"|"confirmation"|"image_update"|"backup"|"restore", payload} |
+| GET | /events (WS) | live updates {type: "service"|"server"|"deployment"|"build_log"|"confirmation"|"image_update"|"backup"|"restore", payload} |
 
 ## Agent endpoints
 - `POST /agent/v1/join` JoinRequest → JoinResponse
@@ -170,6 +174,16 @@ Server-side, no agent changes. `internal/server/registry` (OCI distribution API,
 - Apply: `{}` → current tag pinned to its fresh digest; `{tag}` → validates the tag in the registry, switches the service image to `name:tag` and deploys it pinned. Every apply is a normal deployment, so `POST /services/{id}/rollback` returns to the previous one; a rollback is pinned to the digest the old deployment reported (`name@sha256:...`) because its tag may have moved since. If a service image is digest-only after rolling back to such a deployment, the checker keeps following the tag it recorded.
 - Events: `{type: "image_update", payload: ImageUpdate}` after each check, policy change and apply.
 - CLI: `atoll updates [--available] [-p PROJECT]`, `atoll updates --check SERVICE`, `atoll updates --apply SERVICE [--tag TAG]`, `atoll updates policy SERVICE notify|auto|off [--window 02:00-05:00]`. MCP tool `list_updates` (read-only).
+
+## Builds from source
+A service of kind `image` can be built from a GitHub repository instead of pulling a registry image. Server: `internal/server/git.go`; agent: `internal/agent/build.go`; types `GitSource`, `GitWebhook`, `BuildPayload`, `DeploymentLogs` in `internal/api/types.go`.
+- Source: `POST /projects/{id}/services` (or `PATCH /services/{id}`) with `git: {repo, branch?, context?, dockerfile?, build_args?, token?}` and no `image`. `repo` must be `https://github.com/OWNER/REPO` (`.git` accepted, no credentials in the URL); `branch` defaults to `main`; `context` is a subdirectory of the repo (default root); `dockerfile` is relative to the context (default `Dockerfile`); paths may not leave the repository. `build_args` become `--build-arg` (not secret: visible in the image history). `token` (GitHub token for a private repo) is write-only, stored encrypted; responses carry `has_token` only. A PATCH of `git` is partial (omitted fields and the token are kept; `clear_token: true` removes it); `{"git": null, "image": "..."}` switches back to a registry image. Services report `source: "image"|"git"` and `git.last_commit`.
+- Where: every build runs on the service's own server (the target worker), never on the control server; that server must be online (409 `server_offline` otherwise) and needs `git` and `docker` with BuildKit (`install-agent.sh` installs them). One build at a time per server (others wait their turn, up to the build timeout). Build timeout 20 min (`Config.BuildTimeout`).
+- Build: shallow fetch of one commit (the token is passed as an HTTP header via git config env, never in argv or logs; any occurrence in the output is replaced by `***`), `docker build`, tagged `atoll-build/<service_id>:<commit12>` and deployed as a local image (`ResolvedSpec.local_image`, never pulled). The deployment is `building` meanwhile and records `commit` when done. No Dockerfile at `<context>/<dockerfile>` is an error (the deployment fails with that message): automatic detection (Railpack/Nixpacks style) is not supported.
+- What gets built: create, redeploy (and PATCH) build the branch head; a webhook push builds exactly the pushed commit. Other deploys (env change, migration, restore...) reuse the last built image when it is on the target server, otherwise rebuild the commit that was running. A failed build fails the deployment; the running container is untouched.
+- Retention: each server keeps the 3 newest build images of a service (`Config.BuildKeep`) plus the one its container runs; older ones are removed after each build. Build logs are kept for the 10 newest deployments of a service (at most 5000 lines each, newest kept, `truncated: true`).
+- Logs: `GET /services/{id}/deployments/{dep}/logs?after=SEQ` returns the stored lines after `SEQ` (poll with the last `seq` seen); live lines are also published on `/events` as `{type: "build_log", payload: BuildLogEvent}`.
+- Webhook: on GitHub add a push webhook with the URL `<public URL>/api/v1/hooks/github/<service_id>`, content type `application/json` and the service's secret. Requests must carry a valid `X-Hub-Signature-256` (HMAC-SHA256 of the body with the secret), else 401. `ping` → 200; other events, pushes to other branches or tags, and branch deletions → 202 `{ignored: true, reason}`; a push to the configured branch → 202 `{deployment_id, commit}`. The secret is returned once when the git source is created (`webhook` in the create / first-switch response), afterwards only to a panel session (`GET /services/{id}/webhook`; API tokens get `has_secret` only); `POST /services/{id}/webhook/rotate` (session) issues a new one.
 
 ## Backups
 Restic to any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3, MinIO). Server: `internal/server/backups.go`; agent: `internal/agent/backup`. Types at the end of `internal/api/types.go`.

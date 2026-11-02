@@ -72,6 +72,9 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/domains", lvlRead, s.handleListDomains)
 	a("POST "+v+"/services/{id}/domains", needDomains, s.handleAddDomain)
 	a("GET "+v+"/services/{id}/deployments", lvlRead, s.handleListDeployments)
+	a("GET "+v+"/services/{id}/deployments/{dep}/logs", lvlRead, s.handleDeploymentLogs)
+	a("GET "+v+"/services/{id}/webhook", lvlRead, s.handleGetWebhook)
+	a("POST "+v+"/services/{id}/webhook/rotate", lvlSession, s.handleRotateWebhook)
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", lvlDeploy, s.handleExec)
@@ -127,6 +130,9 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/imports/{id}/cutover", needMigrate, s.handleCutover)
 	a("POST "+v+"/imports/{id}/rollback", needMigrate, s.handleZeaburRollback)
 	a("POST "+v+"/imports/{id}/cleanup", needMigrate, s.handleZeaburCleanup)
+
+	// builds from source (git.go): GitHub push webhook, verified by HMAC instead of a login
+	open("POST "+v+"/hooks/github/{service_id}", s.handleGitHubWebhook)
 
 	// live events
 	a("GET "+v+"/events", lvlRead, s.handleEvents)

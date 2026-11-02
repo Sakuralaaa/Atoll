@@ -461,6 +461,20 @@ func (c *Client) ListDeployments(ctx context.Context, serviceID string) ([]api.D
 	return v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/deployments", nil, &v)
 }
 
+// DeploymentLogs returns a deployment's build log (builds from source), lines after seq `after`.
+func (c *Client) DeploymentLogs(ctx context.Context, serviceID, deploymentID string, after int64) (*api.DeploymentLogs, error) {
+	var v api.DeploymentLogs
+	return &v, c.do(ctx, http.MethodGet, fmt.Sprintf("/services/%s/deployments/%s/logs?after=%d", esc(serviceID), esc(deploymentID), after), nil, &v)
+}
+
+// ServiceWebhook returns the GitHub push webhook of a service built from git. The secret is
+// only included for a panel session (API tokens get HasSecret); it is shown once when the
+// service is created.
+func (c *Client) ServiceWebhook(ctx context.Context, serviceID string) (*api.GitWebhook, error) {
+	var v api.GitWebhook
+	return &v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/webhook", nil, &v)
+}
+
 func (c *Client) ServiceMetrics(ctx context.Context, serviceID, rng string) ([]api.ContainerMetrics, error) {
 	var v []api.ContainerMetrics
 	return v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/metrics?range="+url.QueryEscape(rng), nil, &v)

@@ -49,7 +49,9 @@ func (st *stepper) do(name string, fn func() (string, error)) error {
 	return nil
 }
 
-// waitDeployments waits until every deployment is running (nil) or one fails.
+// waitDeployments waits until every deployment is running (nil) or one fails. Time spent
+// building from source does not count (a build has its own timeout): the wait restarts
+// once no deployment is building any more.
 func (s *Server) waitDeployments(ctx context.Context, ids []string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -63,6 +65,11 @@ func (s *Server) waitDeployments(ctx context.Context, ids []string, timeout time
 			case "running":
 			case "failed", "superseded":
 				return fmt.Errorf("deployment %s %s: %s", d.ID, d.Status, d.Message)
+			case "building", "queued":
+				pending++
+				if d.Status == "building" || s.buildPending(ctx, d) {
+					deadline = time.Now().Add(timeout)
+				}
 			default:
 				pending++
 			}
@@ -113,3 +120,13 @@ func (s *Server) waitHealthy(ctx context.Context, serviceIDs []string, since tim
 }
 
 func (s *Server) removeBlob(id string) { os.Remove(s.blobPath(id)) }
+
+// buildPending: a queued deployment of a git service whose build has not started yet (it
+// waits behind another deployment of the service).
+func (s *Server) buildPending(ctx context.Context, d *api.Deployment) bool {
+	if d.Status != "queued" {
+		return false
+	}
+	_, err := s.st.GetServiceGit(ctx, d.ServiceID)
+	return err == nil
+}

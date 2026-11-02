@@ -129,6 +129,7 @@ func (p Paths) TLSDir() string      { return filepath.Join(p.Root, "tls") }
 func (p Paths) CaddyDir() string    { return filepath.Join(p.Root, "caddy") }
 func (p Paths) FirewallDir() string { return filepath.Join(p.Root, "firewall") }
 func (p Paths) TmpDir() string      { return filepath.Join(p.Root, "tmp") }
+func (p Paths) BuildsDir() string   { return filepath.Join(p.Root, "builds") }
 func (p Paths) MeshFile() string    { return filepath.Join(p.Root, "mesh", "mesh.json") }
 
 // writeFileAtomic writes to a temp file in the same dir, fsyncs and renames over path.

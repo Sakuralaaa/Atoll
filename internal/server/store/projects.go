@@ -188,7 +188,11 @@ func (s *Store) SetDesiredStopped(ctx context.Context, id string, stopped bool) 
 
 // GetService returns a service and whether it is desired-stopped.
 func (s *Store) GetService(ctx context.Context, id string) (*api.Service, bool, error) {
-	return scanService(s.DB.QueryRowContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE id=?`, id))
+	v, stopped, err := scanService(s.DB.QueryRowContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE id=?`, id))
+	if err != nil {
+		return nil, false, err
+	}
+	return v, stopped, s.attachGit(ctx, v)
 }
 
 // ListServices returns services of a project ordered by name.
@@ -206,7 +210,16 @@ func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Servi
 		}
 		out = append(out, *v)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for i := range out {
+		if err := s.attachGit(ctx, &out[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // DeleteService removes a service row (cascades env, domains, deployments).

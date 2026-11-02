@@ -27,6 +27,7 @@ type Fake struct {
 	Containers map[string]*Container
 	Networks   map[string]bool
 	Images     map[string]agent.ImageInfo
+	Created    map[string]time.Time // image ref -> creation time (ListImages)
 	Calls      []string
 	seq        int
 
@@ -43,7 +44,7 @@ type Fake struct {
 
 func New() *Fake {
 	return &Fake{
-		Containers: map[string]*Container{}, Networks: map[string]bool{}, Images: map[string]agent.ImageInfo{},
+		Containers: map[string]*Container{}, Networks: map[string]bool{}, Images: map[string]agent.ImageInfo{}, Created: map[string]time.Time{},
 		PullErr: map[string]error{}, ExitOnStart: map[string]int{},
 	}
 }
@@ -329,6 +330,46 @@ func (f *Fake) TagImage(_ context.Context, source, target string) error {
 	f.call("tag %s %s", source, target)
 	f.Images[target] = i
 	return nil
+}
+
+func (f *Fake) ListImages(_ context.Context, repo string) ([]agent.ImageSummary, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []agent.ImageSummary
+	for ref, i := range f.Images {
+		if strings.HasPrefix(ref, repo+":") {
+			out = append(out, agent.ImageSummary{Ref: ref, ID: i.ID, Created: f.Created[ref]})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ref < out[j].Ref })
+	return out, nil
+}
+
+func (f *Fake) RemoveImage(_ context.Context, ref string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.Images[ref]; !ok {
+		return agent.ErrNotFound
+	}
+	f.call("rmi %s", ref)
+	delete(f.Images, ref)
+	delete(f.Created, ref)
+	return nil
+}
+
+// AddImage registers a local image (as a build would), created at t.
+func (f *Fake) AddImage(ref string, t time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.seq++
+	if f.Images == nil {
+		f.Images = map[string]agent.ImageInfo{}
+	}
+	if f.Created == nil { // a Fake built as a struct literal instead of New()
+		f.Created = map[string]time.Time{}
+	}
+	f.Images[ref] = agent.ImageInfo{ID: fmt.Sprintf("sha256:built%04d", f.seq)}
+	f.Created[ref] = t
 }
 
 var _ agent.Runtime = (*Fake)(nil)

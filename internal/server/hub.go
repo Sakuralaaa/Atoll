@@ -316,6 +316,11 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		if json.Unmarshal(env.Payload, &ev) == nil {
 			s.handleDeployEvent(ctx, c.nodeID, ev)
 		}
+	case api.MsgBuildLog:
+		var ev api.BuildLogEvent
+		if json.Unmarshal(env.Payload, &ev) == nil {
+			s.handleBuildLog(ctx, c.nodeID, ev)
+		}
 	case api.MsgLogLine:
 		var ev api.LogEvent
 		if json.Unmarshal(env.Payload, &ev) == nil {

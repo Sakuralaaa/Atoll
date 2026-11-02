@@ -51,6 +51,10 @@ type Config struct {
 	Logger          *slog.Logger
 	// TrustedProxies are peers whose X-Forwarded-For is believed (nil = loopback only).
 	TrustedProxies []netip.Prefix
+	// BuildTimeout bounds one build from source on a worker (20m); BuildKeep is how many
+	// build images a service keeps on its server for rollback (3).
+	BuildTimeout time.Duration
+	BuildKeep    int
 }
 
 // Server is the control plane.
@@ -98,6 +102,10 @@ func New(cfg Config) (*Server, error) {
 	def(&cfg.DNSWaitTimeout, 90*time.Second)
 	def(&cfg.CertWaitTimeout, 3*time.Minute)
 	def(&cfg.ProvisionPoll, 3*time.Second)
+	def(&cfg.BuildTimeout, 20*time.Minute)
+	if cfg.BuildKeep <= 0 {
+		cfg.BuildKeep = 3
+	}
 	if cfg.ResolvePublic == nil {
 		cfg.ResolvePublic = dns.DoH{}.Resolve
 	}

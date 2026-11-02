@@ -224,7 +224,7 @@ install_docker_apt() {
 	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$distro $codename stable" \
 		>/etc/apt/sources.list.d/docker.list
 	apt-get update -qq >/dev/null 2>&1 || true
-	apt-get install -y -qq --no-install-recommends docker-ce docker-ce-cli containerd.io >/dev/null || return 1
+	apt-get install -y -qq --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin >/dev/null || return 1
 }
 
 install_docker() {
@@ -254,6 +254,23 @@ install_docker() {
 		sleep 2
 	done
 	log "Docker installed"
+}
+
+# install_git: builds from source run `git` on this server (best effort: only builds need it).
+install_git() {
+	command -v git >/dev/null 2>&1 && return
+	log "installing git (used by builds from source)"
+	if command -v apt-get >/dev/null 2>&1; then
+		apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1 ||
+			{ apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1; }
+	elif command -v dnf >/dev/null 2>&1; then
+		dnf install -y -q git >/dev/null 2>&1
+	elif command -v yum >/dev/null 2>&1; then
+		yum install -y -q git >/dev/null 2>&1
+	elif command -v apk >/dev/null 2>&1; then
+		apk add --no-cache git >/dev/null 2>&1
+	fi
+	command -v git >/dev/null 2>&1 || warn "could not install git; builds from source on this server will fail until it is installed"
 }
 
 # ---------- Tailscale ----------
@@ -665,6 +682,7 @@ main() {
 	fi
 
 	install_docker
+	install_git
 	if [ "$NEED_JOIN" = 1 ]; then
 		setup_network
 	elif [ -n "$TS_AUTHKEY" ] && [ "$NO_TAILNET" = 0 ]; then

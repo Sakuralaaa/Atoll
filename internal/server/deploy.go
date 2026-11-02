@@ -108,6 +108,12 @@ func dedupe(in []string) []string {
 
 // deploy creates a Deployment for svc with a freshly resolved spec and pushes it.
 func (s *Server) deploy(ctx context.Context, serviceID, trigger string) (*api.Deployment, error) {
+	return s.deployCommit(ctx, serviceID, trigger, "")
+}
+
+// deployCommit is deploy; for a service built from git, commit ("" = see prepareBuild) is
+// the commit to build (a webhook push).
+func (s *Server) deployCommit(ctx context.Context, serviceID, trigger, commit string) (*api.Deployment, error) {
 	svc, _, err := s.st.GetService(ctx, serviceID)
 	if err != nil {
 		return nil, err
@@ -117,29 +123,48 @@ func (s *Server) deploy(ctx context.Context, serviceID, trigger string) (*api.De
 	if err != nil {
 		return nil, err
 	}
-	return s.deploySpec(ctx, svc, spec, trigger, warnings)
+	var build *api.BuildPayload
+	if svc.Git != nil {
+		node, err := s.serviceNode(ctx, svc)
+		if err != nil {
+			return nil, err
+		}
+		if build, err = s.prepareBuild(ctx, svc, &spec, node, trigger, commit); err != nil {
+			return nil, err
+		}
+	}
+	return s.deploySpecBuild(ctx, svc, spec, trigger, warnings, build)
 }
 
 // deploySpec records and sends a prepared spec (used directly by rollback).
 func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.ResolvedSpec, trigger string, warnings []string) (*api.Deployment, error) {
+	return s.deploySpecBuild(ctx, svc, spec, trigger, warnings, nil)
+}
+
+// deploySpecBuild is deploySpec with an optional build (git.go) that runs on the service's
+// server before the apply and fills spec.Image.
+func (s *Server) deploySpecBuild(ctx context.Context, svc *api.Service, spec api.ResolvedSpec, trigger string, warnings []string, build *api.BuildPayload) (*api.Deployment, error) {
 	cur, stopped, err := s.st.GetService(ctx, svc.ID)
 	if err != nil {
 		return nil, err
 	}
-	if stopped {
-		// An explicit deploy means the user wants it running again.
-		s.st.SetDesiredStopped(ctx, svc.ID, false)
-	}
 	node, err := s.serviceNode(ctx, cur) // current placement (a migration may just have moved it)
 	if err != nil {
 		return nil, err
+	}
+	online := s.hub.Online(node)
+	if build != nil && !online {
+		return nil, errf(409, "server_offline", "%v; builds from source run on the service's server, deploy again once it is back", ErrNodeOffline)
+	}
+	if stopped {
+		// An explicit deploy means the user wants it running again.
+		s.st.SetDesiredStopped(ctx, svc.ID, false)
 	}
 	spec.Stopped = false
 	d := api.Deployment{
 		ID: spec.DeploymentID, ServiceID: svc.ID, ServerID: node, Status: "queued", Trigger: trigger,
 		Message: strings.Join(warnings, "\n"), StartedAt: time.Now().UTC(),
 	}
-	online := s.hub.Online(node)
 	if !online {
 		d.Message = strings.TrimSpace("server offline; will apply when its agent reconnects\n" + d.Message)
 	}
@@ -150,7 +175,7 @@ func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.Reso
 	s.publish("deployment", d)
 	s.publishService(ctx, svc.ID)
 	if online {
-		s.enqueueApply(pendingApply{nodeID: node, serviceID: svc.ID, depID: d.ID, spec: spec})
+		s.enqueueApply(pendingApply{nodeID: node, serviceID: svc.ID, depID: d.ID, spec: spec, build: build})
 	}
 	return &d, nil
 }
@@ -159,6 +184,7 @@ func (s *Server) deploySpec(ctx context.Context, svc *api.Service, spec api.Reso
 type pendingApply struct {
 	nodeID, serviceID, depID string
 	spec                     api.ResolvedSpec
+	build                    *api.BuildPayload // git service: build first (git.go), then apply the built image
 }
 
 // applyQueue serializes the applies of one service: at most one is in flight, and of the
@@ -215,6 +241,13 @@ func (s *Server) sendApply(ctx context.Context, p pendingApply) {
 	if d, err := s.st.GetDeployment(ctx, p.depID); err == nil && d.Status == "superseded" {
 		return
 	}
+	if p.build != nil {
+		spec, ok := s.runBuild(ctx, p)
+		if !ok {
+			return
+		}
+		p.spec = spec
+	}
 	res, err := s.hub.Request(ctx, p.nodeID, api.MsgApply, api.ApplyPayload{Spec: p.spec}, s.cfg.TransferTimeout)
 	if err == nil && res.OK {
 		return
@@ -261,7 +294,7 @@ func (s *Server) handleDeployEvent(ctx context.Context, nodeID string, ev api.De
 		return
 	}
 	switch ev.Status {
-	case "queued", "pulling", "starting", "running", "failed":
+	case "queued", "building", "pulling", "starting", "running", "failed":
 	default:
 		s.log.Warn("unknown deploy status", "status", ev.Status)
 		return
@@ -293,7 +326,7 @@ func (s *Server) handleDeployEvent(ctx context.Context, nodeID string, ev api.De
 }
 
 func inProgress(status string) bool {
-	return status == "queued" || status == "pulling" || status == "starting"
+	return status == "queued" || status == "building" || status == "pulling" || status == "starting"
 }
 
 // handleStatus stores container states and derives service status.

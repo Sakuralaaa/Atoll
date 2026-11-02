@@ -34,6 +34,7 @@ type Agent struct {
 	Mgr      *Manager
 	Ingress  *Ingress
 	Volumes  *VolumeTransfer
+	Builds   *Builder // builds from source (MsgBuild)
 	Firewall interface {
 		Firewall
 		Loop(ctx context.Context)
@@ -99,6 +100,13 @@ func New(cfg *Config, rt Runtime, fw interface {
 		a.Ingress.Image = cfg.CaddyImage
 	}
 	a.Volumes = NewVolumeTransfer(rt, p, cfg.NodeToken)
+	a.Builds = NewBuilder(rt, p, a.Emit, log)
+	a.Builds.CurrentImage = func(serviceID string) string {
+		if spec, err := a.Mgr.Store().Load(serviceID); err == nil {
+			return spec.Image
+		}
+		return ""
+	}
 	a.HelloFunc = func(ctx context.Context) api.HelloPayload { return CollectHello(ctx, rt, cfg.NodeID) }
 	return a
 }
@@ -511,6 +519,17 @@ func (a *Agent) Handle(ctx context.Context, msgType string, raw json.RawMessage)
 			return "", err
 		}
 		return a.handleNetwork(ctx, p)
+	case api.MsgBuild:
+		p, err := decode[api.BuildPayload](raw)
+		if err != nil {
+			return "", err
+		}
+		res, err := a.Builds.Build(ctx, p)
+		if err != nil {
+			return "", err
+		}
+		b, _ := json.Marshal(res)
+		return string(b), nil
 	case api.MsgVolumeExport, api.MsgVolumeImport:
 		p, err := decode[api.VolumeTransferPayload](raw)
 		if err != nil {

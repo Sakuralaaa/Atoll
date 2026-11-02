@@ -20,13 +20,13 @@ func (s *Store) CreateDeployment(ctx context.Context, d api.Deployment, spec api
 	return err
 }
 
-const depCols = `id, service_id, server_id, image_digest, status, trigger, message, started_at, finished_at`
+const depCols = `id, service_id, server_id, image_digest, status, trigger, message, started_at, finished_at, commit_sha`
 
 func scanDep(row interface{ Scan(...any) error }) (*api.Deployment, error) {
 	var d api.Deployment
 	var st string
 	var fin sql.NullString
-	if err := row.Scan(&d.ID, &d.ServiceID, &d.ServerID, &d.ImageDigest, &d.Status, &d.Trigger, &d.Message, &st, &fin); err != nil {
+	if err := row.Scan(&d.ID, &d.ServiceID, &d.ServerID, &d.ImageDigest, &d.Status, &d.Trigger, &d.Message, &st, &fin, &d.Commit); err != nil {
 		return nil, mapErr(err)
 	}
 	d.StartedAt = parseTS(st)
@@ -89,7 +89,7 @@ func (s *Store) UpdateDeployment(ctx context.Context, id, status, message, diges
 // keepID was in flight is the newest desired state and still has to run.
 func (s *Store) SupersedeOthers(ctx context.Context, serviceID, keepID string) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE deployments SET status='superseded', finished_at=COALESCE(finished_at, ?)
-		WHERE service_id=? AND id<>? AND status IN ('running','queued','pulling','starting')
+		WHERE service_id=? AND id<>? AND status IN ('running','queued','building','pulling','starting')
 		AND rowid < (SELECT rowid FROM deployments WHERE id=?)`, TS(time.Now()), serviceID, keepID, keepID)
 	return err
 }
@@ -98,7 +98,7 @@ func (s *Store) SupersedeOthers(ctx context.Context, serviceID, keepID string) e
 // not finished yet.
 func (s *Store) NewerInProgress(ctx context.Context, serviceID, id string) (bool, error) {
 	var n int
-	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM deployments WHERE service_id=? AND status IN ('queued','pulling','starting')
+	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM deployments WHERE service_id=? AND status IN ('queued','building','pulling','starting')
 		AND rowid > (SELECT rowid FROM deployments WHERE id=?)`, serviceID, id).Scan(&n)
 	return n > 0, err
 }
@@ -128,11 +128,10 @@ func (s *Store) DesiredSpecsForNode(ctx context.Context, nodeID string) ([]api.R
 	rows.Close()
 	out := []api.ResolvedSpec{}
 	for _, p := range ids {
-		d, err := s.LatestDeployment(ctx, p.id)
-		if err != nil {
-			continue // never deployed
+		spec, err := s.latestRunnableSpec(ctx, p.id)
+		if err == ErrNotFound {
+			continue // never deployed (or only builds that produced no image)
 		}
-		spec, err := s.DeploymentSpec(ctx, d.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -140,6 +139,35 @@ func (s *Store) DesiredSpecsForNode(ctx context.Context, nodeID string) ([]api.R
 		out = append(out, *spec)
 	}
 	return out, nil
+}
+
+// latestRunnableSpec is the spec of the newest deployment that has an image: a deployment of
+// a git service has none until its build finished (or when the build failed).
+func (s *Store) latestRunnableSpec(ctx context.Context, serviceID string) (*api.ResolvedSpec, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT id FROM deployments WHERE service_id=? ORDER BY started_at DESC, rowid DESC LIMIT 50`, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		spec, err := s.DeploymentSpec(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if spec.Image != "" {
+			return spec, nil
+		}
+	}
+	return nil, ErrNotFound
 }
 
 var _ = json.Marshal

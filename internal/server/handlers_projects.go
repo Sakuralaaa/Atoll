@@ -277,6 +277,15 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 			return err
 		}
 	}
+	if req.Git != nil {
+		node := placement
+		if node == "" {
+			node = p.ServerID
+		}
+		if !s.hub.Online(node) {
+			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
+		}
+	}
 	svc, err := s.createService(r.Context(), p, req.Service, req.Env, true)
 	if err != nil {
 		return err
@@ -290,10 +299,20 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
-	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.create", svc.ID, map[string]string{"name": svc.Name, "image": svc.Image})
+	audit := map[string]string{"name": svc.Name, "image": svc.Image}
+	if svc.Git != nil {
+		audit["git"] = svc.Git.Repo + "@" + svc.Git.Branch
+	}
+	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.create", svc.ID, audit)
 	svc, _, err = s.st.GetService(r.Context(), svc.ID)
 	if err != nil {
 		return err
+	}
+	if svc.Git != nil { // the webhook secret is shown once, here (later: panel session only)
+		if g, err := s.st.GetServiceGit(r.Context(), svc.ID); err == nil {
+			wh := s.webhookInfo(r.Context(), r, svc.ID, g, true)
+			svc.Webhook = &wh
+		}
 	}
 	writeJSON(w, 201, svc)
 	return nil
@@ -336,6 +355,18 @@ func (s *Server) createService(ctx context.Context, p *api.Project, v api.Servic
 		}
 		env = append(merged, env...)
 	}
+	var git *api.GitSource
+	if v.Git != nil {
+		if v.Kind != "image" {
+			return nil, badRequest("a git source only applies to kind \"image\" (not %q)", v.Kind)
+		}
+		g := *v.Git
+		if err := validateGitSource(&g); err != nil {
+			return nil, err
+		}
+		git, v.Git, v.Image, v.RegistryCredID = &g, &g, "", ""
+	}
+	v.Webhook, v.Source = nil, ""
 	if err := validateServiceSpec(&v); err != nil {
 		return nil, err
 	}
@@ -356,6 +387,15 @@ func (s *Server) createService(ctx context.Context, p *api.Project, v api.Servic
 	}
 	if err := s.st.ReplaceEnv(ctx, v.ID, env); err != nil {
 		return nil, err
+	}
+	if git != nil {
+		if _, err := s.saveGitSource(ctx, v.ID, *git, true); err != nil {
+			s.st.DeleteService(ctx, v.ID)
+			return nil, err
+		}
+		v.Git = &api.GitSource{Repo: git.Repo, Branch: git.Branch, Context: git.Context, Dockerfile: git.Dockerfile,
+			BuildArgs: git.BuildArgs, HasToken: git.Token != ""}
+		v.Source = "git"
 	}
 	s.publishService(ctx, v.ID)
 	return &v, nil
@@ -393,8 +433,33 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 			return badRequest("to move a service to another server use POST /api/v1/services/%s/migrate", svc.ID)
 		}
 	}
-	for _, f := range []string{"id", "project_id", "kind", "status", "replicas", "created_at", "domains", "server_id"} {
+	for _, f := range []string{"id", "project_id", "kind", "status", "replicas", "created_at", "domains", "server_id", "source", "webhook"} {
 		delete(raw, f)
+	}
+	gitRaw, gitInPatch := raw["git"]
+	if svc.Git != nil && !gitInPatch {
+		if v, ok := raw["image"]; ok {
+			var img string
+			json.Unmarshal(v, &img)
+			if img != svc.Image {
+				return badRequest("the image of a service built from git is set by its builds; to deploy a registry image instead PATCH {\"git\": null, \"image\": \"...\"}")
+			}
+		}
+	}
+	if gitInPatch && string(gitRaw) != "null" && svc.Git != nil {
+		// partial git patch: fields not given keep their value (the token stays unless given or cleared)
+		var over, base map[string]json.RawMessage
+		if err := json.Unmarshal(gitRaw, &over); err != nil {
+			return badRequest("invalid git: %v", err)
+		}
+		cur := *svc.Git
+		cur.HasToken, cur.LastCommit = false, ""
+		b, _ := json.Marshal(cur)
+		json.Unmarshal(b, &base)
+		for k, v := range over {
+			base[k] = v
+		}
+		raw["git"], _ = json.Marshal(base)
 	}
 	merged, _ := json.Marshal(svc)
 	var cur map[string]json.RawMessage
@@ -408,6 +473,37 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 		return badRequest("invalid service fields: %v", err)
 	}
 	next.Name = strings.ToLower(strings.TrimSpace(next.Name))
+	next.Webhook, next.Source = nil, ""
+	// git source changes (git.go): set/replace, or null to go back to a registry image
+	var gitNext *api.GitSource
+	switch {
+	case !gitInPatch:
+	case next.Git == nil:
+		if svc.Git != nil && (strings.TrimSpace(next.Image) == "" || strings.HasPrefix(next.Image, BuildImageRepo)) {
+			return badRequest("to stop building from git give the registry image to deploy instead: {\"git\": null, \"image\": \"...\"}")
+		}
+	default:
+		if svc.Kind != "image" {
+			return badRequest("a git source only applies to kind \"image\" (not %q)", svc.Kind)
+		}
+		g := *next.Git
+		if err := validateGitSource(&g); err != nil {
+			return err
+		}
+		gitNext = &g
+		if svc.Git == nil {
+			next.Image, next.RegistryCredID = "", ""
+		}
+	}
+	if gitNext != nil {
+		nodeID, err := s.serviceNode(r.Context(), svc)
+		if err != nil {
+			return err
+		}
+		if !s.hub.Online(nodeID) {
+			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
+		}
+	}
 	if err := validateServiceSpec(&next); err != nil {
 		return err
 	}
@@ -416,6 +512,18 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 			return errf(409, "conflict", "a service named %q already exists in this project", next.Name)
 		}
 		return err
+	}
+	newGit := false
+	switch {
+	case gitNext != nil:
+		newGit = svc.Git == nil
+		if _, err := s.saveGitSource(r.Context(), svc.ID, *gitNext, newGit); err != nil {
+			return err
+		}
+	case gitInPatch && next.Git == nil && svc.Git != nil:
+		if err := s.st.DeleteServiceGit(r.Context(), svc.ID); err != nil {
+			return err
+		}
 	}
 	if _, err := s.deploy(r.Context(), svc.ID, "redeploy"); err != nil {
 		return err
@@ -430,6 +538,12 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 	out, _, err := s.st.GetService(r.Context(), svc.ID)
 	if err != nil {
 		return err
+	}
+	if newGit { // first switch to git: the webhook secret is shown once, here
+		if g, err := s.st.GetServiceGit(r.Context(), svc.ID); err == nil {
+			wh := s.webhookInfo(r.Context(), r, svc.ID, g, true)
+			out.Webhook = &wh
+		}
 	}
 	writeJSON(w, 200, out)
 	return nil
@@ -513,6 +627,9 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) error {
 	spec, err := s.st.DeploymentSpec(r.Context(), old.ID)
 	if err != nil {
 		return err
+	}
+	if spec.Image == "" {
+		return badRequest("deployment %s has no image to roll back to (its build did not finish)", old.ID)
 	}
 	// Restore the service's spec fields so later redeploys keep the rolled-back version.
 	svc.Image = spec.Image
