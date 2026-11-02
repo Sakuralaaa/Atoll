@@ -354,7 +354,7 @@ func TestRestoreToAnotherServerAfterLoss(t *testing.T) {
 	for _, s := range job.Steps {
 		names = append(names, s.Name)
 	}
-	if strings.Join(names, "|") != "Move project to target server|Restore data|Update ingress|Switch DNS" {
+	if strings.Join(names, "|") != "Move project to target server|Restore data|Switch DNS|Update ingress" {
 		t.Fatalf("steps %v", names)
 	}
 	var got api.Project

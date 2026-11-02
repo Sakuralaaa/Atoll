@@ -893,7 +893,7 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 	}
 	cross := job.ToServer != job.FromServer
 	if cross {
-		for _, n := range []string{"Move project to target server", "Restore data", "Update ingress", "Switch DNS"} {
+		for _, n := range []string{"Move project to target server", "Restore data", "Switch DNS", "Update ingress"} {
 			st.idx(n)
 		}
 	} else {
@@ -901,11 +901,22 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 	}
 	st.save()
 
+	var releaseHosts = func() {}
+	defer func() { releaseHosts() }()
 	if cross {
 		svcs, err := s.st.ListServices(ctx, job.ProjectID)
 		if err != nil {
 			finish(err)
 			return
+		}
+		// Hold the project's hostnames: the target must not request certificates for names
+		// that still resolve to the source until DNS has switched.
+		if doms, err := s.st.ListDomains(ctx, "", job.ProjectID); err == nil {
+			var hosts []string
+			for _, d := range doms {
+				hosts = append(hosts, d.Hostname)
+			}
+			releaseHosts = s.holdRoutes(hosts)
 		}
 		if err := st.do("Move project to target server", func() (string, error) {
 			if err := s.st.SetProjectServer(ctx, job.ProjectID, job.ToServer); err != nil {
@@ -970,13 +981,14 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 		finish(err)
 		return
 	}
-	st.do("Update ingress", func() (string, error) {
-		if err := s.pushIngressSync(ctx, job.ToServer); err != nil {
-			return "", err
-		}
-		return "routes now served by target", nil
-	})
-	finish(st.do("Switch DNS", func() (string, error) {
+	// DNS first (wait until the names resolve to the target), then routes, then HTTPS
+	// confirmed in the background — same order as a migration.
+	var provisioning []api.Domain
+	toIP := ""
+	if n, err := s.st.GetNode(ctx, job.ToServer); err == nil {
+		toIP = n.PublicIPv4
+	}
+	dnsErr := st.do("Switch DNS", func() (string, error) {
 		doms, err := s.st.ListDomains(ctx, "", job.ProjectID)
 		if err != nil {
 			return "", err
@@ -988,7 +1000,9 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 		manual := false
 		for _, d := range doms {
 			dd := d.Domain
-			s.applyDNS(ctx, &dd, job.ToServer)
+			if s.upsertDNS(ctx, &dd, job.ToServer, statusProvisioning) {
+				provisioning = append(provisioning, dd)
+			}
 			switch dd.Status {
 			case "error":
 				failed = append(failed, dd.Hostname+": "+dd.Error)
@@ -996,15 +1010,31 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 				manual = true
 			}
 		}
+		late := s.waitAllResolve(ctx, provisioning, toIP)
 		if len(failed) > 0 {
 			return "", errors.New("DNS update failed for " + strings.Join(failed, ", "))
 		}
 		if manual {
-			n, _ := s.st.GetNode(ctx, job.ToServer)
-			return fmt.Sprintf("DNS not managed by Atoll: point %d record(s) at %s manually", len(doms), orUnknown(n.PublicIPv4)), nil
+			return fmt.Sprintf("DNS not managed by Atoll: point %d record(s) at %s manually", len(doms), orUnknown(toIP)), nil
 		}
-		return fmt.Sprintf("%d record(s) now point at target", len(doms)), nil
-	}))
+		msg := fmt.Sprintf("%d record(s) now point at target", len(doms))
+		if len(late) > 0 {
+			msg += fmt.Sprintf(" (not visible yet after %s: %s; routed anyway)", s.cfg.DNSWaitTimeout, strings.Join(late, ", "))
+		}
+		return msg, nil
+	})
+	releaseHosts()
+	st.do("Update ingress", func() (string, error) {
+		if err := s.pushIngressSync(ctx, job.ToServer); err != nil {
+			return "", err
+		}
+		return "routes now served by target", nil
+	})
+	for _, d := range provisioning {
+		d := d
+		s.goBG(func(bg context.Context) { s.confirmHTTPS(bg, d) })
+	}
+	finish(dnsErr)
 }
 
 func (s *Server) handleGetRestore(w http.ResponseWriter, r *http.Request) error {
