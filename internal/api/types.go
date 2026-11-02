@@ -30,6 +30,12 @@ type Server struct {
 	CreatedAt    time.Time    `json:"created_at"`
 	// latest sample, filled by server from metrics
 	Usage *NodeMetrics `json:"usage,omitempty"`
+	// AgentLatest is the agent version this control server hosts for the server's arch ("" =
+	// none hosted). An agent on another version can be upgraded from the panel when
+	// AgentSelfUpgrade is true; older agents (before v0.1.6) need install-agent.sh once.
+	AgentLatest      string        `json:"agent_latest,omitempty"`
+	AgentSelfUpgrade bool          `json:"agent_self_upgrade,omitempty"`
+	AgentUpgrade     *AgentUpgrade `json:"agent_upgrade,omitempty"`
 }
 
 type JoinToken struct {

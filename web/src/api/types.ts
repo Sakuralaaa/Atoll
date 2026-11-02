@@ -17,7 +17,20 @@ export interface Server {
   cpu_cores: number; mem_mb: number; disk_gb: number; agent_version: string
   last_seen_at: string; created_at: string
   usage?: NodeMetrics
+  /** agent version this control server hosts for the server's arch ("" / missing = none) */ agent_latest?: string
+  /** the agent can upgrade itself from the panel (v0.1.6+) */ agent_self_upgrade?: boolean
+  /** last panel-started agent upgrade (kept until the control server restarts) */ agent_upgrade?: AgentUpgrade
 }
+
+export interface AgentUpgrade {
+  state: 'upgrading' | 'done' | 'failed' | string
+  from: string; to: string; error?: string
+  /** the new binary did not reconnect and the previous one runs again */ rolled_back?: boolean
+  started_at: string; finished_at?: string
+}
+
+/** One row of POST /servers/agent-upgrade. */
+export interface AgentUpgradeRow { id: string; upgrade?: AgentUpgrade; code?: string; error?: string }
 
 /** Private-network state an agent reports (internal/api NodeNetwork). */
 export interface NodeNetwork {

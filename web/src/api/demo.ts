@@ -24,7 +24,7 @@ const TAILNET: Record<string, [string, boolean]> = { phx: ['100.64.0.10', true],
 const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s => ({
   id: s.id, name: s.name, role: s.role ?? 'worker', status: s.status, public_ipv4: s.ip, provider: s.provider, region: s.region,
   tailnet_host: `${s.id}.tail3c1a.ts.net`, os: s.os, arch: s.arch, cpu_cores: s.cpu, mem_mb: s.memGB * 1024, disk_gb: s.diskGB,
-  agent_version: 'v0.1.0', last_seen_at: iso(s.status === 'online' ? 8e3 : 12 * 60e3), created_at: '2026-10-12T08:00:00Z',
+  agent_version: 'v0.1.5', agent_latest: 'v0.1.6', agent_self_upgrade: s.id !== 'sin', last_seen_at: iso(s.status === 'online' ? 8e3 : 12 * 60e3), created_at: '2026-10-12T08:00:00Z',
   // demo private network: phx + fra joined the tailnet (fra still on the public channel), sin not yet
   ...(TAILNET[s.id] ? { tailnet_ip: TAILNET[s.id][0], network: { provider: 'tailscale', state: 'running', via_tailnet: TAILNET[s.id][1], control_url: TAILNET[s.id][1] ? 'http://100.64.0.4:7301' : 'https://panel.example.com', fallback_urls: TAILNET[s.id][1] ? ['https://panel.example.com'] : [] } } : { network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } }),
   usage: { at: iso(8e3), cpu_pct: s.cpuUse, mem_used_mb: Math.round(s.memGB * 1024 * s.memUse / 100), mem_total_mb: s.memGB * 1024, disk_used_gb: +(s.diskGB * s.diskUse / 100).toFixed(1), disk_total_gb: s.diskGB, net_rx_bps: 120e3, net_tx_bps: 80e3, load1: s.cpuUse / 25 },
@@ -270,6 +270,18 @@ function tokenPerms(b: { scope?: string; permissions?: string[]; projects?: stri
   return { permissions: perms, projects, require_approval: !!b.require_approval, scope }
 }
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
+
+/** Demo agent upgrade: "upgrading" for a few seconds, then done on the new version. */
+function demoAgentUpgrade(id: string) {
+  const s = servers.find(x => x.id === id) ?? fail(404, 'server not found')
+  if (s.status !== 'online') fail(409, `${s.name} is offline`)
+  if (!s.agent_self_upgrade) fail(409, `the agent on ${s.name} (${s.agent_version}) cannot upgrade itself; run install-agent.sh once on that server`)
+  if (s.agent_version === s.agent_latest) fail(409, `${s.name} already runs ${s.agent_latest}`)
+  const u = { state: 'upgrading', from: s.agent_version, to: s.agent_latest!, started_at: new Date().toISOString() }
+  s.agent_upgrade = u
+  setTimeout(() => { s.agent_version = u.to; s.agent_upgrade = { ...u, state: 'done', finished_at: new Date().toISOString() } }, 6000)
+  return u
+}
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 
 function metrics(seed: number, base: number, amp: number, range: string) {
@@ -314,6 +326,11 @@ function route(method: string, path: string, body: any): unknown {
   if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }
 
   if (G && m('servers')) return servers
+  if (P && m('servers/agent-upgrade')) {
+    const ids: string[] = body?.ids?.length ? body.ids : servers.filter(s => s.status === 'online' && s.agent_version !== s.agent_latest).map(s => s.id)
+    return ids.map(id => { try { return { id, upgrade: demoAgentUpgrade(id) } } catch (e) { return { id, code: 'agent_too_old', error: (e as Error).message } } })
+  }
+  if (P && (a = m('servers/*/agent-upgrade'))) return demoAgentUpgrade(a[0])
   if (P && m('servers/join-token')) return { token: 'atl_join_7Hq2xV9mK4pR', command: `curl -fsSL ${settings.public_url}/install.sh | sudo sh -s -- --server ${settings.public_url} --join atl_join_7Hq2xV9mK4pR`, expires_at: new Date(now + H).toISOString() }
   if ((a = m('servers/*/metrics'))) {
     const s = servers.find(x => x.id === a![0])!; const u = s.usage!

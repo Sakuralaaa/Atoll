@@ -86,19 +86,24 @@ func newServersCmd(app *App) *cobra.Command {
 				return app.printJSON(list)
 			}
 			tw := app.table()
-			fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tIP\tCPU\tMEM\tDISK\tLAST SEEN")
+			fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tIP\tCPU\tMEM\tDISK\tAGENT\tLAST SEEN")
 			for _, s := range list {
 				cpu, mem := "-", "-"
 				if s.Usage != nil {
 					cpu = fmt.Sprintf("%.0f%%", s.Usage.CPUPct)
 					mem = fmt.Sprintf("%d/%dMB", s.Usage.MemUsedMB, s.Usage.MemTotalMB)
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%dGB\t%s\n", s.ID, s.Name, s.Status, s.PublicIPv4, cpu, mem, s.DiskGB, ago(s.LastSeenAt))
+				agentV := s.AgentVersion
+				if s.AgentLatest != "" && s.AgentVersion != s.AgentLatest {
+					agentV += " → " + s.AgentLatest
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%dGB\t%s\t%s\n", s.ID, s.Name, s.Status, s.PublicIPv4, cpu, mem, s.DiskGB, agentV, ago(s.LastSeenAt))
 			}
 			return tw.Flush()
 		},
 	})
 	cmd.AddCommand(newServerNetworkCmd(app))
+	cmd.AddCommand(newUpgradeAgentCmd(app))
 	return cmd
 }
 
@@ -243,5 +248,61 @@ func newServicesCmd(app *App) *cobra.Command {
 	}
 	rm.Flags().StringVarP(&rmProject, "project", "p", "", "project name or id (to disambiguate service names)")
 	cmd.AddCommand(ls, rm, newServiceMigrateCmd(app), newServiceWebhookCmd(app))
+	return cmd
+}
+
+func newUpgradeAgentCmd(app *App) *cobra.Command {
+	var all bool
+	cmd := &cobra.Command{
+		Use:   "upgrade-agent [SERVER...] | --all",
+		Short: "Upgrade the agent on servers to the control server's version (verified, rolls back if it does not reconnect)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if all == (len(args) > 0) {
+				return fmt.Errorf("name servers or pass --all")
+			}
+			c, err := app.client()
+			if err != nil {
+				return err
+			}
+			ctx := ctxOf(cmd)
+			var ids []string
+			for _, a := range args {
+				s, err := c.ResolveServer(ctx, a)
+				if err != nil {
+					return err
+				}
+				ids = append(ids, s.ID)
+			}
+			rows, err := c.UpgradeAgents(ctx, ids)
+			if err != nil {
+				return err
+			}
+			if app.JSON {
+				return app.printJSON(rows)
+			}
+			if len(rows) == 0 {
+				fmt.Fprintln(app.Out, "Every online agent is up to date.")
+				return nil
+			}
+			tw := app.table()
+			fmt.Fprintln(tw, "SERVER\tRESULT")
+			failed := 0
+			for _, r := range rows {
+				if r.Upgrade != nil {
+					fmt.Fprintf(tw, "%s\tupgrading %s → %s\n", r.ID, r.Upgrade.From, r.Upgrade.To)
+				} else {
+					failed++
+					fmt.Fprintf(tw, "%s\t%s\n", r.ID, r.Error)
+				}
+			}
+			tw.Flush()
+			fmt.Fprintln(app.Out, "Agents restart in a few seconds; follow with `atoll servers ls`.")
+			if failed > 0 {
+				return fmt.Errorf("%d of %d servers were not upgraded", failed, len(rows))
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "every online server whose agent is on another version")
 	return cmd
 }

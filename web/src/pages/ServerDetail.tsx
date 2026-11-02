@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Info, Code2, SquareTerminal, BarChart3, Cpu, Settings, Bell, MemoryStick, HardDrive, Minus, Plus, RefreshCw, Server as ServerIcon, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Info, Code2, SquareTerminal, BarChart3, Cpu, Settings, Bell, MemoryStick, HardDrive, Minus, Plus, Server as ServerIcon, ChevronDown } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Avatar, Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks, statusText } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, CardSkeleton, Select, Skeleton, TextInput, CodeBlock } from '../components/feedback'
@@ -11,6 +11,7 @@ import type { Project, Server } from '../api/types'
 import { useProjects } from './Projects'
 import { NetBadge, ServerNetworkAction, useNetState } from '../components/ServerNetwork'
 import { useT } from '../i18n'
+import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
 const projectsOn = (ps: Project[] | undefined, sid: string) => (ps ?? []).filter(p => p.server_id === sid)
@@ -65,7 +66,7 @@ function InfoTab({ s }: { s: Server }) {
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">运行信息</div>
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
-          <KV k="Agent" v={s.agent_version || '—'} />
+          <KV k="Agent" v={<span className="flex flex-wrap items-center justify-end gap-2">{s.agent_version || '—'}<AgentUpgradeBadge s={s} /></span>} />
           <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<span className="font-mono text-[13px]">{s.tailnet_ip || '—'}</span>} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
@@ -201,7 +202,8 @@ function SettingsTab({ s }: { s: Server }) {
       </Section>
       <NetworkSection s={s} />
       <Section title="Agent">
-        <Row t="Atoll Agent" d={`${s.agent_version || '未知版本'} · 本地保存期望状态，中控离线时容器照常运行`}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? '已连接' : statusText[s.status] ?? s.status}</span>{isDemo() && <Button size="sm"><RefreshCw size={14} />更新 Agent</Button>}</Row>
+        <Row t="Atoll Agent" d={`${s.agent_version || '未知版本'} · 本地保存期望状态，中控离线时容器照常运行`}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? '已连接' : statusText[s.status] ?? s.status}</span><AgentUpgradeAction s={s} /></Row>
+        {s.agent_upgrade?.state === 'failed' && s.agent_upgrade.error && <div className="px-6 pb-4 -mt-2 text-[12.5px] text-[#ef4444] [overflow-wrap:anywhere]">{s.agent_upgrade.error}</div>}
         <Row t="防火墙" d="80/443 仅放行 Cloudflare IP；SSH 与 Agent 只走 Tailscale"><Badge tone="green">已启用</Badge></Row>
       </Section>
       {isDemo() && <Section title="资源保留">

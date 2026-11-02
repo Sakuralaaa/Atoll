@@ -11,6 +11,7 @@ import type { JoinToken } from '../api/types'
 import { NetBadge } from '../components/ServerNetwork'
 import { useT } from '../i18n'
 import { ControlCard } from './Control'
+import { AgentUpgradeAll, AgentUpgradeBadge } from '../components/AgentUpgrade'
 
 export default function Servers() {
   const { t } = useT()
@@ -35,6 +36,7 @@ export default function Servers() {
           </div>
         </div>
         <ControlCard />
+        <AgentUpgradeAll servers={list} />
         <Segment value="s" items={[{ k: 's', l: '服务器', icon: <Server size={15} /> }]} />
         <div className="mt-6">
           {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -55,6 +57,7 @@ export default function Servers() {
                         {needsAttention(s) && <Badge><AlertCircle size={12} />需要处理</Badge>}
                         {s.role === 'control' && <Badge tone="violet">中控</Badge>}
                         {s.status === 'pending' && <Badge tone="zinc">等待连接</Badge>}
+                        <AgentUpgradeBadge s={s} />
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
                         <span className="truncate">{s.os || '—'}</span>

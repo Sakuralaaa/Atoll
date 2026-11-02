@@ -144,7 +144,7 @@ gh attestation verify atoll-server-linux-amd64 --repo Sakuralaaa/Atoll
 | 要做的事 | 怎么做 |
 | --- | --- |
 | 升级中控 | 面板「中控 → 更新」，或重跑 `install-server.sh --version vX.Y.Z` |
-| 升级 agent | 中控升级后会刷新它托管的 agent 二进制；在节点上重跑添加命令（已加入的节点会跳过加入步骤） |
+| 升级 agent | 面板「服务器」页顶部「全部升级」，或单台服务器「设置 → Agent」；CLI `atoll servers upgrade-agent --all`。校验 SHA-256 后替换，新 agent 两分钟内没连回就自动回滚，容器不重建。v0.1.6 之前的 agent 需要在节点上重跑一次添加命令（已加入的节点会跳过加入步骤） |
 | 中控备份和迁移 | 见 [docs/control.md](docs/control.md) |
 | 看日志 | `journalctl -u atoll-server -f`、`journalctl -u atoll-agent -f`，或在面板「中控」页查看 |
 | 清理磁盘 | 构建镜像每个服务保留最近 3 个；全局清理用 `docker system prune` |

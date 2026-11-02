@@ -18,6 +18,7 @@ import (
 
 func (s *Server) withUsage(ctx context.Context, n *api.Server) {
 	n.Usage, _ = s.st.LatestNodeMetrics(ctx, n.ID)
+	s.withAgentInfo(n)
 }
 
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) error {

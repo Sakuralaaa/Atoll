@@ -97,6 +97,22 @@ func main() {
 		}
 	case "tailnet":
 		os.Exit(tailnetCmd(os.Args[2:]))
+	case "upgrade-helper": // started by the agent itself (systemd-run) for a panel upgrade
+		fs := flag.NewFlagSet("upgrade-helper", flag.ExitOnError)
+		var o agent.HelperOptions
+		fs.StringVar(&o.Target, "target", "/usr/local/bin/atoll-agent", "binary to replace")
+		fs.StringVar(&o.New, "new", "", "verified new binary")
+		fs.StringVar(&o.Unit, "unit", "atoll-agent", "systemd unit")
+		fs.StringVar(&o.Marker, "marker", "", "connection marker the new agent writes")
+		fs.StringVar(&o.Result, "result", "", "where the result JSON is written")
+		fs.DurationVar(&o.Timeout, "timeout", 120*time.Second, "how long the new agent has to reconnect")
+		_ = fs.Parse(os.Args[2:])
+		res := agent.RunUpgradeHelper(context.Background(), o)
+		if !res.OK {
+			log.Error("agent upgrade failed", "err", res.Error, "rolled_back", res.RolledBack)
+			os.Exit(1)
+		}
+		log.Info("agent upgraded", "from", res.FromVersion, "to", res.ToVersion)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -139,6 +155,7 @@ func run(cfgPath string, log *slog.Logger) error {
 	fw := firewall.New(cfg.FirewallEnabled(), paths.FirewallDir(), log)
 	a := agent.New(cfg, rt, fw, log)
 	a.CfgPath = cfgPath
+	a.Upgrades = agent.NewUpgrader(paths)
 
 	// Cross-server service mesh: forwarders over the tailnet, state kept locally.
 	mk := mesh.New(rt, paths, log)

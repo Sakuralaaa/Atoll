@@ -28,15 +28,17 @@ const (
 	MsgNetwork      = "network"       // NetworkPayload: join the tailnet and/or switch the control URL (verified first); result Output = JSON NetworkResult
 	MsgMesh         = "mesh"          // MeshPayload: full cross-server service mesh of this node; agent persists it and runs forwarders
 	MsgBuild        = "build"         // BuildPayload: clone + docker build on this worker (one at a time); result Output = JSON BuildResult; log via MsgBuildLog
+	MsgUpgrade      = "upgrade"       // UpgradePayload: replace the agent binary (verified) and restart; result Output = JSON UpgradeStarted; outcome via MsgUpgradeResult
 
 	// agent -> server
-	MsgHello    = "hello"     // HelloPayload, first frame after connect
-	MsgStatus   = "status"    // StatusPayload, on change and every 30s
-	MsgMetrics  = "metrics"   // MetricsPayload, every 15s
-	MsgDeploy   = "deploy"    // DeployEvent
-	MsgLogLine  = "log"       // LogEvent
-	MsgBuildLog = "build.log" // BuildLogEvent: build output lines (dropped while disconnected)
-	MsgResult   = "result"    // ResultPayload
+	MsgHello         = "hello"          // HelloPayload, first frame after connect
+	MsgStatus        = "status"         // StatusPayload, on change and every 30s
+	MsgMetrics       = "metrics"        // MetricsPayload, every 15s
+	MsgDeploy        = "deploy"         // DeployEvent
+	MsgLogLine       = "log"            // LogEvent
+	MsgBuildLog      = "build.log"      // BuildLogEvent: build output lines (dropped while disconnected)
+	MsgUpgradeResult = "upgrade.result" // UpdateResult of the last agent self-upgrade (sent once after reconnecting)
+	MsgResult        = "result"         // ResultPayload
 )
 
 // ResolvedSpec is what the agent runs: env fully expanded, nothing to look up.
@@ -167,6 +169,8 @@ type HelloPayload struct {
 	DockerVersion string       `json:"docker_version"`
 	TailnetIP     string       `json:"tailnet_ip,omitempty"`
 	Network       *NodeNetwork `json:"network,omitempty"`
+	// SelfUpgrade: this agent handles MsgUpgrade (v0.1.6+).
+	SelfUpgrade bool `json:"self_upgrade,omitempty"`
 }
 
 type ContainerState struct {

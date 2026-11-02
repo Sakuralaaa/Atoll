@@ -76,3 +76,6 @@ export function bytes(n: number) {
 
 /** Long sha256 digests inside free text (deploy messages, errors) -> "sha256:<12 hex>…"; keep the full text for a title tooltip. */
 export const shortDigests = (text?: string) => (text ?? '').replace(/sha256:([0-9a-f]{12})[0-9a-f]{20,}/gi, 'sha256:$1…')
+
+/** The agent runs another version than the one this control server hosts. */
+export const agentOutdated = (s: Server) => !!s.agent_latest && !!s.agent_version && s.agent_version !== s.agent_latest

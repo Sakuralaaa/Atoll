@@ -201,9 +201,15 @@ func startFakeAgent(t *testing.T, e *testEnv, inv api.ZeaburInventory) (*fakeAge
 // startFakeAgentAs joins a fake agent with the given hostname and public IPv4.
 func startFakeAgentAs(t *testing.T, e *testEnv, inv api.ZeaburInventory, hostname, ipv4 string) (*fakeAgent, string) {
 	t.Helper()
+	hello := api.HelloPayload{AgentVersion: "test", Hostname: hostname, OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 4096, DiskGB: 80, PublicIPv4: ipv4}
+	return startFakeAgentHello(t, e, inv, hello)
+}
+
+// startFakeAgentHello joins a fake agent that sends the given hello.
+func startFakeAgentHello(t *testing.T, e *testEnv, inv api.ZeaburInventory, hello api.HelloPayload) (*fakeAgent, string) {
+	t.Helper()
 	var jt api.JoinToken
 	e.mustDo("POST", "/api/v1/servers/join-token", nil, &jt, 201)
-	hello := api.HelloPayload{AgentVersion: "test", Hostname: hostname, OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 4096, DiskGB: 80, PublicIPv4: ipv4}
 	var jr api.JoinResponse
 	if code := e.doWith(http.DefaultClient, "", "POST", "/agent/v1/join", api.JoinRequest{JoinToken: jt.Token, Hello: hello}, &jr); code != 201 {
 		t.Fatalf("join: %d", code)

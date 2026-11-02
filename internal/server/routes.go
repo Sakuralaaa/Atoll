@@ -48,6 +48,8 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/servers", needReadGlobal, s.handleListServers)
 	a("POST "+v+"/servers/join-token", needServers, s.handleJoinToken)
 	a("GET "+v+"/servers/{id}", needReadGlobal, s.handleGetServer)
+	a("POST "+v+"/servers/agent-upgrade", needServers, s.handleAgentUpgradeBatch)
+	a("POST "+v+"/servers/{id}/agent-upgrade", needServers, s.handleAgentUpgrade)
 	a("PATCH "+v+"/servers/{id}", needServers, s.handlePatchServer)
 	a("DELETE "+v+"/servers/{id}", needServers, s.handleDeleteServer)
 	a("GET "+v+"/servers/{id}/metrics", lvlRead, s.handleServerMetrics)

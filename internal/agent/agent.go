@@ -34,7 +34,8 @@ type Agent struct {
 	Mgr      *Manager
 	Ingress  *Ingress
 	Volumes  *VolumeTransfer
-	Builds   *Builder // builds from source (MsgBuild)
+	Builds   *Builder  // builds from source (MsgBuild)
+	Upgrades *Upgrader // self-upgrade from the panel (MsgUpgrade); nil = unsupported
 	Firewall interface {
 		Firewall
 		Loop(ctx context.Context)
@@ -359,6 +360,7 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 		}
 	}
 	hcancel()
+	hello.SelfUpgrade = a.Upgrades != nil
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
 		return false, err
 	}
@@ -385,6 +387,10 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 
 	sctx, scancel := context.WithCancel(ctx)
 	defer scancel()
+	if a.Upgrades != nil {
+		a.Upgrades.MarkConnected()
+		go a.reportUpgrade(sctx)
+	}
 	go func() { // keepalive: detect half-open connections
 		t := time.NewTicker(20 * time.Second)
 		defer t.Stop()
@@ -530,6 +536,12 @@ func (a *Agent) Handle(ctx context.Context, msgType string, raw json.RawMessage)
 		}
 		b, _ := json.Marshal(res)
 		return string(b), nil
+	case api.MsgUpgrade:
+		p, err := decode[api.UpgradePayload](raw)
+		if err != nil {
+			return "", err
+		}
+		return a.handleUpgrade(ctx, p)
 	case api.MsgVolumeExport, api.MsgVolumeImport:
 		p, err := decode[api.VolumeTransferPayload](raw)
 		if err != nil {

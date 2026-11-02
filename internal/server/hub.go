@@ -41,6 +41,8 @@ type agentConn struct {
 	pending  map[string]chan api.ResultPayload
 	streams  map[string]chan api.LogLine
 	lastSeen atomic.Int64
+	// selfUpgrade: the agent said in its hello that it handles MsgUpgrade.
+	selfUpgrade bool
 }
 
 func newHub(s *Server) *Hub { return &Hub{s: s, conns: map[string]*agentConn{}} }
@@ -240,6 +242,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	var hello api.HelloPayload
 	json.Unmarshal(env.Payload, &hello)
+	c.selfUpgrade = hello.SelfUpgrade
 	if err := s.st.UpdateNodeHello(ctx, nodeID, hello); err != nil {
 		s.log.Error("hello", "err", err)
 		return
@@ -252,6 +255,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	s.hub.conns[nodeID] = c
 	s.hub.mu.Unlock()
 	s.log.Info("agent connected", "node", nodeID, "version", hello.AgentVersion, "ip", hello.PublicIPv4)
+	s.onAgentHello(nodeID, hello)
 	s.publishServer(ctx, nodeID)
 	s.forgetMesh(nodeID)
 	s.goBG(func(bg context.Context) {
@@ -292,6 +296,11 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 			case ch <- res:
 			default:
 			}
+		}
+	case api.MsgUpgradeResult:
+		var res api.UpdateResult
+		if json.Unmarshal(env.Payload, &res) == nil {
+			s.onAgentUpgradeResult(ctx, c.nodeID, res)
 		}
 	case api.MsgStatus:
 		var st api.StatusPayload
@@ -357,7 +366,7 @@ func (s *Server) handleMetrics(ctx context.Context, nodeID string, m api.Metrics
 
 func (s *Server) publishServer(ctx context.Context, nodeID string) {
 	if n, err := s.st.GetNode(ctx, nodeID); err == nil {
-		n.Usage, _ = s.st.LatestNodeMetrics(ctx, nodeID)
+		s.withUsage(ctx, n)
 		s.publish("server", n)
 	}
 }

@@ -306,6 +306,21 @@ func (c *Client) ListServers(ctx context.Context) ([]api.Server, error) {
 	return v, c.do(ctx, http.MethodGet, "/servers", nil, &v)
 }
 
+// AgentUpgradeRow is one result of UpgradeAgents.
+type AgentUpgradeRow struct {
+	ID      string            `json:"id"`
+	Upgrade *api.AgentUpgrade `json:"upgrade,omitempty"`
+	Code    string            `json:"code,omitempty"`
+	Error   string            `json:"error,omitempty"`
+}
+
+// UpgradeAgents starts agent upgrades on the given servers (none = every online server whose
+// agent is not on the control server's version).
+func (c *Client) UpgradeAgents(ctx context.Context, ids []string) ([]AgentUpgradeRow, error) {
+	var v []AgentUpgradeRow
+	return v, c.do(ctx, http.MethodPost, "/servers/agent-upgrade", map[string][]string{"ids": ids}, &v)
+}
+
 func (c *Client) GetServer(ctx context.Context, id string) (*api.Server, error) {
 	var v api.Server
 	return &v, c.do(ctx, http.MethodGet, "/servers/"+esc(id), nil, &v)

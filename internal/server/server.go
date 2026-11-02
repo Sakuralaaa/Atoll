@@ -97,6 +97,7 @@ type Server struct {
 
 	deliveries deliverySet   // GitHub webhook X-GitHub-Delivery ids already handled (git.go)
 	agentSums  agentSumCache // SHA-256 of hosted agent binaries for the join command (routes.go)
+	agentUpg   agentUpgrades // panel-started agent upgrades (agent_upgrade.go)
 
 	upd *updater      // image update detection (imageupdates.go)
 	net *netState     // private network provider + mesh (network.go)
