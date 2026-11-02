@@ -92,7 +92,7 @@ function Logs({ sid, name }: { sid?: string; name?: string }) {
         {shown.map((l, i) => {
           const lv = level(l), isOpen = open.has(i)
           return (
-            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); n.has(i) ? n.delete(i) : n.add(i); return n })} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
+            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n })} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
               <span className="flex items-center gap-2">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
               <span className="text-muted max-md:hidden">{fmt(l.at)}</span><span className={cx('text-fg2 min-w-0', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}>{l.line}{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
             </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
+import { type LucideIcon, ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, cx } from '../components/ui'
 import { Empty, ErrorState, RowsSkeleton } from '../components/feedback'
@@ -8,14 +8,14 @@ import { run, useQuery } from '../api/hooks'
 import { ago, dateTime } from '../api/view'
 import type { Confirmation } from '../api/types'
 
-const ACTION: Record<string, [string, React.ReactNode]> = {
-  'service.delete': ['删除服务', <Trash2 size={18} />],
-  'project.delete': ['删除项目', <Trash2 size={18} />],
-  'server.delete': ['移除服务器', <Server size={18} />],
-  'service.migrate': ['迁移', <ArrowRightLeft size={18} />],
-  'project.migrate': ['迁移', <ArrowRightLeft size={18} />],
-  'domain.add': ['绑定域名', <Globe size={18} />],
-  'domain.delete': ['解绑域名', <Globe size={18} />],
+const ACTION: Record<string, [string, LucideIcon]> = {
+  'service.delete': ['删除服务', Trash2],
+  'project.delete': ['删除项目', Trash2],
+  'server.delete': ['移除服务器', Server],
+  'service.migrate': ['迁移', ArrowRightLeft],
+  'project.migrate': ['迁移', ArrowRightLeft],
+  'domain.add': ['绑定域名', Globe],
+  'domain.delete': ['解绑域名', Globe],
 }
 const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: ['已批准', 'green'], rejected: ['已拒绝', 'red'], expired: ['已过期', 'zinc'], pending: ['待确认', 'amber'] }
 const danger = (a: string) => a.endsWith('.delete')
@@ -57,7 +57,7 @@ export default function Confirmations() {
 
 function PendingCard({ c }: { c: Confirmation }) {
   const [busy, setBusy] = useState<'a' | 'r'>()
-  const [label, icon] = ACTION[c.action] ?? [c.action, <ShieldAlert size={18} />]
+  const [label, Icon] = ACTION[c.action] ?? [c.action, ShieldAlert]
   const act = async (k: 'a' | 'r') => {
     setBusy(k)
     await run(() => (k === 'a' ? api.approve(c.id) : api.reject(c.id)), { ok: k === 'a' ? '已批准，正在执行' : '已拒绝', invalidate: ['confirmations', 'projects', 'project:', 'domains', 'servers'] })
@@ -65,7 +65,7 @@ function PendingCard({ c }: { c: Confirmation }) {
   }
   return (
     <Card className="p-4 @2xl:p-5 flex flex-wrap @3xl:flex-nowrap items-start @3xl:items-center gap-4 @2xl:gap-5">
-      <div className={cx('tile h-12 w-12 rounded-lg grid place-items-center shrink-0 text-[#141414]', danger(c.action) ? 'bg-[#fca5a5]' : 'bg-[#fcd34d]')}>{icon}</div>
+      <div className={cx('tile h-12 w-12 rounded-lg grid place-items-center shrink-0 text-[#141414]', danger(c.action) ? 'bg-[#fca5a5]' : 'bg-[#fcd34d]')}><Icon size={18} /></div>
       <div className="flex-1 min-w-[min(100%,220px)]">
         <div className="flex items-center gap-2 flex-wrap"><span className="text-[15px] font-extrabold italic tracking-[-0.02em]">{label}</span><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full" title={c.target}>{c.target}</span></div>
         <div className="text-[13px] text-fg2 mt-1 leading-5 [overflow-wrap:anywhere]">{c.summary}</div>

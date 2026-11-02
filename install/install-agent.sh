@@ -650,6 +650,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# optional overrides, e.g. ATOLL_BUILD_MEMORY=2g (see README "Builds from source")
+EnvironmentFile=-/etc/atoll/agent.env
 ExecStart=/usr/local/bin/atoll-agent run --config /etc/atoll/agent.json
 Restart=always
 RestartSec=5

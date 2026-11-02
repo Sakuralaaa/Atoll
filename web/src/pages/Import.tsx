@@ -266,7 +266,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
   const data = chosen.reduce((a, s) => a + s.volumes.reduce((b, v) => b + v.bytes, 0), 0)
   const exportN = chosen.filter(s => s.zeabur_registry).length
   const [busy, wrap] = useBusy()
-  const toggle = (id: string) => setSel(v => { const n = new Set(v); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggle = (id: string) => setSel(v => { const n = new Set(v); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const needCf = zHosts.length > 0 && !cfReady
   const names = Object.fromEntries(p.services.map(x => [x.service_id, x.name]))
   const dangling = chosen.flatMap(s => (s.references ?? []).filter(r => !sel.has(r.target) && names[r.target]).map(r => ({ from: s.name, to: names[r.target], key: r.key })))

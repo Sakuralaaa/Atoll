@@ -149,12 +149,12 @@ function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
 
       <div className="mt-6 grid grid-cols-1 @4xl:grid-cols-3 gap-5">
         {([
-          [<FolderOpen size={22} />, '文件', '浏览容器与卷中的文件', `${base}/files`],
-          [<ScrollText size={22} />, '日志', '实时运行日志', `${base}/logs`],
-          [<SquareTerminal size={22} />, '命令', '在容器内执行命令', `${base}/logs?view=exec`],
-        ] as const).map(([i, t, d, to]) => (
+          [FolderOpen, '文件', '浏览容器与卷中的文件', `${base}/files`],
+          [ScrollText, '日志', '实时运行日志', `${base}/logs`],
+          [SquareTerminal, '命令', '在容器内执行命令', `${base}/logs?view=exec`],
+        ] as const).map(([Icon, t, d, to]) => (
           <Link key={t} to={to} className="rounded-2xl surface surface-hover px-5 @2xl:px-6 py-5 flex items-center gap-4 min-w-0">
-            <div className="h-11 w-11 shrink-0 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center text-fg">{i}</div>
+            <div className="h-11 w-11 shrink-0 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center text-fg"><Icon size={22} /></div>
             <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[13px] text-muted mt-0.5">{d}</div></div>
           </Link>
         ))}

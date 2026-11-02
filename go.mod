@@ -2,6 +2,10 @@ module github.com/Sakuralaaa/Atoll
 
 go 1.26.0
 
+// CI and releases build with this patch release (setup-go reads it): go1.26.0 has
+// dozens of fixed standard-library vulnerabilities (net/http, crypto/tls, crypto/x509).
+toolchain go1.26.10
+
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/docker/docker v28.5.1+incompatible
