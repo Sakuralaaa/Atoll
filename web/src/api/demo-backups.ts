@@ -1,7 +1,7 @@
 // Demo backend for backups (/services/{id}/backup-policy, /services/{id}/backups, /backups/{id}/restore,
 // /restores/{id}, /settings/backup/*). Generic demo data only (see mock.ts).
 import { ApiError } from './client'
-import type { Backup, BackupPolicy, RestoreJob, Server, Service, Settings } from './types'
+import type { Backup, BackupPolicy, BackupVerification, BackupVerifyStatus, RestoreJob, Server, Service, Settings } from './types'
 
 const H = 3600e3, D = 24 * H
 const DB_KINDS = new Set(['postgres', 'mysql', 'redis', 'mongo'])
@@ -22,6 +22,31 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
   const policies: Record<string, BackupPolicy> = {}
   const backups: Record<string, Backup[]> = {}
   const restores: RestoreJob[] = []
+  const verifications: BackupVerification[] = []
+  const onlineServer = () => servers.find(x => x.status === 'online')?.id ?? ''
+  const nextWeekday = (dow: number, h: number, m: number) => { const d = new Date(); d.setHours(h, m, 0, 0); while (d.getDay() !== dow || d.getTime() < Date.now()) d.setTime(d.getTime() + D); return d.toISOString() }
+  const nextMonthDay = (h: number, m: number) => { const d = new Date(); d.setDate(1); d.setHours(h, m, 0, 0); if (d.getTime() < Date.now()) d.setMonth(d.getMonth() + 1); return d.toISOString() }
+  const seedVerify = () => {
+    if (verifications.length || !configured()) return
+    const at = new Date(nextWeekday(0, 4, 30)); at.setTime(at.getTime() - 7 * D)
+    verifications.push({ id: 'bvf_demochk1', kind: 'check', server_id: onlineServer(), trigger: 'schedule', status: 'done', subset: '5%', duration_ms: 384e3,
+      steps: [{ part: 'check', status: 'done', detail: 'read 5% of data packs | no errors were found' }], started_at: at.toISOString(), finished_at: new Date(at.getTime() + 384e3).toISOString() })
+  }
+  const latest = (kind: string, sid = '') => verifications.find(v => v.kind === kind && (v.service_id ?? '') === sid)
+  const verifyStatus = (s?: Service): BackupVerifyStatus => {
+    seedVerify()
+    const st: BackupVerifyStatus = { check: latest('check'), check_schedule: '30 4 * * 0', check_subset: '5%', drill_schedule: '30 4 1 * *', timezone: 'Asia/Shanghai',
+      check_server_id: configured() ? onlineServer() : undefined, next_check_at: configured() ? nextWeekday(0, 4, 30) : undefined, repo_configured: configured() }
+    if (s) { st.drill = latest('drill', s.id); if (configured() && policy(s).enabled) st.next_drill_at = nextMonthDay(4, 30) }
+    return st
+  }
+  const startVerify = (kind: 'check' | 'drill', s?: Service): BackupVerification => {
+    if (!configured()) fail(409, 'configure a backup target in Settings → 备份存储 first')
+    if (latest(kind, s?.id)?.status === 'running') fail(409, `a ${kind} is still running`)
+    const v: BackupVerification = { id: `bvf_demo${hex(8)}`, kind, service_id: s?.id, server_id: s ? projectServer(s.project_id) : onlineServer(), trigger: 'manual',
+      status: 'running', subset: kind === 'check' ? '5%' : undefined, steps: [], duration_ms: 0, started_at: new Date().toISOString() }
+    verifications.unshift(v); return v
+  }
   const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
   const parts = (s: Service, p: BackupPolicy) => DB_KINDS.has(s.kind) ? ['dump', ...(p.include_volumes && s.volumes?.length ? ['volumes'] : [])] : s.volumes?.length ? ['volumes'] : []
   const nextRun = (p: BackupPolicy) => {
@@ -68,6 +93,17 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
       b.bytes = b.snapshots.reduce((a, x) => a + x.bytes, 0); b.added = b.snapshots.reduce((a, x) => a + x.added, 0)
       b.status = 'done'; b.duration_ms = Date.now() - new Date(b.started_at).getTime(); b.finished_at = new Date().toISOString()
     }
+    for (const v of verifications) {
+      if (v.status !== 'running' || Date.now() - new Date(v.started_at).getTime() < 7000) continue
+      v.status = 'done'; v.duration_ms = Date.now() - new Date(v.started_at).getTime(); v.finished_at = new Date().toISOString()
+      if (v.kind === 'check') v.steps = [{ part: 'check', status: 'done', detail: 'read 5% of data packs | no errors were found' }]
+      else {
+        const s = svc(v.service_id ?? '')
+        v.steps = parts(s, policy(s)).map(part => part === 'dump'
+          ? { part, snapshot_id: hex(64), status: 'done', detail: 'databases=2 tables=14', bytes: 47.6e6 }
+          : { part, snapshot_id: hex(64), status: 'done', detail: 'files=1284 bytes=742000000', files: 1284, bytes: 742e6 })
+      }
+    }
     for (const j of restores) {
       if (j.status !== 'running') continue
       const n = Math.floor((Date.now() - new Date(j.created_at).getTime()) / 2500)
@@ -113,10 +149,21 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
       }
       return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
     }
+    if (seg[0] === 'backup-verify') {
+      if (G && seg.length === 1) return verifyStatus()
+      if (P && seg[1] === 'check') return startVerify('check')
+      return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+    }
+    if (seg[0]?.startsWith('backup-verifications') && G) { seedVerify(); return verifications }
     if (seg[0] === 'services' && seg.length === 3) {
       const sub = seg[2]
-      if (!['backup-policy', 'backups', 'restores'].includes(sub)) return undefined
+      if (!['backup-policy', 'backups', 'restores', 'backup-verify', 'backup-drill'].includes(sub)) return undefined
       const s = svc(decodeURIComponent(seg[1]))
+      if (sub === 'backup-verify' && G) return verifyStatus(s)
+      if (sub === 'backup-drill' && P) {
+        if (!parts(s, policy(s)).length) fail(400, `service ${s.name} has no volumes and is not a database template: nothing to restore`)
+        return startVerify('drill', s)
+      }
       if (sub === 'restores') return restores.filter(j => j.service_id === s.id)
       if (sub === 'backup-policy') {
         if (U) {

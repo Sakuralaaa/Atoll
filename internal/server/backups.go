@@ -41,6 +41,7 @@ type backupState struct {
 	mu          sync.Mutex
 	catchupSent map[string]time.Time // service -> scheduled time a catch-up was requested for
 	configHash  map[string]string    // node -> hash of the last pushed config
+	checkNode   string               // node that runs the scheduled repository check
 }
 
 var backupStates sync.Map // *Server -> *backupState (keeps Server's struct untouched)
@@ -99,6 +100,7 @@ func (s *Server) fillBackupSettings(ctx context.Context, st *api.Settings) {
 	st.HasBackupPassword = r.Password != ""
 	st.BackupConfigured = ok
 	st.BackupAccessKey, st.BackupSecretKey, st.BackupRepoPassword = "", "", ""
+	s.fillVerifySettings(ctx, st)
 }
 
 var (

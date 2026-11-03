@@ -66,16 +66,18 @@ func (s *Store) ProblemSignals(ctx context.Context, now time.Time) ([]api.Proble
 			COALESCE((SELECT c.state FROM container_states c WHERE c.service_id = s.id ORDER BY c.updated_at DESC LIMIT 1), ''),
 			COALESCE((SELECT b.status || char(31) || b.error FROM backups b WHERE b.service_id = s.id AND b.status IN ('done','failed')
 				ORDER BY b.started_at DESC LIMIT 1), ''),
-			COALESCE((SELECT bp.enabled FROM backup_policies bp WHERE bp.service_id = s.id), 0)
+			COALESCE((SELECT bp.enabled FROM backup_policies bp WHERE bp.service_id = s.id), 0),
+			COALESCE((SELECT v.status || char(31) || v.error FROM backup_verifications v WHERE v.kind = 'drill' AND v.service_id = s.id
+				AND v.status IN ('done','failed') ORDER BY v.started_at DESC LIMIT 1), '')
 		FROM services s JOIN projects p ON p.id = s.project_id
 		WHERE s.desired_stopped = 0`)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var id, name, pid, node, status, dep, cstate, bak string
+		var id, name, pid, node, status, dep, cstate, bak, drill string
 		var backupOn bool
-		if err := rows.Scan(&id, &name, &pid, &node, &status, &dep, &cstate, &bak, &backupOn); err != nil {
+		if err := rows.Scan(&id, &name, &pid, &node, &status, &dep, &cstate, &bak, &backupOn, &drill); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -99,10 +101,29 @@ func (s *Store) ProblemSignals(ctx context.Context, now time.Time) ([]api.Proble
 			p.Kind, p.Message = api.ProblemBackupFailed, firstLine("备份失败", be)
 			out = append(out, p)
 		}
+		if ds, de, _ := strings.Cut(drill, "\x1f"); backupOn && ds == "failed" {
+			p := base
+			p.Kind, p.Message = api.ProblemBackupVerifyFailed, firstLine("恢复演练失败", de)
+			out = append(out, p)
+		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	// the newest repository check, while any backup policy is enabled (not tied to the node that
+	// ran it: the repository stays unverified while that node is offline)
+	var chk string
+	var anyOn bool
+	if err := s.r.QueryRowContext(ctx, `SELECT COALESCE((SELECT v.status || char(31) || v.error || char(31) || v.server_id FROM backup_verifications v
+			WHERE v.kind = 'check' AND v.status IN ('done','failed') ORDER BY v.started_at DESC LIMIT 1), ''),
+		EXISTS(SELECT 1 FROM backup_policies WHERE enabled = 1)`).Scan(&chk, &anyOn); err != nil {
+		return nil, err
+	}
+	if parts := strings.SplitN(chk, "\x1f", 3); anyOn && len(parts) == 3 && parts[0] == "failed" {
+		out = append(out, api.Problem{Kind: api.ProblemBackupVerifyFailed, SubjectID: api.BackupRepoSubjectID, SubjectName: "备份仓库",
+			ServerID: parts[2], Message: firstLine("仓库校验失败", parts[1])})
 	}
 
 	// domains that could not be provisioned

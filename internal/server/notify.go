@@ -119,6 +119,10 @@ func problemLink(p api.Problem, base string) string {
 		return base + "/#/servers/" + p.SubjectID
 	case api.ProblemDomainError:
 		return base + "/#/domains"
+	case api.ProblemBackupVerifyFailed:
+		if p.SubjectID == api.BackupRepoSubjectID {
+			return base + "/#/settings"
+		}
 	}
 	if p.ProjectID != "" {
 		return base + "/#/projects/" + p.ProjectID + "/services/" + p.SubjectID

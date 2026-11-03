@@ -16,6 +16,8 @@ func (m *Manager) Loop(ctx context.Context) {
 	m.base = ctx
 	m.mu.Unlock()
 	m.reportInterrupted()
+	m.reportInterruptedVerify()
+	m.cleanupStaleDrills(ctx)
 	m.CheckDue(ctx)
 	t := time.NewTicker(m.Tick)
 	defer t.Stop()
@@ -91,11 +93,74 @@ func (m *Manager) CheckDue(ctx context.Context) {
 			}
 		}
 	}
+	vdue := m.dueVerifications(cfg, now)
 	m.mu.Unlock()
-	for _, t := range due {
+	for i, t := range due {
 		if ctx.Err() != nil {
 			return
 		}
+		if i > 0 { // an earlier run took a while: a catch-up may have covered this one
+			m.mu.Lock()
+			st := m.state[t.ServiceID]
+			still := st == nil || Due(t, *st, m.Now(), m.RetryAfter, m.MaxRetries)
+			m.mu.Unlock()
+			if !still {
+				continue
+			}
+		}
 		m.RunBackup(ctx, newBackupID(), "schedule", t, *cfg.Repo)
 	}
+	for _, p := range vdue {
+		if ctx.Err() != nil {
+			return
+		}
+		key := verifyKey(p.Kind, p.ServiceID())
+		if !m.claim(key) {
+			continue // a manual one is running
+		}
+		m.runVerify(ctx, p)
+		m.release(key)
+	}
+}
+
+// dueVerifications returns the scheduled checks and drills that are due (m.mu held). They
+// are not retried after a failure: the next slot is a week or a month away, and the failure
+// is reported as a problem the user can act on (or re-run from the panel).
+func (m *Manager) dueVerifications(cfg api.BackupConfigPayload, now time.Time) []api.BackupVerifyPayload {
+	v := cfg.Verify
+	if cfg.Repo == nil || v == nil {
+		return nil
+	}
+	state := func(key string) svcState {
+		st := m.vstate[key]
+		if st == nil {
+			st = &svcState{LastAttempt: now}
+			m.vstate[key] = st
+		}
+		return *st
+	}
+	var out []api.BackupVerifyPayload
+	if v.RunCheck && v.CheckSchedule != "" {
+		slot := api.BackupTarget{Enabled: true, Schedule: v.CheckSchedule, Timezone: v.Timezone}
+		if Due(slot, state(checkKey), now, m.RetryAfter, 1) {
+			subset := v.CheckSubset
+			if subset == "" {
+				subset = api.DefaultBackupCheckSubset
+			}
+			out = append(out, api.BackupVerifyPayload{ID: newVerifyID(), Kind: api.BackupVerifyCheck, Trigger: "schedule", Repo: *cfg.Repo, Subset: subset})
+		}
+	}
+	if v.DrillSchedule != "" {
+		for _, t := range cfg.Targets {
+			if !t.Enabled {
+				continue
+			}
+			slot := api.BackupTarget{Enabled: true, Schedule: v.DrillSchedule, Timezone: v.Timezone}
+			if Due(slot, state(drillKey(t.ServiceID)), now, m.RetryAfter, 1) {
+				tc := t
+				out = append(out, api.BackupVerifyPayload{ID: newVerifyID(), Kind: api.BackupVerifyDrill, Trigger: "schedule", Repo: *cfg.Repo, Target: &tc})
+			}
+		}
+	}
+	return out
 }

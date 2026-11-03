@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 )
@@ -68,4 +70,51 @@ func (c *Client) ListRestores(ctx context.Context, serviceID string) ([]api.Rest
 func (c *Client) GetRestore(ctx context.Context, restoreID string) (*api.RestoreJob, error) {
 	var v api.RestoreJob
 	return &v, c.do(ctx, http.MethodGet, "/restores/"+esc(restoreID), nil, &v)
+}
+
+// BackupVerifyStatus returns the newest repository check, the verification schedules and,
+// with serviceID, that service's newest restore drill.
+func (c *Client) BackupVerifyStatus(ctx context.Context, serviceID string) (*api.BackupVerifyStatus, error) {
+	p := "/backup-verify"
+	if serviceID != "" {
+		p = "/services/" + esc(serviceID) + "/backup-verify"
+	}
+	var v api.BackupVerifyStatus
+	return &v, c.do(ctx, http.MethodGet, p, nil, &v)
+}
+
+// RunBackupCheck starts a repository check (restic check --read-data-subset) now. serverID
+// "" lets the server pick the node that runs the scheduled check; subset "" uses the
+// configured one. The answer is the running record; the agent reports the outcome.
+func (c *Client) RunBackupCheck(ctx context.Context, serverID, subset string) (*api.BackupVerification, error) {
+	var v api.BackupVerification
+	body := map[string]string{"server_id": serverID, "subset": subset}
+	return &v, c.do(ctx, http.MethodPost, "/backup-verify/check", body, &v)
+}
+
+// RunBackupDrill starts a restore drill of the service now (newest snapshots restored into
+// temporary resources on the service's server; the service itself is not touched).
+func (c *Client) RunBackupDrill(ctx context.Context, serviceID string) (*api.BackupVerification, error) {
+	var v api.BackupVerification
+	return &v, c.do(ctx, http.MethodPost, "/services/"+esc(serviceID)+"/backup-drill", nil, &v)
+}
+
+// ListBackupVerifications lists checks and drills, newest first (kind "check" | "drill" | "").
+func (c *Client) ListBackupVerifications(ctx context.Context, kind, serviceID string, limit int) ([]api.BackupVerification, error) {
+	q := url.Values{}
+	if kind != "" {
+		q.Set("kind", kind)
+	}
+	if serviceID != "" {
+		q.Set("service_id", serviceID)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	p := "/backup-verifications"
+	if len(q) > 0 {
+		p += "?" + q.Encode()
+	}
+	var v []api.BackupVerification
+	return v, c.do(ctx, http.MethodGet, p, nil, &v)
 }

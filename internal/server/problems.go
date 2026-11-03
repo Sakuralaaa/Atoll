@@ -93,6 +93,8 @@ func problemKindText(kind string) string {
 		return "备份失败"
 	case api.ProblemDomainError:
 		return "域名异常"
+	case api.ProblemBackupVerifyFailed:
+		return "备份校验失败"
 	}
 	return kind
 }

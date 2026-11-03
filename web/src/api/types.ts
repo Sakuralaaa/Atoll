@@ -140,6 +140,9 @@ export interface Settings {
   /** write-only */ backup_access_key?: string; backup_secret_key?: string; has_backup_credentials?: boolean
   /** write-only; returned ONCE in the PUT response when the server generated it */ backup_repo_password?: string
   has_backup_password?: boolean; backup_configured?: boolean
+  /** backup verification: cron | "off" | "auto" on PUT (empty keeps); GET returns the stored value, "" = auto */
+  backup_check_schedule?: string; backup_drill_schedule?: string
+  /** restic --read-data-subset: "5%" | "1/20" | "500M"; "auto" on PUT resets to 5% */ backup_check_subset?: string
   /** private network: "" (none) | "tailscale"; PUT omitting it keeps, "none" clears */ network_provider?: '' | 'tailscale' | 'none' | string
   /** write-only (tskey-…) */ tailscale_auth_key?: string; has_tailscale_auth_key?: boolean
   /** PUT only */ clear_tailscale_auth_key?: boolean
@@ -285,6 +288,24 @@ export interface RestoreJob {
   status: 'running' | 'done' | 'failed' | string; steps: ImportStep[]; error?: string; created_at: string; finished_at?: string
 }
 export interface BackupTestResult { ok: boolean; server_id: string; message: string }
+/** One part of a repository check or restore drill. */
+export interface BackupVerifyStep {
+  part: 'check' | 'volumes' | 'dump' | string; snapshot_id?: string
+  status: 'done' | 'failed' | 'skipped' | string; detail?: string; files?: number; bytes?: number; error?: string
+}
+/** A repository check (kind check, restic check --read-data-subset) or a restore drill of one service (kind drill). */
+export interface BackupVerification {
+  id: string; kind: 'check' | 'drill' | string; service_id?: string; server_id: string
+  trigger: 'schedule' | 'manual' | string; status: 'running' | 'done' | 'failed' | 'skipped' | string
+  subset?: string; steps: BackupVerifyStep[]; error?: string; warnings?: string[]
+  duration_ms: number; started_at: string; finished_at?: string
+}
+/** GET /backup-verify, GET /services/{id}/backup-verify */
+export interface BackupVerifyStatus {
+  check?: BackupVerification; drill?: BackupVerification
+  /** effective cron, "" = off */ check_schedule: string; check_subset: string; drill_schedule: string; timezone: string
+  check_server_id?: string; next_check_at?: string; next_drill_at?: string; repo_configured: boolean
+}
 
 // ---- login 2FA (internal/api/types.go) ----
 export interface LoginChallenge { two_factor_required: true; pending_token: string; expires_at: string }
@@ -335,8 +356,8 @@ export interface AuditPage { entries: AuditEntry[]; next_before?: number }
 /** A condition the control server watches (GET /problems). Only firing ones are listed. */
 export interface Problem {
   id: string
-  kind: 'node_offline' | 'disk_high' | 'service_down' | 'deploy_failed' | 'backup_failed' | 'domain_error' | string
-  /** server id for node_offline / disk_high, domain id for domain_error, service id otherwise */ subject_id: string
+  kind: 'node_offline' | 'disk_high' | 'service_down' | 'deploy_failed' | 'backup_failed' | 'backup_verify_failed' | 'domain_error' | string
+  /** server id for node_offline / disk_high, domain id for domain_error, "backup_repo" for a failed repository check, service id otherwise */ subject_id: string
   subject_name: string; project_id?: string; server_id?: string
   message: string; since: string; firing_at?: string; resolved_at?: string
 }

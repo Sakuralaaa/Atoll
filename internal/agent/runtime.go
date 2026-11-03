@@ -110,13 +110,16 @@ type HealthSpec struct {
 
 // ContainerSpec is the runtime-neutral container definition derived from a ResolvedSpec.
 type ContainerSpec struct {
-	Name          string
-	Image         string
-	Entrypoint    []string
-	Cmd           []string
-	Env           []string // KEY=VALUE, sorted
-	Labels        map[string]string
-	Networks      []NetworkAttach // first is the primary network
+	Name       string
+	Image      string
+	Entrypoint []string
+	Cmd        []string
+	Env        []string // KEY=VALUE, sorted
+	Labels     map[string]string
+	Networks   []NetworkAttach // first is the primary network
+	// NetworkMode overrides the network mode when Networks is empty ("none": loopback only,
+	// used by backup restore drills).
+	NetworkMode   string
 	Mounts        []Mount
 	Ports         []PortBinding // host-published ports
 	ExposedPorts  []PortBinding // container ports exposed without publishing

@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArchiveX, Globe, HardDrive, Rocket, ServerOff, Siren } from 'lucide-react'
+import { AlertTriangle, ArchiveX, Globe, HardDrive, Rocket, ServerOff, ShieldAlert, Siren } from 'lucide-react'
 import { problemHref, problemLabel, useFiringProblems } from '../api/problems'
 import { ago } from '../api/view'
 
 const ICON: Record<string, React.ReactNode> = {
   node_offline: <ServerOff size={15} />, disk_high: <HardDrive size={15} />, service_down: <Siren size={15} />,
-  deploy_failed: <Rocket size={15} />, backup_failed: <ArchiveX size={15} />, domain_error: <Globe size={15} />,
+  deploy_failed: <Rocket size={15} />, backup_failed: <ArchiveX size={15} />, backup_verify_failed: <ShieldAlert size={15} />, domain_error: <Globe size={15} />,
 }
 
 /** Firing problems, pinned above a page's content; renders nothing when all is well.

@@ -199,13 +199,20 @@ func (m *Manager) restoreDump(ctx context.Context, p api.BackupRestorePayload, s
 	if err := m.waitReady(ctx, name, t.Kind); err != nil {
 		return 0, err
 	}
+	return m.loadDump(ctx, p.Repo, name, t.Kind, script, sn.ID)
+}
+
+// loadDump streams `restic dump` of a dump snapshot into script (RestoreScript) running in
+// container name. It returns the dump bytes read from the repository.
+func (m *Manager) loadDump(ctx context.Context, repo api.BackupRepo, name, kind, script, snapshotID string) (int64, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	pr, pw := io.Pipe()
 	cw := &countWriter{w: pw}
 	dumpErr := make(chan error, 1)
 	go func() {
-		err := m.restic(ctx, p.Repo, nil, cw, nil, "dump", sn.ID, DumpFile(t.Kind))
+		args := append([]string{"dump", snapshotID, DumpFile(kind)}, m.retryLock()...)
+		err := m.restic(ctx, repo, nil, cw, nil, args...)
 		pw.CloseWithError(err)
 		dumpErr <- err
 	}()

@@ -1,7 +1,7 @@
 // Backups (restic to any S3 bucket): REST calls + hooks. Kept out of client.ts like updates.ts.
 import { request } from './client'
 import { useQuery } from './hooks'
-import type { Backup, BackupPolicy, BackupRestoreRequest, BackupTestResult, Confirmation, RestoreJob, Settings } from './types'
+import type { Backup, BackupPolicy, BackupRestoreRequest, BackupTestResult, BackupVerification, BackupVerifyStatus, Confirmation, RestoreJob, Settings } from './types'
 
 const e = encodeURIComponent
 
@@ -21,11 +21,23 @@ export const backupsApi = {
   test: (s: Partial<Settings> & { server_id?: string } = {}) => request<BackupTestResult>('POST', '/settings/backup/test', s),
   revealPassword: () => request<{ password: string; repository: string }>('GET', '/settings/backup/password'),
   clear: () => request<Settings>('DELETE', '/settings/backup'),
+  /** Newest repository check (+ the service's newest restore drill) and their schedules. */
+  verifyStatus: (sid?: string) => request<BackupVerifyStatus>('GET', sid ? `/services/${e(sid)}/backup-verify` : '/backup-verify'),
+  /** Repository check now (restic check --read-data-subset) → the running record. */
+  runCheck: (b: { server_id?: string; subset?: string } = {}) => request<BackupVerification>('POST', '/backup-verify/check', b),
+  /** Restore drill of a service now (temporary resources only) → the running record. */
+  runDrill: (sid: string) => request<BackupVerification>('POST', `/services/${e(sid)}/backup-drill`, {}),
+  verifications: (q: { kind?: 'check' | 'drill'; service_id?: string; limit?: number } = {}) => {
+    const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString()
+    return request<BackupVerification[]>('GET', `/backup-verifications${p ? `?${p}` : ''}`)
+  },
 }
 
 export const useBackupPolicy = (sid: string) => useQuery(`backup-policy:${sid}`, () => backupsApi.policy(sid))
 /** Polls faster while a run is in progress (caller passes `running`). */
 export const useBackups = (sid: string, running = false) => useQuery(`backups:${sid}`, () => backupsApi.list(sid), { interval: running ? 4000 : 60000 })
+/** Polls faster while a check or drill is running (caller passes `running`). */
+export const useVerifyStatus = (sid: string, running = false) => useQuery(`backup-verify:${sid}`, () => backupsApi.verifyStatus(sid), { interval: running ? 4000 : 60000 })
 export const useRestores = (sid: string, running = false) => useQuery(`restores:${sid}`, () => backupsApi.restores(sid), { interval: running ? 4000 : 60000 })
 
 export const shortSnap = (id?: string) => id ? id.slice(0, 8) : '—'

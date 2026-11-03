@@ -110,6 +110,12 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/settings/backup/test", needSettings, s.handleBackupTest)
 	a("GET "+v+"/settings/backup/password", lvlSession, s.handleBackupPassword)
 	a("DELETE "+v+"/settings/backup", needSettings, s.handleDeleteBackupSettings)
+	// backup verification (backups_verify.go)
+	a("GET "+v+"/backup-verify", needReadGlobal, s.handleBackupVerifyStatus)
+	a("POST "+v+"/backup-verify/check", needDeployGlobal, s.handleRunCheck)
+	a("GET "+v+"/backup-verifications", needReadList, s.handleListVerifications)
+	a("GET "+v+"/services/{id}/backup-verify", lvlRead, s.handleServiceVerifyStatus)
+	a("POST "+v+"/services/{id}/backup-drill", lvlDeploy, s.handleRunDrill)
 
 	// domains
 	a("GET "+v+"/domains", needReadList, s.handleListAllDomains)
