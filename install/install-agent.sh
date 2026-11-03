@@ -343,7 +343,8 @@ install_docker() {
 }
 
 # install_git: builds from source run `git` on this server (best effort: only builds need it).
-# git is optional (only builds from source need it): a broken package mirror must not stop the install.
+# git is optional: without it the agent runs git in a container (alpine/git), so a broken
+# package mirror must not stop the install.
 install_git() {
 	command -v git >/dev/null 2>&1 && return
 	log "installing git (used by builds from source)"
@@ -357,7 +358,8 @@ install_git() {
 	elif command -v apk >/dev/null 2>&1; then
 		apk add --no-cache git >/dev/null 2>&1 || true
 	fi
-	command -v git >/dev/null 2>&1 || warn "could not install git; builds from source on this server will fail until it is installed"
+	command -v git >/dev/null 2>&1 ||
+		warn "could not install git (not fatal): builds from source will run git in a container (alpine/git, pulled on first build) instead"
 }
 
 # ---------- Tailscale ----------

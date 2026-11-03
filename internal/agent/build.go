@@ -29,6 +29,10 @@ import (
 // BuildImageRepo prefixes every image built from source.
 const BuildImageRepo = "atoll-build/"
 
+// DefaultGitImage runs git in a throwaway container when the server has no git binary
+// (e.g. a distro mirror that cannot install it). Pinned; ATOLL_GIT_IMAGE overrides it.
+const DefaultGitImage = "alpine/git:2.52.0"
+
 // BuildLabel marks images the builder made (value: service id); PruneImages leaves them alone.
 const BuildLabel = "atoll.build.service"
 
@@ -91,6 +95,11 @@ type Builder struct {
 	// Limits caps builds (build_limits.go); the zero value runs plain `docker build`.
 	Limits BuildLimits
 
+	// GitImage is the image used for git when the host has none (default DefaultGitImage).
+	GitImage string
+	// HasCommand reports whether a host command exists (default exec.LookPath). Tests replace it.
+	HasCommand func(name string) bool
+
 	once   sync.Once
 	slot   chan struct{}
 	bstate builderState
@@ -102,7 +111,7 @@ func NewBuilder(rt Runtime, p Paths, emit EmitFunc, log *slog.Logger) *Builder {
 		log = slog.Default()
 	}
 	return &Builder{RT: rt, Paths: p, Cmd: ExecRunner{}, Emit: emit, Log: log, FlushEvery: 500 * time.Millisecond,
-		Limits: BuildLimitsFromEnv(os.Getenv)}
+		Limits: BuildLimitsFromEnv(os.Getenv), GitImage: strings.TrimSpace(os.Getenv("ATOLL_GIT_IMAGE"))}
 }
 
 func (b *Builder) init() {
@@ -119,6 +128,12 @@ func (b *Builder) init() {
 		}
 		if b.Log == nil {
 			b.Log = slog.Default()
+		}
+		if b.GitImage == "" {
+			b.GitImage = DefaultGitImage
+		}
+		if b.HasCommand == nil {
+			b.HasCommand = func(name string) bool { _, err := exec.LookPath(name); return err == nil }
 		}
 	})
 }
@@ -323,22 +338,26 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 	if p.Commit != "" {
 		ref = p.Commit
 	}
-	if err := b.run(ctx, lg, dir, env, nil, "git", "init", "-q"); err != nil {
+	git, err := b.gitCommand(ctx, lg, dir, env)
+	if err != nil {
 		return api.BuildResult{}, err
 	}
-	if err := b.run(ctx, lg, dir, env, nil, "git", "fetch", "--depth", "1", "--no-tags", p.Repo+".git", ref); err != nil {
+	if err := git(nil, "init", "-q"); err != nil {
+		return api.BuildResult{}, err
+	}
+	if err := git(nil, "fetch", "--depth", "1", "--no-tags", p.Repo+".git", ref); err != nil {
 		return api.BuildResult{}, fmt.Errorf("fetching %s from %s failed (private repository without a valid token, or unknown branch/commit): %w", ref, p.Repo, err)
 	}
-	if err := b.run(ctx, lg, dir, env, nil, "git", "-c", "advice.detachedHead=false", "checkout", "-q", "FETCH_HEAD"); err != nil {
+	if err := git(nil, "-c", "advice.detachedHead=false", "checkout", "-q", "FETCH_HEAD"); err != nil {
 		return api.BuildResult{}, err
 	}
 	var sha string
-	if err := b.run(ctx, lg, dir, env, func(s string) {
+	if err := git(func(s string) {
 		if t := strings.TrimSpace(s); buildCommitRe.MatchString(t) {
 			sha = t
 		}
 		lg.line(s)
-	}, "git", "rev-parse", "HEAD"); err != nil {
+	}, "rev-parse", "HEAD"); err != nil {
 		return api.BuildResult{}, err
 	}
 	if sha == "" {
@@ -398,6 +417,43 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 		return api.BuildResult{}, fmt.Errorf("docker build finished but %s is missing: %w", tag, err)
 	}
 	return api.BuildResult{Image: tag, Commit: sha}, nil
+}
+
+// gitCommand returns how this build runs git: the host's git when installed, otherwise the
+// same git commands in a throwaway container (GitImage, pulled on first use) with the checkout
+// bind-mounted at /src and run as the agent's uid:gid. The environment (including the token
+// header) reaches the container as `-e NAME` without a value, so docker copies it from its
+// own environment and the token never appears in argv or in the logged command line.
+func (b *Builder) gitCommand(ctx context.Context, lg *buildLog, dir string, env []string) (func(out func(string), args ...string) error, error) {
+	if b.HasCommand("git") {
+		return func(out func(string), args ...string) error {
+			return b.run(ctx, lg, dir, env, out, "git", args...)
+		}, nil
+	}
+	lg.line("atoll-agent: git is not installed on this server; running git in a container (" + b.GitImage + ")")
+	if _, err := b.RT.ImageInfo(ctx, b.GitImage); err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			return nil, fmt.Errorf("git is not installed on this server and checking the git container image %s failed: %w", b.GitImage, err)
+		}
+		if err := b.run(ctx, lg, "", nil, nil, "docker", "pull", b.GitImage); err != nil {
+			return nil, fmt.Errorf("git is not installed on this server and the git container image %s could not be pulled (install git, or make the image reachable): %w", b.GitImage, err)
+		}
+	}
+	base := []string{"run", "--rm", "--pull", "never", "--security-opt", "no-new-privileges",
+		"-v", dir + ":/src", "-w", "/src", "-u", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "-e", "HOME=/tmp"}
+	for _, kv := range env {
+		if name, _, ok := strings.Cut(kv, "="); ok && name != "" {
+			base = append(base, "-e", name)
+		}
+	}
+	base = append(base, "--entrypoint", "git", b.GitImage)
+	return func(out func(string), args ...string) error {
+		full := append(append([]string(nil), base...), args...)
+		if err := b.run(ctx, lg, dir, env, out, "docker", full...); err != nil {
+			return fmt.Errorf("git %s (in container %s): %w", args[0], b.GitImage, err)
+		}
+		return nil
+	}, nil
 }
 
 // prune keeps the newest keep build images of a service, plus the one just built and the

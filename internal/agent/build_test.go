@@ -36,6 +36,7 @@ type fakeCmd struct {
 	started    chan string   // receives the tag of every docker build that starts
 	inspectErr error         // docker buildx inspect (dedicated builder exists?)
 	createErr  error         // docker buildx create
+	pullErr    error         // docker pull
 
 	mu         sync.Mutex
 	calls      []cmdCall
@@ -51,8 +52,22 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 	c.mu.Lock()
 	c.calls = append(c.calls, cmdCall{dir: dir, env: append([]string(nil), env...), name: name, args: append([]string(nil), args...)})
 	c.mu.Unlock()
+	// `docker run ... --entrypoint git IMAGE <git args>` behaves like git on the bind-mounted checkout
+	if name == "docker" && len(args) > 0 && args[0] == "run" {
+		for i, a := range args {
+			if a == "--entrypoint" && i+2 < len(args) && args[i+1] == "git" {
+				name, args = "git", args[i+3:]
+				break
+			}
+		}
+	}
 	joined := strings.Join(args, " ")
 	switch {
+	case name == "docker" && args[0] == "pull":
+		out("2.52.0: Pulling from alpine/git")
+		out("Status: Downloaded newer image for " + args[1])
+		c.rt.AddImage(args[1], time.Now())
+		return c.pullErr
 	case name == "git" && args[0] == "fetch":
 		for _, l := range c.fetchOut {
 			out(l)
@@ -144,7 +159,8 @@ func newBuilder(t *testing.T) (*agent.Builder, *agenttest.Fake, *fakeCmd, *build
 	c := newFakeCmd(f)
 	ev := &buildEvents{}
 	p := agent.Paths{Root: t.TempDir()}
-	b := &agent.Builder{RT: f, Paths: p, Cmd: c, Emit: ev.emit, FlushEvery: 10 * time.Millisecond}
+	b := &agent.Builder{RT: f, Paths: p, Cmd: c, Emit: ev.emit, FlushEvery: 10 * time.Millisecond,
+		HasCommand: func(string) bool { return true }}
 	return b, f, c, ev, p
 }
 
@@ -382,5 +398,85 @@ func TestBuildTokenRedacted(t *testing.T) {
 	}
 	if !authed {
 		t.Fatal("git fetch got no auth header config")
+	}
+}
+
+// Without git on the host the same git steps run in a throwaway container: the image is
+// pulled once (progress in the build log), the checkout is bind-mounted, and the token
+// reaches the container only through the environment (`-e NAME`, never a value in argv).
+func TestBuildGitInContainer(t *testing.T) {
+	const tok = "ghp_TESTTOKEN0123456789"
+	b, _, c, ev, _ := newBuilder(t)
+	b.HasCommand = func(name string) bool { return name != "git" }
+	pl := buildPayload()
+	pl.Token = tok
+	res, err := b.Build(context.Background(), pl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Commit != testSHA {
+		t.Fatalf("result %+v", res)
+	}
+	if n := len(c.callsOf("git", "")); n != 0 {
+		t.Fatalf("host git ran %d times without git on the host", n)
+	}
+	if pulls := c.callsOf("docker", "pull "+agent.DefaultGitImage); len(pulls) != 1 {
+		t.Fatalf("git image pulls = %+v", pulls)
+	}
+	logs := ev.all()
+	for _, s := range []string{"running git in a container (" + agent.DefaultGitImage + ")", "Downloaded newer image", "naming to " + res.Image} {
+		if !strings.Contains(logs, s) {
+			t.Fatalf("build log lacks %q: %q", s, logs)
+		}
+	}
+	runs := c.callsOf("docker", "--entrypoint git")
+	if len(runs) != 4 { // init, fetch, checkout, rev-parse
+		t.Fatalf("git container runs = %d: %+v", len(runs), runs)
+	}
+	for _, r := range runs {
+		args := strings.Join(r.args, " ")
+		for _, s := range []string{"run --rm", "-v " + r.dir + ":/src", "-w /src", "-u ", "-e GIT_CONFIG_VALUE_0 ", "--entrypoint git " + agent.DefaultGitImage} {
+			if !strings.Contains(args, s) {
+				t.Fatalf("docker run args %q lack %q", args, s)
+			}
+		}
+		if strings.Contains(args, tok) || strings.Contains(args, "AUTHORIZATION") || strings.Contains(args, "basic ") {
+			t.Fatalf("credentials in argv: %s", args)
+		}
+		authed := false
+		for _, e := range r.env {
+			if strings.Contains(e, tok) {
+				t.Fatalf("plaintext token in env: %s", e)
+			}
+			if strings.HasPrefix(e, "GIT_CONFIG_VALUE_0=AUTHORIZATION: basic ") {
+				authed = true
+			}
+		}
+		if !authed {
+			t.Fatalf("git container got no auth header env: %v", r.env)
+		}
+	}
+	if strings.Contains(logs, tok) || strings.Contains(logs, "AUTHORIZATION") {
+		t.Fatalf("credentials in build log: %q", logs)
+	}
+	if fetch := c.callsOf("docker", "fetch --depth 1 --no-tags https://github.com/example/app.git refs/heads/main"); len(fetch) != 1 {
+		t.Fatalf("fetch in container = %+v", fetch)
+	}
+
+	// the image is pulled only once
+	if _, err := b.Build(context.Background(), pl); err != nil {
+		t.Fatal(err)
+	}
+	if pulls := c.callsOf("docker", "pull "+agent.DefaultGitImage); len(pulls) != 1 {
+		t.Fatalf("git image pulled again: %+v", pulls)
+	}
+
+	// a pull failure names the container path
+	b2, _, c2, _, _ := newBuilder(t)
+	b2.HasCommand = func(name string) bool { return name != "git" }
+	b2.GitImage = "example/git:1"
+	c2.pullErr = errors.New("exit status 1")
+	if _, err := b2.Build(context.Background(), buildPayload()); err == nil || !strings.Contains(err.Error(), "git is not installed on this server") || !strings.Contains(err.Error(), "example/git:1") {
+		t.Fatalf("pull failure: %v", err)
 	}
 }
