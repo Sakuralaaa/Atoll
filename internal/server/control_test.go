@@ -765,8 +765,34 @@ func TestRestoreControlRoundTrip(t *testing.T) {
 	if _, err := RestoreControl(ctx, RestoreOptions{Bundle: bundle, Passphrase: "wrong passphrase!!", DataDir: newData}); err != ctlbundle.ErrDecrypt {
 		t.Fatalf("wrong passphrase: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(newData, "atoll.db")); err == nil {
-		t.Fatal("database written despite the wrong passphrase")
+	if _, err := os.Stat(newData); !os.IsNotExist(err) {
+		t.Fatalf("failed restore left %s behind: %v", newData, err)
+	}
+	// nested dirs it created are removed too; a dir that already existed is kept as it was
+	nested := filepath.Join(t.TempDir(), "a", "b", "atoll")
+	if _, err := RestoreControl(ctx, RestoreOptions{Bundle: bundle, Passphrase: "wrong passphrase!!", DataDir: nested}); err != ctlbundle.ErrDecrypt {
+		t.Fatalf("wrong passphrase (nested): %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(filepath.Dir(nested))); !os.IsNotExist(err) {
+		t.Fatalf("created parent dirs left behind: %v", err)
+	}
+	existing := t.TempDir()
+	os.WriteFile(filepath.Join(existing, "keep.txt"), []byte("x"), 0o600)
+	if _, err := RestoreControl(ctx, RestoreOptions{Bundle: bundle, Passphrase: "wrong passphrase!!", DataDir: existing}); err != ctlbundle.ErrDecrypt {
+		t.Fatalf("wrong passphrase (existing): %v", err)
+	}
+	if ents, _ := os.ReadDir(existing); len(ents) != 1 || ents[0].Name() != "keep.txt" {
+		t.Fatalf("pre-existing data dir changed: %v", ents)
+	}
+	under := filepath.Join(existing, "sub")
+	if _, err := RestoreControl(ctx, RestoreOptions{Bundle: bundle, Passphrase: "wrong passphrase!!", DataDir: under}); err != ctlbundle.ErrDecrypt {
+		t.Fatalf("wrong passphrase (under existing): %v", err)
+	}
+	if _, err := os.Stat(under); !os.IsNotExist(err) {
+		t.Fatal("created sub dir left behind")
+	}
+	if _, err := os.Stat(existing); err != nil {
+		t.Fatal("pre-existing parent removed")
 	}
 	res, err := RestoreControl(ctx, RestoreOptions{Bundle: bundle, Passphrase: "migration passphrase", DataDir: newData, EnvFile: newEnv, AdoptPublicIP: true})
 	if err != nil {
@@ -877,5 +903,81 @@ func TestPublicDomainPushedAsFallback(t *testing.T) {
 	}
 	if domainURL("https://localhost:7300") || domainURL("http://[::1]:7300") || !domainURL("https://a.example.com:8443") {
 		t.Fatal("domainURL")
+	}
+}
+
+// ---------- update result after restart ----------
+
+func countAudit(t *testing.T, e *testEnv, action string) int {
+	t.Helper()
+	rows, err := e.srv.st.ListAudit(context.Background(), store.AuditFilter{Action: action, Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(rows)
+}
+
+// The helper writes result.json only after the new server has started: the server keeps
+// looking for it and logs the audit entry exactly once.
+func TestUpdateResultWrittenAfterStart(t *testing.T) {
+	oldPoll, oldWin := updateResultPoll, updateResultWindow
+	updateResultPoll, updateResultWindow = 20*time.Millisecond, time.Minute
+	t.Cleanup(func() { updateResultPoll, updateResultWindow = oldPoll, oldWin })
+
+	data := t.TempDir()
+	dir := filepath.Join(data, "control-update")
+	os.MkdirAll(dir, 0o700)
+	started := time.Now().UTC()
+	pb, _ := json.Marshal(pendingUpdate{Mode: "update", Version: "v9.9.9", From: "v0.0.1", StartedAt: started})
+	os.WriteFile(filepath.Join(dir, "pending.json"), pb, 0o600)
+	// a result from an earlier update is not this one's
+	selfupdate.WriteResult(filepath.Join(dir, "result.json"), api.UpdateResult{Mode: "update", ToVersion: "v0.0.1", OK: true, StartedAt: started.Add(-time.Hour), FinishedAt: started.Add(-time.Hour)})
+
+	e := newTestEnvWith(t, func(c *Config) { c.DataDir = data })
+	time.Sleep(100 * time.Millisecond)
+	if n := countAudit(t, e, "control.update_result"); n != 0 {
+		t.Fatalf("stale result audited: %d", n)
+	}
+	if !e.srv.ctl.resWatching.Load() {
+		t.Fatal("no watcher for the pending update")
+	}
+	// the helper reports after the server is up
+	res := api.UpdateResult{Mode: "update", FromVersion: "v0.0.1", ToVersion: "v9.9.9", OK: true, StartedAt: started, FinishedAt: time.Now().UTC()}
+	selfupdate.WriteResult(filepath.Join(dir, "result.json"), res)
+	waitFor(t, "result audited", func() bool { return countAudit(t, e, "control.update_result") == 1 })
+	if _, err := os.Stat(filepath.Join(dir, "pending.json")); !os.IsNotExist(err) {
+		t.Fatal("pending.json not removed")
+	}
+	waitFor(t, "watcher stops", func() bool { return !e.srv.ctl.resWatching.Load() })
+
+	// idempotent: consuming again, or pending.json reappearing (a crash before its removal),
+	// logs nothing new
+	if e.srv.consumeUpdateResult() {
+		t.Fatal("consumed without a pending update")
+	}
+	os.WriteFile(filepath.Join(dir, "pending.json"), pb, 0o600)
+	if !e.srv.consumeUpdateResult() {
+		t.Fatal("pending update with its result not settled")
+	}
+	e.srv.watchUpdateResult()
+	if n := countAudit(t, e, "control.update_result"); n != 1 {
+		t.Fatalf("audited %d times", n)
+	}
+}
+
+// The watcher gives up after its window when the helper never reports.
+func TestUpdateResultWatchWindow(t *testing.T) {
+	oldPoll, oldWin := updateResultPoll, updateResultWindow
+	updateResultPoll, updateResultWindow = 10*time.Millisecond, 80*time.Millisecond
+	t.Cleanup(func() { updateResultPoll, updateResultWindow = oldPoll, oldWin })
+	data := t.TempDir()
+	dir := filepath.Join(data, "control-update")
+	os.MkdirAll(dir, 0o700)
+	pb, _ := json.Marshal(pendingUpdate{Mode: "update", Version: "v9.9.9", From: "v0.0.1", StartedAt: time.Now().UTC()})
+	os.WriteFile(filepath.Join(dir, "pending.json"), pb, 0o600)
+	e := newTestEnvWith(t, func(c *Config) { c.DataDir = data })
+	waitFor(t, "watcher gives up", func() bool { return !e.srv.ctl.resWatching.Load() })
+	if n := countAudit(t, e, "control.update_result"); n != 0 {
+		t.Fatalf("audited %d", n)
 	}
 }

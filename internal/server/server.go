@@ -231,7 +231,7 @@ func New(cfg Config) (*Server, error) {
 	s.controlSampleLoop()
 	s.startControlBackupScheduler()
 	s.startAdoptPublicIP()
-	s.clearStalePending()
+	s.watchUpdateResult()
 	return s, nil
 }
 

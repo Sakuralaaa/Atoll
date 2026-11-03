@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/agent/tailnet"
@@ -78,6 +79,9 @@ type controlState struct {
 	prevPath   string // cached version of atoll-server.prev
 	prevMod    time.Time
 	prevVer    string
+
+	resMu       sync.Mutex  // consuming the update helper's result
+	resWatching atomic.Bool // a watchUpdateResult poller is running
 
 	backupMu sync.Mutex // one control backup at a time
 }

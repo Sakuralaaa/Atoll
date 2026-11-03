@@ -63,9 +63,75 @@ API 细节见 [api.md → Control](api.md#control-中控)。
 4. 通过 `systemd-run` 启动一个独立的辅助进程（`atoll-server control-helper`），它不随 atoll-server 退出：把旧二进制保存为 `/usr/local/bin/atoll-server.prev`，换上新的，`systemctl restart atoll-server`，60 秒内检查 `/api/v1/auth/status` 和 `/healthz` 的版本号。不健康就换回 `.prev` 再重启，结果显示在中控页（`last_update_result`）。
 5. **回滚**：`atoll-server` 与 `atoll-server.prev` 互换，同样有健康检查（再回滚一次就回到新版本）。注意：新版本可能已经给数据库加了新表/列，旧版本一般能忽略它们正常运行；如有问题，用 `pre-update` 备份恢复。
 
+辅助进程是在新版本启动**之后**才写入结果的，所以新的 atoll-server 启动时以及之后 10 分钟内每隔几秒检查一次结果，拿到后在审计日志里记一条 `control.update_result`（只记一次）。
+
 自更新要求 atoll-server 以 systemd 服务运行（`install-server.sh` 安装的就是）。其他方式运行时，请用 `install-server.sh --version vX.Y.Z` 升级。
 
 更新期间面板和 API 会中断几秒；agent 会自动重连，**业务不受影响**。
+
+## 在不碰生产的前提下验证一份备份
+
+想确认某份备份确实能用（口令对、包没坏、数据齐全），可以在任意一台 Linux 机器（也可以就是中控本机）上把它恢复到**临时目录**并离线启动，生产环境完全不受影响。
+
+> **警告：恢复出来的副本里有真实生效的密钥。** 中控备份包含 `master.key` 和数据库，里面是线上在用的 Cloudflare token、Tailscale key、S3 / R2 备份凭据、加密环境变量和 agent 的令牌。副本一旦能联网，就会像生产中控一样**真的去做事**：对账并改写 Cloudflare DNS 记录（包括把面板域名指向自己）、往同一个存储桶上传中控备份并按保留数清理旧备份、接受 agent 连接并向它们下发配置或部署。所以：
+>
+> - 只在**没有网络**的环境里启动副本（下面用独立的网络命名空间，只有 127.0.0.1）；
+> - `restore` 时**不要**加 `--adopt-public-ip`、`--env-file`、`--force`，也不要把 `--data` 指向生产目录；
+> - 验证完立刻删除临时目录，它和生产备份一样敏感。
+
+1. **拿到备份包**：用本地的 `/var/lib/atoll/control-backups/<id>.atollbak`、存储桶 `<前缀>/control/` 下载的文件，或现场导出一份（离线导出不需要停服务）：
+
+   ```sh
+   atoll-server export --data /var/lib/atoll --out /root/verify.atollbak --passphrase-file /root/pass
+   ```
+
+2. **恢复到一个新的临时目录**（目录必须还不存在或为空；口令错或包损坏时 `restore` 报错，并删掉它自己创建的目录）：
+
+   ```sh
+   SCRATCH=$(mktemp -d /root/atoll-verify.XXXXXX)
+   atoll-server restore --bundle /root/verify.atollbak --passphrase-file /root/pass --data "$SCRATCH/data"
+   ```
+
+   `restore` 在安装之前已经用包自己的 `master.key` 打开数据库并做了 SQLite `PRAGMA integrity_check`，输出里会给出备份时间、来源主机和服务器数量。
+
+3. **离线启动副本并检查**：放进一个只有回环网卡的网络命名空间（`unshare --net`），监听 127.0.0.1 的另一个端口；`env -i` 清掉生产的环境变量，server.env、Caddyfile、systemd 单元名都指向临时路径，也不设 `ATOLL_AGENT_LISTEN`。整个检查都在这个命名空间里完成，结束时停掉副本：
+
+   ```sh
+   cat > "$SCRATCH/check.sh" <<'SH'
+   set -u
+   ip link set lo up
+   env -i PATH=/usr/local/bin:/usr/bin:/bin \
+       ATOLL_SERVER_ENV="$SCRATCH/server.env" ATOLL_CADDYFILE="$SCRATCH/Caddyfile" ATOLL_SYSTEMD_UNIT=atoll-verify \
+       atoll-server serve --listen 127.0.0.1:7390 --data "$SCRATCH/data" --public-url http://127.0.0.1:7390 \
+       > "$SCRATCH/serve.log" 2>&1 &
+   pid=$!
+   sleep 3
+   B=http://127.0.0.1:7390
+   curl -s $B/healthz; echo
+   curl -s -c "$SCRATCH/jar" -H 'Content-Type: application/json' \
+        -d "{\"username\":\"admin\",\"password\":\"$PANEL_PASS\"}" $B/api/v1/auth/login; echo
+   curl -s -b "$SCRATCH/jar" $B/api/v1/servers  | head -c 600; echo
+   curl -s -b "$SCRATCH/jar" $B/api/v1/projects | head -c 600; echo
+   kill $pid; wait $pid
+   SH
+   read -rs -p '面板密码: ' PANEL_PASS; echo
+   sudo SCRATCH="$SCRATCH" PANEL_PASS="$PANEL_PASS" unshare --net sh "$SCRATCH/check.sh"
+   ```
+
+   能用原密码登录，说明数据库和 `master.key` 匹配、加密的设置能解开。`$SCRATCH/serve.log` 里出现的 DNS、备份上传、Tailscale 等连接失败是**预期的**（没有网络），说明副本确实被隔离住了。
+
+4. **数量对照**（可选，需要 `sqlite3`；副本已停）：
+
+   ```sh
+   for t in nodes projects services domains env_vars backup_policies users; do
+     printf '%-16s %s\n' "$t" "$(sqlite3 "$SCRATCH/data/atoll.db" "SELECT count(*) FROM $t")"
+   done
+   sqlite3 "$SCRATCH/data/atoll.db" 'PRAGMA integrity_check'
+   ```
+
+   和生产面板上看到的服务器、项目、服务、域名数量对一下即可。
+
+5. **清理**：`rm -rf "$SCRATCH" /root/verify.atollbak`。
 
 ## 把中控迁移到另一台机器
 

@@ -610,6 +610,9 @@ type RestoreResult struct {
 }
 
 // RestoreControl installs a control bundle into opts.DataDir. Run it with atoll-server stopped.
+// When it fails before the bundle is installed (a wrong passphrase, a damaged bundle), the
+// directories it created for opts.DataDir are removed again; a directory that existed before
+// is never removed.
 func RestoreControl(ctx context.Context, opts RestoreOptions) (*RestoreResult, error) {
 	if opts.DataDir == "" {
 		return nil, errors.New("data dir required")
@@ -619,9 +622,40 @@ func RestoreControl(ctx context.Context, opts RestoreOptions) (*RestoreResult, e
 		return nil, err
 	}
 	defer in.Close()
+	created := firstMissingDir(opts.DataDir)
 	if err := os.MkdirAll(opts.DataDir, 0o700); err != nil {
 		return nil, err
 	}
+	installed := false
+	res, err := restoreControl(ctx, opts, in, &installed)
+	if err != nil && !installed && created != "" {
+		os.RemoveAll(created)
+	}
+	return res, err
+}
+
+// firstMissingDir returns the outermost directory of path that does not exist yet ("" when
+// path already exists), i.e. what os.MkdirAll(path) would create.
+func firstMissingDir(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+	missing := ""
+	for p := abs; ; p = filepath.Dir(p) {
+		if _, err := os.Lstat(p); err == nil {
+			return missing
+		} else if !os.IsNotExist(err) {
+			return "" // unknown state: never remove anything
+		}
+		missing = p
+		if filepath.Dir(p) == p {
+			return ""
+		}
+	}
+}
+
+func restoreControl(ctx context.Context, opts RestoreOptions, in io.Reader, installed *bool) (*RestoreResult, error) {
 	dbPath := filepath.Join(opts.DataDir, "atoll.db")
 	if _, err := os.Stat(dbPath); err == nil && !opts.Force {
 		return nil, fmt.Errorf("%s already has a database; stop atoll-server and pass --force to replace it (the current one is kept aside)", opts.DataDir)
@@ -695,6 +729,7 @@ func RestoreControl(ctx context.Context, opts RestoreOptions) (*RestoreResult, e
 	if err := os.Rename(filepath.Join(tmp, ctlbundle.FileDB), dbPath); err != nil {
 		return nil, err
 	}
+	*installed = true
 	if b, err := os.ReadFile(filepath.Join(tmp, ctlbundle.FileCaddyfile)); err == nil {
 		dir := filepath.Join(opts.DataDir, "control-restore")
 		os.MkdirAll(dir, 0o700)

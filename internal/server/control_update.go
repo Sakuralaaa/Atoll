@@ -460,6 +460,7 @@ func (s *Server) spawnHelper(ctx context.Context, mode, exe, newPath, version st
 		return fmt.Errorf("start update helper: %w", err)
 	}
 	s.log.Info("self-update helper started", "mode", mode, "version", version)
+	s.watchUpdateResult() // a helper that fails before restarting us reports while we run
 	return nil
 }
 
@@ -495,17 +496,70 @@ func copyExecutable(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
-// clearStalePending removes pending.json once its result is in (called at start).
-func (s *Server) clearStalePending() {
-	p := s.readPending()
-	if p == nil {
+// The helper writes result.json after it has restarted the unit, i.e. after the new server
+// has already started, so the result is looked for at start and then polled for a while.
+var (
+	updateResultPoll   = 3 * time.Second
+	updateResultWindow = 10 * time.Minute
+)
+
+// watchUpdateResult consumes the helper's result now and, while an update is pending, keeps
+// checking for it every updateResultPoll for up to updateResultWindow. One watcher at a time.
+func (s *Server) watchUpdateResult() {
+	if s.consumeUpdateResult() || s.readPending() == nil {
 		return
 	}
-	res, _ := selfupdate.ReadResult(filepath.Join(s.updateDir(), "result.json"))
-	if res != nil && !res.FinishedAt.IsZero() && !res.StartedAt.Before(p.StartedAt.Add(-time.Minute)) {
-		os.Remove(filepath.Join(s.updateDir(), "pending.json"))
-		s.st.Audit(s.bg, "system", "control.update_result", res.ToVersion, res)
+	if !s.ctl.resWatching.CompareAndSwap(false, true) {
+		return
 	}
+	poll, window := updateResultPoll, updateResultWindow
+	s.goBG(func(bg context.Context) {
+		defer s.ctl.resWatching.Store(false)
+		t := time.NewTicker(poll)
+		defer t.Stop()
+		deadline := time.NewTimer(window)
+		defer deadline.Stop()
+		for {
+			select {
+			case <-bg.Done():
+				return
+			case <-deadline.C:
+				return
+			case <-t.C:
+				if s.consumeUpdateResult() || s.readPending() == nil {
+					return
+				}
+			}
+		}
+	})
+}
+
+// consumeUpdateResult audits the helper's result once and removes pending.json. It reports
+// whether the pending update is settled (its result was consumed now or earlier).
+// Idempotent: result.audited records the result already logged, so a crash between the audit
+// and the removal of pending.json, or two callers racing, never log it twice.
+func (s *Server) consumeUpdateResult() bool {
+	s.ctl.resMu.Lock()
+	defer s.ctl.resMu.Unlock()
+	p := s.readPending()
+	if p == nil {
+		return false
+	}
+	dir := s.updateDir()
+	res, _ := selfupdate.ReadResult(filepath.Join(dir, "result.json"))
+	if res == nil || res.FinishedAt.IsZero() || res.StartedAt.Before(p.StartedAt.Add(-time.Minute)) {
+		return false
+	}
+	key := res.StartedAt.UTC().Format(time.RFC3339Nano) + " " + res.FinishedAt.UTC().Format(time.RFC3339Nano)
+	marker := filepath.Join(dir, "result.audited")
+	if b, err := os.ReadFile(marker); err != nil || strings.TrimSpace(string(b)) != key {
+		s.st.Audit(s.bg, "system", "control.update_result", res.ToVersion, res)
+		if err := os.WriteFile(marker, []byte(key+"\n"), 0o600); err != nil {
+			s.log.Warn("record consumed update result", "err", err)
+		}
+	}
+	os.Remove(filepath.Join(dir, "pending.json"))
+	return true
 }
 
 // ---------- the helper process (atoll-server control-helper) ----------
