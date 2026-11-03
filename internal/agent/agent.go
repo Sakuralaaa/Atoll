@@ -113,6 +113,19 @@ func New(cfg *Config, rt Runtime, fw interface {
 		}
 		return ""
 	}
+	a.Builds.HasSourceServices = func() bool {
+		specs, err := a.Mgr.Store().List()
+		if err != nil {
+			return true // unknown: keep the builder
+		}
+		for _, s := range specs {
+			if s.LocalImage || strings.HasPrefix(s.Image, BuildImageRepo) {
+				return true
+			}
+		}
+		return false
+	}
+	a.Mgr.OnRemoved = a.Builds.RemoveService
 	a.HelloFunc = func(ctx context.Context) api.HelloPayload { return CollectHello(ctx, rt, cfg.NodeID) }
 	return a
 }
@@ -148,6 +161,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	go a.statusLoop(ctx)
 	go a.metricsLoop(ctx)
 	go a.imagePruneLoop(ctx, 10*time.Minute)
+	if a.Builds != nil {
+		go a.Builds.IdleLoop(ctx)
+	}
 	a.connectLoop(ctx)
 	return nil
 }
@@ -256,7 +272,8 @@ func (a *Agent) metricsLoop(ctx context.Context) {
 }
 
 // imagePruneLoop removes old unused images so pulls and builds do not fill the disk. Images a
-// container still uses (running or stopped) and Atoll's build images are kept.
+// container still uses (running or stopped) and Atoll's build images are kept. It also runs
+// the daily builder cleanup (Builder.Maintain).
 func (a *Agent) imagePruneLoop(ctx context.Context, first time.Duration) {
 	if a.ImagePruneEvery < 0 || a.RT == nil {
 		return
@@ -280,6 +297,9 @@ func (a *Agent) imagePruneLoop(ctx context.Context, first time.Duration) {
 			a.Log.Warn("prune images", "err", err)
 		} else if n > 0 {
 			a.Log.Info("pruned unused images", "reclaimed_mb", n>>20)
+		}
+		if a.Builds != nil {
+			a.Builds.Maintain(ctx)
 		}
 	}
 }

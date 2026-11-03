@@ -15,6 +15,8 @@ package agent
 //	ATOLL_BUILD_CPUS=1.5        hard CPU cap (default: none; builds get a low CPU weight instead)
 //	ATOLL_BUILD_MIN_FREE_GB=3   refuse to start a build below this much free disk (0 = off)
 //	ATOLL_BUILD_CACHE_GB=10     build cache kept after each build (0 = never prune)
+//	ATOLL_BUILD_CACHE_DAILY_GB=5  build cache kept by the daily cleanup (0 = no daily prune)
+//	ATOLL_BUILDER_IDLE_STOP=10  stop the builder after this many idle minutes (0 = never)
 //	ATOLL_DOCKER_ROOT=/var/lib/docker   where the free-disk check looks
 
 import (
@@ -24,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -37,7 +40,11 @@ type BuildLimits struct {
 	CPUShares   int     // relative CPU weight (1024 = normal)
 	MinFreeGB   float64 // free disk required to start
 	CacheKeepGB int     // build cache kept after a build (0 = no prune)
-	DockerRoot  string  // filesystem checked for free space
+	// DailyCacheKeepGB is the cache the daily cleanup trims to (0 = no daily prune).
+	DailyCacheKeepGB int
+	// IdleStop stops the dedicated builder after this long without a build (0 = never).
+	IdleStop   time.Duration
+	DockerRoot string // filesystem checked for free space
 }
 
 // buildCPUShares gives builds a quarter of a normal container's weight: they still use idle
@@ -46,7 +53,8 @@ const buildCPUShares = 256
 
 // BuildLimitsFromEnv reads the ATOLL_BUILD_* settings, filling defaults from the machine.
 func BuildLimitsFromEnv(getenv func(string) string) BuildLimits {
-	l := BuildLimits{Dedicated: true, CPUShares: buildCPUShares, MinFreeGB: 3, CacheKeepGB: 10, DockerRoot: "/var/lib/docker"}
+	l := BuildLimits{Dedicated: true, CPUShares: buildCPUShares, MinFreeGB: 3, CacheKeepGB: 10, DockerRoot: "/var/lib/docker",
+		DailyCacheKeepGB: DefaultDailyCacheKeepGB, IdleStop: DefaultBuilderIdleStop}
 	if v := strings.ToLower(strings.TrimSpace(getenv("ATOLL_BUILD_LIMITS"))); v == "off" || v == "0" || v == "false" || v == "no" {
 		l.Dedicated = false
 	}
@@ -63,6 +71,12 @@ func BuildLimitsFromEnv(getenv func(string) string) BuildLimits {
 	}
 	if n, err := strconv.Atoi(strings.TrimSpace(getenv("ATOLL_BUILD_CACHE_GB"))); err == nil && n >= 0 {
 		l.CacheKeepGB = n
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(getenv("ATOLL_BUILD_CACHE_DAILY_GB"))); err == nil && n >= 0 {
+		l.DailyCacheKeepGB = n
+	}
+	if d, ok := parseIdleStop(getenv("ATOLL_BUILDER_IDLE_STOP")); ok {
+		l.IdleStop = d
 	}
 	if v := strings.TrimSpace(getenv("ATOLL_DOCKER_ROOT")); v != "" {
 		l.DockerRoot = v
@@ -140,6 +154,12 @@ type builderState struct {
 	mu     sync.Mutex
 	name   string // ready builder
 	failed string // name that failed to create; retried after an agent restart
+
+	actMu    sync.Mutex // guards active only (mu is held while a builder is created)
+	active   string     // service whose build holds the slot
+	lastUsed time.Time  // end of the last build on the dedicated builder
+	stopped  bool       // the ready builder was stopped while idle (the next build restarts it)
+	swept    bool       // builders of older limits were removed (once per agent run)
 }
 
 // dedicatedBuilder returns the capped builder's name, creating it on first use, or "" to use
@@ -161,6 +181,7 @@ func (b *Builder) dedicatedBuilder(ctx context.Context, lg *buildLog) string {
 	quiet := func(string) {}
 	if err := b.Cmd.Run(ctx, "", nil, quiet, "docker", "buildx", "inspect", name); err == nil {
 		b.bstate.name = name
+		b.sweepOnceLocked(ctx, name)
 		return name
 	}
 	args := []string{"buildx", "create", "--name", name, "--driver", "docker-container"}
@@ -177,8 +198,19 @@ func (b *Builder) dedicatedBuilder(ctx context.Context, lg *buildLog) string {
 		b.Log.Warn("build limits unavailable", "err", err)
 		return ""
 	}
-	b.bstate.name = name
+	b.bstate.name, b.bstate.stopped = name, false
+	b.sweepOnceLocked(ctx, name)
 	return name
+}
+
+// sweepOnceLocked removes builders of older limits the first time the current builder is
+// ready in this agent run. Caller holds bstate.mu and the build slot.
+func (b *Builder) sweepOnceLocked(ctx context.Context, keep string) {
+	if b.bstate.swept {
+		return
+	}
+	b.bstate.swept = true
+	b.removeOrphansLocked(ctx, keep)
 }
 
 // pruneBuildCache trims BuildKit's cache to CacheKeepGB after a build (best effort).

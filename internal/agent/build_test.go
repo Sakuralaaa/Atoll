@@ -37,6 +37,7 @@ type fakeCmd struct {
 	inspectErr error         // docker buildx inspect (dedicated builder exists?)
 	createErr  error         // docker buildx create
 	pullErr    error         // docker pull
+	lsOut      []string      // docker buildx ls output
 
 	mu         sync.Mutex
 	calls      []cmdCall
@@ -85,6 +86,10 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 		out(c.sha)
 	case name == "docker" && args[0] == "buildx" && args[1] == "inspect":
 		return c.inspectErr
+	case name == "docker" && args[0] == "buildx" && args[1] == "ls":
+		for _, l := range c.lsOut {
+			out(l)
+		}
 	case name == "docker" && args[0] == "buildx" && args[1] == "create":
 		return c.createErr
 	case name == "docker" && (args[0] == "build" || args[0] == "buildx" && args[1] == "build"):

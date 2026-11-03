@@ -35,6 +35,8 @@ type Manager struct {
 	StopTimeout time.Duration
 	// OnChange is called after any container change (used to push a status frame).
 	OnChange func()
+	// OnRemoved is called after a service was removed from this node (build images cleanup).
+	OnRemoved func(ctx context.Context, serviceID string)
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -586,6 +588,9 @@ func (m *Manager) removeLocked(ctx context.Context, serviceID string, keepVolume
 	}
 	m.log.Info("removed service", "service", serviceID, "keep_volumes", keepVolumes)
 	m.PruneProjectNetwork(ctx, netName)
+	if m.OnRemoved != nil {
+		m.OnRemoved(ctx, serviceID)
+	}
 	return nil
 }
 

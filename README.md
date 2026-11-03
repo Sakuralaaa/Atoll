@@ -110,7 +110,11 @@ atoll logs SERVICE --build -f
 | `ATOLL_BUILD_CPUS` | 不设硬上限 | CPU 硬上限，如 `1.5` |
 | `ATOLL_BUILD_MIN_FREE_GB` | `3` | 低于这个剩余空间时拒绝构建，`0` 表示不检查 |
 | `ATOLL_BUILD_CACHE_GB` | `10` | 每次构建后保留的构建缓存，`0` 表示不修剪 |
+| `ATOLL_BUILD_CACHE_DAILY_GB` | `5` | 每日清理时保留的构建缓存，`0` 表示每日不修剪 |
+| `ATOLL_BUILDER_IDLE_STOP` | `10` | 构建容器空闲多少分钟后停止（缓存保留，下次构建自动启动），也可写 `90s`、`1h`；`0` 表示不停止 |
 | `ATOLL_DOCKER_ROOT` | `/var/lib/docker` | 磁盘检查看的路径 |
+
+**清理**：删除服务（或项目、迁走）时，这台机器上该服务的构建镜像 `atoll-build/<服务ID>:*` 和残留的构建目录一并删除。构建容器空闲 10 分钟后自动停止，不占内存；每天清理一次：限制参数改过后留下的旧 `atoll-builder-*` 构建器会被删掉，机器上已没有源码构建的服务时连当前构建器和它的缓存一起删除（下次构建会重新创建），否则把缓存修剪到 5 GB。
 
 1–2 GB 内存的小机器建议设 `ATOLL_BUILD_MEMORY=768m`，或者把构建放到 CI 里，改用镜像部署。
 

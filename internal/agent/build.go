@@ -99,6 +99,11 @@ type Builder struct {
 	GitImage string
 	// HasCommand reports whether a host command exists (default exec.LookPath). Tests replace it.
 	HasCommand func(name string) bool
+	// HasSourceServices reports whether any service on this server is built from source;
+	// when it says no, the daily cleanup removes the builder (nil = assume yes).
+	HasSourceServices func() bool
+	// Now is the clock for the idle stop (default time.Now). Tests replace it.
+	Now func() time.Time
 
 	once   sync.Once
 	slot   chan struct{}
@@ -277,7 +282,15 @@ func (b *Builder) Build(ctx context.Context, p api.BuildPayload) (api.BuildResul
 			return api.BuildResult{}, ctx.Err()
 		}
 	}
-	defer func() { <-b.slot }()
+	b.bstate.actMu.Lock()
+	b.bstate.active = p.ServiceID
+	b.bstate.actMu.Unlock()
+	defer func() {
+		b.bstate.actMu.Lock()
+		b.bstate.active = ""
+		b.bstate.actMu.Unlock()
+		<-b.slot
+	}()
 
 	timeout := time.Duration(p.TimeoutSec) * time.Second
 	bctx, cancel := context.WithTimeout(ctx, timeout)
@@ -408,8 +421,18 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 		// same flags through buildx, in the capped builder, loaded back into Docker
 		args = append([]string{"buildx", "build", "--builder", builder, "--load"}, args[1:]...)
 	}
+	if builder != "" {
+		b.bstate.mu.Lock()
+		b.bstate.stopped = false // buildx starts a stopped builder for the build
+		b.bstate.mu.Unlock()
+	}
 	err = b.run(ctx, lg, dir, []string{"DOCKER_BUILDKIT=1"}, nil, "docker", args...)
 	b.pruneBuildCache(context.WithoutCancel(ctx), builder)
+	if builder != "" {
+		b.bstate.mu.Lock()
+		b.bstate.lastUsed = b.now()
+		b.bstate.mu.Unlock()
+	}
 	if err != nil {
 		return api.BuildResult{}, err
 	}
