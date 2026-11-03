@@ -115,6 +115,7 @@ func (m *Manager) converge(ctx context.Context, spec api.ResolvedSpec) error {
 	switch {
 	case err == nil && info.Labels[LabelSpecHash] == SpecHash(spec):
 		m.cleanupOld(ctx, spec.ServiceID)
+		cleanupNext(ctx, m, spec.ServiceID)
 		if spec.Stopped && (info.State == "running" || info.State == "restarting") {
 			return m.rt.StopContainer(ctx, name, m.StopTimeout)
 		}
@@ -191,9 +192,12 @@ func (m *Manager) cleanupOld(ctx context.Context, serviceID string) {
 	}
 }
 
-// recreate pulls the image, then replaces the container (stop old → start new). When the new
-// container fails to create or start, exits or restart-loops within the settle time, or fails
-// its healthcheck, the old container is restored and, if given, prev is written back as state.
+// recreate pulls the image, then replaces the container. With volumes or host ports (or no
+// running container) it stops the old one first (strategy recreate); otherwise it starts the
+// new one next to it and switches over once it is healthy (strategy start-first, see
+// startFirst). When the new container fails to create or start, exits or restart-loops within
+// the settle time, or fails its healthcheck, the old container is kept or restored and, if
+// given, prev is written back as state.
 func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit bool, prev *api.ResolvedSpec) (err error) {
 	sid := spec.ServiceID
 	name := ContainerName(sid)
@@ -246,15 +250,24 @@ func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit 
 		return fail("prepare host", err)
 	}
 
-	m.deployEvent(spec, "starting", "", digest)
-	// Recreate: volumes are single-writer, so the old container is stopped before the new starts.
-	m.cleanupOld(ctx, sid)
+	cleanupNext(ctx, m, sid)
 	old, ierr := m.rt.InspectContainer(ctx, name)
-	hadOld := ierr == nil
-	oldRunning := hadOld && (old.State == "running" || old.State == "restarting")
 	if ierr != nil && !errors.Is(ierr, ErrNotFound) {
 		return fail("inspect container", ierr)
 	}
+	hadOld := ierr == nil
+	oldRunning := hadOld && (old.State == "running" || old.State == "restarting")
+	strategy, why := deployStrategy(spec, cs, oldRunning)
+	note := strategyNote(strategy, why)
+	m.log.Info("deploy strategy", "service", sid, "deployment", spec.DeploymentID, "strategy", strategy, "reason", why)
+	m.deployEvent(spec, "starting", note, digest)
+	if strategy == StrategyStartFirst {
+		return m.startFirst(ctx, spec, cs, digest, note, prev, fail)
+	}
+
+	// Recreate: volumes are single-writer (and host ports can be bound once), so the old
+	// container is stopped before the new starts.
+	m.cleanupOld(ctx, sid)
 	if hadOld {
 		if err := m.rt.RenameContainer(ctx, name, oldName(sid)); err != nil {
 			return fail("rename old container", err)
@@ -298,56 +311,212 @@ func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit 
 		rollback()
 		return fail("start container", err)
 	}
+	// The old container stays (stopped, renamed) until the new one has proven itself, so a
+	// failing healthcheck still rolls back to it.
+	healthMsg, bad := m.proveNew(ctx, name, cs)
+	if bad != "" {
+		rollback()
+		return fail(bad, nil)
+	}
+	m.cleanupOld(ctx, sid)
+	m.pruneConfigs(spec)
+	m.log.Info("deployed", "service", sid, "deployment", spec.DeploymentID, "image", spec.Image, "digest", digest, "strategy", strategy)
+	m.deployEvent(spec, "running", joinMsg(note, healthMsg), digest)
+	return nil
+}
+
+// Deploy strategies (named in the deploy events and agent log).
+const (
+	// StrategyRecreate stops the old container before the new one starts (brief downtime).
+	StrategyRecreate = "recreate"
+	// StrategyStartFirst starts the new container next to the old one and switches traffic
+	// once it is healthy (no downtime).
+	StrategyStartFirst = "start-first"
+)
+
+// deployStrategy picks how to replace a service's container. Start-first needs a running old
+// container to keep serving, and nothing only one container can hold: no volumes (single
+// writer) and no host-published ports (the new container could not bind them).
+func deployStrategy(spec api.ResolvedSpec, cs ContainerSpec, oldRunning bool) (strategy, why string) {
+	switch {
+	case spec.Stopped:
+		return StrategyRecreate, "desired state is stopped"
+	case !oldRunning:
+		return StrategyRecreate, "no running container to keep serving"
+	case len(spec.Volumes) > 0:
+		return StrategyRecreate, "has volumes (single writer)"
+	case len(cs.Ports) > 0:
+		return StrategyRecreate, "publishes host ports"
+	}
+	return StrategyStartFirst, "no volumes, no host ports"
+}
+
+func strategyNote(strategy, why string) string {
+	if strategy == StrategyStartFirst {
+		return "strategy: start-first (zero downtime; " + why + ")"
+	}
+	return "strategy: recreate (stop old first; " + why + ")"
+}
+
+func joinMsg(a, b string) string {
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	}
+	return a + "; " + b
+}
+
+// nextName is the temporary name of a start-first container until it takes over.
+func nextName(serviceID string) string { return ContainerName(serviceID) + "-next" }
+
+func cleanupNext(ctx context.Context, m *Manager, serviceID string) {
+	if err := m.rt.RemoveContainer(ctx, nextName(serviceID)); err != nil && !errors.Is(err, ErrNotFound) {
+		m.log.Warn("remove leftover next container", "service", serviceID, "err", err)
+	}
+}
+
+// proveNew waits out the settle time and the healthcheck of a freshly started container.
+// It returns a health note for the deploy event, or a failure message (with the container's
+// last log lines) when it exited, restart-looped or failed its healthcheck.
+func (m *Manager) proveNew(ctx context.Context, name string, cs ContainerSpec) (note, failMsg string) {
 	if m.SettleTime > 0 {
 		select {
 		case <-time.After(m.SettleTime):
 		case <-ctx.Done():
 		}
 	}
-	info, err := m.rt.InspectContainer(ctx, name)
-	if err != nil {
-		rollback()
-		return fail("inspect new container", err)
-	}
-	// withLogs adds the new container's last log lines, read before rollback removes it.
+	// withLogs adds the new container's last log lines, read before it is removed.
 	withLogs := func(msg string) string {
 		if tail := m.tailLogs(ctx, name, 20); tail != "" {
 			msg += "\n" + tail
 		}
 		return msg
 	}
-	switch {
-	case info.State == "exited" || info.State == "dead":
-		msg := withLogs(fmt.Sprintf("container exited with code %d", info.ExitCode))
-		rollback()
-		return fail(msg, nil)
-	case info.State == "restarting" || info.RestartCount > 0:
-		// up after the settle time only because the restart policy brought it back
-		msg := withLogs(fmt.Sprintf("container keeps restarting (%d restarts, last exit code %d)", info.RestartCount, info.ExitCode))
-		rollback()
-		return fail(msg, nil)
-	}
-
-	// The old container stays (stopped, renamed) until the new one has proven itself, so a
-	// failing healthcheck still rolls back to it.
-	msg := ""
-	if cs.Health != nil {
-		h := m.waitHealthy(ctx, name)
-		switch h {
-		case "unhealthy":
-			msg := withLogs("healthcheck failing")
-			rollback()
-			return fail(msg, nil)
-		case "healthy":
-		default:
-			msg = "health: " + h
+	check := func() string {
+		info, err := m.rt.InspectContainer(ctx, name)
+		if err != nil {
+			return "inspect new container: " + err.Error()
 		}
+		switch {
+		case info.State == "exited" || info.State == "dead":
+			return withLogs(fmt.Sprintf("container exited with code %d", info.ExitCode))
+		case info.State == "restarting" || info.RestartCount > 0:
+			// up after the settle time only because the restart policy brought it back
+			return withLogs(fmt.Sprintf("container keeps restarting (%d restarts, last exit code %d)", info.RestartCount, info.ExitCode))
+		}
+		return ""
+	}
+	if bad := check(); bad != "" {
+		return "", bad
+	}
+	if cs.Health == nil {
+		return "", ""
+	}
+	switch h := m.waitHealthy(ctx, name); h {
+	case "unhealthy":
+		return "", withLogs("healthcheck failing")
+	case "healthy":
+	default:
+		note = "health: " + h
+	}
+	// A container that crashed and came back while the healthcheck was pending is not proven.
+	if bad := check(); bad != "" {
+		return "", bad
+	}
+	return note, ""
+}
+
+// startFirst replaces a running container without downtime. The new container is created as
+// <name>-next on the project network only (it can reach its dependencies, and shares the
+// service's DNS alias there) and proven: settle time, no restarts, healthcheck. Only then is
+// it joined to atoll-ingress with the network alias "atoll-<service>", the name Caddy's routes
+// dial, so the name resolves to both containers and new connections that the old one refuses
+// fall through to the new one. The old container is then stopped gracefully and removed, and
+// the new one renamed to the service's container name (the alias keeps the name resolvable
+// throughout). Any failure before the old container is stopped removes the new one and leaves
+// the old one serving untouched.
+func (m *Manager) startFirst(ctx context.Context, spec api.ResolvedSpec, cs ContainerSpec, digest, note string,
+	prev *api.ResolvedSpec, fail func(string, error) error) error {
+	sid := spec.ServiceID
+	name := ContainerName(sid)
+	next := nextName(sid)
+	m.cleanupOld(ctx, sid)
+
+	staged := cs
+	staged.Name = next
+	staged.Networks = nil
+	var late []NetworkAttach // joined after the new container is proven
+	for i, n := range cs.Networks {
+		if i > 0 && n.Name == IngressNetwork {
+			late = append(late, NetworkAttach{Name: n.Name, Aliases: appendUnique(n.Aliases, name)})
+			continue
+		}
+		staged.Networks = append(staged.Networks, n)
+	}
+	abort := func() {
+		if err := m.rt.RemoveContainer(context.Background(), next); err != nil && !errors.Is(err, ErrNotFound) {
+			m.log.Error("start-first: remove new container", "service", sid, "err", err)
+		}
+		if prev != nil {
+			_ = m.store.Save(*prev)
+		}
+	}
+	if err := m.rt.CreateContainer(ctx, staged); err != nil {
+		abort()
+		return fail("create container", err)
+	}
+	if err := m.rt.StartContainer(ctx, next); err != nil {
+		abort()
+		return fail("start container", err)
+	}
+	healthMsg, bad := m.proveNew(ctx, next, cs)
+	if bad != "" {
+		abort()
+		return fail(bad+" (the previous container kept serving)", nil)
+	}
+	// Switch: the new container becomes reachable under the name the routes dial.
+	for _, n := range late {
+		if err := m.rt.ConnectNetwork(ctx, next, n.Name, n.Aliases); err != nil {
+			abort()
+			return fail("connect new container to "+n.Name, err)
+		}
+	}
+	// Drain the old one: a graceful stop lets in-flight requests finish while new
+	// connections already have the new container to go to.
+	if err := m.rt.StopContainer(ctx, name, m.StopTimeout); err != nil && !errors.Is(err, ErrNotFound) {
+		m.log.Warn("start-first: stop old container", "service", sid, "err", err)
+	}
+	if err := m.rt.RemoveContainer(ctx, name); err != nil && !errors.Is(err, ErrNotFound) {
+		// Keep both: rename the old one out of the way so the new one can take the name.
+		m.log.Warn("start-first: remove old container", "service", sid, "err", err)
+		if rerr := m.rt.RenameContainer(ctx, name, oldName(sid)); rerr != nil {
+			m.log.Error("start-first: rename old container", "service", sid, "err", rerr)
+		}
+	}
+	if err := m.rt.RenameContainer(ctx, next, name); err != nil {
+		// The new container serves traffic (through its alias) but under its temporary name;
+		// the next converge recreates it under the right one.
+		m.log.Error("start-first: rename new container", "service", sid, "err", err)
+		m.deployEvent(spec, "failed", "rename new container: "+err.Error(), "")
+		return fmt.Errorf("rename new container: %w", err)
 	}
 	m.cleanupOld(ctx, sid)
 	m.pruneConfigs(spec)
-	m.log.Info("deployed", "service", sid, "deployment", spec.DeploymentID, "image", spec.Image, "digest", digest)
-	m.deployEvent(spec, "running", msg, digest)
+	m.log.Info("deployed", "service", sid, "deployment", spec.DeploymentID, "image", spec.Image, "digest", digest, "strategy", StrategyStartFirst)
+	m.deployEvent(spec, "running", joinMsg(note, healthMsg), digest)
 	return nil
+}
+
+func appendUnique(list []string, v string) []string {
+	out := append([]string(nil), list...)
+	for _, x := range out {
+		if x == v {
+			return out
+		}
+	}
+	return append(out, v)
 }
 
 func (m *Manager) waitHealthy(ctx context.Context, name string) string {
@@ -398,7 +567,7 @@ func (m *Manager) removeLocked(ctx context.Context, serviceID string, keepVolume
 	} else if info, err := m.rt.InspectContainer(ctx, ContainerName(serviceID)); err == nil && info.Labels[LabelProject] != "" {
 		netName = "atoll-" + info.Labels[LabelProject]
 	}
-	for _, n := range []string{ContainerName(serviceID), oldName(serviceID)} {
+	for _, n := range []string{ContainerName(serviceID), oldName(serviceID), nextName(serviceID)} {
 		if err := m.rt.StopContainer(ctx, n, m.StopTimeout); err != nil && !errors.Is(err, ErrNotFound) {
 			m.log.Warn("stop before remove", "container", n, "err", err)
 		}
