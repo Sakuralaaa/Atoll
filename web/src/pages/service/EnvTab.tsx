@@ -21,9 +21,10 @@ export function EnvTab({ s }: { s: Service }) {
   const timer = useRef<{ id: number; flush: () => void }>(undefined)
   const cancelPending = () => { if (timer.current) { clearTimeout(timer.current.id); timer.current = undefined } }
   useEffect(() => () => { const t = timer.current; if (t) { clearTimeout(t.id); t.flush() } }, [])
-  const save = async (vars: EnvVar[]) => {
+  const save = async (vars: EnvVar[], redeploy = true) => {
     cancelPending()
-    const r = await run(() => api.putEnv(s.id, vars), { ok: s.status === 'stopped' ? '已保存，下次启动时生效' : '已保存，正在重新部署', invalidate: [`env:${s.id}`, `deployments:${s.id}`] })
+    const ok = !redeploy ? '已保存，未重新部署；稍后手动重新部署生效' : s.status === 'stopped' ? '已保存，下次启动时生效' : '已保存，正在重新部署'
+    const r = await run(() => api.putEnv(s.id, vars, redeploy), { ok, invalidate: [`env:${s.id}`, `deployments:${s.id}`] })
     return !!r
   }
   const rows = (q.data ?? []).filter(x => x.key !== hidden)
@@ -92,18 +93,50 @@ function EnvEditor({ init, isNew, onClose, onSave }: { init: EnvVar; isNew: bool
     </Modal>
   )
 }
-function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void; onSave: (v: EnvVar[]) => Promise<boolean> }) {
+// parseEnvText reads KEY=VALUE lines like a .env file: blank lines and # comments are skipped, a
+// leading `export` is dropped, quoted values are unwrapped ("..." understands \n), and an
+// unquoted value loses a trailing " # comment". Bad lines are reported, later keys win.
+function parseEnvText(text: string): { vars: { key: string; value: string }[]; errors: string[] } {
+  const out = new Map<string, string>(); const errors: string[] = []
+  text.split('\n').forEach((raw, n) => {
+    let l = raw.trim()
+    if (!l || l.startsWith('#')) return
+    if (l.startsWith('export ')) l = l.slice(7).trim()
+    const i = l.indexOf('=')
+    const key = i > 0 ? l.slice(0, i).trim() : ''
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) { errors.push(`第 ${n + 1} 行：${raw.trim().slice(0, 40)}`); return }
+    let value = l.slice(i + 1).trim()
+    const q = value[0]
+    if (value.length >= 2 && (q === '"' || q === "'") && value.endsWith(q)) {
+      value = value.slice(1, -1)
+      if (q === '"') value = value.replace(/\\(n|"|\\)/g, (_, c: string) => c === 'n' ? '\n' : c)
+    } else {
+      const j = value.indexOf(' #'); if (j >= 0) value = value.slice(0, j).trim()
+    }
+    out.delete(key); out.set(key, value)
+  })
+  return { vars: [...out].map(([key, value]) => ({ key, value })), errors }
+}
+function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void; onSave: (v: EnvVar[], redeploy: boolean) => Promise<boolean> }) {
   const [text, setText] = useState(rows.map(r => `${r.key}=${r.value}`).join('\n'))
+  const [redeploy, setRedeploy] = useState(true)
   const [busy, wrap] = useBusy()
-  const parse = (): EnvVar[] => text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && l.includes('=')).map(l => {
-    const i = l.indexOf('='), key = l.slice(0, i).trim(), value = l.slice(i + 1).replace(/^"(.*)"$/, '$1')
+  const parsed = parseEnvText(text)
+  const vars = (): EnvVar[] => parsed.vars.map(({ key, value }) => {
     const old = rows.find(r => r.key === key)
     return { key, value, secret: old?.secret ?? false, exposed: old?.exposed ?? false }
   })
+  const keys = new Set(parsed.vars.map(v => v.key))
+  const added = parsed.vars.filter(v => !rows.some(r => r.key === v.key)).length
+  const removed = rows.filter(r => !keys.has(r.key)).length
   return (
-    <Modal title="编辑原始环境变量" width={720} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={busy} onClick={() => wrap(async () => { if (await onSave(parse())) onClose() })}>保存</Button></>}>
-      <div className="text-[12.5px] text-muted mb-3">每行一个 KEY=VALUE。私有变量显示为空值，保持为空即不修改。</div>
+    <Modal title="编辑原始环境变量" width={720} onClose={onClose} footer={<>
+      <label className="mr-auto flex items-center gap-2 text-[12.5px] text-muted"><Toggle on={redeploy} onChange={setRedeploy} />保存后重新部署</label>
+      <Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={busy || parsed.errors.length > 0} onClick={() => wrap(async () => { if (await onSave(vars(), redeploy)) onClose() })}>保存</Button></>}>
+      <div className="text-[12.5px] text-muted mb-3">每行一个 KEY=VALUE，可直接粘贴 .env 文件。私有变量显示为空值，保持为空即不修改；删掉的行会被移除。</div>
       <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} wrap="off" className="w-full h-[320px] max-h-[50vh] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
+      <div className="mt-2 text-[12px] text-dim">共 {parsed.vars.length} 个变量{added ? `，新增 ${added}` : ''}{removed ? `，移除 ${removed}` : ''}</div>
+      {parsed.errors.length > 0 && <div className="mt-1 text-[12px] text-[#ef4444]">无法解析：{parsed.errors.slice(0, 3).join('；')}{parsed.errors.length > 3 ? ` 等 ${parsed.errors.length} 行` : ''}</div>}
     </Modal>
   )
 }

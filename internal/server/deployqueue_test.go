@@ -161,3 +161,26 @@ func TestDeployRequestsCoalesceToNewest(t *testing.T) {
 		t.Fatalf("%d applies sent, want 2 (d2 coalesced away)", n)
 	}
 }
+
+// PUT env with ?redeploy=0 only saves the variables: no new deployment starts.
+func TestPutEnvNoRedeploy(t *testing.T) {
+	e, _, svc, started, _ := newQueueService(t)
+	var deps []api.Deployment
+	e.mustDo("GET", "/api/v1/services/"+svc.ID+"/deployments", nil, &deps, 200)
+	before := len(deps)
+	e.mustDo("PUT", "/api/v1/services/"+svc.ID+"/env?redeploy=0", []api.EnvVar{{Key: "A", Value: "1"}, {Key: "B", Value: "2"}}, nil, 200)
+	select {
+	case id := <-started:
+		t.Fatalf("deployment %s started, want none", id)
+	case <-time.After(300 * time.Millisecond):
+	}
+	e.mustDo("GET", "/api/v1/services/"+svc.ID+"/deployments", nil, &deps, 200)
+	if len(deps) != before {
+		t.Fatalf("deployments: %d, want %d", len(deps), before)
+	}
+	var vars []api.EnvVar
+	e.mustDo("GET", "/api/v1/services/"+svc.ID+"/env", nil, &vars, 200)
+	if len(vars) != 2 {
+		t.Fatalf("env: %+v", vars)
+	}
+}

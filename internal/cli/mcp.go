@@ -338,12 +338,13 @@ func MCPTools(app *App) []server.ServerTool {
 				env := argMap(r, "env")
 				return DeployTemplate(ctx, c, TemplateRequest{Project: project, Template: tpl, Name: r.GetString("name", ""), Env: env, EnvOrder: sortedKeys(env), Server: r.GetString("server", "")})
 			}),
-		t(tool("set_env", "Set (or unset) environment variables of a service; the service redeploys. Secret-looking keys are stored as secrets.", false, false,
+		t(tool("set_env", "Set (or unset) environment variables of a service in one change; the service redeploys once (redeploy=false only saves). Secret-looking keys are stored as secrets.", false, false,
 			append(svcArgs(),
 				mcp.WithObject("vars", mcp.Description("variables to set, {KEY: VALUE}")),
 				mcp.WithArray("unset", mcp.WithStringItems(), mcp.Description("keys to remove")),
 				mcp.WithBoolean("secret", mcp.Description("mark every set variable as secret")),
-				mcp.WithBoolean("exposed", mcp.Description("share set variables with other services in the project")))...),
+				mcp.WithBoolean("exposed", mcp.Description("share set variables with other services in the project")),
+				mcp.WithBoolean("redeploy", mcp.Description("redeploy after saving (default true); false stages the change for a later redeploy")))...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
 				if err != nil {
@@ -362,7 +363,7 @@ func MCPTools(app *App) []server.ServerTool {
 				if err != nil {
 					return nil, err
 				}
-				out, err := c.PutEnv(ctx, s.ID, client.MergeEnv(cur, set, unset))
+				out, err := c.PutEnvOpt(ctx, s.ID, client.MergeEnv(cur, set, unset), r.GetBool("redeploy", true))
 				if err != nil {
 					return nil, err
 				}

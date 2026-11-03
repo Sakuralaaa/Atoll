@@ -527,11 +527,21 @@ func (c *Client) GetEnv(ctx context.Context, serviceID string) ([]api.EnvVar, er
 
 // PutEnv replaces all variables. A secret with Value "" keeps its stored value.
 func (c *Client) PutEnv(ctx context.Context, serviceID string, vars []api.EnvVar) ([]api.EnvVar, error) {
+	return c.PutEnvOpt(ctx, serviceID, vars, true)
+}
+
+// PutEnvOpt is PutEnv with control over the redeploy: redeploy=false only saves the variables
+// (?redeploy=0), so several edits can be staged and deployed once.
+func (c *Client) PutEnvOpt(ctx context.Context, serviceID string, vars []api.EnvVar, redeploy bool) ([]api.EnvVar, error) {
 	if vars == nil {
 		vars = []api.EnvVar{}
 	}
+	path := "/services/" + esc(serviceID) + "/env"
+	if !redeploy {
+		path += "?redeploy=0"
+	}
 	var v []api.EnvVar
-	return v, c.do(ctx, http.MethodPut, "/services/"+esc(serviceID)+"/env", vars, &v)
+	return v, c.do(ctx, http.MethodPut, path, vars, &v)
 }
 
 func (c *Client) EnvReferences(ctx context.Context, serviceID string) ([]api.EnvVar, error) {

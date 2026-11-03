@@ -69,7 +69,12 @@ func (s *Server) handlePutEnv(w http.ResponseWriter, r *http.Request) error {
 		keys = append(keys, e.Key)
 	}
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "env.update", svc.ID, keys)
-	// Redeploy only services that were deployed before.
+	// Redeploy only services that were deployed before, unless the caller opts out (?redeploy=0)
+	// to stage several edits and deploy once.
+	if r.URL.Query().Get("redeploy") == "0" {
+		writeJSON(w, 200, maskEnv(vars))
+		return nil
+	}
 	if _, err := s.st.LatestDeployment(r.Context(), svc.ID); err == nil {
 		if _, err := s.deploy(r.Context(), svc.ID, "env"); err != nil {
 			return err

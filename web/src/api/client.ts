@@ -124,7 +124,7 @@ export const api = {
   action: (id: string, action: 'start' | 'stop' | 'restart' | 'redeploy') => post<void>(`/services/${e(id)}/actions`, { action }),
   rollback: (id: string, deployment_id: string) => post<void>(`/services/${e(id)}/rollback`, { deployment_id }),
   env: (id: string, reveal = false) => get<EnvVar[]>(`/services/${e(id)}/env${reveal ? '?reveal=1' : ''}`),
-  putEnv: (id: string, vars: EnvVar[]) => put<EnvVar[]>(`/services/${e(id)}/env`, vars),
+  putEnv: (id: string, vars: EnvVar[], redeploy = true) => put<EnvVar[]>(`/services/${e(id)}/env${redeploy ? '' : '?redeploy=0'}`, vars),
   envRefs: (id: string) => get<EnvReference[]>(`/services/${e(id)}/env/references`),
   serviceDomains: (id: string) => get<Domain[]>(`/services/${e(id)}/domains`),
   addDomain: (id: string, b: { hostname: string; port_name: string; proxied: boolean }) => post<Domain | Confirmation>(`/services/${e(id)}/domains`, b),

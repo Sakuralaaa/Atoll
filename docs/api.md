@@ -60,7 +60,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} (redeploy → Deployment) |
 | POST | /services/{id}/rollback | {deployment_id} |
 | POST | /projects/{id}/migrate | {server_id}: stop → volume export/import via server relay → start on target → DNS switch (waits until names resolve to the target) → ingress update (target first, then source withdrawn) → remove from source; HTTPS confirmed in background (`provisioning` → `active`) |
-| GET/PUT | /services/{id}/env | []EnvVar (PUT replaces all; secret values "" keep old) ; `?reveal=1` shows secrets (session only) |
+| GET/PUT | /services/{id}/env | []EnvVar (PUT replaces all; secret values "" keep old) ; `?reveal=1` shows secrets (session only); PUT redeploys a deployed service, `?redeploy=0` only saves |
 | GET | /services/{id}/env/references | []EnvVar exposed by other services in project |
 | GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied}. Status: with a Cloudflare token the record is created first and the domain is `provisioning` (route held back from Caddy until the name resolves publicly, ≤90s; then `active` once HTTPS answers, ≤3 min, with a note in `error` if it never did); without a token `active` when the name already resolves to the server, else `pending` with the record to create; `error` when the DNS API failed |
 | DELETE | /services/{id}, /projects/{id} | routes withdrawn (agent ack) → containers removed → DNS records deleted |
