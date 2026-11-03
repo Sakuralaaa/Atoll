@@ -21,9 +21,10 @@ for arch in amd64 arm64; do
     CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags "$ld" -o "$OUT/$cmd-linux-$arch" "./cmd/$cmd"
   done
 done
-# CLI for macOS too (deploying from a laptop)
+# CLI for macOS and Windows too (deploying from a laptop)
 for arch in amd64 arm64; do
   CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$OUT/atoll-darwin-$arch" ./cmd/atoll
+  CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$OUT/atoll-windows-$arch.exe" ./cmd/atoll
 done
 cp install/install-agent.sh install/install-server.sh "$OUT/"
 (cd "$OUT" && sha256sum * > SHA256SUMS)
