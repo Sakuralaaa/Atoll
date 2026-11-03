@@ -18,46 +18,75 @@ import (
 // agentUpgradeTimeout is how long an upgrade may stay "upgrading" without a report.
 const agentUpgradeTimeout = 5 * time.Minute
 
+// agentUpgrades caches the last upgrade per node; every change is written through save
+// (the agent_upgrades table, migration 0013), so the state survives a control restart.
 type agentUpgrades struct {
-	mu sync.Mutex
-	m  map[string]*api.AgentUpgrade
+	mu   sync.Mutex
+	m    map[string]*api.AgentUpgrade
+	save func(nodeID string, u api.AgentUpgrade) // nil in tests that do not care
+}
+
+func (u *agentUpgrades) load(m map[string]api.AgentUpgrade) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.m = map[string]*api.AgentUpgrade{}
+	for id, v := range m {
+		u.m[id] = &v
+	}
+}
+
+func (u *agentUpgrades) persist(nodeID string, v api.AgentUpgrade) {
+	if u.save != nil {
+		u.save(nodeID, v)
+	}
 }
 
 func (u *agentUpgrades) get(nodeID string) *api.AgentUpgrade {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 	cur := u.m[nodeID]
 	if cur == nil {
+		u.mu.Unlock()
 		return nil
 	}
+	timedOut := false
 	if cur.State == api.AgentUpgradeRunning && time.Since(cur.StartedAt) > agentUpgradeTimeout {
 		cur.State = api.AgentUpgradeFailed
 		cur.Error = "no report from the agent within 5 minutes; check `journalctl -u atoll-agent` on the server"
 		cur.FinishedAt = time.Now().UTC()
+		timedOut = true
 	}
 	c := *cur
+	u.mu.Unlock()
+	if timedOut {
+		u.persist(nodeID, c)
+	}
 	return &c
 }
 
 func (u *agentUpgrades) set(nodeID string, v *api.AgentUpgrade) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 	if u.m == nil {
 		u.m = map[string]*api.AgentUpgrade{}
 	}
 	u.m[nodeID] = v
+	c := *v
+	u.mu.Unlock()
+	u.persist(nodeID, c)
 }
 
 // finish applies fn to the node's running upgrade (no-op when none is running).
 func (u *agentUpgrades) finish(nodeID string, fn func(*api.AgentUpgrade)) bool {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 	cur := u.m[nodeID]
 	if cur == nil || cur.State != api.AgentUpgradeRunning {
+		u.mu.Unlock()
 		return false
 	}
 	fn(cur)
 	cur.FinishedAt = time.Now().UTC()
+	c := *cur
+	u.mu.Unlock()
+	u.persist(nodeID, c)
 	return true
 }
 
@@ -99,7 +128,9 @@ func (s *Server) onAgentUpgradeResult(ctx context.Context, nodeID string, r api.
 		cur.RolledBack = r.RolledBack
 	}
 	cur.FinishedAt = time.Now().UTC()
+	saved := *cur
 	s.agentUpg.mu.Unlock()
+	s.agentUpg.persist(nodeID, saved)
 	s.log.Info("agent upgrade finished", "node", nodeID, "ok", r.OK, "from", r.FromVersion, "to", r.ToVersion, "err", r.Error)
 	s.st.Audit(ctx, "agent:"+nodeID, "server.agent_upgrade_result", nodeID, map[string]any{
 		"ok": r.OK, "from": r.FromVersion, "to": r.ToVersion, "rolled_back": r.RolledBack, "error": r.Error})

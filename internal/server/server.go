@@ -187,6 +187,16 @@ func New(cfg Config) (*Server, error) {
 	s.upd = newUpdater()
 	s.ctl = newControlState()
 	s.bg, s.cancel = context.WithCancel(context.Background())
+	if ups, err := st.ListAgentUpgrades(s.bg); err == nil {
+		s.agentUpg.load(ups)
+	} else {
+		s.log.Warn("load agent upgrades", "err", err)
+	}
+	s.agentUpg.save = func(nodeID string, u api.AgentUpgrade) {
+		if err := st.SaveAgentUpgrade(context.Background(), nodeID, u); err != nil {
+			s.log.Warn("save agent upgrade", "node", nodeID, "err", err)
+		}
+	}
 	// Nobody is connected right after start.
 	nodes, _ := st.ListNodes(s.bg)
 	for _, n := range nodes {

@@ -25,8 +25,8 @@ const (
 	AgentUpgradeFailed  = "failed"
 )
 
-// AgentUpgrade is the last panel-started upgrade of one server's agent (kept in memory on
-// the control server; it is lost when the control server restarts).
+// AgentUpgrade is the last panel-started upgrade of one server's agent (stored by the control
+// server, so it survives a restart).
 type AgentUpgrade struct {
 	State      string    `json:"state"` // upgrading | done | failed
 	From       string    `json:"from"`
