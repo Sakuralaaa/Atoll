@@ -18,6 +18,7 @@ const Confirmations = lazy(() => import('./pages/Confirmations'))
 const Control = lazy(() => import('./pages/Control'))
 
 import { Toaster } from './components/feedback'
+import { CommandPalette } from './components/CommandPalette'
 import { api } from './api/client'
 import { useQuery } from './api/hooks'
 import { useLiveEvents } from './api/ws'
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
       </Suspense>
+      <CommandPalette />
       <Toaster />
     </>
   )

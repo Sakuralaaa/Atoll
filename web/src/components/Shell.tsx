@@ -12,6 +12,7 @@ import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 import { cx } from './ui-utils'
 import { usePending } from '../api/queries'
+import { openPalette } from './palette'
 
 const useMe = () => useQuery('me', api.me)
 const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
@@ -81,11 +82,12 @@ function UserRow() {
     </div>
   )
 }
+const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 function SearchBox() {
   return (
-    <div className="flex items-center gap-2 h-10 rounded-lg border border-line field px-3 text-[13px] text-muted">
-      <Search size={15} />搜索<span className="ml-auto text-[11px] rounded border border-line2 px-1.5 py-0.5 text-dim">Ctrl K</span>
-    </div>
+    <button onClick={openPalette} className="w-full flex items-center gap-2 h-10 rounded-lg border border-line field px-3 text-[13px] text-muted hover:text-fg">
+      <Search size={15} />搜索<span className="ml-auto text-[11px] rounded border border-line2 px-1.5 py-0.5 text-dim">{mac ? '⌘ K' : 'Ctrl K'}</span>
+    </button>
   )
 }
 
