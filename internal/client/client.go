@@ -793,3 +793,16 @@ func (c *Client) RollbackImport(ctx context.Context, id string) (*api.ImportJob,
 func (c *Client) CleanupImport(ctx context.Context, id string, req api.ZeaburCleanupRequest) (*api.ImportJob, error) {
 	return c.importStep(ctx, id, "cleanup", req)
 }
+
+// ---------- problems ----------
+
+// Problems lists firing problems (offline servers, full disks, failing services, failed
+// deploys/backups, domain errors); withResolved adds ones resolved in the last 24 hours.
+func (c *Client) Problems(ctx context.Context, withResolved bool) ([]api.Problem, error) {
+	var v []api.Problem
+	p := "/problems"
+	if withResolved {
+		p += "?resolved=1"
+	}
+	return v, c.do(ctx, http.MethodGet, p, nil, &v)
+}

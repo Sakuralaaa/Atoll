@@ -30,6 +30,7 @@ const KEYS: Record<string, string[]> = {
   domain: ['domains', 'projects', 'project:', 'service:'],
   deployment: ['deployments:', 'service:', 'project:', 'projects', 'image-update'],
   confirmation: ['confirmations'],
+  problems: ['problems'],
   image_update: ['image-update'],
   build_log: [], // high-volume: delivered to onBuildLog subscribers instead of invalidating queries
 }

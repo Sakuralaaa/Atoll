@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, ServerCog } from 'lucide-react'
+import { Menu, X, Search, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
@@ -12,6 +12,7 @@ import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 import { cx } from './ui-utils'
 import { usePending } from '../api/queries'
+import { useFiringProblems } from '../api/problems'
 import { openPalette } from './palette'
 
 const useMe = () => useQuery('me', api.me)
@@ -123,6 +124,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   // the control host is not a worker: it has its own 中控 entry, never counted as a server
   const workers = (servers ?? []).filter(s => s.role !== 'control')
   const online = workers.filter(s => s.status === 'online').length
+  const problems = useFiringProblems().length
   const item = (to: string, icon: React.ReactNode, l: string, badge?: number) => (
     <NavLink to={to} end={to === '/'} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13.5px] font-medium',
       isActive ? 'nav-active text-fg' : 'text-fg2 hover:bg-ov/5')}>{icon}{l}
@@ -145,6 +147,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
           {item('/settings', <SlidersHorizontal size={16} />, '设置')}
         </nav>
         <div className="flex-1" />
+        {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2.5 mb-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} />{problems} 个异常需要处理</Link>}
         <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</Link>
         <div className="h-px bg-line mb-3" />
         <UserRow />

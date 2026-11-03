@@ -329,3 +329,22 @@ export interface AuditEntry {
   ip?: string; token_id?: string; session_id?: string; detail: unknown; created_at: string
 }
 export interface AuditPage { entries: AuditEntry[]; next_before?: number }
+
+/** A condition the control server watches (GET /problems). Only firing ones are listed. */
+export interface Problem {
+  id: string
+  kind: 'node_offline' | 'disk_high' | 'service_down' | 'deploy_failed' | 'backup_failed' | 'domain_error' | string
+  /** server id for node_offline / disk_high, domain id for domain_error, service id otherwise */ subject_id: string
+  subject_name: string; project_id?: string; server_id?: string
+  message: string; since: string; firing_at?: string; resolved_at?: string
+}
+export interface NotificationChannel {
+  id: string; type: 'webhook' | 'telegram' | 'email' | string; name?: string; enabled: boolean
+  url?: string; has_url?: boolean
+  bot_token?: string; has_bot_token?: boolean; chat_id?: string
+  smtp_host?: string; smtp_port?: number; username?: string; password?: string; has_password?: boolean; from?: string; to?: string
+}
+export interface NotificationSettings {
+  channels: NotificationChannel[]; notify_resolved: boolean
+  quiet_start?: string; quiet_end?: string; timezone?: string
+}

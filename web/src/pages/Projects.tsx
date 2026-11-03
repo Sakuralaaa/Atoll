@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowUpDown, LayoutGrid, List, Package, Plus } from 'lucide-react'
+import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
@@ -34,6 +35,7 @@ export default function Projects() {
             <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>创建项目</Button>
           </div>
         </div>
+        <ProblemsBanner />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <CardSkeleton n={6} h={120} />}
         {q.data && !list.length && <Empty icon={<Package size={22} />} title="还没有项目" desc="项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。"

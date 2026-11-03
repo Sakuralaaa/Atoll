@@ -9,6 +9,7 @@ import type { Settings as S } from '../api/types'
 import ImageCheckSettings from '../components/ImageCheckSettings'
 import BackupStorageSettings from '../components/BackupStorageSettings'
 import NetworkSettings from '../components/NetworkSettings'
+import NotificationSettings from '../components/NotificationSettings'
 import { SettingsTabs } from './Security'
 import { cx } from '../components/ui-utils'
 
@@ -18,11 +19,12 @@ export default function Settings() {
     <MainShell>
       <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
-        <p className="text-[13px] text-muted mt-2 mb-6">域名、证书、面板地址和备份存储。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
+        <p className="text-[13px] text-muted mt-2 mb-6">域名、证书、面板地址、通知和备份存储。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
         <SettingsTabs />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
         {q.data && <Form key={JSON.stringify(q.data)} s={q.data} />}
+        {q.data && <NotificationSettings />}
         {q.data && <ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} />}
         {q.data && <BackupStorageSettings s={q.data} />}
         {q.data && <NetworkSettings s={q.data} />}

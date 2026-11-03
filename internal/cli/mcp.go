@@ -49,6 +49,7 @@ func newMCPCmd(app *App) *cobra.Command {
 // mcpToolPerm names the token permission each MCP tool needs. Every tool must be listed.
 var mcpToolPerm = map[string]string{
 	"list_servers":         api.PermRead,
+	"list_problems":        api.PermRead,
 	"list_projects":        api.PermRead,
 	"list_services":        api.PermRead,
 	"get_logs":             api.PermRead,
@@ -241,6 +242,11 @@ func MCPTools(app *App) []server.ServerTool {
 		t(tool("list_servers", "List the user's servers with status and resource usage.", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				return c.ListServers(ctx)
+			}),
+		t(tool("list_problems", "List current problems the control server watches: offline servers, disks >= 90% full, services down or crash-looping, failed deploys and backups, domain errors. Each has kind, subject, since and a message. Empty means all is well.", true, false,
+			mcp.WithBoolean("resolved", mcp.Description("also problems resolved in the last 24 hours"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				return c.Problems(ctx, r.GetBool("resolved", false))
 			}),
 		t(tool("list_projects", "List projects (each project runs on one server).", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {

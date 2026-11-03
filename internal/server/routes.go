@@ -128,6 +128,10 @@ func (s *Server) Handler() http.Handler {
 
 	// settings & templates
 	a("GET "+v+"/settings", needReadGlobal, s.handleGetSettings)
+	a("GET "+v+"/settings/notifications", needSettings, s.handleGetNotifications)
+	a("PUT "+v+"/settings/notifications", needSettings, s.handlePutNotifications)
+	a("POST "+v+"/settings/notifications/test", needSettings, s.handleTestNotification)
+	a("GET "+v+"/problems", lvlRead, s.handleListProblems)
 	a("PUT "+v+"/settings", needSettings, s.handlePutSettings)
 	a("GET "+v+"/templates", needReadGlobal, s.handleTemplates)
 

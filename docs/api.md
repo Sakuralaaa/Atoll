@@ -86,6 +86,9 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /backups/{id} | Backup (id = `bak_...` or a restic snapshot id, full or 8-char) |
 | POST | /backups/{id}/restore | BackupRestoreRequest {target_server_id?} → RestoreJob (session) or 202 Confirmation (API token) |
 | GET | /services/{id}/restores, /restores/{id} | []RestoreJob / RestoreJob |
+| GET | /problems[?resolved=1] | → []Problem: firing problems (and, with resolved=1, ones resolved in the last 24h). See "Problems & notifications" |
+| GET / PUT | /settings/notifications | `settings` permission. NotificationSettings: channels (webhook / telegram / email), notify_resolved, quiet hours. Secrets are write-only (`has_*`) and an empty value keeps the stored one |
+| POST | /settings/notifications/test | `settings` permission. {channel} → {ok:true}, or 502 `notify_failed` with the channel's error. Works for unsaved edits; empty secrets fall back to the stored channel with the same id |
 | POST | /settings/backup/test | admin → BackupTestResult (an agent checks / initialises the repository) |
 | GET | /settings/backup/password | session only → the restic repository password |
 | DELETE | /settings/backup | admin: clears the target (the repository password is kept) |
@@ -172,6 +175,23 @@ Target user: their OWN VPS registered to Zeabur (unmanaged, single-node k3s), se
 5. Rollback: withdraw Atoll routes (agent ack), then delete only the DNS records the cutover created (pre-existing records untouched; domains back to `pending`), stop atoll services, restore ingress-controller and the operator, scale Zeabur workloads back to recorded replicas.
 6. Later, after user approval: remove Zeabur components / k3s (`/usr/local/bin/k3s-uninstall.sh`) to free RAM — explicit confirmation, never automatic.
 Risk: both stacks run side by side during rehearsal (RAM/disk) — scan reports free mem/disk; refuse rehearsal if disk free < 1.2× data size.
+
+## Problems & notifications
+
+The control server evaluates conditions every 30s and keeps them in the `problems` table (migration 0012). A condition must hold for a while before it **fires**, so blips never notify; one that clears before firing leaves no trace.
+
+| kind | subject | fires after |
+|---|---|---|
+| `node_offline` | server | 2 min disconnected |
+| `disk_high` | server | 5 min at ≥ 90% (newest metrics sample, < 10 min old) |
+| `service_down` | service | 3 min failed / crash-looping / unhealthy (not when desired stopped, not while its server is offline) |
+| `deploy_failed` | service | at once; clears with the next successful deploy |
+| `backup_failed` | service | at once, when backups are enabled; clears with the next successful backup |
+| `domain_error` | domain | 10 min in `error` |
+
+Each firing problem is sent once to every enabled channel, and once more when it resolves (`notify_resolved`, default on). Delivery is idempotent across restarts; a channel that fails is retried on the next tick. During quiet hours (`quiet_start`–`quiet_end` in `timezone`, may wrap midnight) only `node_offline` is sent; problems still firing when they end are sent then. Webhooks receive `{"event":"firing"|"resolved"|"test","problem":Problem,"text":"…"}`. Resolved problems are kept 30 days.
+
+CLI: `atoll status` (servers online + problems; `--resolved`; `--check` exits 5 when anything fires). MCP: `list_problems`.
 
 ## Image updates
 Server-side, no agent changes. `internal/server/registry` (OCI distribution API, no deps) + `internal/server/imageupdates.go`.

@@ -1,6 +1,6 @@
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
 } from './types'
 
 export const API = '/api/v1'
@@ -144,6 +144,10 @@ export const api = {
   approve: (id: string) => post<void>(`/confirmations/${e(id)}/approve`),
   reject: (id: string) => post<void>(`/confirmations/${e(id)}/reject`),
   settings: () => get<Settings>('/settings'),
+  problems: (resolved = false) => get<Problem[]>(`/problems${resolved ? '?resolved=1' : ''}`),
+  notifications: () => get<NotificationSettings>('/settings/notifications'),
+  putNotifications: (n: NotificationSettings) => put<NotificationSettings>('/settings/notifications', n),
+  testNotification: (channel: NotificationChannel) => post<{ ok: boolean }>('/settings/notifications/test', { channel }),
   putSettings: (s: Partial<Settings>) => put<Settings>('/settings', s),
   // import / templates
   imports: () => get<ImportJob[]>('/imports'),

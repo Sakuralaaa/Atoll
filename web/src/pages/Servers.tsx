@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpDown, LayoutGrid, List, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
+import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, ProviderIcon, Segment, Ticks } from '../components/ui'
+import { Badge, Button, ProviderIcon, Ticks } from '../components/ui'
 import { CardSkeleton, CodeBlock, CopyButton, Empty, ErrorState, Modal } from '../components/feedback'
 import { api } from '../api/client'
 import { invalidate, useQuery } from '../api/hooks'
@@ -36,9 +37,9 @@ export default function Servers() {
             <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
           </div>
         </div>
+        <ProblemsBanner only={['node_offline', 'disk_high']} />
         <ControlCard />
         <AgentUpgradeAll servers={list} />
-        <Segment value="s" items={[{ k: 's', l: '服务器', icon: <Server size={15} /> }]} />
         <div className="mt-6">
           {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
           {!q.data && !q.error && <CardSkeleton n={3} h={220} />}
@@ -62,7 +63,7 @@ export default function Servers() {
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
                         <span className="truncate">{s.os || '—'}</span>
-                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : '离线'}</span>
+                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">离线</span> : '离线'}</span>
                       </div>
                     </div>
                   </div>

@@ -6,6 +6,7 @@ import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
 import { makeDemoGit } from './demo-git'
 import { makeDemoControl } from './demo-control'
+import { makeDemoProblems } from './demo-problems'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
@@ -253,6 +254,7 @@ const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
 const demo2fa = { enabled: false, at: '', left: 10 }
+const demoProblems = makeDemoProblems(servers, now)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: () => demo2fa.enabled })
 const demoCodes = () => ['k7m2q-x9tpw', 'h4rcz-m8vne', 'p3dqs-w7kua', 'y9bft-c2hrm', 'n6gxe-t4jqp', 'r2wmk-z8cdv', 'e5ujn-q3fyb', 'a8tpc-v6sgh', 'w4hzr-k9nem', 'f7qdy-b3xut']
 const demoSessions: SessionInfo[] = [
@@ -325,6 +327,7 @@ function route(method: string, path: string, body: any): unknown {
   if (P && m('auth/sessions/revoke-others')) { const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked: n } }
   if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }
 
+  { const r = demoProblems.route(method, m, body); if (r !== undefined) return r }
   if (G && m('servers')) return servers
   if (G && m('servers/agent-install-command')) return { command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --sha256-amd64 3f9a…c21e --sha256-arm64 8b04…77d0 --version ${servers[0]?.agent_latest ?? 'v0.1.7'}`, version: servers[0]?.agent_latest ?? 'v0.1.7' }
   if (P && m('servers/agent-upgrade')) {

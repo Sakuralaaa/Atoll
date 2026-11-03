@@ -57,6 +57,10 @@ func Execute(version string) int {
 			fmt.Fprintln(app.Err, "Error:", rf.Error())
 			return 4
 		}
+		var pf *problemsFoundError
+		if errors.As(err, &pf) {
+			return 5 // the problems are already printed
+		}
 		fmt.Fprintln(app.Err, "Error:", ExplainError(err))
 		return 1
 	}
@@ -96,7 +100,7 @@ func NewRoot(app *App) *cobra.Command {
 		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, or build the branch head of a git service; recreate container)"),
 		newRollbackCmd(app), newDomainCmd(app), newMigrateCmd(app), newExecCmd(app),
 		newMCPCmd(app), newZeaburCmd(app), newImportCmd(app),
-		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app), newControlCmd(app),
+		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app), newControlCmd(app), newStatusCmd(app),
 	)
 	return root
 }

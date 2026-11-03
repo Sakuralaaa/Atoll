@@ -71,7 +71,11 @@ type Config struct {
 	S3HTTP     *http.Client // HTTP client for the control backup bucket (tests)
 	// AdoptPublicIP points the panel's DNS record (public URL host under the Cloudflare zone)
 	// at this host's public IPv4 on start (--adopt-public-ip). PublicIP overrides detection.
-	AdoptPublicIP    bool
+	AdoptPublicIP bool
+	// Problems & notifications (problems.go, notify.go)
+	ProblemsTick     time.Duration // how often conditions are evaluated (30s)
+	TelegramAPI      string        // default https://api.telegram.org (tests)
+	NotifyHTTP       *http.Client  // client for webhooks and Telegram (default 15s timeout)
 	PublicIP         string
 	LookupPublicIPv4 func(ctx context.Context) (string, error)
 }
@@ -131,6 +135,13 @@ func New(cfg Config) (*Server, error) {
 	def(&cfg.CertWaitTimeout, 3*time.Minute)
 	def(&cfg.ProvisionPoll, 3*time.Second)
 	def(&cfg.BuildTimeout, 20*time.Minute)
+	def(&cfg.ProblemsTick, 30*time.Second)
+	if cfg.TelegramAPI == "" {
+		cfg.TelegramAPI = "https://api.telegram.org"
+	}
+	if cfg.NotifyHTTP == nil {
+		cfg.NotifyHTTP = &http.Client{Timeout: 15 * time.Second}
+	}
 	if cfg.BuildKeep <= 0 {
 		cfg.BuildKeep = 3
 	}
@@ -192,6 +203,7 @@ func New(cfg Config) (*Server, error) {
 	s.wg.Add(1)
 	go s.imageUpdateLoop()
 	s.startBackupScheduler() // backups.go
+	s.startProblemWatcher()  // problems.go
 	// control*.go: own metrics, daily control backup, panel DNS after a move, update result
 	s.controlSampleLoop()
 	s.startControlBackupScheduler()
