@@ -1,6 +1,7 @@
+import { cx } from './ui-utils'
 import { useState } from 'react'
 import { Bell, Loader2, Pencil, Plus, Send, Trash2, Webhook, Mail, MessageCircle } from 'lucide-react'
-import { Badge, Button, Card } from './ui'
+import { Badge, Button, Card, Hint } from './ui'
 import { ConfirmDialog, Label, Modal, Select, TextInput, Toggle } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
@@ -31,10 +32,7 @@ export default function NotificationSettings() {
   const save = (next: NS, ok = '通知设置已保存') => wrap(() => run(() => api.putNotifications(next), { ok, invalidate: ['notifications'] }))
   return (
     <div className="mt-8 mb-8">
-      <div className="text-[15px] font-semibold flex items-center gap-2"><Bell size={17} />通知</div>
-      <div className="text-[13px] text-muted mt-1 mb-3 leading-5">
-        服务器离线超过 2 分钟、磁盘用到 90%、服务持续异常 3 分钟、部署、备份或备份校验失败、域名配置失败时发送通知；恢复后再发一条。同一个问题只通知一次。
-      </div>
+      <div className="text-[15px] font-semibold flex items-center gap-2 mb-3"><Bell size={17} />通知<Hint>服务器离线超过 2 分钟、磁盘用到 90%、服务持续异常 3 分钟、部署、备份或备份校验失败、域名配置失败时发送通知；恢复后再发一条。同一个问题只通知一次。</Hint></div>
       <Card className="divide-y divide-line">
         {!n && <div className="px-6 py-5 text-[13px] text-dim">{q.error ? `加载失败：${q.error.message}` : '加载中…'}</div>}
         {n && !n.channels.length && <div className="px-6 py-5 text-[13px] text-muted">还没有通知渠道，异常只会显示在面板上。</div>}
@@ -64,6 +62,14 @@ export default function NotificationSettings() {
   )
 }
 
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+/** 24-hour HH:MM (a native time input follows the browser locale and may show AM/PM). */
+function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const bad = value !== '' && !HHMM.test(value)
+  return <TextInput mono inputMode="numeric" maxLength={5} placeholder="23:00" className={cx('w-[84px] text-center', bad && 'ring-2 ring-[#ef4444]')} value={value}
+    onChange={e => { let v = e.target.value.replace(/[^\d:]/g, ''); if (/^\d{4}$/.test(v)) v = `${v.slice(0, 2)}:${v.slice(2)}`; onChange(v) }} />
+}
+
 function Quiet({ n, busy, onSave }: { n: NS; busy: boolean; onSave: (v: Partial<NS>) => void }) {
   const [on, setOn] = useState(!!n.quiet_start)
   const [start, setStart] = useState(n.quiet_start || '23:00')
@@ -79,12 +85,12 @@ function Quiet({ n, busy, onSave }: { n: NS; busy: boolean; onSave: (v: Partial<
       <div className="flex flex-wrap items-center gap-3">
         <Toggle on={on} onChange={setOn} /><span>静默时段</span>
         {on && <>
-          <TextInput type="time" className="w-[120px]" value={start} onChange={e => setStart(e.target.value)} />
+          <TimeField value={start} onChange={setStart} />
           <span className="text-muted">到</span>
-          <TextInput type="time" className="w-[120px]" value={end} onChange={e => setEnd(e.target.value)} />
+          <TimeField value={end} onChange={setEnd} />
           <span className="text-dim">{tz}</span>
         </>}
-        <Button className="ml-auto" size="sm" variant="primary" disabled={!changed || busy}
+        <Button className="ml-auto" size="sm" variant="primary" disabled={!changed || busy || (on && !(HHMM.test(start) && HHMM.test(end)))}
           onClick={() => onSave({ notify_resolved: resolved, quiet_start: on ? start : '', quiet_end: on ? end : '', timezone: on ? tz : '' })}>
           {busy && <Loader2 size={14} className="animate-spin" />}保存
         </Button>

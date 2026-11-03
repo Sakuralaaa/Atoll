@@ -149,3 +149,25 @@ func TestImportRoundtrip(t *testing.T) {
 		t.Fatalf("missing import: %v", err)
 	}
 }
+
+func TestRenameUserKeepsSessions(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	defer s.Close()
+	u, err := s.CreateOwner(ctx, "admin", "hash1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateSession(ctx, "sess", u.ID, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RenameUser(ctx, u.ID, "sakura"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.SessionUser(ctx, "sess"); err != nil || got.Username != "sakura" {
+		t.Fatalf("session after rename: %v %v", got, err)
+	}
+	if err := s.RenameUser(ctx, 999, "x"); err != ErrNotFound {
+		t.Fatalf("missing user: %v", err)
+	}
+}

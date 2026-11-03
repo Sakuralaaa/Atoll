@@ -45,7 +45,7 @@ for (const p of mockProjects) {
   for (const s of p.services) {
     const db = s.kind !== 'image'
     const svc: Service = {
-      id: s.id, project_id: p.id, server_id: p.serverId, name: s.name, kind: s.kind, image: `${s.image}:${s.tag}`, status: s.status, replicas: s.replicas,
+      id: s.id, project_id: p.id, server_id: p.serverId, name: s.name, kind: s.kind, image: `${s.image}${s.tag.startsWith('sha256:') ? '@' : ':'}${s.tag}`, status: s.status, replicas: s.replicas,
       created_at: `${s.created}T06:00:00Z`,
       ports: [{ name: db ? s.kind : 'web', container_port: s.port, protocol: db ? 'tcp' : 'http' }],
       volumes: (VOLS[s.kind] ?? [['data', '/app/data'], ['logs', '/app/logs']]).map(([name, mount_path]) => ({ name, mount_path })),
@@ -253,6 +253,7 @@ const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+const demoUser = { name: 'demo' }
 const demo2fa = { enabled: false, at: '', left: 10 }
 const demoProblems = makeDemoProblems(servers, now)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: () => demo2fa.enabled })
@@ -308,7 +309,13 @@ function route(method: string, path: string, body: any): unknown {
   // demo 2FA: `#/login?demo=1&2fa=1` (or enabling it in Settings → Security) makes login ask for a code; any 6 digits pass
   if (P && m('auth/login') && (demo2fa.enabled || location.hash.includes('2fa=1'))) return { two_factor_required: true, pending_token: 'demo-pending', expires_at: new Date(now + 5 * 60e3).toISOString() }
   if (P && m('auth/login/2fa')) { if (!/^\d{6}$|^[a-z2-9]{5}-?[a-z2-9]{5}$/i.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); return { id: 'usr_demo', username: 'demo' } }
-  if (m('auth/me') || m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: body?.username || 'demo' }
+  if (P && m('auth/username')) {
+    if (!body?.current_password) throw new ApiError(401, 'current password is wrong', 'invalid_credentials')
+    const n = String(body?.username ?? '').trim()
+    if (!/^[A-Za-z0-9_.@-]{1,64}$/.test(n)) fail(400, 'username must be 1-64 characters: letters, digits, _ . @ -')
+    demoUser.name = n; return { username: n, auth: 'session', scope: 'session', permissions: [] }
+  }
+  if (m('auth/me') || m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: m('auth/me') ? demoUser.name : (demoUser.name = body?.username || demoUser.name) }
   if (m('auth/logout')) return {}
   if (G && m('auth/2fa')) return { enabled: demo2fa.enabled, enabled_at: demo2fa.enabled ? demo2fa.at : undefined, recovery_codes_left: demo2fa.enabled ? demo2fa.left : 0 }
   if (P && m('auth/2fa/enroll')) { if (!body?.password) fail(401, 'wrong password'); return { secret: DEMO_SECRET, otpauth_uri: `otpauth://totp/Atoll:demo@${location.host}?secret=${DEMO_SECRET}&issuer=Atoll&algorithm=SHA1&digits=6&period=30` } }

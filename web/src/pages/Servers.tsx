@@ -24,7 +24,7 @@ export default function Servers() {
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [add, setAdd] = useState(false)
-  // the control host has its own card above the list and the 中控 page; it is not a server
+  // the control host has its own card above the list and the 中控 page (an agent on the same box is listed as a normal server)
   const all = (q.data ?? []).filter(s => s.role !== 'control').sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   const defs = serverFilters((useProblems().data ?? []).filter(p => !p.resolved_at))
   const f = useStatusFilter(all, defs)
@@ -64,19 +64,19 @@ export default function Servers() {
                   <div className="flex items-start gap-3">
                     <ProviderIcon provider={s.provider || '?'} online={on} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold truncate min-w-0">{s.name}</span>
-                        {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
-                        {s.role === 'control' && <Badge tone="violet">{t('中控', 'Control')}</Badge>}
-                        {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
-                        <AgentUpgradeBadge s={s} />
-                      </div>
+                      <div className="text-[15px] font-semibold truncate min-w-0" title={s.name}>{s.name}</div>
                       <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
                         <span className="truncate">{s.os || '—'}</span>
                         <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : t('离线', 'Offline')}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-6 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 empty:hidden">
+                    {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
+                    {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
+                    <AgentUpgradeBadge s={s} />
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
                     <div><div className="text-muted">{t('IP 地址', 'IP address')}</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
                     <div><div className="text-muted">{t('区域', 'Region')}</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]">{flagFor(s.region)} {s.region || '—'}</div></div>
                   </div>
@@ -90,7 +90,7 @@ export default function Servers() {
                   </div>
                 </div>
                 <div className="border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
-                  {s.role === 'control' ? t('仅运行面板与调度，不承载项目', 'Runs the panel and scheduler only, no projects') : `${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
+                  {`${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
                 </div>
               </Link>
             )

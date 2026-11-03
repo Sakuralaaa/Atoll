@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { AlertTriangle, Archive, Check, CheckCircle2, Download, Eye, KeyRound, Loader2, PlugZap, Save, Trash2, XCircle } from 'lucide-react'
-import { Badge, Button, Card } from './ui'
+import { Badge, Button, Card, Hint } from './ui'
 import { ConfirmDialog, CopyButton, TextInput } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
@@ -24,9 +24,10 @@ export default function BackupStorageSettings({ s }: { s: Settings }) {
     <div ref={ref} id="backup" className="mt-8 mb-8 scroll-mt-6">
       <div className="text-[15px] font-semibold flex items-center gap-2">
         <Archive size={17} />备份存储
+        <Hint>任何 S3 兼容存储：Cloudflare R2、Backblaze B2、AWS S3、MinIO。每台服务器的 Agent 用 restic 加密后直接上传，数据不经过中控。密钥只写不读，留空表示保持原值。</Hint>
         {s.backup_configured ? <Badge tone="green"><Check size={11} strokeWidth={3} />已配置</Badge> : <Badge tone="zinc">未配置</Badge>}
       </div>
-      <div className="text-[13px] text-muted mt-1 mb-3 leading-5">任何 S3 兼容存储：Cloudflare R2、Backblaze B2、AWS S3、MinIO。每台服务器的 Agent 用 restic 加密后直接上传，数据不经过中控。密钥只写不读，留空表示保持原值。</div>
+      <div className="mb-3" />
       {secret && <PasswordCard secret={secret} onClose={() => setSecret(undefined)} />}
       <Form key={key} s={s} onGenerated={pw => setSecret(pw)} onReveal={setSecret} />
     </div>

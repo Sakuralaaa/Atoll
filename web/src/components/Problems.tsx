@@ -22,7 +22,7 @@ export function ProblemsBanner({ only }: { only?: string[] }) {
             <span className="shrink-0">{ICON[p.kind] ?? <AlertTriangle size={15} />}</span>
             <span className="font-bold shrink-0">{problemLabel(p.kind)}</span>
             <span className="font-mono font-semibold truncate max-w-[40%]">{p.subject_name}</span>
-            <span className="min-w-0 flex-1 truncate opacity-80">{p.message}</span>
+            <span className="min-w-0 flex-1 truncate opacity-80 @max-2xl:basis-full @max-2xl:order-last @max-2xl:whitespace-normal @max-2xl:pl-7">{p.message}</span>
             <span className="shrink-0 text-[12px] opacity-70 tnum">{ago(p.since)}</span>
           </Link>
         ))}

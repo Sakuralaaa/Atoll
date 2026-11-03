@@ -25,6 +25,7 @@ async function ctl<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 export const controlApi = {
   status: () => request<ControlStatus>('GET', '/control'),
+  rename: (name: string) => request<ControlStatus>('PATCH', '/control', { name }),
   metrics: (range: Range) => request<NodeMetrics[]>('GET', `/control/metrics?range=${range}`),
   logs: (tail: number, since?: string) => ctl<ControlLogs>('GET', `/control/logs?tail=${tail}${since ? `&since=${e(since)}` : ''}`),
   reauth: (f: ReauthFields) => ctl<ControlReauth>('POST', '/control/reauth', f),

@@ -42,7 +42,7 @@ export const projects: Project[] = [
     img('cron', 'cron-worker', 'ghcr.io/example/cron-worker', 'v0.4', { status: 'deploying', letter: 'T', color: '#14b8a6' }),
   ]},
   { id: 'file-share', name: 'file-share', serverId: 'fra', letter: 'A', color: '#38bdf8', services: [
-    img('file-share', 'file-share', 'xhofe/file-share', 'v3.45.0', { domain: 'pan.example.com', port: 5244, letter: 'A', color: '#38bdf8' }),
+    img('file-share', 'file-share', 'xhofe/file-share', 'sha256:5c43b1beb91f2b513f11f4111ec7cccc66b087eae86c9fa160fdfd518caf0a57', { domain: 'pan.example.com', port: 5244, letter: 'A', color: '#38bdf8' }),
   ]},
   { id: 'chat', name: 'chat-app', serverId: 'fra', letter: 'D', color: '#f97316', services: [
     img('chat', 'chat-app', 'ghcr.io/example/chat', '1.12.0', { domain: 'chat.example.com', port: 3000, letter: 'D', color: '#f97316' }),

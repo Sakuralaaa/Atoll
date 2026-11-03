@@ -297,6 +297,14 @@ type ChangePasswordRequest struct {
 	Code            string `json:"code,omitempty"`
 }
 
+// ChangeUsernameRequest is POST /auth/username (panel session only): the new login name,
+// confirmed with the current password (and the TOTP code when 2FA is on).
+type ChangeUsernameRequest struct {
+	Username        string `json:"username"`
+	CurrentPassword string `json:"current_password"`
+	Code            string `json:"code,omitempty"`
+}
+
 // ChangePasswordResponse reports how many other sessions were signed out.
 type ChangePasswordResponse struct {
 	RevokedSessions int64 `json:"revoked_sessions"`

@@ -17,6 +17,7 @@ const STATUS: Record<string, [string, 'amber' | 'green' | 'red' | 'zinc']> = {
   unknown: ['未检查', 'zinc'],
   unsupported: ['不支持', 'zinc'],
   disabled: ['已关闭', 'zinc'],
+  pinned: ['已固定版本', 'green'],
 }
 
 /** Small "有更新" badge for service lists and project cards. */
@@ -84,8 +85,13 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         <span />
         <span className="text-[12px] text-muted">当前运行</span>
         <span className="text-[12px] text-muted">仓库最新</span>
+        {(u.current_version || u.latest_version) && <>
+          <span className="text-muted">版本</span>
+          <span className="font-mono font-semibold truncate">{u.current_version || '—'}</span>
+          <span className={cx('font-mono truncate', u.latest_version && u.latest_version !== u.current_version ? 'text-accent font-semibold' : 'text-fg2')}>{u.latest_version || '—'}</span>
+        </>}
         <span className="text-muted">标签</span>
-        <span className="font-mono truncate" title={u.current_tag}>{u.current_tag ?? '—'}</span>
+        <span className="font-mono truncate" title={u.pinned ? s.image : u.current_tag}>{u.pinned ? '已固定' : u.current_tag ?? '—'}</span>
         <span className="font-mono flex flex-wrap items-center gap-2 min-w-0">
           {u.newer_tag ? <><span className="text-accent font-semibold truncate max-w-full" title={u.newer_tag}>{u.newer_tag}</span><Button size="sm" disabled={busy} onClick={() => setConfirm({ tag: u.newer_tag })}>更新到 {u.newer_tag}</Button></> : <span className="text-fg2 truncate" title={u.current_tag}>{u.current_tag ?? '—'}</span>}
         </span>
@@ -111,8 +117,10 @@ function RegistryUpdateCard({ s }: { s: Service }) {
 
       <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-3">
         {u.changelog_url && <a href={u.changelog_url} target="_blank" rel="noreferrer" className="text-[13px] text-fg2 hover:text-fg flex items-center gap-1.5 hover:underline">更新日志<ExternalLink size={13} /></a>}
-        <span className="text-[12.5px] text-dim">更新会创建一次新部署，旧部署保留在部署记录中，可随时回滚。</span>
-        <Button className="ml-auto" variant="primary" size="sm" disabled={busy || !u.digest_changed} onClick={() => setConfirm({})}><Rocket size={14} />更新</Button>
+        {u.pinned
+          ? <span className="text-[12.5px] text-dim">已固定，不提示也不自动更新。</span>
+          : <span className="text-[12.5px] text-dim">旧部署保留在部署记录里，可回滚。</span>}
+        <Button className="ml-auto" variant={u.pinned ? 'secondary' : 'primary'} size="sm" disabled={busy || (u.pinned ? !u.latest_digest : !u.digest_changed)} onClick={() => setConfirm({})}><Rocket size={14} />{u.pinned ? `改回跟随 ${u.current_tag ?? 'latest'}` : '更新'}</Button>
       </div>
 
       {confirm && <Modal title={<><Rocket size={17} />更新 {s.name}</>} onClose={() => setConfirm(undefined)}
@@ -123,6 +131,8 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">
           {confirm.tag
             ? <>将 <span className="font-mono font-semibold">{s.name}</span> 的镜像标签从 <span className="font-mono">{u.current_tag}</span> 切换到 <span className="font-mono font-semibold">{confirm.tag}</span>，并按该标签当前的摘要重新部署。</>
+            : u.pinned
+            ? <>取消固定，<span className="font-mono font-semibold">{s.name}</span> 改回跟随 <span className="font-mono">{u.current_tag}</span>，并部署它现在的最新镜像{u.latest_version ? <>（<span className="font-mono font-semibold">{u.latest_version}</span>）</> : null}。以后会照常提示更新。</>
             : <>按 <span className="font-mono">{u.current_tag}</span> 在仓库中的最新摘要 <span className="font-mono font-semibold">{shortDigest(u.latest_digest)}</span> 重新部署 <span className="font-mono font-semibold">{s.name}</span>（当前 {shortDigest(u.current_digest)}）。</>}
           <div className="mt-3 text-muted text-[13px]">容器会被重建，期间服务短暂不可用；出现问题可在「部署记录」中回滚。</div>
         </div>

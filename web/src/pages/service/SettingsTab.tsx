@@ -9,11 +9,14 @@ import { api } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
 import type { Project, Service } from '../../api/types'
 import { useT } from '../../i18n'
+import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
 
 export const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]">{d}</div>}</div>{children}</div>
 export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div className="mb-8"><div className="text-[13px] font-semibold mb-3">{t}</div><Card className="divide-y divide-line">{children}</Card></div>
 
 export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
+  const upd = useImageUpdate(s.id).data
+  const pinnedHint = splitImage(s.image ?? '').digest ? `已固定到 ${imageVersionLabel(s.image, upd?.current_version)}；改回 :latest 即跟随最新` : undefined
   const [f, setF] = useState({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
   const [del, setDel] = useState(false); const [move, setMove] = useState(false); const [gitEdit, setGitEdit] = useState(false)
   const { t } = useT()
@@ -31,7 +34,7 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
         <Row t="服务名称" d="也是项目内网的主机名"><TextInput className="w-full @4xl:w-[420px]" value={f.name} onChange={set('name')} /></Row>
         {git && s.git
           ? <Row t={t('源码', 'Source')} d={t(`从 GitHub 构建：${repoPath(s.git.repo)}@${s.git.branch || 'main'}`, `Built from GitHub: ${repoPath(s.git.repo)}@${s.git.branch || 'main'}`)}><Button size="sm" onClick={() => setGitEdit(true)}><Pencil size={13} />{t('编辑源码设置', 'Edit git settings')}</Button></Row>
-          : <Row t="镜像" d="Docker Hub、GHCR 或私有仓库"><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
+          : <Row t="镜像" d={pinnedHint ?? 'Docker Hub、GHCR 或私有仓库'}><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
       </Sec>
       <Sec t="启动">
         <Row t="启动命令" d="覆盖镜像的 CMD"><TextInput mono className="w-full @4xl:w-[420px]" value={f.command} onChange={set('command')} placeholder="使用镜像默认值" /></Row>

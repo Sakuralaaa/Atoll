@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Cpu, Loader2 } from 'lucide-react'
-import { Button, Card } from './ui'
+import { Button, Card, Hint } from './ui'
 import { TextInput } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
@@ -24,10 +24,9 @@ export default function ResourceDefaultsSettings({ s }: { s: Settings }) {
     { ok: t('默认资源上限已保存', 'Default limits saved'), invalidate: ['settings'] }))
   return (
     <div className="mt-8 mb-8">
-      <div className="text-[15px] font-semibold flex items-center gap-2"><Cpu size={17} />{t('默认资源上限', 'Default resource limits')}</div>
-      <div className="text-[13px] text-muted mt-1 mb-3 leading-5">{t(
+      <div className="text-[15px] font-semibold flex items-center gap-2 mb-3"><Cpu size={17} />{t('默认资源上限', 'Default resource limits')}<Hint>{t(
         '新建服务（模板数据库、镜像、源码构建、Zeabur 导入）没有填写上限时使用这里的值。留空或填 0 表示不限。只影响之后新建的服务，已有服务不变，可在服务的「服务状态」里一键套用。',
-        'Used when a new service (database template, image, git build, Zeabur import) is created without its own limits. Empty or 0 means no limit. Only services created from now on get them; existing services are unchanged (apply them from a service\'s Status tab).')}</div>
+        'Used when a new service (database template, image, git build, Zeabur import) is created without its own limits. Empty or 0 means no limit. Only services created from now on get them; existing services are unchanged (apply them from a service\'s Status tab).')}</Hint></div>
       <Card className="divide-y divide-line">
         <div className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-center">
           <div><div className="text-[13px] font-semibold">{t('内存', 'Memory')}</div><div className="text-[12.5px] text-muted mt-1">{t('MB，默认 1024；超出后容器被 OOM 重启', 'MB, default 1024; the container is OOM-restarted above it')}</div></div>

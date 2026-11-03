@@ -37,6 +37,7 @@ func (s *Server) Handler() http.Handler {
 	open("POST "+v+"/auth/login/2fa", s.handleLogin2FA)
 	a("GET "+v+"/auth/me", needReadGlobal, s.handleMe)
 	a("POST "+v+"/auth/password", lvlSession, s.handleChangePassword)
+	a("POST "+v+"/auth/username", lvlSession, s.handleChangeUsername)
 	a("GET "+v+"/auth/2fa", lvlSession, s.handle2FAStatus)
 	a("POST "+v+"/auth/2fa/enroll", lvlSession, s.handle2FAEnroll)
 	a("POST "+v+"/auth/2fa/enable", lvlSession, s.handle2FAEnable)

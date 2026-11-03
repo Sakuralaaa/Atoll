@@ -12,6 +12,8 @@ import (
 
 // ControlStatus is GET /api/v1/control (read permission).
 type ControlStatus struct {
+	// Name is the display name set in the panel; "" means none (the UI shows Host.Hostname).
+	Name          string    `json:"name,omitempty"`
 	Version       string    `json:"version"`
 	Commit        string    `json:"commit,omitempty"`
 	GoVersion     string    `json:"go_version"`
@@ -203,4 +205,9 @@ type AuditEntry struct {
 type AuditPage struct {
 	Entries    []AuditEntry `json:"entries"`
 	NextBefore int64        `json:"next_before,omitempty"`
+}
+
+// ControlPatch is PATCH /control: settings of the control server itself.
+type ControlPatch struct {
+	Name *string `json:"name,omitempty"` // display name; "" clears it (hostname is shown)
 }

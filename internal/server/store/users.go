@@ -316,3 +316,16 @@ func (s *Store) ChangePassword(ctx context.Context, userID int64, hash, keepHash
 	n, _ := res.RowsAffected()
 	return n, tx.Commit()
 }
+
+// RenameUser changes a user's login name. Sessions and tokens reference the user by id, so
+// they stay valid. ErrConflict when the name is taken.
+func (s *Store) RenameUser(ctx context.Context, userID int64, name string) error {
+	res, err := s.DB.ExecContext(ctx, `UPDATE users SET username=? WHERE id=?`, name, userID)
+	if err != nil {
+		return mapErr(err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

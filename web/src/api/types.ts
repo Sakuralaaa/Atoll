@@ -257,9 +257,11 @@ export interface ImageUpdate {
   service_id: string; project_id: string; service: string; image: string
   policy: ImageUpdatePolicyKind | string
   /** daily auto-update window "HH:MM-HH:MM" in UTC */ window?: string
-  status: 'up_to_date' | 'update_available' | 'unknown' | 'error' | 'unsupported' | 'disabled' | string
+  status: 'up_to_date' | 'update_available' | 'unknown' | 'error' | 'unsupported' | 'disabled' | 'pinned' | string
   update_available: boolean; digest_changed: boolean
   current_digest?: string; latest_digest?: string; current_tag?: string
+  /** org.opencontainers.image.version labels */ current_version?: string; latest_version?: string
+  /** image is fixed to a digest (name@sha256:…): never "update available", never auto-updated */ pinned?: boolean
   /** newest higher tag, same major */ newer_tag?: string
   /** newest higher major, shown separately */ major_tag?: string
   changelog_url?: string; error?: string; note?: string
@@ -332,6 +334,7 @@ export interface ControlBackup {
   sha256?: string; local: boolean; remote: boolean; remote_key?: string; error?: string
 }
 export interface ControlStatus {
+  /** display name set in the panel; "" = show host.hostname */ name?: string
   version: string; commit?: string; go_version: string; started_at: string; uptime_seconds: number
   host: ControlHost
   cpu_pct: number; load1: number; load5: number; load15: number

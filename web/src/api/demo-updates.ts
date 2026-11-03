@@ -2,11 +2,12 @@
 import { ApiError } from './client'
 import type { Deployment, ImageUpdate, Service } from './types'
 
-type Seed = { newer?: string; major?: string; moved?: boolean; policy?: string; window?: string; status?: string }
+type Seed = { newer?: string; major?: string; moved?: boolean; policy?: string; window?: string; status?: string; version?: string; latestVersion?: string }
 // Generic demo services only (see mock.ts).
 const SEED: Record<string, Seed> = {
-  'mail-relay': { newer: 'v2.4.0' },
-  'acme-api': { moved: true, policy: 'auto', window: '18:00-21:00' },
+  'mail-relay': { newer: 'v2.4.0', version: '2.3.1' },
+  'file-share': { moved: true, version: '3.45.0', latestVersion: '3.46.1' },
+  'acme-api': { moved: true, policy: 'auto', window: '18:00-21:00', version: '1.8.0', latestVersion: '1.8.2' },
   chat: { major: '2.0.0' },
   redis: { major: '8-alpine' },
   cron: { status: 'unknown' },
@@ -18,8 +19,9 @@ const fail = (status: number, msg: string): never => { throw new ApiError(status
 
 export function makeDemoUpdates(services: Service[], deployments: Record<string, Deployment[]>) {
   const state: Record<string, ImageUpdate> = {}
-  const tagOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest' }
-  const nameOf = (image: string) => { const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(0, i) : image }
+  const pinnedOf = (image: string) => image.includes('@sha256:')
+  const tagOf = (image: string) => { if (pinnedOf(image)) return 'latest'; const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(i + 1) : 'latest' }
+  const nameOf = (image: string) => { if (pinnedOf(image)) return image.slice(0, image.indexOf('@')); const i = image.lastIndexOf(':'); return i > image.lastIndexOf('/') ? image.slice(0, i) : image }
   const changelog = (image: string) => {
     const n = nameOf(image)
     if (n.startsWith('ghcr.io/')) { const [o, r] = n.slice(8).split('/'); return `https://github.com/${o}/${r}/releases` }
@@ -35,6 +37,7 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
       state[s.id] = {
         service_id: s.id, project_id: s.project_id, service: s.name, image: s.image, policy: seed.policy ?? 'notify', window: seed.window,
         status: 'up_to_date', update_available: false, digest_changed: false, current_digest: cur, latest_digest: seed.status === 'unknown' ? undefined : latest,
+        current_version: seed.version, latest_version: seed.latestVersion ?? seed.version,
         current_tag: tagOf(s.image), newer_tag: seed.newer, major_tag: seed.major, changelog_url: changelog(s.image),
         checked_at: seed.status === 'unknown' ? undefined : new Date(Date.now() - 2.4 * H).toISOString(),
         next_check_at: new Date(Date.now() + 3.6 * H).toISOString(),
@@ -49,6 +52,8 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
     u.digest_changed = !!u.current_digest && !!u.latest_digest && u.current_digest !== u.latest_digest
     u.update_available = u.digest_changed || !!u.newer_tag
     u.status = u.update_available ? 'update_available' : 'up_to_date'
+    u.pinned = pinnedOf(s.image)
+    if (u.pinned) { u.update_available = false; u.status = 'pinned' }
     u.note = u.policy === 'auto' && u.digest_changed && u.window ? `auto-update waits for the window ${u.window} UTC` : undefined
     return u
   }
@@ -76,13 +81,14 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
     if (sub === 'apply') {
       const tag: string | undefined = body?.tag
       const digest = tag ? `sha256:${Math.random().toString(16).slice(2, 10)}4c1e0b7d93a2f586e1c0` : u.latest_digest!
+      if (!tag && pinnedOf(s.image)) s.image = `${nameOf(s.image)}:${u.current_tag}`
       if (tag) { s.image = `${nameOf(s.image)}:${tag}`; u.current_tag = tag; u.newer_tag = undefined; if (u.major_tag === tag) u.major_tag = undefined }
       const list = deployments[s.id] ?? (deployments[s.id] = [])
       list.forEach(d => { if (d.status === 'running') d.status = 'superseded' })
       const d: Deployment = { id: `dep_demo${Date.now().toString(36)}`, service_id: s.id, server_id: '', image_digest: digest, status: 'running', trigger: 'image-update',
         message: `image update: ${nameOf(s.image)}:${u.current_tag} → ${digest.slice(7, 19)}`, started_at: new Date().toISOString(), finished_at: new Date().toISOString() }
       list.unshift(d)
-      u.current_digest = digest; u.latest_digest = digest; u.checked_at = new Date().toISOString()
+      u.current_digest = digest; u.latest_digest = digest; u.current_version = u.latest_version; u.checked_at = new Date().toISOString()
       view(s)
       return d
     }

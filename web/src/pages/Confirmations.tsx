@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { type LucideIcon, ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card } from '../components/ui'
+import { Badge, Button, Card, Hint } from '../components/ui'
 import { Empty, ErrorState, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
@@ -28,8 +28,8 @@ export default function Confirmations() {
   return (
     <MainShell>
       <div className="max-w-[1100px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">待确认{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
-        <p className="text-[13px] text-muted mt-2 mb-8 max-w-[760px] leading-6">CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。</p>
+        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">待确认<Hint>CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。</Hint>{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
+        <div className="mb-6" />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
         {q.data && !pending.length && <Empty icon={<ShieldCheck size={22} />} title="没有待确认的操作" desc="agent 发起破坏性操作时会出现在这里，侧栏会显示数量。" />}

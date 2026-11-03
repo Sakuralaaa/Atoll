@@ -1,5 +1,6 @@
-import { Copy, Server as ServerGlyph } from 'lucide-react'
-import type { IconSpec } from '../api/view'
+import { useEffect, useRef, useState } from 'react'
+import { Copy, Info, Server as ServerGlyph } from 'lucide-react'
+import { colorFor, letterFor, type IconSpec } from '../api/view'
 import { cx, si } from './ui-utils'
 
 // "/A" mark: a slash parallel to the A's left leg. Drawn in currentColor so it follows the theme.
@@ -18,16 +19,18 @@ export function Logo() {
       <LogoMark />
       <svg height={15} viewBox="0 0 267 100" fill="currentColor" aria-hidden="true">
         <path fillRule="evenodd" d="M33 0H50.974L83.974 100H68.178L60.093 75.5H23.881L15.796 100H0ZM41.987 20.633L55.143 60.5H28.831ZM176 30A35 35 0 1 1 176 100A35 35 0 1 1 176 30ZM176 44A21 21 0 1 0 176 86A21 21 0 1 0 176 44Z" />
-        <path d="M98 20L113 12V100H98ZM92 30H132V44H92ZM224 0H239V100H224ZM252 0H267V100H252Z" />
+        <path d="M98 20L113 12V80A6 6 0 0 0 119 86H132V100H119A21 21 0 0 1 98 79ZM92 30H132V44H92ZM224 0H239V100H224ZM252 0H267V100H252Z" />
       </svg>
     </div>
   )
 }
 
-export function Avatar({ size = 24 }: { size?: number }) {
+/** The account's initial on a tile (colour derived from the name). */
+export function Avatar({ size = 24, name = '' }: { size?: number; name?: string }) {
   return (
-    <div style={{ width: size, height: size }} className="rounded-md bg-[#e9f5d0] grid grid-cols-3 grid-rows-3 p-[3px] gap-[1px] overflow-hidden shrink-0">
-      {[0, 1, 0, 1, 1, 1, 0, 1, 0].map((v, i) => <span key={i} className={v ? 'bg-[#9ccc65]' : ''} />)}
+    <div style={{ width: size, height: size, background: colorFor(name || '?'), fontSize: Math.round(size * 0.46) }}
+      className="rounded-md grid place-items-center font-extrabold font-mono text-[#141414] shrink-0 border-2 border-[var(--edge)]">
+      {letterFor(name || '?')}
     </div>
   )
 }
@@ -35,7 +38,7 @@ export function Avatar({ size = 24 }: { size?: number }) {
 export function Button({ children, variant = 'secondary', size = 'md', className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline'; size?: 'sm' | 'md' | 'lg' }) {
   return (
     <button {...p} className={cx(
-      'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none',
+      'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap disabled:opacity-45 disabled:saturate-0 disabled:pointer-events-none',
       size === 'sm' && 'h-8 px-3 text-[12.5px]', size === 'md' && 'h-9 px-3.5 text-[13px]', size === 'lg' && 'h-10 px-5 text-[13.5px]',
       variant === 'primary' && 'btn-primary text-white',
       variant === 'secondary' && 'btn-secondary text-fg',
@@ -50,12 +53,15 @@ export function Card({ children, className }: { children: React.ReactNode; class
   return <div className={cx('rounded-2xl surface', className)}>{children}</div>
 }
 
+/** Tab row: one line that scrolls sideways on narrow screens instead of wrapping into several rows. */
 export function Tabs({ items, value, onChange, className }: { items: { k: string; l: string; icon?: React.ReactNode }[]; value: string; onChange: (k: string) => void; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [value])
   if (items.length < 2) return null // one tab switches nothing
   return (
-    <div className={cx('flex flex-wrap gap-2 pb-4 border-b-2 border-dashed border-line', className)}>
+    <div ref={ref} role="tablist" className={cx('flex gap-2 pb-4 border-b-2 border-dashed border-line overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}>
       {items.map(t => (
-        <button key={t.k} onClick={() => onChange(t.k)} className={cx('h-9 px-3 inline-flex items-center gap-2 text-[13px] font-semibold rounded-lg whitespace-nowrap transition-all',
+        <button key={t.k} role="tab" aria-selected={value === t.k} onClick={() => onChange(t.k)} className={cx('h-9 px-3 shrink-0 inline-flex items-center gap-2 text-[13px] font-semibold rounded-lg whitespace-nowrap transition-all',
           value === t.k ? 'nav-active' : 'text-muted border-2 border-transparent hover:text-fg hover:border-line2')}>
           {t.icon}{t.l}
         </button>
@@ -210,3 +216,30 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
   )
 }
 
+
+/** ⓘ next to a heading: the longer explanation, shown on hover or tap instead of a paragraph of small text. */
+export function Hint({ children, className }: { children: React.ReactNode; className?: string }) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number }>()
+  const ref = useRef<HTMLSpanElement>(null)
+  const show = (v: boolean) => {
+    const r = ref.current?.getBoundingClientRect()
+    if (v && r) { const width = Math.min(300, innerWidth - 24); setPos({ top: r.bottom + 6, width, left: Math.max(12, Math.min(r.left + r.width / 2 - width / 2, innerWidth - width - 12)) }) }
+    setOpen(v)
+  }
+  useEffect(() => {
+    if (!open) return
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const hide = () => setOpen(false)
+    addEventListener('pointerdown', close)
+    addEventListener('scroll', hide, true) // the bubble is position:fixed; drop it rather than leave it floating
+    return () => { removeEventListener('pointerdown', close); removeEventListener('scroll', hide, true) }
+  }, [open])
+  return (
+    <span ref={ref} className={cx('relative inline-flex align-middle', className)} onPointerEnter={e => e.pointerType === 'mouse' && show(true)} onPointerLeave={e => e.pointerType === 'mouse' && show(false)}>
+      <button type="button" aria-label="说明" aria-expanded={open} onClick={e => { e.preventDefault(); e.stopPropagation(); show(true) }}
+        className="h-5 w-5 grid place-items-center rounded-full text-dim hover:text-fg"><Info size={14} /></button>
+      {open && pos && <span role="tooltip" style={pos} className="fixed z-50 rounded-lg surface px-3.5 py-2.5 text-[12.5px] font-normal not-italic tracking-normal leading-5 text-fg2 whitespace-normal">{children}</span>}
+    </span>
+  )
+}

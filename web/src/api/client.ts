@@ -84,6 +84,8 @@ export const api = {
   regenRecovery: (password: string, code: string) => request<RecoveryCodes>('POST', '/auth/2fa/recovery-codes', { password, code }, { noRedirect: true }),
   /** Panel session only. A wrong current password answers 401 without leaving the page. */
   changePassword: (b: ChangePasswordRequest) => request<ChangePasswordResponse>('POST', '/auth/password', b, { noRedirect: true }),
+  /** Panel session only: rename the login, confirmed with the current password (+ TOTP code). */
+  changeUsername: (b: { username: string; current_password: string; code?: string }) => request<Me>('POST', '/auth/username', b, { noRedirect: true }),
   sessions: () => get<SessionInfo[]>('/auth/sessions'),
   revokeSession: (id: string) => del(`/auth/sessions/${e(id)}`),
   revokeOtherSessions: () => post<{ revoked: number }>('/auth/sessions/revoke-others'),

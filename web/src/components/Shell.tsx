@@ -24,7 +24,7 @@ function Team() {
   const me = useMe().data
   return (
     <div className="w-full flex items-center gap-2.5 h-11 px-2">
-      <Avatar size={28} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span>
+      <Avatar size={28} name={me?.username} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span>
     </div>
   )
 }

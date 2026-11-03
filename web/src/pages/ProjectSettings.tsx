@@ -10,7 +10,7 @@ import type { Project, Server } from '../api/types'
 import { placeholder, useProject } from '../api/queries'
 
 const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => (
-  <div className="px-6 py-5 flex items-center gap-6"><div className="flex-1 min-w-0"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 leading-5">{d}</div>}</div>{children}</div>
+  <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 leading-5">{d}</div>}</div>{children}</div>
 )
 
 export default function ProjectSettings() {

@@ -230,6 +230,7 @@ func (s *Server) checkImage(ctx context.Context, serviceID string) (api.ImageUpd
 			s.log.Debug("tag list", "image", tracked, "err", terr)
 		}
 	}
+	s.lookupVersions(cctx, svc, ref, auth, digest)
 	row.CheckedAt, row.Failures, row.NextCheckAt = now, 0, time.Time{}
 	if err := s.st.SaveImageUpdate(ctx, *row); err != nil {
 		return api.ImageUpdate{}, err
@@ -240,6 +241,18 @@ func (s *Server) checkImage(ctx context.Context, serviceID string) (api.ImageUpd
 	v := s.imageUpdateView(ctx, svc, row)
 	s.publish("image_update", v)
 	return v, nil
+}
+
+// lookupVersions reads the version labels of the latest and the running digest (cached per
+// digest, so this costs requests only when a digest is new). Failures are only logged: the
+// version is a nicety on the card.
+func (s *Server) lookupVersions(ctx context.Context, svc *api.Service, ref registry.Ref, auth registry.Auth, latest string) {
+	_, pinned, _ := trackedRef(svc.Image, nil)
+	for _, d := range []string{latest, s.runningDigest(ctx, svc, pinned)} {
+		if _, err := s.upd.reg.Version(ctx, ref, d, auth); err != nil {
+			s.log.Debug("image version label", "image", ref.Name, "digest", d, "err", err)
+		}
+	}
 }
 
 func registryErrText(err error) string {
@@ -333,8 +346,16 @@ func (s *Server) imageUpdateView(ctx context.Context, svc *api.Service, row *sto
 		v.Status, v.Error = "error", row.Error
 		return v
 	}
+	v.CurrentVersion, _ = registry.CachedVersion(v.CurrentDigest)
+	v.LatestVersion, _ = registry.CachedVersion(v.LatestDigest)
 	v.DigestChanged = v.CurrentDigest != "" && v.LatestDigest != "" && v.CurrentDigest != v.LatestDigest
 	v.UpdateAvailable = v.DigestChanged || v.NewerTag != ""
+	if pinned != "" {
+		// Fixed to a digest on purpose (or by a rollback): report, never nag.
+		v.Pinned, v.UpdateAvailable = true, false
+		v.Status = "pinned"
+		return v
+	}
 	switch {
 	case v.UpdateAvailable:
 		v.Status = "update_available"
@@ -366,7 +387,7 @@ func (s *Server) maybeAutoUpdate(ctx context.Context, svc *api.Service, row *sto
 		return
 	}
 	ref, pinned, err := trackedRef(svc.Image, row)
-	if err != nil || checkable(ref, nil) != "" || row.Image != ref.WithTag(ref.Tag) {
+	if err != nil || pinned != "" || checkable(ref, nil) != "" || row.Image != ref.WithTag(ref.Tag) {
 		return
 	}
 	cur := s.runningDigest(ctx, svc, pinned)

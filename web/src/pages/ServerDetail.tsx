@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Info, Code2, SquareTerminal, BarChart3, Cpu, Settings, Bell, MemoryStick, HardDrive, Minus, Plus, Server as ServerIcon, ChevronDown } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Avatar, Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks } from '../components/ui'
+import { Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, CardSkeleton, Select, Skeleton, TextInput, CodeBlock } from '../components/feedback'
 import { api, isDemo, type Range } from '../api/client'
 import { run, useQuery } from '../api/hooks'
@@ -117,7 +117,6 @@ function ProjectsTab({ s }: { s: Server }) {
             <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3.5 text-[13px]">
               <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{s.provider && <Mini provider={s.provider} />}<span className="truncate" title={s.name}>{s.name}</span></span>
               <span className="text-muted">服务</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} 运行中</span>
-              <span className="text-muted">成员</span><span className="flex justify-end"><Avatar size={22} /></span>
             </div>
           </Link>
         )

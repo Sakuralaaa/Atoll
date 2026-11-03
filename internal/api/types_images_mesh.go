@@ -23,7 +23,7 @@ type ImageUpdate struct {
 	// Window is the optional daily auto-update window "HH:MM-HH:MM" (UTC, may wrap midnight); "" = any time.
 	Window string `json:"window,omitempty"`
 	// Status: up_to_date | update_available | unknown (not checked yet / running digest unknown) |
-	// error | unsupported (local or digest-only image) | disabled (policy off).
+	// error | unsupported (local or digest-only image) | disabled (policy off) | pinned (image fixed to a digest).
 	Status          string `json:"status"`
 	UpdateAvailable bool   `json:"update_available"` // digest changed or a newer same-major tag exists
 	// DigestChanged: the tag now points to a different manifest than the running container.
@@ -31,6 +31,14 @@ type ImageUpdate struct {
 	CurrentDigest string `json:"current_digest,omitempty"` // running (agent-reported)
 	LatestDigest  string `json:"latest_digest,omitempty"`  // registry digest of the current tag
 	CurrentTag    string `json:"current_tag,omitempty"`
+	// CurrentVersion / LatestVersion are the images' org.opencontainers.image.version labels
+	// ("" when the image has none or it was not looked up yet).
+	CurrentVersion string `json:"current_version,omitempty"`
+	LatestVersion  string `json:"latest_version,omitempty"`
+	// Pinned: the service's image names a digest (name@sha256:…), set by hand or by a rollback.
+	// A pinned service is never reported as update_available and never auto-updated; an
+	// explicit update returns it to following CurrentTag.
+	Pinned bool `json:"pinned,omitempty"`
 	// NewerTag is the newest higher semver tag with the same major (and same shape/suffix);
 	// MajorTag the newest with a higher major, shown separately (not counted in UpdateAvailable).
 	NewerTag     string     `json:"newer_tag,omitempty"`

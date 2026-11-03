@@ -101,6 +101,7 @@ func newControlState() *controlState {
 func (s *Server) registerControlRoutes(a func(string, access, handlerFunc)) {
 	const v = "/api/v1"
 	a("GET "+v+"/control", needReadGlobal, s.handleControlStatus)
+	a("PATCH "+v+"/control", lvlSession, s.handlePatchControl)
 	a("GET "+v+"/control/metrics", needReadGlobal, s.handleControlMetrics)
 	a("GET "+v+"/control/logs", lvlSession, s.handleControlLogs)
 	a("POST "+v+"/control/reauth", lvlSession, s.handleControlReauth)
@@ -113,6 +114,25 @@ func (s *Server) registerControlRoutes(a func(string, access, handlerFunc)) {
 	a("POST "+v+"/control/backups/passphrase", lvlSession, s.handleControlPassphrase)
 	a("POST "+v+"/control/export", lvlSession, s.handleControlExport)
 	a("GET "+v+"/audit", lvlSession, s.handleListAudit)
+}
+
+// handlePatchControl saves the control server's display name.
+func (s *Server) handlePatchControl(w http.ResponseWriter, r *http.Request) error {
+	var req api.ControlPatch
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if len([]rune(name)) > 100 {
+			return badRequest("name must be at most 100 characters")
+		}
+		if err := s.st.SetSetting(r.Context(), "control_name", name); err != nil {
+			return err
+		}
+		s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "control.rename", "control", map[string]string{"name": name})
+	}
+	return s.handleControlStatus(w, r)
 }
 
 // ---------- re-authentication ----------
@@ -311,6 +331,7 @@ func (s *Server) handleControlStatus(w http.ResponseWriter, r *http.Request) err
 		StartedAt: c.started, UptimeSeconds: int64(time.Since(c.started).Seconds()),
 		DataDir: s.cfg.DataDir, PublicURL: s.publicURL(ctx, r),
 	}
+	st.Name, _ = s.st.GetSetting(ctx, "control_name")
 	st.Host.Arch = runtime.GOARCH
 	if hi, err := host.InfoWithContext(ctx); err == nil {
 		st.Host.Hostname = hi.Hostname

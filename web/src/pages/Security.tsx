@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole } from 'lucide-react'
+import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card } from '../components/ui'
 import { ErrorState, Modal, Skeleton, TextInput } from '../components/feedback'
@@ -17,7 +17,7 @@ export function SettingsTabs() {
   const { t } = useT()
   const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-[#fde047] text-[#141414]' : 'border-transparent text-muted hover:text-fg')
   return (
-    <div className="flex flex-wrap gap-2 mb-8">
+    <div className="flex flex-wrap gap-2 mt-5 mb-8">
       <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>
       <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
     </div>
@@ -33,8 +33,8 @@ export default function Security() {
     <MainShell>
       <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
-        <p className="text-[13px] text-muted mt-2 mb-6">{t('面板账号的密码、两步验证和登录会话。API 令牌（atl_pat_）不受影响，在「CLI 与 API」里管理。', 'Password, two-factor authentication and sessions for your panel account. API tokens (atl_pat_) are not affected; manage them under "CLI & API".')}</p>
         <SettingsTabs />
+        <UsernameCard twoFactor={q.data?.enabled} />
         <ChangePasswordCard twoFactor={q.data?.enabled} />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
@@ -59,6 +59,59 @@ function Section({ icon, title, right, children }: { icon: React.ReactNode; titl
       <div className="text-[15px] font-semibold flex flex-wrap items-center gap-2 mb-3"><span className="shrink-0">{icon}</span>{title}<span className="ml-auto">{right}</span></div>
       <Card>{children}</Card>
     </div>
+  )
+}
+
+function UsernameCard({ twoFactor }: { twoFactor?: boolean }) {
+  const { t } = useT()
+  const me = useQuery('me', api.me).data
+  const [name, setName] = useState<string>()
+  const [cur, setCur] = useState(''); const [code, setCode] = useState('')
+  const [err, setErr] = useState<string>()
+  const [busy, wrap] = useBusy()
+  const value = name ?? me?.username ?? ''
+  const code6 = code.replace(/\s/g, '')
+  const valid = /^[A-Za-z0-9_.@-]{1,64}$/.test(value.trim())
+  const changed = !!me && value.trim() !== me.username
+  const ok = changed && valid && !!cur && (!twoFactor || /^\d{6}$/.test(code6))
+  const go = () => wrap(async () => {
+    setErr(undefined)
+    try {
+      await api.changeUsername({ username: value.trim(), current_password: cur, ...(twoFactor ? { code: code6 } : {}) })
+      setName(undefined); setCur(''); setCode('')
+      invalidate('me')
+      toast(t('用户名已修改，下次登录请用新用户名', 'Username changed; sign in with it next time'), 'ok')
+    } catch (x) {
+      const e = x as ApiError
+      if (e.code === 'invalid_credentials') setErr(t('当前密码不正确', 'Current password is wrong'))
+      else if (e.code === 'code_required') setErr(t('已启用两步验证，请输入验证码', '2FA is on — enter the code'))
+      else if (e.status === 409) setErr(t('这个用户名已被占用', 'That username is taken'))
+      else setErr(errText(t, x))
+      setCode('')
+    }
+  })
+  return (
+    <Section icon={<UserRound size={17} />} title={t('用户名', 'Username')}>
+      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-x-5 gap-y-4">
+          <label>
+            <div className="text-[13px] font-semibold mb-1.5">{t('登录用户名', 'Login name')}</div>
+            <TextInput autoComplete="username" className="w-full" value={value} maxLength={64} onChange={e => setName(e.target.value)} />
+          </label>
+          {changed && <label>
+            <div className="text-[13px] font-semibold mb-1.5">{t('当前密码', 'Current password')}</div>
+            <TextInput type="password" autoComplete="current-password" className="w-full" value={cur} onChange={e => setCur(e.target.value)} />
+          </label>}
+          {changed && twoFactor && <label>
+            <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
+            <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
+          </label>}
+        </div>
+        {changed && !valid && <div className="mt-3 text-[12.5px] text-muted font-semibold">{t('1–64 个字符：字母、数字、_ . @ -', '1–64 characters: letters, digits, _ . @ -')}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+        {changed && <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}{t('保存用户名', 'Save username')}</Button>}
+      </form>
+    </Section>
   )
 }
 

@@ -4,6 +4,7 @@ import { Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLi
 import { Button, Card, Dot, Mini, Spark } from '../../components/ui'
 import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle } from '../../components/feedback'
 import ImageUpdateCard from '../../components/ImageUpdateCard'
+import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
 import { BuildLogModal, CommitLink, GithubIcon, SourceCard } from '../../components/GitSource'
 import { commitUrl, hasBuildLog, repoPath, shortSha } from '../../api/git'
 import { api, isDemo } from '../../api/client'
@@ -45,7 +46,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><GithubIcon size={14} /><span className="truncate" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">源码构建</span></span>
                 <span className="text-muted">提交</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
               </> : <>
-                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><span className="truncate" title={s.image}>{s.image || '—'}</span></span>
+                <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><ImageRef s={s} /></span>
                 <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
@@ -177,5 +178,18 @@ export function BindDomain({ s, onClose }: { s: Service; onClose: () => void }) 
       <Label t="端口">{httpPorts.length ? <Select className="w-full" value={port} onChange={e => setPort(e.target.value)}>{httpPorts.map(p => <option key={p.name} value={p.name}>{p.name} · {p.container_port}</option>)}</Select> : <div className="text-[13px] text-muted">没有 HTTP 端口，请先在「网络」里添加。</div>}</Label>
       <div className="flex items-center justify-between gap-4"><div><div className="text-[13px] font-semibold">Cloudflare 代理</div><div className="text-[12px] text-dim mt-0.5">橙色云朵：隐藏源站 IP，80/443 只放行 Cloudflare</div></div><Toggle on={proxied} onChange={setProxied} /></div>
     </Modal>
+  )
+}
+
+/** Image source without the raw digest: "ghcr.io/x/komari" + "1.2.5 · 5c43b1b" (pinned) or the tag. */
+function ImageRef({ s }: { s: Service }) {
+  const u = useImageUpdate(s.id).data
+  if (!s.image) return <span>—</span>
+  const p = splitImage(s.image)
+  return (
+    <span className="min-w-0 flex items-center gap-1.5" title={s.image}>
+      <span className="truncate">{p.name}</span>
+      <span className="shrink-0 text-fg2">{imageVersionLabel(s.image, u?.current_version)}</span>
+    </span>
   )
 }

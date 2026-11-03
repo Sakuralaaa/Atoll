@@ -56,12 +56,13 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
     if (ph === 'restarting' && el > restartAt && el < restartAt + 1800) fail(0, '无法连接到 Atoll 服务器')
     return ph
   }
+  let controlName = ''
   const status = (): ControlStatus => {
     const phase = tick()
     const on = servers.filter(s => s.status === 'online').length
     const up = Math.floor((Date.now() - startedAt) / 1000)
     return {
-      version, commit: version === 'v0.2.0' ? 'bf9864e1c0a2' : '7c41d0a9e3b5', go_version: 'go1.25.3', started_at: new Date(startedAt).toISOString(), uptime_seconds: up,
+      name: controlName, version, commit: version === 'v0.2.0' ? 'bf9864e1c0a2' : '7c41d0a9e3b5', go_version: 'go1.25.3', started_at: new Date(startedAt).toISOString(), uptime_seconds: up,
       host: stress
         ? { hostname: 'atoll-control-hetzner-cx22-nuremberg-primary-panel-node-01', os: 'ubuntu 24.04.3 LTS (Noble Numbat)', kernel: '6.8.0-87-generic-64k-hwe-24.04-enterprise', arch: 'arm64', cpu_cores: 2, uptime_seconds: 41 * 86400 + 7200 }
         : { hostname: 'atoll-control', os: 'debian 13', kernel: '6.12.48+deb13-amd64', arch: 'amd64', cpu_cores: 2, uptime_seconds: 41 * 86400 + 7200 },
@@ -171,6 +172,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
     if (seg[0] !== 'control') return undefined
     const p = seg.slice(1).join('/')
     if (G && p === '') return status()
+    if (method === 'PATCH' && p === '') { const n = String(body?.name ?? '').trim(); if ([...n].length > 100) fail(400, 'name must be at most 100 characters'); controlName = n; return status() }
     if (G && p === 'metrics') return metrics(q.get('range') ?? '24h')
     if (G && p === 'logs') return logs(q)
     if (P && p === 'reauth') {

@@ -27,3 +27,18 @@ export function useUpdatesByService(): Record<string, ImageUpdate> {
 export const useImageUpdate = (sid: string) => useQuery(`image-update:${sid}`, () => updatesApi.get(sid))
 
 export const shortDigest = (d?: string) => d ? d.replace(/^sha256:/, '').slice(0, 12) : '—'
+
+/** "ghcr.io/x/komari@sha256:5c43…" -> { name, tag?, digest? } */
+export function splitImage(image: string): { name: string; tag?: string; digest?: string } {
+  const at = image.indexOf('@')
+  if (at >= 0) return { name: image.slice(0, at), digest: image.slice(at + 1) }
+  const i = image.lastIndexOf(':')
+  return i > image.lastIndexOf('/') ? { name: image.slice(0, i), tag: image.slice(i + 1) } : { name: image }
+}
+
+/** Human label for what an image ref runs: "1.2.5 · 5c43b1b" for a digest pin, the tag otherwise. */
+export function imageVersionLabel(image: string, version?: string): string {
+  const p = splitImage(image)
+  if (p.digest) return [version, p.digest.replace(/^sha256:/, '').slice(0, 7)].filter(Boolean).join(' · ')
+  return version && version !== p.tag ? `${p.tag ?? 'latest'} (${version})` : p.tag ?? 'latest'
+}

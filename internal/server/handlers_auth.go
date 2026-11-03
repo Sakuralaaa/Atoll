@@ -248,6 +248,60 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) er
 	return nil
 }
 
+// handleChangeUsername renames the logged-in user (panel session only), confirmed like a
+// password change: current password, plus the TOTP code when 2FA is on. Sessions stay valid.
+func (s *Server) handleChangeUsername(w http.ResponseWriter, r *http.Request) error {
+	p := principalFrom(r.Context())
+	if !p.Session {
+		return errf(403, "session_required", "only a panel session can change the username")
+	}
+	var req api.ChangeUsernameRequest
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	req.Username = strings.TrimSpace(req.Username)
+	if !usernameRe.MatchString(req.Username) {
+		return badRequest("username must be 1-64 characters: letters, digits, _ . @ -")
+	}
+	if req.Username == p.User.Username {
+		return badRequest("that is already your username")
+	}
+	ip := s.clientIP(r)
+	if wait := s.lock.wait(ipKey(ip), accountKey(p.User.Username)); wait > 0 {
+		return tooMany(w, wait)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(p.User.PasswordHash), []byte(req.CurrentPassword)) != nil {
+		s.loginFailed(ip, p.User.Username, "change-username current password")
+		return errf(401, "invalid_credentials", "current password is wrong")
+	}
+	tf, err := s.st.TOTPState(r.Context(), p.User.ID)
+	if err != nil {
+		return err
+	}
+	if tf.Enabled {
+		if strings.TrimSpace(req.Code) == "" {
+			return errf(401, "code_required", "two-factor authentication is on; enter the current code from your authenticator")
+		}
+		m, err := s.checkSecondFactor(r.Context(), p.User, req.Code, false)
+		if err != nil {
+			return err
+		}
+		if m == "" {
+			s.loginFailed(ip, p.User.Username, "change-username code")
+			return errf(401, "invalid_code", "invalid verification code")
+		}
+	}
+	if err := s.st.RenameUser(r.Context(), p.User.ID, req.Username); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			return errf(409, "conflict", "username %q is taken", req.Username)
+		}
+		return err
+	}
+	s.st.Audit(r.Context(), p.actor(), "auth.username_change", req.Username, map[string]string{"ip": ip, "from": p.User.Username})
+	writeJSON(w, 200, meResponse{Username: req.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions)})
+	return nil
+}
+
 // ---------- API tokens ----------
 
 func (s *Server) handleListTokens(w http.ResponseWriter, r *http.Request) error {

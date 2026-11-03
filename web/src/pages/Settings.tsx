@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Globe, Cloud, ShieldCheck, Link2, Check, KeyRound } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card } from '../components/ui'
+import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
@@ -20,7 +20,6 @@ export default function Settings() {
     <MainShell>
       <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
-        <p className="text-[13px] text-muted mt-2 mb-6">域名、证书、面板地址、通知和备份存储。密钥只写不读：保存后不会再显示，留空表示保持原值。</p>
         <SettingsTabs />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
@@ -38,9 +37,8 @@ export default function Settings() {
 function Section({ icon, t, d, children }: { icon: React.ReactNode; t: string; d?: string; children: React.ReactNode }) {
   return (
     <div className="mb-8">
-      <div className="text-[15px] font-semibold flex items-center gap-2">{icon}{t}</div>
-      {d && <div className="text-[13px] text-muted mt-1 mb-3 leading-5">{d}</div>}
-      <Card className={cx('divide-y divide-line', !d && 'mt-3')}>{children}</Card>
+      <div className="text-[15px] font-semibold flex items-center gap-2">{icon}{t}{d && <Hint>{d}</Hint>}</div>
+      <Card className="divide-y divide-line mt-3">{children}</Card>
     </div>
   )
 }

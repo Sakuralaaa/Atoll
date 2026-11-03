@@ -82,11 +82,13 @@ export function CopyButton({ text, label = '复制' }: { text: string; label?: s
   const [done, setDone] = useState(false)
   return <Button size="sm" onClick={() => { navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) }, () => toast('复制失败，请手动选择', 'error')) }}>{done ? <Check size={14} /> : <Copy size={14} />}{done ? '已复制' : label}</Button>
 }
-export function CodeBlock({ children }: { children: string }) {
+/** Copyable command. Wraps instead of scrolling sideways, so the copy button never covers text; `grow` fills a stretched card. */
+export function CodeBlock({ children, grow }: { children: string; grow?: boolean }) {
   const [done, setDone] = useState(false)
   return (
-    <div className="relative rounded-lg field px-4 py-3.5 pr-10 font-mono text-[13px] leading-6 text-fg2 whitespace-pre overflow-auto">{children}
-      <button onClick={() => navigator.clipboard?.writeText(children).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) })} className="absolute right-3 top-3.5 text-muted hover:text-fg">{done ? <Check size={14} /> : <Copy size={14} />}</button>
+    <div className={cx('relative rounded-lg field min-w-0', grow && 'flex-1')}>
+      <pre className="px-4 py-3.5 pr-11 font-mono text-[13px] leading-6 text-fg2 whitespace-pre-wrap [overflow-wrap:anywhere] m-0">{children}</pre>
+      <button aria-label="复制" title="复制" onClick={() => navigator.clipboard?.writeText(children).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) })} className="absolute right-2.5 top-3 h-7 w-7 grid place-items-center rounded-md text-muted hover:text-fg hover:bg-ov/5">{done ? <Check size={14} /> : <Copy size={14} />}</button>
     </div>
   )
 }

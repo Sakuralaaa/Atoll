@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { AlertTriangle, Check, Loader2, Network, Save } from 'lucide-react'
-import { Badge, Button, Card } from './ui'
+import { Badge, Button, Card, Hint } from './ui'
 import { TextInput, Toggle } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
@@ -20,11 +20,12 @@ export default function NetworkSettings({ s }: { s: Settings }) {
     <div ref={ref} id="network" className="mt-8 mb-8 scroll-mt-6">
       <div className="text-[15px] font-semibold flex items-center gap-2">
         <Network size={17} />{t('私有网络', 'Private network')}
+        <Hint>{t(
+        '面板仍走公网；Agent 与中控、跨服务器的服务互通走 tailnet。需要一个可复用、带 tag、最好预先批准的 auth key。',
+        'The panel stays public; agent ↔ control and service ↔ service traffic across servers goes over the tailnet. Needs a reusable, tagged, ideally pre-approved auth key.')}</Hint>
         {on ? <Badge tone="green"><Check size={11} strokeWidth={3} />Tailscale</Badge> : <Badge tone="zinc">{t('未启用', 'Off')}</Badge>}
       </div>
-      <div className="text-[13px] text-muted mt-1 mb-3 leading-5">{t(
-        '面板仍走公网；Agent 与中控、跨服务器的服务互通走 tailnet。需要一个可复用、带 tag、最好预先批准的 auth key。',
-        'The panel stays public; agent ↔ control and service ↔ service traffic across servers goes over the tailnet. Needs a reusable, tagged, ideally pre-approved auth key.')}</div>
+      <div className="mb-3" />
       <Form key={key} s={s} />
     </div>
   )

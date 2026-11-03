@@ -1,17 +1,17 @@
-// 中控 (Control): the atoll-server host itself. Not a server/worker: it never runs projects, and
-// workloads keep running while it restarts or is down (docs/control.md).
+// 中控 (Control): the atoll-server host itself. Workloads keep running while it restarts or is down;
+// the same machine may also run an agent (a worker), shown as 同机节点. Concepts: docs/control.md, docs/ui-guide.md.
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Gauge, CircleArrowUp, Archive, ScrollText, ShieldCheck, Truck, Cpu, MemoryStick, HardDrive, ExternalLink, RefreshCw, Loader2,
-  CheckCircle2, XCircle, Undo2, Rocket, Info, AlertTriangle, Circle, ServerCog,
+  CheckCircle2, XCircle, Undo2, Rocket, Info, AlertTriangle, Circle, ServerCog, Pencil, Server as ServerIcon,
 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, Chart, Dot, Tabs, Ticks } from '../components/ui'
-import { CardSkeleton, CodeBlock, ErrorState, Modal, Skeleton } from '../components/feedback'
+import { CardSkeleton, CodeBlock, ErrorState, Modal, Skeleton, TextInput } from '../components/feedback'
 import { ReauthChip } from '../components/Reauth'
 import { KV, Where } from '../components/control-ui'
-import { type Range } from '../api/client'
+import { api, type Range } from '../api/client'
 import { controlApi, PHASES, phaseLabel, triggerLabel, uptime, useControl } from '../api/control'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import { ago, bytes, dateTime, gb, timeLabels } from '../api/view'
@@ -39,6 +39,7 @@ export default function Control() {
   const [sp, setSp] = useSearchParams()
   const tab = TABS.some(t => t.k === sp.get('tab')) ? sp.get('tab')! : 'overview'
   const [watch, setWatch] = useState<Watch>()
+  const [renaming, setRenaming] = useState(false)
   const [remoteBusy, setRemoteBusy] = useState(false) // an update started elsewhere (CLI, another tab)
   const q = useControl(watch || remoteBusy ? 2000 : 30000)
   const s = q.data
@@ -71,10 +72,11 @@ export default function Control() {
       <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em]">中控</h1>
-          {s && <span className="flex items-center gap-2 text-[13px] text-fg2 min-w-0"><Dot status={q.error ? 'offline' : 'online'} /><span className="font-mono truncate" title={s.host.hostname}>{s.host.hostname}</span></span>}
+          {s && <span className="flex items-center gap-2 text-[13px] text-fg2 min-w-0"><Dot status={q.error ? 'offline' : 'online'} /><span className="font-semibold text-fg truncate" title={s.host.hostname}>{s.name || s.host.hostname}</span>
+            <button aria-label="重命名中控" title="重命名" onClick={() => setRenaming(true)} className="text-muted hover:text-fg"><Pencil size={13} /></button></span>}
           <span className="ml-auto"><ReauthChip /></span>
         </div>
-        <p className="text-[13px] text-muted mt-1.5 max-w-[760px] leading-6">运行面板、API 与 agent 调度的那台机器。它不是 worker，不承载任何项目；中控重启或宕机时，各服务器上的服务照常运行。</p>
+        {renaming && s && <RenameControl s={s} onClose={() => setRenaming(false)} />}
         <Tabs className="mt-6" items={tabs} value={tab} onChange={k => setSp(k === 'overview' ? {} : { tab: k })} />
         <div className="mt-6">
           {q.error && !s && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -91,10 +93,27 @@ export default function Control() {
   )
 }
 
+function RenameControl({ s, onClose }: { s: ControlStatus; onClose: () => void }) {
+  const [name, setName] = useState(s.name ?? '')
+  const [busy, wrap] = useBusy()
+  const save = () => wrap(async () => { if (await run(() => controlApi.rename(name.trim()), { ok: name.trim() ? '已重命名' : '已恢复为主机名', invalidate: ['control'] })) onClose() })
+  return (
+    <Modal title={<><Pencil size={16} />重命名中控</>} onClose={onClose} width={440}
+      footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={busy || [...name.trim()].length > 100} onClick={save}>{busy && <Loader2 size={14} className="animate-spin" />}保存</Button></>}>
+      <TextInput autoFocus className="w-full" placeholder={s.host.hostname} value={name} maxLength={100} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} />
+      <div className="mt-2 text-[12.5px] text-muted">留空则显示主机名 {s.host.hostname}</div>
+    </Modal>
+  )
+}
+
 const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
 
 function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
   const t = s.tailnet, b = s.last_backup
+  // the control host can also run an agent: same tailnet address (or same public IP)
+  const servers = useQuery('servers', api.servers).data ?? []
+  const pubHost = (() => { try { return s.public_url ? new URL(s.public_url).hostname : '' } catch { return '' } })()
+  const peer = servers.find(x => x.role !== 'control' && ((t?.ip && x.tailnet_ip === t.ip) || (pubHost && x.public_ipv4 === pubHost)))
   return (
     <>
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
@@ -109,6 +128,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">主机</div>
           <KV k="主机名" v={<span className="font-mono text-[12.5px]">{s.host.hostname}</span>} />
+          {peer && <KV k="同机节点" v={<Link to={`/servers/${peer.id}`} className="inline-flex items-center gap-1.5 hover:underline"><ServerIcon size={13} />{peer.name}</Link>} />}
           <KV k="系统" v={s.host.os || '—'} />
           <KV k="内核" v={<span className="font-mono text-[12.5px]">{s.host.kernel || '—'}</span>} />
           <KV k="架构" v={`${s.host.arch} · ${s.host.cpu_cores} vCPU`} />
@@ -321,7 +341,7 @@ export function ControlCard() {
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold">中控</span>{s && <span className="font-mono text-[12.5px] text-fg2">{s.version}</span>}{s?.update_available && <Badge tone="violet">可更新</Badge>}</div>
-          <div className="text-[12.5px] text-muted truncate" title={s?.host.hostname}>{s ? `${on ? '在线' : '连不上'} · ${s.host.hostname}` : q.error ? '连不上中控' : <Skeleton className="h-3 w-32 mt-1" />}</div>
+          <div className="text-[12.5px] text-muted truncate" title={s?.host.hostname}>{s ? `${on ? '在线' : '连不上'} · ${s.name || s.host.hostname}` : q.error ? '连不上中控' : <Skeleton className="h-3 w-32 mt-1" />}</div>
         </div>
       </div>
       {s && <div className="grid grid-cols-3 gap-x-4 text-[12px] w-full @3xl:w-auto @3xl:min-w-[360px] [&>div]:min-w-0">
