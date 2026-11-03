@@ -325,6 +325,11 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		if json.Unmarshal(env.Payload, &ev) == nil {
 			s.handleBackupEvent(ctx, c.nodeID, ev)
 		}
+	case api.MsgBackupVerifyEvent:
+		var ev api.BackupVerifyEvent
+		if json.Unmarshal(env.Payload, &ev) == nil {
+			s.handleBackupVerifyEvent(ctx, c.nodeID, ev)
+		}
 	case api.MsgDeploy:
 		var ev api.DeployEvent
 		if json.Unmarshal(env.Payload, &ev) == nil {

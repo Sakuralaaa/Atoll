@@ -358,6 +358,12 @@ type Settings struct {
 	BackupRepoPassword string `json:"backup_repo_password,omitempty"`
 	HasBackupPassword  bool   `json:"has_backup_password"`
 	BackupConfigured   bool   `json:"backup_configured"` // endpoint, bucket, credentials and password all set
+	// Backup verification (see docs/api.md "Backup verification"). Empty keeps the stored value;
+	// "auto" resets a schedule (or the subset) to its default; "off" turns a schedule off.
+	// GET returns the stored value ("" = auto).
+	BackupCheckSchedule string `json:"backup_check_schedule,omitempty"` // weekly restic check, cron
+	BackupCheckSubset   string `json:"backup_check_subset,omitempty"`   // --read-data-subset, default "5%"
+	BackupDrillSchedule string `json:"backup_drill_schedule,omitempty"` // monthly restore drill, cron
 	// ImageCheckIntervalHours is how often image update checks run (default 6; PUT 0 keeps the stored value).
 	ImageCheckIntervalHours int `json:"image_check_interval_hours"`
 

@@ -63,6 +63,7 @@ var mcpToolPerm = map[string]string{
 	"zeabur_import_status":  api.PermRead,
 	"update_list":           api.PermRead,
 	"backup_list":           api.PermRead,
+	"backup_verify":         api.PermRead,
 	"template_list":         api.PermRead,
 	"service_deploy":        api.PermDeploy,
 	"template_deploy":       api.PermDeploy,
@@ -71,6 +72,8 @@ var mcpToolPerm = map[string]string{
 	"service_redeploy":      api.PermDeploy,
 	"service_rollback":      api.PermDeploy,
 	"backup_run":            api.PermDeploy,
+	"backup_check":          api.PermDeploy,
+	"backup_drill":          api.PermDeploy,
 	"domain_add":            api.PermDomains,
 	"project_migrate":       api.PermMigrate,
 	"service_migrate":       api.PermMigrate,
@@ -769,6 +772,33 @@ func mcpTools(app *App) []server.ServerTool {
 					return nil, err
 				}
 				return c.RunBackup(ctx, s.ID)
+			}),
+		t(tool("backup_verify", "Show the newest backup repository check (restic check --read-data-subset, weekly) and, with service, that service's newest restore drill (monthly: newest snapshots restored into temporary resources), with their schedules. status failed = backups may not be restorable.", true, false,
+			mcp.WithString("service", mcp.Description("service name or id (adds its restore drill)")),
+			mcp.WithString("project", mcp.Description("project name or id (to disambiguate service names)"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				sid := ""
+				if ref := r.GetString("service", ""); ref != "" {
+					s, err := c.ResolveService(ctx, r.GetString("project", ""), ref)
+					if err != nil {
+						return nil, err
+					}
+					sid = s.ID
+				}
+				return c.BackupVerifyStatus(ctx, sid)
+			}),
+		t(tool("backup_check", "Check the backup repository now (restic check, reading a share of the data). Returns the running record; read the result later with backup_verify.", false, false,
+			mcp.WithString("subset", mcp.Description(`share of the data to read: "5%", "1/20" or "500M" (default: the configured one)`))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				return c.RunBackupCheck(ctx, "", r.GetString("subset", ""))
+			}),
+		t(tool("backup_drill", "Rehearse a restore of a service now: its newest snapshots are restored into a temporary directory and a temporary database container of the same image, checked, and removed. The running service is not touched. Read the result later with backup_verify.", false, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return c.RunBackupDrill(ctx, s.ID)
 			}),
 		t(tool("backup_restore", "Restore a backup, replacing the service's current data (a safety copy is kept). target_server is disaster recovery and only works while the project's server is offline."+fmt.Sprintf(imm, api.PermRestore)+" If it returns PENDING CONFIRMATION, never retry to bypass it.", false, true,
 			mcp.WithString("backup_id", mcp.Required(), mcp.Description("bak_... id or restic snapshot id from backup_list")),

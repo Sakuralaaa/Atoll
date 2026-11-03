@@ -14,12 +14,13 @@ type problemsFoundError struct{ n int }
 func (e *problemsFoundError) Error() string { return fmt.Sprintf("%d problem(s)", e.n) }
 
 var problemKindLabel = map[string]string{
-	api.ProblemNodeOffline:  "server offline",
-	api.ProblemDiskHigh:     "disk almost full",
-	api.ProblemServiceDown:  "service down",
-	api.ProblemDeployFailed: "deploy failed",
-	api.ProblemBackupFailed: "backup failed",
-	api.ProblemDomainError:  "domain error",
+	api.ProblemNodeOffline:        "server offline",
+	api.ProblemDiskHigh:           "disk almost full",
+	api.ProblemServiceDown:        "service down",
+	api.ProblemDeployFailed:       "deploy failed",
+	api.ProblemBackupFailed:       "backup failed",
+	api.ProblemBackupVerifyFailed: "backup verification failed",
+	api.ProblemDomainError:        "domain error",
 }
 
 func newStatusCmd(app *App) *cobra.Command {

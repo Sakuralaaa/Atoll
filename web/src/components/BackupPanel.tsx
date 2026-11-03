@@ -10,6 +10,7 @@ import { backupsApi, duration, shortSnap, useBackupPolicy, useBackups, useRestor
 import type { Backup, BackupPolicy, Project, RestoreJob, Server, Service } from '../api/types'
 import { cx } from './ui-utils'
 import { useNow } from '../api/useNow'
+import BackupVerifyCard from './BackupVerifyCard'
 
 const PRESETS = [
   { l: '每天 03:00', v: '0 3 * * *' },
@@ -50,6 +51,7 @@ function Configured({ p, s, policy, onPolicy }: { p: Project; s: Service; policy
   return (
     <>
       <PolicyForm key={policy.updated_at ?? 'default'} s={s} policy={policy} onSaved={onPolicy} />
+      <BackupVerifyCard s={s} policy={policy} />
       <RestoreStatus s={s} />
       <div className="mt-8 flex flex-wrap items-end justify-between gap-4 mb-3">
         <div className="flex-1 min-w-[min(100%,260px)]">

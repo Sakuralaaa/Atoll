@@ -35,6 +35,8 @@ func (s *Server) startBackupScheduler() {
 				if k, _ := s.st.FailStaleBackups(s.bg, backupStaleAfter); k > 0 {
 					s.log.Warn("backups without result marked failed", "count", k)
 				}
+				s.verifyHousekeeping(s.bg, n%360 == 1) // backups_verify.go
+
 			}
 		}
 	}()

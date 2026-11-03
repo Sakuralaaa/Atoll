@@ -22,9 +22,13 @@ func newBackupCmd(app *App) *cobra.Command {
 			"  atoll backup run SERVICE                  back up now\n" +
 			"  atoll backup restore SNAPSHOT [--to SERVER]   restore (needs the restore permission)\n" +
 			"  atoll backup policy SERVICE [--enable|--disable] [--schedule CRON] [--keep-daily N ...]\n" +
+			"  atoll backup verify [SERVICE] [--history N]   latest repository check / restore drill\n" +
+			"  atoll backup check [--wait]                 check the repository now (restic check)\n" +
+			"  atoll backup drill SERVICE [--wait]         rehearse a restore now (temporary resources)\n" +
 			"SERVICE is a name, an id (svc_...) or project/name.",
 	}
-	cmd.AddCommand(newBackupListCmd(app), newBackupRunCmd(app), newBackupRestoreCmd(app), newBackupPolicyCmd(app))
+	cmd.AddCommand(newBackupListCmd(app), newBackupRunCmd(app), newBackupRestoreCmd(app), newBackupPolicyCmd(app),
+		newBackupVerifyCmd(app), newBackupCheckCmd(app), newBackupDrillCmd(app))
 	return cmd
 }
 

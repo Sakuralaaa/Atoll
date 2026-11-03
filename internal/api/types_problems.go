@@ -11,6 +11,9 @@ const (
 	ProblemDeployFailed = "deploy_failed" // the latest deployment of a service failed
 	ProblemBackupFailed = "backup_failed" // the latest backup of a service failed
 	ProblemDomainError  = "domain_error"  // a domain could not be provisioned (DNS / certificate)
+	// ProblemBackupVerifyFailed: the newest repository check (subject BackupRepoSubjectID) or
+	// the newest restore drill of a service (subject = service id) failed.
+	ProblemBackupVerifyFailed = "backup_verify_failed"
 )
 
 // ProblemThreshold is how long a condition must hold before it fires.
@@ -25,7 +28,7 @@ func ProblemThreshold(kind string) time.Duration {
 	case ProblemDomainError:
 		return 10 * time.Minute
 	}
-	return 0 // deploy_failed, backup_failed: already the end state of a finished job
+	return 0 // deploy_failed, backup_failed, backup_verify_failed: already the end state of a finished job
 }
 
 // Problem is one watched condition. Pending ones (FiringAt nil) are not returned by the API.

@@ -179,6 +179,10 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	verifyChanged, err := s.applyVerifySettings(ctx, req) // backups_verify.go
+	if err != nil {
+		return err
+	}
 	networkChanged, err := s.applyNetworkSettings(ctx, req) // network.go
 	if err != nil {
 		return err
@@ -198,7 +202,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 		}
 		s.pushIngress(ctx, n.ID)
 	}
-	if backupChanged {
+	if backupChanged || verifyChanged {
 		s.pushBackupConfigAll(ctx, true)
 	}
 	if networkChanged {

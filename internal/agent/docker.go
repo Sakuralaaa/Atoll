@@ -257,6 +257,9 @@ func (d *DockerRuntime) CreateContainer(ctx context.Context, s ContainerSpec) er
 		})
 	}
 	var netCfg *network.NetworkingConfig
+	if len(s.Networks) == 0 && s.NetworkMode != "" {
+		host.NetworkMode = container.NetworkMode(s.NetworkMode)
+	}
 	if len(s.Networks) > 0 {
 		primary := s.Networks[0]
 		host.NetworkMode = container.NetworkMode(primary.Name)
@@ -303,6 +306,12 @@ func (d *DockerRuntime) RestartContainer(ctx context.Context, name string, timeo
 
 func (d *DockerRuntime) RemoveContainer(ctx context.Context, name string) error {
 	return mapErr(d.cli.ContainerRemove(ctx, name, container.RemoveOptions{Force: true}))
+}
+
+// RemoveContainerAndVolumes removes a container and its anonymous volumes (backup drills; service
+// containers keep theirs through RemoveContainer).
+func (d *DockerRuntime) RemoveContainerAndVolumes(ctx context.Context, name string) error {
+	return mapErr(d.cli.ContainerRemove(ctx, name, container.RemoveOptions{Force: true, RemoveVolumes: true}))
 }
 
 func (d *DockerRuntime) RenameContainer(ctx context.Context, oldName, newName string) error {

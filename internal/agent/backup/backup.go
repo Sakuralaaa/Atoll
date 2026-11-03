@@ -58,14 +58,22 @@ type Manager struct {
 	StopTimeout  time.Duration
 	RetryAfter   time.Duration // delay before retrying a failed scheduled run (x attempts)
 	MaxRetries   int
+	CheckTimeout time.Duration // a repository check
+	DrillTimeout time.Duration // one restore drill
+	LockWait     time.Duration // restic --retry-lock for backups, checks and drills
+	// FreeSpace reports the bytes available at a path (default statfs; tests override).
+	FreeSpace func(path string) (uint64, error)
 
-	mu     sync.Mutex
-	cfg    api.BackupConfigPayload
-	state  map[string]*svcState
-	repoOK map[string]bool
-	runMu  sync.Mutex // one backup/restore at a time on this node
-	loaded bool
-	base   context.Context // set by Loop; cancels queued runs on shutdown
+	mu        sync.Mutex
+	cfg       api.BackupConfigPayload
+	state     map[string]*svcState
+	vstate    map[string]*svcState // verification schedule: "check", "drill:<service>"
+	verifying map[string]bool      // verification queued or running, by verifyKey
+	repoOK    map[string]bool
+	runMu     sync.Mutex // one backup/restore/check/drill at a time on this node
+	stateMu   sync.Mutex // read-modify-write of state.json
+	loaded    bool
+	base      context.Context // set by Loop; cancels queued runs on shutdown
 }
 
 type svcState struct {
@@ -75,8 +83,10 @@ type svcState struct {
 }
 
 type stateFile struct {
-	Services map[string]*svcState `json:"services"`
-	InFlight *inFlight            `json:"in_flight,omitempty"`
+	Services       map[string]*svcState `json:"services"`
+	InFlight       *inFlight            `json:"in_flight,omitempty"`
+	Verify         map[string]*svcState `json:"verify,omitempty"`
+	VerifyInFlight *verifyInFlight      `json:"verify_in_flight,omitempty"`
 }
 
 type inFlight struct {
@@ -99,7 +109,8 @@ func New(rt agent.Runtime, p agent.Paths, host string, emit func(string, any), l
 		Locked: func(_ string, fn func() error) error { return fn() },
 		Now:    time.Now, Tick: 30 * time.Second, ReadyTimeout: 3 * time.Minute, ReadyEvery: 2 * time.Second,
 		Settle: 5 * time.Second, StopTimeout: 30 * time.Second, RetryAfter: 15 * time.Minute, MaxRetries: 3,
-		state: map[string]*svcState{}, repoOK: map[string]bool{},
+		CheckTimeout: 12 * time.Hour, DrillTimeout: 6 * time.Hour, LockWait: 30 * time.Minute,
+		state: map[string]*svcState{}, vstate: map[string]*svcState{}, verifying: map[string]bool{}, repoOK: map[string]bool{},
 	}
 }
 
@@ -113,7 +124,7 @@ func (m *Manager) asideDir(svc string) string { return filepath.Join(m.dir(), "p
 
 func (m *Manager) Handles(t string) bool {
 	switch t {
-	case api.MsgBackupConfig, api.MsgBackupRun, api.MsgBackupRestore, api.MsgBackupSnapshots, api.MsgBackupTest:
+	case api.MsgBackupConfig, api.MsgBackupRun, api.MsgBackupRestore, api.MsgBackupSnapshots, api.MsgBackupTest, api.MsgBackupVerify:
 		return true
 	}
 	return false
@@ -158,6 +169,12 @@ func (m *Manager) Handle(ctx context.Context, t string, raw json.RawMessage) (st
 			return "", fmt.Errorf("bad payload: %w", err)
 		}
 		return m.Test(ctx, p)
+	case api.MsgBackupVerify:
+		var p api.BackupVerifyPayload
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return "", fmt.Errorf("bad payload: %w", err)
+		}
+		return m.QueueVerify(p)
 	}
 	return "", fmt.Errorf("unsupported message type %q", t)
 }
@@ -185,6 +202,12 @@ func (m *Manager) SetConfig(p api.BackupConfigPayload) error {
 		if m.state[t.ServiceID] == nil {
 			m.state[t.ServiceID] = &svcState{LastAttempt: now}
 		}
+		if m.vstate[drillKey(t.ServiceID)] == nil {
+			m.vstate[drillKey(t.ServiceID)] = &svcState{LastAttempt: now}
+		}
+	}
+	if m.vstate[checkKey] == nil {
+		m.vstate[checkKey] = &svcState{LastAttempt: now}
 	}
 	m.mu.Unlock()
 	return m.saveState(nil, false)
@@ -212,39 +235,56 @@ func (m *Manager) load() {
 	}
 	if b, err := os.ReadFile(m.statePath()); err == nil {
 		var sf stateFile
-		if json.Unmarshal(b, &sf) == nil && sf.Services != nil {
-			m.state = sf.Services
+		if json.Unmarshal(b, &sf) == nil {
+			if sf.Services != nil {
+				m.state = sf.Services
+			}
+			if sf.Verify != nil {
+				m.vstate = sf.Verify
+			}
 		}
 	}
 }
 
-func (m *Manager) readInFlight() *inFlight {
-	b, err := os.ReadFile(m.statePath())
-	if err != nil {
-		return nil
-	}
+func (m *Manager) readStateFile() stateFile {
 	var sf stateFile
-	if json.Unmarshal(b, &sf) != nil {
-		return nil
+	if b, err := os.ReadFile(m.statePath()); err == nil {
+		json.Unmarshal(b, &sf)
 	}
-	return sf.InFlight
+	return sf
 }
 
-// saveState writes the per-service state; fl replaces the in-flight marker when setFl.
-func (m *Manager) saveState(fl *inFlight, setFl bool) error {
-	m.mu.Lock()
-	sf := stateFile{Services: m.state}
-	if !setFl {
-		sf.InFlight = m.readInFlight()
-	} else {
-		sf.InFlight = fl
+func (m *Manager) readInFlight() *inFlight { return m.readStateFile().InFlight }
+
+func (m *Manager) readVerifyInFlight() *verifyInFlight { return m.readStateFile().VerifyInFlight }
+
+// writeState writes the schedule state; edit may replace the in-flight markers (the ones it
+// leaves alone keep their value on disk).
+func (m *Manager) writeState(edit func(sf *stateFile)) error {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+	cur := m.readStateFile()
+	sf := stateFile{InFlight: cur.InFlight, VerifyInFlight: cur.VerifyInFlight}
+	if edit != nil {
+		edit(&sf)
 	}
+	m.mu.Lock()
+	sf.Services, sf.Verify = m.state, m.vstate
 	b, err := json.MarshalIndent(sf, "", "  ")
 	m.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	return writeFile(m.statePath(), b, 0o600)
+}
+
+// saveState writes the per-service state; fl replaces the backup in-flight marker when setFl.
+func (m *Manager) saveState(fl *inFlight, setFl bool) error {
+	return m.writeState(func(sf *stateFile) {
+		if setFl {
+			sf.InFlight = fl
+		}
+	})
 }
 
 func writeFile(path string, data []byte, mode os.FileMode) error {
@@ -515,6 +555,15 @@ func (m *Manager) Test(ctx context.Context, repo api.BackupRepo) (string, error)
 	return "repository OK at " + repo.URL(), nil
 }
 
+// retryLock makes restic wait for a lock held elsewhere (a repository check holds an
+// exclusive one; backups from other nodes sharing the repository hold shared ones).
+func (m *Manager) retryLock() []string {
+	if m.LockWait <= 0 {
+		return nil
+	}
+	return []string{"--retry-lock", m.LockWait.String()}
+}
+
 func tags(t api.BackupTarget, part string) []string {
 	out := []string{"--tag", "atoll", "--tag", "svc=" + t.ServiceID, "--tag", "part=" + part}
 	if t.ProjectID != "" {
@@ -670,6 +719,8 @@ func ReadyScript(kind string) string {
 		return myEnv + `"$M" -h127.0.0.1 -u"$U" -N -B -e "select 1" >/dev/null`
 	case "mongo":
 		return mongoEnv + `if command -v mongosh >/dev/null; then S=mongosh; else S=mongo; fi; "$S" --quiet --host 127.0.0.1 "$@" --eval 'db.adminCommand({ping:1})' >/dev/null`
+	case "redis": // PONG once the rdb is loaded (LOADING before)
+		return redisEnv + `redis-cli -h 127.0.0.1 "$@" ping | grep -q PONG`
 	}
 	return "true"
 }
@@ -707,6 +758,7 @@ func (m *Manager) backupDump(ctx context.Context, t api.BackupTarget, repo api.B
 	}()
 	sw := &summaryWriter{}
 	args := append([]string{"backup", "--json", "--stdin", "--stdin-filename", strings.TrimPrefix(DumpFile(t.Kind), "/"), "--host", m.host()}, tags(t, "dump")...)
+	args = append(args, m.retryLock()...)
 	rerr := m.restic(ctx, repo, pr, sw, nil, args...)
 	pr.CloseWithError(errors.New("restic finished"))
 	derr := <-dumpErr
@@ -727,6 +779,7 @@ func (m *Manager) backupVolumes(ctx context.Context, t api.BackupTarget, repo ap
 	inside := "/backup/" + t.ServiceID
 	sw := &summaryWriter{}
 	args := append([]string{"backup", "--json", inside, "--host", m.host()}, tags(t, "volumes")...)
+	args = append(args, m.retryLock()...)
 	err := m.restic(ctx, repo, nil, sw, []string{m.Paths.VolumesDir(t.ServiceID) + ":" + inside + ":ro"}, args...)
 	return sw.snapshot("volumes", err)
 }
@@ -788,8 +841,12 @@ func ParseForget(out []byte) []string {
 
 // Snapshots lists the repository's snapshots of a service.
 func (m *Manager) Snapshots(ctx context.Context, repo api.BackupRepo, serviceID string) ([]api.ResticSnapshot, error) {
+	return m.snapshots(ctx, repo, serviceID)
+}
+
+func (m *Manager) snapshots(ctx context.Context, repo api.BackupRepo, serviceID string, extra ...string) ([]api.ResticSnapshot, error) {
 	var out bytes.Buffer
-	err := m.restic(ctx, repo, nil, &out, nil, "snapshots", "--json", "--tag", "svc="+serviceID)
+	err := m.restic(ctx, repo, nil, &out, nil, append([]string{"snapshots", "--json", "--tag", "svc=" + serviceID}, extra...)...)
 	if exitCode(err) == 10 {
 		return []api.ResticSnapshot{}, nil
 	}

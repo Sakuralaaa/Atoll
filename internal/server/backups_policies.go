@@ -179,6 +179,7 @@ func (s *Server) backupConfigFor(ctx context.Context, nodeID string) (api.Backup
 	cfg := api.BackupConfigPayload{Targets: []api.BackupTarget{}}
 	if repo, ok := s.backupRepo(ctx); ok {
 		cfg.Repo = &repo
+		cfg.Verify = s.verifyConfigFor(ctx, nodeID) // backups_verify.go
 	}
 	rows, err := s.st.ListBackupPolicies(ctx, nodeID)
 	if err != nil {

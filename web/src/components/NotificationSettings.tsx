@@ -33,7 +33,7 @@ export default function NotificationSettings() {
     <div className="mt-8 mb-8">
       <div className="text-[15px] font-semibold flex items-center gap-2"><Bell size={17} />通知</div>
       <div className="text-[13px] text-muted mt-1 mb-3 leading-5">
-        服务器离线超过 2 分钟、磁盘用到 90%、服务持续异常 3 分钟、部署或备份失败、域名配置失败时发送通知；恢复后再发一条。同一个问题只通知一次。
+        服务器离线超过 2 分钟、磁盘用到 90%、服务持续异常 3 分钟、部署、备份或备份校验失败、域名配置失败时发送通知；恢复后再发一条。同一个问题只通知一次。
       </div>
       <Card className="divide-y divide-line">
         {!n && <div className="px-6 py-5 text-[13px] text-dim">{q.error ? `加载失败：${q.error.message}` : '加载中…'}</div>}

@@ -165,6 +165,8 @@ type BackupTarget struct {
 type BackupConfigPayload struct {
 	Repo    *BackupRepo    `json:"repo,omitempty"` // nil = no target configured (agent stops scheduling)
 	Targets []BackupTarget `json:"targets"`
+	// Verify schedules repository checks and restore drills (nil: an older server, none).
+	Verify *BackupVerifyConfig `json:"verify,omitempty"`
 }
 
 type BackupRunPayload struct {
@@ -222,4 +224,12 @@ type ResticSnapshot struct {
 	Hostname string    `json:"hostname"`
 	Tags     []string  `json:"tags"`
 	Paths    []string  `json:"paths"`
+	// Summary is set by restic >= 0.17 (absent for older snapshots).
+	Summary *ResticSnapshotSummary `json:"summary,omitempty"`
+}
+
+// ResticSnapshotSummary is the backup summary restic stores in a snapshot.
+type ResticSnapshotSummary struct {
+	TotalFilesProcessed int64 `json:"total_files_processed"`
+	TotalBytesProcessed int64 `json:"total_bytes_processed"`
 }
