@@ -16,7 +16,7 @@ export function EnvTab({ s }: { s: Service }) {
   const [raw, setRaw] = useState(false)
   const [del, setDel] = useState<EnvVar>()
   const save = async (vars: EnvVar[]) => {
-    const r = await run(() => api.putEnv(s.id, vars), { ok: '已保存，重新部署后生效', invalidate: [`env:${s.id}`, `deployments:${s.id}`] })
+    const r = await run(() => api.putEnv(s.id, vars), { ok: s.status === 'stopped' ? '已保存，下次启动时生效' : '已保存，正在重新部署', invalidate: [`env:${s.id}`, `deployments:${s.id}`] })
     return !!r
   }
   const rows = q.data ?? []

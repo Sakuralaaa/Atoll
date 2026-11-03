@@ -46,7 +46,8 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | Method | Path | Body / notes |
 |---|---|---|
 | GET | /servers | []Server (with latest Usage) |
-| POST | /servers/join-token | → JoinToken (valid 1h, single use); `command` pins the hosted agent binaries with `--sha256-amd64/--sha256-arm64` |
+| POST | /servers/join-token | → JoinToken (valid 1h, single use); `command` pins the hosted agent binaries with `--sha256-amd64/--sha256-arm64` and, on a release build, `--version <server version>` |
+| GET | /servers/agent-install-command | → InstallCommand `{command, version}`: the same one-liner without a token, for re-running the installer on a joined server (old agents that cannot upgrade themselves) |
 | GET/PATCH/DELETE | /servers/{id} | PATCH {name, provider, region} |
 | GET | /servers/{id}/metrics?range=1h\|24h\|7d | []NodeMetrics |
 | GET | /servers/{id}/containers | []ContainerState |
@@ -66,6 +67,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | DELETE | /domains/{id} | removes the route from Caddy first, then the DNS record (on a DNS error the route is restored and the domain stays bound) |
 | GET | /domains | all domains |
 | GET | /services/{id}/deployments | []Deployment |
+| GET | /services/{id}/deployments/{dep}?wait=DURATION | Deployment. With `wait` (at most 90s) it long-polls: answers once the deployment is `running`, `failed` or `superseded`, or with its current state when the wait runs out. Loop on it to wait for a deploy |
 | GET | /services/{id}/deployments/{dep}/logs?after=SEQ | DeploymentLogs: build output of a deployment (see "Builds from source") |
 | GET | /services/{id}/webhook | GitWebhook of a git service (secret: panel session only) |
 | POST | /services/{id}/webhook/rotate | session only → GitWebhook with a new secret (shown once) |
@@ -97,6 +99,11 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /imports/{id}/start | deploy all services |
 | GET | /templates | []Template: db templates (postgres, mysql, redis, mongo); create one with POST /projects/{id}/services `{kind, name, env?}` |
 | GET | /events (WS) | live updates {type: "service"|"server"|"deployment"|"build_log"|"confirmation"|"image_update"|"backup"|"restore", payload} |
+
+## Install scripts
+- `GET /install-agent.sh`, `GET /install-server.sh` serve the scripts embedded in this build (`install/embed.go`), so a node installs with the scripts of the server's own version. Commands built by the server use the panel-hosted script when the public URL is https; over plain http they fetch the script of the server's release tag from GitHub instead (a script fetched over http could be swapped in transit, which no `--sha256` pin would catch).
+- Any other path that names a file (`/x.sh`, `/assets/old.js`) and any unknown `/api/` or `/agent/` path is a 404, never the panel's `index.html` (the panel routes by URL hash).
+- `install-agent.sh --version TAG` pins the GitHub fallback download (used when the server hosts no agent binary) to that release.
 
 ## Agent endpoints
 - `POST /agent/v1/join` JoinRequest → JoinResponse
@@ -227,6 +234,8 @@ Restic to any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3, MinIO).
 
 ## CLI & MCP permissions
 The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_URL` / `$ATOLL_TOKEN`). What they may do is the token's permission set (`read`, `deploy`, `exec`, `delete`, `migrate`, `domains`, `restore`, `servers`, `settings`, `tokens`), optionally limited to projects. Without a permission the server answers `403 missing_permission` and the CLI names the permission to grant (`atoll token edit TOKEN --add-perm PERM`); with it the operation runs directly. Only a token created with `require_approval` gets `202 Confirmation` for destructive operations (CLI exit code 3, `--wait` waits for the panel approval). `403 escalation` means a token tried to hand out more than it holds; `403 project_scope` that the token is limited to other projects.
+
+**Waiting for deploys.** `--wait-ready` (global) makes `deploy`, `redeploy`, `rollback`, `start`, `restart` and `env set|unset` wait until the deployment the command started is running (`--ready-timeout`, default 15m). When it fails or is superseded without a newer one, the CLI prints the reason and the last 20 build log lines and exits **4**; progress goes to stderr. It notes the service's newest deployment before acting and follows the next one (and any newer one that supersedes it), so CLI and server clocks never need to agree. MCP: `wait_deployment` (read) does the same for an agent, `timeout_sec` default 300, max 900; when the time runs out it returns `done: false` and can be called again.
 
 **exec.** `POST /services/{id}/exec` (`atoll exec`) needs the `exec` permission, separate from `deploy` since a shell in a container reads its secrets and data. Tokens that held `deploy` before the upgrade were given `exec` by migration 0010; new tokens get it only when asked (`--perm deploy,exec`).
 

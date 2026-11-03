@@ -17,6 +17,7 @@ import { StatusTab } from './service/StatusTab'
 import { EnvTab } from './service/EnvTab'
 import { DiskTab, NetworkTab, UsageTab } from './service/ResourceTabs'
 import { SettingsTab } from './service/SettingsTab'
+import { DeployProgress } from '../components/DeployProgress'
 
 const TABS = [
   { k: 'status', l: '服务状态', icon: <Activity size={15} /> },
@@ -47,6 +48,7 @@ export default function ServicePage() {
         {p && !s && <Empty title="找不到这个服务" desc="它可能已被删除。" action={<Link to={`/projects/${p.id}`}><Button>返回项目</Button></Link>} />}
         {p && s && <>
           <Header s={s} onChange={refresh} />
+          <DeployProgress s={s} />
           <Tabs className="mt-7" items={TABS} value={tab} onChange={k => setSp({ tab: k })} />
           <div className="mt-6">
             {tab === 'status' && <StatusTab p={p} s={s} srv={srv} />}
