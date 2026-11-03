@@ -2,23 +2,24 @@ import { Copy, Server as ServerGlyph } from 'lucide-react'
 import type { IconSpec } from '../api/view'
 import { cx, si } from './ui-utils'
 
-export function LogoMark({ size = 28 }: { size?: number }) {
+// "/A" mark: a slash parallel to the A's left leg. Drawn in currentColor so it follows the theme.
+export function LogoMark({ size = 26 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect x="3.5" y="3.5" width="26" height="26" rx="7" fill="var(--edge)" />
-      <rect x="1.5" y="1.5" width="26" height="26" rx="7" fill="#8b5cf6" stroke="var(--edge)" strokeWidth="2" />
-      <path d="M14.5 6.8a7.7 7.7 0 1 1-7.2 5" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" />
-      <circle cx="14.5" cy="14.5" r="2.4" fill="#fde047" stroke="var(--edge)" strokeWidth="1.5" />
-      <circle cx="8.6" cy="8.4" r="1.9" fill="#fde047" stroke="var(--edge)" strokeWidth="1.5" />
+    <svg width={size} height={size} viewBox="-19 -12 124 124" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M51.013 0H68.987L101.987 100H86.191L78.106 75.5H41.894L33.809 100H18.013ZM60 20.633L73.156 60.5H46.844ZM18.313 0H34.109L1.109 100H-14.687Z" />
     </svg>
   )
 }
 
+// Wordmark drawn as paths (straight stems, flat cuts) so it stays crisp and matches the mark.
 export function Logo() {
   return (
-    <div className="flex items-center gap-2.5 select-none">
+    <div className="flex items-center gap-2.5 select-none text-fg" aria-label="Atoll">
       <LogoMark />
-      <span className="text-[20px] font-extrabold italic tracking-[-0.03em] leading-none font-mono">Atoll</span>
+      <svg height={15} viewBox="0 0 267 100" fill="currentColor" aria-hidden="true">
+        <path fillRule="evenodd" d="M33 0H50.974L83.974 100H68.178L60.093 75.5H23.881L15.796 100H0ZM41.987 20.633L55.143 60.5H28.831ZM176 30A35 35 0 1 1 176 100A35 35 0 1 1 176 30ZM176 44A21 21 0 1 0 176 86A21 21 0 1 0 176 44Z" />
+        <path d="M98 20L113 12V100H98ZM92 30H132V44H92ZM224 0H239V100H224ZM252 0H267V100H252Z" />
+      </svg>
     </div>
   )
 }
