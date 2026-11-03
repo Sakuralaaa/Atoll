@@ -360,6 +360,12 @@ type Settings struct {
 	BackupConfigured   bool   `json:"backup_configured"` // endpoint, bucket, credentials and password all set
 	// ImageCheckIntervalHours is how often image update checks run (default 6; PUT 0 keeps the stored value).
 	ImageCheckIntervalHours int `json:"image_check_interval_hours"`
+	// Limits a new service gets when it is created without its own (template, image, git
+	// build, import). 0 = no limit. Defaults: 1024 MB memory, CPU unlimited. GET always
+	// returns both; a PUT leaving one out (null) keeps the stored value. Existing services
+	// are not changed.
+	DefaultMemLimitMB *int     `json:"default_mem_limit_mb"`
+	DefaultCPULimit   *float64 `json:"default_cpu_limit"`
 
 	// Private network provider for machine-to-machine traffic (agent<->control, service<->service
 	// across servers). See docs/api.md "Private network (Tailscale)".

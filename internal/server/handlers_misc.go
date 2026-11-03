@@ -122,8 +122,9 @@ func (s *Server) settings(ctx context.Context) api.Settings {
 		st.PublicURL = s.cfg.PublicURL
 	}
 	st.ImageCheckIntervalHours = int(s.imageCheckInterval(ctx) / time.Hour)
-	s.fillBackupSettings(ctx, &st)  // backups.go
-	s.fillNetworkSettings(ctx, &st) // network.go
+	s.fillBackupSettings(ctx, &st)   // backups.go
+	s.fillNetworkSettings(ctx, &st)  // network.go
+	s.fillResourceDefaults(ctx, &st) // resource_defaults.go
 	return st
 }
 
@@ -170,6 +171,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	}
 	if req.ImageCheckIntervalHours > 0 { // 0 keeps the stored value
 		set["image_check_interval_hours"] = intStr(req.ImageCheckIntervalHours)
+	}
+	if err := applyResourceDefaultsSettings(req, set); err != nil { // resource_defaults.go
+		return err
 	}
 	if req.OriginCertPEM != "" {
 		set["origin_cert_pem"] = req.OriginCertPEM

@@ -55,7 +55,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /servers/agent-upgrade | {ids} (empty = every online server on another version) → [{id, upgrade?, code?, error?}]; three at a time |
 | GET/POST | /projects | POST {name, server_id, description} |
 | GET/PATCH/DELETE | /projects/{id} | GET includes services |
-| GET/POST | /projects/{id}/services | POST Service (kind+image or template kind) |
+| GET/POST | /projects/{id}/services | POST Service (kind+image or template kind). `mem_limit_mb` / `cpu_limit` left out (0) take the defaults from Settings (`default_mem_limit_mb`, default 1024; `default_cpu_limit`, default 0 = no limit); `-1` asks for no limit explicitly. Applies to every way a service is created (image, template, git build, imports) |
 | GET/PATCH/DELETE | /services/{id} | PATCH partial Service → triggers redeploy |
 | POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} (redeploy → Deployment) |
 | POST | /services/{id}/rollback | {deployment_id} |
@@ -95,7 +95,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET/POST/DELETE | /tokens, /tokens/{id} | APIToken |
 | GET | /confirmations?status=pending | |
 | POST | /confirmations/{id}/approve, /reject | session only |
-| GET/PUT | /settings | Settings |
+| GET/PUT | /settings | Settings. `default_mem_limit_mb` (0 = no limit, else 6–1048576) and `default_cpu_limit` (cores, 0 = no limit, ≤ 1024) are the limits new services get when created without their own; GET always returns both, a PUT leaving one out (or null) keeps it. Changing them never touches existing services |
 | GET/POST | /imports | POST ImportPlan → ImportJob (creates project+services, not started) |
 | GET | /imports/{id} | ImportJob |
 | PUT | /imports/{id}/volumes/{service_name}/{volume} | raw tar.gz body, streamed to target agent via volume.import |

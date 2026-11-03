@@ -133,6 +133,8 @@ export interface Settings {
   has_cloudflare_token: boolean; tls_mode: 'cloudflare-origin' | 'acme' | string; public_url: string
   /** write-only like cloudflare_token */ origin_cert_pem?: string; origin_key_pem?: string; has_origin_cert: boolean; acme_email?: string
   /** image update check interval (hours, default 6); 0 on PUT keeps the stored value */ image_check_interval_hours?: number
+  /** limits a new service gets when created without its own (0 = no limit; defaults 1024 MB / CPU unlimited); null/omitted on PUT keeps the stored value */
+  default_mem_limit_mb?: number | null; default_cpu_limit?: number | null
   /** backup target (any S3 API). Empty fields on PUT keep the stored value; clear with DELETE /settings/backup */
   backup_endpoint?: string; backup_bucket?: string; backup_prefix?: string; backup_region?: string
   /** write-only */ backup_access_key?: string; backup_secret_key?: string; has_backup_credentials?: boolean

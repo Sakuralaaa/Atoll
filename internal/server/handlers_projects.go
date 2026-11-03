@@ -367,6 +367,7 @@ func (s *Server) createService(ctx context.Context, p *api.Project, v api.Servic
 		git, v.Git, v.Image, v.RegistryCredID = &g, &g, "", ""
 	}
 	v.Webhook, v.Source = nil, ""
+	s.withDefaultLimits(ctx, &v) // resource_defaults.go
 	if err := validateServiceSpec(&v); err != nil {
 		return nil, err
 	}

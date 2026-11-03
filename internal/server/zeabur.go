@@ -359,6 +359,9 @@ func (s *Server) handleZeaburLocalImport(w http.ResponseWriter, r *http.Request)
 		}
 		specs[i] = v
 	}
+	if mem, _ := s.resourceDefaults(ctx); mem > 0 && len(specs) > 0 { // resource_defaults.go
+		plan.Warnings = append(plan.Warnings, fmt.Sprintf("Taken-over services get the default memory limit of %d MB (Settings); a service that needs more is OOM-restarted. Raise it per service before cutover if needed", mem))
+	}
 	p, err := s.createProject(ctx, name, req.ServerID, fmt.Sprintf("Taken over from Zeabur project %s (%s) on this server", proj.ProjectName, req.Namespace), true)
 	if err != nil {
 		return err

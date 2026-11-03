@@ -12,6 +12,7 @@ import { ago, dateTime, deployStatusText, latestDeploy, shortDigests, triggerTex
 import type { Deployment, Project, Server, Service } from '../../api/types'
 import { DomainBadge } from '../../components/DomainStatus'
 import { cx, statusText } from '../../components/ui-utils'
+import { useT } from '../../i18n'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
   const base = `/projects/${p.id}/services/${s.id}`
@@ -21,6 +22,13 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
   const [hist, setHist] = useState(false)
   const [bind, setBind] = useState(false)
   const [stop, setStop] = useState(false)
+  const [applyDef, setApplyDef] = useState(false)
+  const { t } = useT()
+  // Default limits from Settings, offered for a service created without a memory limit (no
+  // global read permission = no button).
+  const st = useQuery(s.mem_limit_mb ? null : 'settings', api.settings)
+  const defMem = st.data?.default_mem_limit_mb ?? 0, defCpu = st.data?.default_cpu_limit ?? 0
+  const offerDefaults = !s.mem_limit_mb && defMem > 0
   const [busy, wrap] = useBusy()
   const stopped = s.status === 'stopped'
   const cpu = (m.data ?? []).slice(-30).map(x => x.cpu_pct), mem = (m.data ?? []).slice(-30).map(x => x.mem_mb)
@@ -41,7 +49,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
-              <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title="没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在「设置」里填写上限。">未限制</span>} · 进程数上限 4096 · 重启策略 unless-stopped</span>
+              <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} · 进程数上限 4096 · 重启策略 unless-stopped</span>
             </div>
           </div>
           <div className="w-full @5xl:w-[380px] @5xl:shrink-0 grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @5xl:grid-cols-1 gap-3">
@@ -67,6 +75,10 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
       {stop && <ConfirmDialog title="停止服务" action="停止" onClose={() => setStop(false)}
         description={<>停止 {s.name} 的容器，域名访问会中断，数据卷保留，可随时再启动。</>}
         onConfirm={() => wrap(() => run(() => api.action(s.id, 'stop'), { ok: '已停止', invalidate: [`project:${p.id}`] }))} />}
+      {applyDef && <ConfirmDialog title={t('套用默认资源上限', 'Apply default limits')} action={t('套用并部署', 'Apply and deploy')} danger={false} onClose={() => setApplyDef(false)}
+        description={t(`把 ${s.name} 的内存上限设为 ${defMem} MB${!s.cpu_limit && defCpu > 0 ? `、CPU 上限设为 ${defCpu} 核` : ''}（中控设置里的默认值），保存后会重新部署。内存用量超出上限时容器会被 OOM 重启，请确认这个服务平时用不到这么多。`,
+          `Set ${s.name}'s memory limit to ${defMem} MB${!s.cpu_limit && defCpu > 0 ? ` and its CPU limit to ${defCpu} cores` : ''} (the defaults from Settings) and redeploy. Above the limit the container is OOM-restarted, so make sure the service normally stays below it.`)}
+        onConfirm={() => wrap(() => run(() => api.updateService(s.id, { mem_limit_mb: defMem, ...(!s.cpu_limit && defCpu > 0 ? { cpu_limit: defCpu } : {}) }), { ok: t('已套用，正在重新部署', 'Applied, redeploying'), invalidate: [`project:${p.id}`, 'projects'] }))} />}
       <SourceCard s={s} />
       <ImageUpdateCard s={s} />
 
