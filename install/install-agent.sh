@@ -27,6 +27,10 @@
 #   --no-tailnet                never install or use Tailscale; join over --server
 #   --rejoin                    join again even if this host is already joined to --server
 #   --binary PATH               install this local binary instead of downloading
+#   --uninstall                 stop and remove the agent (unit, binary, config); containers
+#                               and data stay
+#   --purge                     with --uninstall: also remove Atoll's containers and networks
+#                               (data under /var/lib/atoll is still kept)
 set -eu
 
 SERVER=""
@@ -38,6 +42,8 @@ REJOIN=0
 LOCAL_BINARY=""
 SHA256_AMD64=""
 SHA256_ARM64=""
+UNINSTALL=0
+PURGE=0
 
 BIN=${ATOLL_AGENT_BIN:-/usr/local/bin/atoll-agent}
 CONFIG=${ATOLL_AGENT_CONFIG:-/etc/atoll/agent.json}
@@ -72,6 +78,10 @@ usage: install-agent.sh --server URL --token atl_join_... [options]
                               (the panel's "add server" command fills both in)
   --version TAG               release to download when the control server hosts no agent
                               binary (default: latest; the panel pins its own version)
+  --uninstall                 stop and remove the agent (unit, binary, config); containers and
+                              data stay. Remove the server in the panel too.
+  --purge                     with --uninstall: also remove Atoll's containers and networks
+                              (data under /var/lib/atoll is kept; delete it by hand)
 
 When the control server has the Tailscale network provider enabled, the node joins the
 tailnet automatically and talks to the control server over it (--server stays the fallback).
@@ -156,6 +166,14 @@ parse_args() {
 			;;
 		--version=*)
 			VERSION=${1#*=}
+			shift
+			;;
+		--uninstall)
+			UNINSTALL=1
+			shift
+			;;
+		--purge)
+			PURGE=1
 			shift
 			;;
 		-h | --help) usage ;;
@@ -257,6 +275,18 @@ redact() {
 
 docker_ok() { docker info >/dev/null 2>&1; }
 
+# apt_run ARGS...: apt-get without its chatter; on failure shows the last lines (a broken
+# mirror, a held package, a full disk) instead of failing silently.
+apt_run() {
+	aptlog="${TMP:-/tmp}/atoll-apt.log"
+	if apt-get "$@" >"$aptlog" 2>&1; then
+		return 0
+	fi
+	warn "apt-get $* failed; last lines:"
+	tail -n 8 "$aptlog" | sed 's/^/    /' >&2
+	return 1
+}
+
 # install_docker_apt installs docker-ce from download.docker.com on Debian/Ubuntu without
 # upgrading unrelated packages (get.docker.com can fail when a distro mirror is broken,
 # e.g. a 404 on a security update it pulls in).
@@ -280,7 +310,7 @@ install_docker_apt() {
 	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$distro $codename stable" \
 		>/etc/apt/sources.list.d/docker.list
 	apt-get update -qq >/dev/null 2>&1 || true
-	apt-get install -y -qq --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin >/dev/null || return 1
+	apt_run install -y -qq --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin || return 1
 }
 
 install_docker() {
@@ -319,7 +349,7 @@ install_git() {
 	log "installing git (used by builds from source)"
 	if command -v apt-get >/dev/null 2>&1; then
 		apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1 ||
-			{ apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1; } || true
+			{ apt-get update -qq >/dev/null 2>&1; apt_run install -y -qq --no-install-recommends git ca-certificates; } || true
 	elif command -v dnf >/dev/null 2>&1; then
 		dnf install -y -q git >/dev/null 2>&1 || true
 	elif command -v yum >/dev/null 2>&1; then
@@ -708,8 +738,40 @@ BINARY_CHANGED=0
 JOINED=0
 UNIT_CHANGED=0
 
+# uninstall stops and removes the agent. Containers keep running unless --purge.
+uninstall() {
+	[ "$(id -u)" = 0 ] || die "run as root (sudo)"
+	log "stopping atoll-agent"
+	systemctl disable --now atoll-agent >/dev/null 2>&1 || true
+	rm -f "$UNIT"
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	rm -f "$BIN" "$BIN.prev" "$BIN.new"
+	rm -f "$CONFIG" "$(dirname "$CONFIG")/agent.env"
+	rmdir "$(dirname "$CONFIG")" 2>/dev/null || true
+	if [ "$PURGE" = 1 ] && command -v docker >/dev/null 2>&1; then
+		ids=$(docker ps -aq --filter label=atoll.managed=true 2>/dev/null || true)
+		if [ -n "$ids" ]; then
+			log "removing Atoll containers"
+			# shellcheck disable=SC2086
+			docker rm -f $ids >/dev/null || warn "could not remove some containers"
+		fi
+		for n in $(docker network ls -q --filter label=atoll.managed=true 2>/dev/null || true) $(docker network ls --format '{{.Name}}' 2>/dev/null | grep '^atoll-' || true); do
+			docker network rm "$n" >/dev/null 2>&1 || true
+		done
+		log "data under /var/lib/atoll was kept; delete it yourself when you no longer need it"
+	elif [ "$PURGE" = 0 ]; then
+		log "containers and data were kept (use --uninstall --purge to remove Atoll's containers)"
+	fi
+	log "done: remove this server in the panel (Servers) as well"
+}
+
 main() {
 	parse_args "$@"
+	if [ "$UNINSTALL" = 1 ]; then
+		uninstall
+		return
+	fi
+	[ "$PURGE" = 0 ] || die "--purge only works with --uninstall"
 
 	# ---------- preflight ----------
 	[ -n "$SERVER" ] || die "--server is required"

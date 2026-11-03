@@ -11,6 +11,8 @@ sh install/install-server.sh --help 2>&1 | grep -q -- '--domain NAME'
 sh install/install-server.sh --help 2>&1 | grep -q -- '--tailscale-authkey KEY'
 sh install/install-server.sh --help 2>&1 | grep -q -- '--agent-tailnet-only'
 sh install/install-agent.sh --help 2>&1 | grep -q -- '--tailscale-hostname NAME'
+sh install/install-agent.sh --help 2>&1 | grep -q -- '--uninstall'
+if sh install/install-agent.sh --purge --server https://x 2>/dev/null; then echo "--purge without --uninstall accepted" >&2; exit 1; fi
 if command -v shellcheck >/dev/null 2>&1; then
 	# warnings and errors only: info-level checks differ between shellcheck versions
 	shellcheck -s sh -S warning install/install-agent.sh install/install-server.sh internal/agent/tailnet/install-tailscale.sh
@@ -230,6 +232,26 @@ write_unit "$TMP/unit"
 grep -q '^After=.*tailscaled.service' "$TMP/unit" && grep -q '^Wants=.*tailscaled.service' "$TMP/unit" || fail "unit without tailscaled"
 (PATH=$NOTS_PATH && write_unit "$TMP/unit")
 ! grep -q '^\(After\|Wants\)=.*tailscaled' "$TMP/unit" || fail "unit has tailscaled without Tailscale"
+grep -q '^OOMScoreAdjust=-500' "$TMP/unit" || fail "unit without OOMScoreAdjust"
+
+# --uninstall removes unit, binary and config and keeps containers; --purge removes Atoll's containers
+(
+	id() { echo 0; }
+	docker() {
+		echo "docker $*" >>"$TMP/docker.log"
+		case "$1 $2" in "ps -aq") echo c1 ;; esac
+	}
+	BIN=$TMP/atoll-agent UNIT=$TMP/atoll-agent.service CONFIG=$TMP/etc/agent.json
+	mkdir -p "$TMP/etc"
+	: >"$BIN"; : >"$BIN.prev"; : >"$UNIT"; echo '{}' >"$CONFIG"; : >"$TMP/etc/agent.env"
+	PURGE=0
+	uninstall 2>/dev/null
+	[ ! -e "$BIN" ] && [ ! -e "$BIN.prev" ] && [ ! -e "$UNIT" ] && [ ! -e "$CONFIG" ] && [ ! -e "$TMP/etc" ] || fail "uninstall left files"
+	[ ! -e "$TMP/docker.log" ] || fail "uninstall without --purge touched docker"
+	PURGE=1
+	uninstall 2>/dev/null
+	grep -q "docker rm -f c1" "$TMP/docker.log" || fail "purge did not remove containers"
+)
 rm -rf "$TMP"
 EOF
 echo down >"$T/ts.state"

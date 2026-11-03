@@ -50,6 +50,8 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
   --server https://panel.example.com --token atl_join_xxx --sha256-amd64 … --sha256-arm64 …
 ```
 
+卸载节点：`curl -fsSL …/install-agent.sh | sudo sh -s -- --uninstall`。它会停掉并删除 agent，容器和数据保留；加 `--purge` 还会删除 Atoll 的容器和网络。`/var/lib/atoll` 里的数据始终保留，不需要时请手动删除。之后在面板里移除这台服务器。
+
 **3. 部署第一个服务**：面板里新建项目，选机器，填镜像（如 `nginx:1`）和端口，再绑定域名。配置了 Cloudflare 的话，DNS 记录会自动创建。
 
 ## 功能
