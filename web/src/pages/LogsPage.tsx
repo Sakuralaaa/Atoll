@@ -177,14 +177,14 @@ function Deploys({ s }: { s: Service }) {
 
 function Exec({ sid }: { sid: string }) {
   const [cmd, setCmd] = useState('')
-  const [hist, setHist] = useState<{ cmd: string; out: string; ok: boolean }[]>([])
+  const [hist, setHist] = useState<{ cmd: string; out: string; ok: boolean; code?: number }[]>([])
   const [busy, wrap] = useBusy()
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => { box.current?.scrollTo({ top: box.current.scrollHeight }) }, [hist])
   const go = () => wrap(async () => {
     const c = cmd.trim(); if (!c) return
     setCmd('')
-    try { const r = await api.exec(sid, ['sh', '-c', c]); setHist(h => [...h, { cmd: c, out: (r.output ?? '') + (r.error ? `\n${r.error}` : ''), ok: r.ok }]) }
+    try { const r = await api.exec(sid, ['sh', '-c', c]); setHist(h => [...h, { cmd: c, out: (r.output ?? '') + (r.error && r.exit_code == null ? `\n${r.error}` : ''), ok: r.ok, code: r.exit_code }]) }
     catch (e) { setHist(h => [...h, { cmd: c, out: (e as Error).message, ok: false }]) }
   })
   return (
@@ -192,7 +192,7 @@ function Exec({ sid }: { sid: string }) {
       <div className="text-[13px] text-muted mb-3">在容器内用 <span className="font-mono">sh -c</span> 执行一次性命令（非交互，超时 30 秒）。</div>
       <div ref={box} className="flex-1 surface bg-sunk overflow-auto p-5 font-mono text-[13px] leading-6 min-h-0">
         {!hist.length && <div className="text-dim">例如：ls -la /app、env | sort、cat /etc/os-release</div>}
-        {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-[#ef4444]')}>{h.out || '(无输出)'}</pre></div>)}
+        {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-[#ef4444]')}>{h.out || '(无输出)'}</pre>{h.code != null && h.code !== 0 && <div className="text-[12px] text-dim">退出码 {h.code}</div>}</div>)}
         {busy && <Loader2 size={14} className="animate-spin text-muted" />}
       </div>
       <div className="mt-4 flex gap-2"><input value={cmd} onChange={e => setCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="输入命令，回车执行" className="flex-1 min-w-0 h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none text-fg placeholder:text-dim" /><Button variant="primary" size="lg" disabled={busy || !cmd.trim()} onClick={go}><Play size={14} />执行</Button></div>

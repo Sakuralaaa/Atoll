@@ -39,6 +39,9 @@ type App struct {
 	WaitReady    bool
 	ReadyTimeout time.Duration
 
+	// MCPNoLegacy drops the deprecated pre-v0.1.8 MCP tool names (atoll mcp --legacy-names=false).
+	MCPNoLegacy bool
+
 	// NewClient may be replaced in tests.
 	NewClient func(url, token string) *client.Client
 }

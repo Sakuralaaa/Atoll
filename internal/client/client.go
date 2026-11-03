@@ -514,8 +514,17 @@ func (c *Client) ServiceMetrics(ctx context.Context, serviceID, rng string) ([]a
 
 // Exec runs a one-shot command in the service's container.
 func (c *Client) Exec(ctx context.Context, serviceID string, cmd []string) (*api.ResultPayload, error) {
+	return c.ExecTimeout(ctx, serviceID, cmd, 0)
+}
+
+// ExecTimeout is Exec with a timeout in seconds (0 = the server default, 60; max 600).
+func (c *Client) ExecTimeout(ctx context.Context, serviceID string, cmd []string, timeoutSec int) (*api.ResultPayload, error) {
+	body := map[string]any{"cmd": cmd}
+	if timeoutSec > 0 {
+		body["timeout_sec"] = timeoutSec
+	}
 	var v api.ResultPayload
-	return &v, c.do(ctx, http.MethodPost, "/services/"+esc(serviceID)+"/exec", map[string]any{"cmd": cmd}, &v)
+	return &v, c.do(ctx, http.MethodPost, "/services/"+esc(serviceID)+"/exec", body, &v)
 }
 
 // ---------- env ----------

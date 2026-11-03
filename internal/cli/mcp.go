@@ -25,13 +25,13 @@ func mcpInstructions(me client.Me) string {
 			`"PENDING CONFIRMATION ..." and nothing happens until the user approves it in the Atoll panel. ` +
 			"Never retry to get around a pending confirmation; tell the user what to approve."
 	}
-	return s + "Destructive tools (delete_service, delete_project, migrate, service_migrate, add_domain, backup_restore, rollback) run IMMEDIATELY when called: " +
+	return s + "Destructive tools (service_delete, project_delete, project_migrate, service_migrate, domain_add, domain_remove, backup_restore, service_rollback, service_stop) and service_exec run IMMEDIATELY when called: " +
 		"there is no confirmation step, so confirm with the user before calling them. " +
 		`If a tool returns "PENDING CONFIRMATION ..." the user must approve it in the panel; never retry to bypass it.`
 }
 
 func newMCPCmd(app *App) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Serve the Atoll tools over MCP (stdio) for AI agents",
 		Long: "Runs an MCP server on stdin/stdout. Configure your agent with the command `atoll mcp`;\n" +
@@ -44,36 +44,86 @@ func newMCPCmd(app *App) *cobra.Command {
 			return server.ServeStdio(s)
 		},
 	}
+	legacy := cmd.Flags().Bool("legacy-names", true, "also serve the pre-v0.1.8 tool names (list_servers, deploy, set_env, ...) as deprecated aliases")
+	cmd.PreRun = func(*cobra.Command, []string) { app.MCPNoLegacy = !*legacy }
+	return cmd
 }
 
 // mcpToolPerm names the token permission each MCP tool needs. Every tool must be listed.
 var mcpToolPerm = map[string]string{
-	"list_servers":         api.PermRead,
-	"list_problems":        api.PermRead,
-	"list_projects":        api.PermRead,
-	"list_services":        api.PermRead,
-	"get_logs":             api.PermRead,
-	"get_deployment":       api.PermRead,
-	"wait_deployment":      api.PermRead,
-	"get_build_logs":       api.PermRead,
-	"zeabur_scan":          api.PermRead,
-	"zeabur_import_status": api.PermRead,
-	"list_updates":         api.PermRead,
-	"backup_list":          api.PermRead,
-	"list_templates":       api.PermRead,
-	"deploy":               api.PermDeploy,
-	"deploy_template":      api.PermDeploy,
-	"set_env":              api.PermDeploy,
-	"restart":              api.PermDeploy,
-	"redeploy":             api.PermDeploy,
-	"rollback":             api.PermDeploy,
-	"backup_run":           api.PermDeploy,
-	"add_domain":           api.PermDomains,
-	"migrate":              api.PermMigrate,
-	"service_migrate":      api.PermMigrate,
-	"backup_restore":       api.PermRestore,
-	"delete_service":       api.PermDelete,
-	"delete_project":       api.PermDelete,
+	"server_list":           api.PermRead,
+	"problem_list":          api.PermRead,
+	"project_list":          api.PermRead,
+	"service_list":          api.PermRead,
+	"service_logs":          api.PermRead,
+	"deployment_get":        api.PermRead,
+	"deployment_wait":       api.PermRead,
+	"deployment_build_logs": api.PermRead,
+	"zeabur_scan":           api.PermRead,
+	"zeabur_import_status":  api.PermRead,
+	"update_list":           api.PermRead,
+	"backup_list":           api.PermRead,
+	"template_list":         api.PermRead,
+	"service_deploy":        api.PermDeploy,
+	"template_deploy":       api.PermDeploy,
+	"env_set":               api.PermDeploy,
+	"service_restart":       api.PermDeploy,
+	"service_redeploy":      api.PermDeploy,
+	"service_rollback":      api.PermDeploy,
+	"backup_run":            api.PermDeploy,
+	"domain_add":            api.PermDomains,
+	"project_migrate":       api.PermMigrate,
+	"service_migrate":       api.PermMigrate,
+	"backup_restore":        api.PermRestore,
+	"service_delete":        api.PermDelete,
+	"project_delete":        api.PermDelete,
+	"service_stop":          api.PermDeploy,
+	"service_start":         api.PermDeploy,
+	"service_exec":          api.PermExec,
+	"env_get":               api.PermRead,
+	"domain_list":           api.PermRead,
+	"domain_remove":         api.PermDomains,
+}
+
+// mcpLegacyNames maps the tool names used before v0.1.8 to the current <resource>_<action>
+// names. `atoll mcp` still serves the old names as deprecated aliases unless --legacy-names=false.
+var mcpLegacyNames = map[string]string{
+	"list_servers": "server_list", "list_problems": "problem_list", "list_projects": "project_list",
+	"list_services": "service_list", "get_logs": "service_logs", "get_deployment": "deployment_get",
+	"wait_deployment": "deployment_wait", "get_build_logs": "deployment_build_logs", "list_updates": "update_list",
+	"list_templates": "template_list", "deploy": "service_deploy", "deploy_template": "template_deploy",
+	"set_env": "env_set", "restart": "service_restart", "redeploy": "service_redeploy", "rollback": "service_rollback",
+	"add_domain": "domain_add", "migrate": "project_migrate", "delete_service": "service_delete", "delete_project": "project_delete",
+}
+
+func init() {
+	for old, cur := range mcpLegacyNames {
+		mcpToolPerm[old] = mcpToolPerm[cur]
+	}
+}
+
+// withLegacyAliases appends a deprecated copy of every renamed tool under its old name.
+func withLegacyAliases(tools []server.ServerTool) []server.ServerTool {
+	byName := map[string]server.ServerTool{}
+	for _, t := range tools {
+		byName[t.Tool.Name] = t
+	}
+	olds := make([]string, 0, len(mcpLegacyNames))
+	for old := range mcpLegacyNames {
+		olds = append(olds, old)
+	}
+	sort.Strings(olds)
+	out := tools
+	for _, old := range olds {
+		t, ok := byName[mcpLegacyNames[old]]
+		if !ok {
+			continue
+		}
+		t.Tool.Name = old
+		t.Tool.Description = "Deprecated alias of " + mcpLegacyNames[old] + "; use that name. " + t.Tool.Description
+		out = append(out, t)
+	}
+	return out
 }
 
 // MCPToolPermission returns the permission tool needs ("" for an unknown tool).
@@ -232,27 +282,36 @@ func resolveSvc(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (*
 	return c.ResolveService(ctx, r.GetString("project", ""), ref)
 }
 
-// MCPTools returns every tool served by `atoll mcp`.
+// MCPTools returns every tool served by `atoll mcp`, with the deprecated aliases unless
+// app.MCPNoLegacy.
 func MCPTools(app *App) []server.ServerTool {
+	tools := mcpTools(app)
+	if !app.MCPNoLegacy {
+		tools = withLegacyAliases(tools)
+	}
+	return tools
+}
+
+func mcpTools(app *App) []server.ServerTool {
 	t := func(tl mcp.Tool, body mcpBody) server.ServerTool {
 		return server.ServerTool{Tool: tl, Handler: mcpHandle(app, body)}
 	}
 	const imm = " Runs immediately when the token has the %s permission (no confirmation step unless the token requires approval), so confirm with the user first."
 	return []server.ServerTool{
-		t(tool("list_servers", "List the user's servers with status and resource usage.", true, false),
+		t(tool("server_list", "List the user's servers with status and resource usage.", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				return c.ListServers(ctx)
 			}),
-		t(tool("list_problems", "List current problems the control server watches: offline servers, disks >= 90% full, services down or crash-looping, failed deploys and backups, domain errors. Each has kind, subject, since and a message. Empty means all is well.", true, false,
+		t(tool("problem_list", "List current problems the control server watches: offline servers, disks >= 90% full, services down or crash-looping, failed deploys and backups, domain errors. Each has kind, subject, since and a message. Empty means all is well.", true, false,
 			mcp.WithBoolean("resolved", mcp.Description("also problems resolved in the last 24 hours"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				return c.Problems(ctx, r.GetBool("resolved", false))
 			}),
-		t(tool("list_projects", "List projects (each project runs on one server).", true, false),
+		t(tool("project_list", "List projects (each project runs on one server).", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				return c.ListProjects(ctx)
 			}),
-		t(tool("list_services", "List services of a project.", true, false,
+		t(tool("service_list", "List services of a project.", true, false,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				ref, err := reqStr(r, "project")
@@ -268,8 +327,8 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.ListServices(ctx, p.ID)
 			}),
-		t(tool("deploy", "Deploy an image, or build from a GitHub repository, to a project: creates the service or updates its image/source/ports/env and redeploys. Give exactly one of image and repo. "+
-			"A git service is built on its own server (follow it with get_build_logs); an unchanged repo is redeployed, which builds the branch head. "+
+		t(tool("service_deploy", "Deploy an image, or build from a GitHub repository, to a project: creates the service or updates its image/source/ports/env and redeploys. Give exactly one of image and repo. "+
+			"A git service is built on its own server (follow it with deployment_build_logs); an unchanged repo is redeployed, which builds the branch head. "+
 			"Private repositories need a token that can only be set in the panel or with `atoll deploy --git-token-env`, never here. "+
 			"A NEW git service's response contains its GitHub webhook URL and secret once: pass them to the user. Same as `atoll deploy`.", false, false,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
@@ -316,11 +375,11 @@ func MCPTools(app *App) []server.ServerTool {
 				env := argMap(r, "env")
 				return Deploy(ctx, c, DeployRequest{Project: project, Image: image, Git: git, Name: name, Ports: ports, Env: env, EnvOrder: sortedKeys(env), Domains: r.GetStringSlice("domains", nil), Server: r.GetString("server", "")})
 			}),
-		t(tool("list_templates", "List the one-click database templates (postgres, mysql, redis, mongo) with their image, ports and the exposed variables other services can reference (e.g. ${POSTGRES_CONNECTION_STRING}).", true, false),
+		t(tool("template_list", "List the one-click database templates (postgres, mysql, redis, mongo) with their image, ports and the exposed variables other services can reference (e.g. ${POSTGRES_CONNECTION_STRING}).", true, false),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				return ListTemplateSummaries(ctx, c)
 			}),
-		t(tool("deploy_template", "Create and deploy a NEW database service from a template (random password, data volume, exposed connection variables). Same as `atoll deploy --template`. Fails if the project already has a service with that name.", false, false,
+		t(tool("template_deploy", "Create and deploy a NEW database service from a template (random password, data volume, exposed connection variables). Same as `atoll deploy --template`. Fails if the project already has a service with that name.", false, false,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
 			mcp.WithString("template", mcp.Required(), mcp.Description("postgres | mysql | redis | mongodb")),
 			mcp.WithString("name", mcp.Description("service name (default: the template kind)")),
@@ -338,7 +397,7 @@ func MCPTools(app *App) []server.ServerTool {
 				env := argMap(r, "env")
 				return DeployTemplate(ctx, c, TemplateRequest{Project: project, Template: tpl, Name: r.GetString("name", ""), Env: env, EnvOrder: sortedKeys(env), Server: r.GetString("server", "")})
 			}),
-		t(tool("set_env", "Set (or unset) environment variables of a service in one change; the service redeploys once (redeploy=false only saves). Secret-looking keys are stored as secrets.", false, false,
+		t(tool("env_set", "Set (or unset) environment variables of a service in one change; the service redeploys once (redeploy=false only saves). Secret-looking keys are stored as secrets.", false, false,
 			append(svcArgs(),
 				mcp.WithObject("vars", mcp.Description("variables to set, {KEY: VALUE}")),
 				mcp.WithArray("unset", mcp.WithStringItems(), mcp.Description("keys to remove")),
@@ -374,7 +433,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return out, nil
 			}),
-		t(tool("get_logs", "Get the last lines of a service's logs.", true, false,
+		t(tool("service_logs", "Get the last lines of a service's logs.", true, false,
 			append(svcArgs(), mcp.WithNumber("tail", mcp.Description("number of lines (default 200, max 2000)")))...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
@@ -405,11 +464,85 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return b.String(), nil
 			}),
-		t(tool("restart", "Restart a service's container.", false, false, svcArgs()...),
+		t(tool("service_restart", "Restart a service's container.", false, false, svcArgs()...),
 			actionBody(client.ActionRestart)),
-		t(tool("redeploy", "Redeploy a service (pull the image again and recreate the container; a service built from git builds its branch head).", false, false, svcArgs()...),
+		t(tool("service_stop", "Stop a service's container; it stays down until service_start. Volumes are kept. Runs immediately; confirm with the user first.", false, true, svcArgs()...),
+			actionBody(client.ActionStop)),
+		t(tool("service_start", "Start a stopped service.", false, false, svcArgs()...),
+			actionBody(client.ActionStart)),
+		t(tool("service_exec", "Run a one-shot, non-interactive command in a service's container and return its output and exit_code (0 = success; absent when it could not run). "+
+			"A shell in the container can read its secrets and change its data: tell the user what you will run first.", false, true,
+			append(svcArgs(),
+				mcp.WithArray("cmd", mcp.Required(), mcp.WithStringItems(), mcp.Description(`argv, e.g. ["sh","-c","ls -la /app"]`)),
+				mcp.WithNumber("timeout_sec", mcp.Description("default 60, max 600")))...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				argv := r.GetStringSlice("cmd", nil)
+				if len(argv) == 0 {
+					return nil, fmt.Errorf(`cmd is required, e.g. ["sh","-c","ls /"]`)
+				}
+				res, err := c.ExecTimeout(ctx, s.ID, argv, r.GetInt("timeout_sec", 0))
+				if err != nil {
+					return nil, err
+				}
+				return res, nil
+			}),
+		t(tool("env_get", "List a service's environment variables (secret values masked).", true, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				vars, err := c.GetEnv(ctx, s.ID)
+				if err != nil {
+					return nil, err
+				}
+				for i := range vars {
+					if vars[i].Secret {
+						vars[i].Value = "••••"
+					}
+				}
+				return vars, nil
+			}),
+		t(tool("domain_list", "List the domains routed to a service, with their status.", true, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return c.ListServiceDomains(ctx, s.ID)
+			}),
+		t(tool("domain_remove", "Remove a domain from a service (deletes its DNS record)."+fmt.Sprintf(imm, api.PermDomains), false, true,
+			append(svcArgs(), mcp.WithString("hostname", mcp.Required(), mcp.Description("e.g. app.example.com")))...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				host, err := reqStr(r, "hostname")
+				if err != nil {
+					return nil, err
+				}
+				ds, err := c.ListServiceDomains(ctx, s.ID)
+				if err != nil {
+					return nil, err
+				}
+				for _, d := range ds {
+					if strings.EqualFold(d.Hostname, host) {
+						if err := c.DeleteDomain(ctx, d.ID); err != nil {
+							return nil, err
+						}
+						return fmt.Sprintf("%s: removed %s", s.Name, d.Hostname), nil
+					}
+				}
+				return nil, fmt.Errorf("%s has no domain %s", s.Name, host)
+			}),
+		t(tool("service_redeploy", "Redeploy a service (pull the image again and recreate the container; a service built from git builds its branch head).", false, false, svcArgs()...),
 			actionBody(client.ActionRedeploy)),
-		t(tool("rollback", "Roll a service back to a previous deployment (default: the last good one before the current). Runs immediately; confirm with the user first.", false, true,
+		t(tool("service_rollback", "Roll a service back to a previous deployment (default: the last good one before the current). Runs immediately; confirm with the user first.", false, true,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... to roll back to")))...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
@@ -433,7 +566,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return fmt.Sprintf("%s: rolling back to %s", s.Name, dep), nil
 			}),
-		t(tool("wait_deployment", "Wait until a service's deployment finishes (default: its newest) and return it. status running means the service is up; failed carries the reason and the last build log lines. Call it after deploy, redeploy, rollback or set_env instead of polling.", true, false,
+		t(tool("deployment_wait", "Wait until a service's deployment finishes (default: its newest) and return it. status running means the service is up; failed carries the reason and the last build log lines. Call it after service_deploy, service_redeploy, service_rollback, service_start or env_set instead of polling.", true, false,
 			append(svcArgs(),
 				mcp.WithString("deployment_id", mcp.Description("dep_... to wait for (default: the newest)")),
 				mcp.WithNumber("timeout_sec", mcp.Description("how long to wait (default 300, max 900)")))...),
@@ -444,7 +577,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return waitDeploymentTool(ctx, c, s, r.GetString("deployment_id", ""), r.GetInt("timeout_sec", 300))
 			}),
-		t(tool("add_domain", "Route a hostname to a service (changes DNS)."+fmt.Sprintf(imm, api.PermDomains), false, true,
+		t(tool("domain_add", "Route a hostname to a service (changes DNS)."+fmt.Sprintf(imm, api.PermDomains), false, true,
 			append(svcArgs(),
 				mcp.WithString("hostname", mcp.Required(), mcp.Description("e.g. app.example.com")),
 				mcp.WithString("port_name", mcp.Description("port name (default: first http port)")),
@@ -460,7 +593,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.AddDomain(ctx, s.ID, client.AddDomainRequest{Hostname: host, PortName: r.GetString("port_name", ""), Proxied: r.GetBool("proxied", true)})
 			}),
-		t(tool("migrate", "Move a whole project to another server (stop, copy volumes, start, switch DNS; downtime)."+fmt.Sprintf(imm, api.PermMigrate), false, true,
+		t(tool("project_migrate", "Move a whole project to another server (stop, copy volumes, start, switch DNS; downtime)."+fmt.Sprintf(imm, api.PermMigrate), false, true,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
 			mcp.WithString("server", mcp.Required(), mcp.Description("target server name or id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
@@ -508,7 +641,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.MigrateService(ctx, s.ID, srv.ID)
 			}),
-		t(tool("delete_service", "Delete ONE service with its container, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true, svcArgs()...),
+		t(tool("service_delete", "Delete ONE service with its container, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true, svcArgs()...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
 				if err != nil {
@@ -519,7 +652,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return fmt.Sprintf("Deleted service %s (%s).", s.Name, s.ID), nil
 			}),
-		t(tool("delete_project", "Delete a whole project with ALL its services, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true,
+		t(tool("project_delete", "Delete a whole project with ALL its services, volumes (data is lost) and domains."+fmt.Sprintf(imm, api.PermDelete), false, true,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				ref, err := reqStr(r, "project")
@@ -535,7 +668,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return fmt.Sprintf("Deleted project %s (%s).", p.Name, p.ID), nil
 			}),
-		t(tool("get_deployment", "Show a service's deployments (newest first), or one deployment by id.", true, false,
+		t(tool("deployment_get", "Show a service's deployments (newest first), or one deployment by id.", true, false,
 			append(svcArgs(), mcp.WithString("deployment_id", mcp.Description("dep_... (default: all, newest first)")))...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				s, err := resolveSvc(ctx, c, r)
@@ -556,7 +689,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return deps, nil
 			}),
-		t(tool("get_build_logs", "Read the build log of a service built from git: the newest deployment unless deployment_id is given. Poll with after = last_seq until status is running or failed.", true, false,
+		t(tool("deployment_build_logs", "Read the build log of a service built from git: the newest deployment unless deployment_id is given. Poll with after = last_seq until status is running or failed.", true, false,
 			append(svcArgs(),
 				mcp.WithString("deployment_id", mcp.Description("dep_... (default: the newest deployment)")),
 				mcp.WithNumber("after", mcp.Description("only lines after this sequence number (last_seq of a previous call)")),
@@ -598,7 +731,7 @@ func MCPTools(app *App) []server.ServerTool {
 				}
 				return c.GetImport(ctx, id)
 			}),
-		t(tool("list_updates", "List image updates: services whose tag now points to a newer digest than what runs, or that have a newer semver tag (same major; major bumps in major_tag). Apply one with `atoll updates --apply SERVICE` or the panel.", true, false,
+		t(tool("update_list", "List image updates: services whose tag now points to a newer digest than what runs, or that have a newer semver tag (same major; major bumps in major_tag). Apply one with `atoll updates --apply SERVICE` or the panel.", true, false,
 			mcp.WithBoolean("available_only", mcp.Description("only services with an update (default true)")),
 			mcp.WithString("project", mcp.Description("project name or id to filter"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {

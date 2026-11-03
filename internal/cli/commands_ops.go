@@ -137,6 +137,9 @@ func newExecCmd(app *App) *cobra.Command {
 				fmt.Fprintln(app.Out)
 			}
 			if !r.OK {
+				if r.ExitCode != nil {
+					return fmt.Errorf("command exited with code %d", *r.ExitCode)
+				}
 				return fmt.Errorf("command failed: %s", r.Error)
 			}
 			return nil

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -194,4 +195,25 @@ func TestJoinCommandPinsHostedAgent(t *testing.T) {
 func sha256hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+func TestExecExitCode(t *testing.T) {
+	for _, c := range []struct {
+		res  api.ResultPayload
+		want string
+	}{
+		{api.ResultPayload{OK: true}, "0"},
+		{api.ResultPayload{Error: "exit code 3"}, "3"},
+		{api.ResultPayload{Error: "exit code 127"}, "127"},
+		{api.ResultPayload{Error: "container not found"}, "nil"},
+		{api.ResultPayload{Error: "context deadline exceeded"}, "nil"},
+	} {
+		got := "nil"
+		if n := execExitCode(c.res); n != nil {
+			got = strconv.Itoa(*n)
+		}
+		if got != c.want {
+			t.Errorf("%+v: %s, want %s", c.res, got, c.want)
+		}
+	}
 }

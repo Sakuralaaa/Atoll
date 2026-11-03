@@ -200,6 +200,9 @@ type ResultPayload struct {
 	OK     bool   `json:"ok"`
 	Error  string `json:"error,omitempty"`
 	Output string `json:"output,omitempty"`
+	// ExitCode is set by POST /services/{id}/exec when the command ran (0 on success); absent
+	// when it could not be started (no container, timeout, agent error).
+	ExitCode *int `json:"exit_code,omitempty"`
 }
 
 // Join (plain HTTPS, before WebSocket): POST /agent/v1/join

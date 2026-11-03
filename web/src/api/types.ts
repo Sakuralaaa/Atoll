@@ -161,7 +161,7 @@ export interface ContainerState {
   service_id: string; deployment_id: string; state: string; health?: string
   image_digest?: string; restart_count: number; started_at: string
 }
-export interface ResultPayload { ok: boolean; error?: string; output?: string }
+export interface ResultPayload { ok: boolean; error?: string; output?: string; exit_code?: number }
 
 export interface ImportService {
   source_service_id: string; name: string; kind: string; image: string; image_needs_push: boolean

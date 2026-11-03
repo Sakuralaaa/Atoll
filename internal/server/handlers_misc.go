@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -331,6 +333,23 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) error {
 		}
 		return errf(502, "agent_error", "%v", err)
 	}
+	res.ExitCode = execExitCode(res)
 	writeJSON(w, 200, res)
+	return nil
+}
+
+var exitCodeErr = regexp.MustCompile(`^exit code (-?\d+)$`)
+
+// execExitCode derives the command's exit code from an exec result: 0 when it succeeded, the
+// code from the agent's "exit code N" error, nil when the command did not run to an exit.
+func execExitCode(res api.ResultPayload) *int {
+	if res.OK {
+		return new(int)
+	}
+	if m := exitCodeErr.FindStringSubmatch(res.Error); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			return &n
+		}
+	}
 	return nil
 }
