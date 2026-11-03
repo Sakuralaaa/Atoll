@@ -299,18 +299,19 @@ install_docker() {
 }
 
 # install_git: builds from source run `git` on this server (best effort: only builds need it).
+# git is optional (only builds from source need it): a broken package mirror must not stop the install.
 install_git() {
 	command -v git >/dev/null 2>&1 && return
 	log "installing git (used by builds from source)"
 	if command -v apt-get >/dev/null 2>&1; then
 		apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1 ||
-			{ apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1; }
+			{ apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null 2>&1; } || true
 	elif command -v dnf >/dev/null 2>&1; then
-		dnf install -y -q git >/dev/null 2>&1
+		dnf install -y -q git >/dev/null 2>&1 || true
 	elif command -v yum >/dev/null 2>&1; then
-		yum install -y -q git >/dev/null 2>&1
+		yum install -y -q git >/dev/null 2>&1 || true
 	elif command -v apk >/dev/null 2>&1; then
-		apk add --no-cache git >/dev/null 2>&1
+		apk add --no-cache git >/dev/null 2>&1 || true
 	fi
 	command -v git >/dev/null 2>&1 || warn "could not install git; builds from source on this server will fail until it is installed"
 }
