@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -142,7 +143,7 @@ func (t *Takeover) Handle(ctx context.Context, msgType string, raw json.RawMessa
 			return "", err
 		}
 		if p.Park {
-			return t.ParkIngress(ctx)
+			return t.ParkIngress(ctx, p)
 		}
 		return t.RestoreIngress(ctx)
 	case api.MsgZeaburUninstall:
@@ -242,6 +243,7 @@ func (t *Takeover) Scan(ctx context.Context) (api.ZeaburInventory, error) {
 	if inv.Projects == nil {
 		inv.Projects = []api.ZeaburProject{}
 	}
+	t.podMemory(ctx, inv.Projects)
 	if ds, err := t.ingressDaemonSets(ctx); err == nil {
 		for _, d := range ds {
 			if d.Running() {
@@ -282,4 +284,65 @@ func parseK3sVersion(out string) string {
 		}
 	}
 	return ""
+}
+
+// podMemory fills ZeaburService.MemUsageMB from `kubectl top pods` (metrics-server, shipped
+// with k3s). Best effort: without metrics the field stays 0.
+func (t *Takeover) podMemory(ctx context.Context, projects []api.ZeaburProject) {
+	for pi := range projects {
+		p := &projects[pi]
+		out, err := t.kubectl(ctx, "top", "pods", "-n", p.Namespace, "--no-headers")
+		if err != nil {
+			continue
+		}
+		use := ParseTopPods(string(out))
+		for si := range p.Services {
+			sv := &p.Services[si]
+			_, name, ok := strings.Cut(sv.Workload, "/")
+			if !ok || name == "" {
+				continue
+			}
+			total := 0
+			for pod, mb := range use {
+				if strings.HasPrefix(pod, name+"-") {
+					total += mb
+				}
+			}
+			sv.MemUsageMB = total
+		}
+	}
+}
+
+// ParseTopPods parses `kubectl top pods --no-headers` ("NAME CPU MEMORY") into pod -> MiB.
+func ParseTopPods(out string) map[string]int {
+	m := map[string]int{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 3 {
+			continue
+		}
+		v := f[2]
+		i := strings.IndexFunc(v, func(r rune) bool { return (r < '0' || r > '9') && r != '.' })
+		num, unit := v, ""
+		if i >= 0 {
+			num, unit = v[:i], v[i:]
+		}
+		n, err := strconv.ParseFloat(num, 64)
+		if err != nil {
+			continue
+		}
+		switch unit {
+		case "Ki":
+			n /= 1024
+		case "Gi":
+			n *= 1024
+		case "Mi":
+		case "", "B":
+			n /= 1 << 20
+		default:
+			continue
+		}
+		m[f[0]] = int(n + 0.5)
+	}
+	return m
 }

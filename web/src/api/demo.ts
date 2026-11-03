@@ -469,6 +469,18 @@ function route(method: string, path: string, body: any): unknown {
     const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
     j.status = { rehearse: 'rehearsing', cutover: 'cutting_over', rollback: 'rolling_back' }[seg[2]]!; started[j.id] = Date.now(); tickLocal(j); return j
   }
+  if (P && (a = m('servers/*/zeabur/cutover'))) {
+    const ids: string[] = body?.import_ids ?? []
+    const jobs = ids.map(id => imports.find(x => x.id === id) ?? fail(404, '导入任务不存在'))
+    jobs.forEach(j => { j.status = 'cutting_over'; started[j.id] = Date.now(); tickLocal(j) })
+    return { server_id: a[0], jobs }
+  }
+  if (P && (a = m('servers/*/zeabur/rollback'))) {
+    const jobs = imports.filter(x => x.server_id === a![0] && ['live', 'failed'].includes(x.status))
+    if (!jobs.length) fail(409, '这台服务器上没有已切换的导入')
+    jobs.forEach(j => { j.status = 'rolling_back'; started[j.id] = Date.now(); tickLocal(j) })
+    return { server_id: a[0], jobs }
+  }
   if ((a = m('imports/*/start'))) { const j = imports.find(x => x.id === a![0])!; j.status = 'deploying'; j.steps[0].status = 'done'; j.steps[1].status = 'running'; return j }
   if ((a = m('imports/*'))) { const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在'); tickLocal(j); return j }
   fail(404, `demo: 未实现 ${method} ${path}`)

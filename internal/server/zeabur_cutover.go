@@ -18,6 +18,12 @@ import (
 // ---------- cutover ----------
 
 func (s *Server) handleCutover(w http.ResponseWriter, r *http.Request) error {
+	var req api.ZeaburCutoverRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, &req); err != nil {
+			return err
+		}
+	}
 	j, meta, err := s.loadZeaburJob(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err
@@ -30,40 +36,28 @@ func (s *Server) handleCutover(w http.ResponseWriter, r *http.Request) error {
 	if node != nil {
 		nodeName = node.Name
 	}
-	summary := fmt.Sprintf("Cut over Zeabur namespace %s on %s to Atoll: Zeabur services scale to 0, final data sync, Zeabur ingress parked, Atoll takes ports 80/443", j.Namespace, nodeName)
-	return s.requireConfirm(w, r, "import.cutover", j.ID, summary, nil, func(ctx context.Context) (int, any, error) {
-		out, err := s.startCutover(ctx, j.ID, principalFrom(r.Context()).actor())
+	summary := fmt.Sprintf("Cut over Zeabur namespace %s on %s to Atoll: Zeabur services scale to 0, final data sync, Zeabur ingress parked (node-wide), Atoll takes ports 80/443", j.Namespace, nodeName)
+	if req.Force {
+		summary += "; FORCED: other Zeabur projects on this server stop being served"
+	}
+	return s.requireConfirm(w, r, "import.cutover", j.ID, summary, req, func(ctx context.Context) (int, any, error) {
+		out, err := s.startCutover(ctx, j.ID, req.Force, principalFrom(r.Context()).actor())
 		return 200, out, err
 	})
 }
 
-// startCutover launches the cutover in the background (also called for approved confirmations).
-func (s *Server) startCutover(ctx context.Context, id, actor string) (*api.ImportJob, error) {
-	j, err := s.startZeaburOp(ctx, id, []string{zsRehearsed, zsRolledBack}, zsCuttingOver, (*zrun).cutover)
+// startCutover launches the cutover of one job in the background (also called for approved
+// confirmations): a node cutover with a single job.
+func (s *Server) startCutover(ctx context.Context, id string, force bool, actor string) (*api.ImportJob, error) {
+	j, _, err := s.loadZeaburJob(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	s.st.Audit(ctx, actor, "import.cutover", id, nil)
-	return j, nil
-}
-
-func (z *zrun) cutover() error {
-	z.resetSteps(cutoverSteps)
-	defer z.releaseHeld() // after a rollback too: the project's ingress hold covers it then
-	err := z.doCutover()
-	if err == nil {
-		z.meta.Cutovers++
-		z.setStatus(zsLive)
-		return nil
+	op, err := s.startNodeCutover(ctx, j.ServerID, []string{id}, force, actor)
+	if err != nil {
+		return nil, err
 	}
-	// automatic rollback: Zeabur serves again
-	z.setStatus(zsRollingBack)
-	if rerr := z.doRollback(); rerr != nil {
-		z.setStatus(zsFailed)
-		return fmt.Errorf("cutover failed (%v) and rollback failed: %w", err, rerr)
-	}
-	z.setStatus(zsRolledBack)
-	return fmt.Errorf("cutover failed, rolled back automatically: %w", err)
+	return &op.Jobs[0], nil
 }
 
 // startStopped starts every Atoll service of the job that is stopped (after a rollback) and
@@ -112,7 +106,9 @@ func (z *zrun) scale(sv zeaburSvcMeta, replicas int) error {
 	return nil
 }
 
-func (z *zrun) doCutover() error {
+// prepareCutover stops the job's Zeabur workloads and does the final data sync (cutover steps
+// 1-2). The ingress switch and DNS follow once for all jobs of a node cutover (zeabur_node.go).
+func (z *zrun) prepareCutover() error {
 	s, ctx := z.s, z.ctx
 	if err := z.st.do(stepScaleDown, func() (string, error) {
 		// A rollback stops Atoll's copies (desired_stopped): start them again first, or the
@@ -185,30 +181,7 @@ func (z *zrun) doCutover() error {
 	}); err != nil {
 		return err
 	}
-	// Hostnames that replace *.zeabur.app ones are new names: they may have no DNS record yet.
-	// They stay out of the route table until configureDNS has created the record and public
-	// resolvers see it (provision.go), so Caddy never asks the CA about an NXDOMAIN name. The
-	// other (custom) domains already point here and are routed at once.
-	z.holdRemapped()
-	if err := z.st.do(stepIngress, func() (string, error) {
-		// Marked before the call: a park that fails halfway (DaemonSet patched, operator
-		// stopped, ports still busy) must still be undone by the rollback.
-		z.meta.IngressParked = true
-		z.save()
-		if _, err := s.hub.Call(ctx, z.node, api.MsgZeaburIngress, api.ZeaburIngressPayload{Park: true}, 5*time.Minute); err != nil {
-			return "", fmt.Errorf("park Zeabur ingress: %w", err)
-		}
-		if err := s.st.SetIngressHold(ctx, z.job.ProjectID, false); err != nil {
-			return "", err
-		}
-		if err := s.pushIngressStrict(ctx, z.node); err != nil {
-			return "", fmt.Errorf("start Atoll ingress: %w", err)
-		}
-		return "Zeabur ingress parked; atoll-caddy serves 80/443", nil
-	}); err != nil {
-		return err
-	}
-	return z.st.do(stepDNS, func() (string, error) { return z.configureDNS() })
+	return nil
 }
 
 // configureDNS creates proxied A records for remapped *.zeabur.app hosts that have none yet;

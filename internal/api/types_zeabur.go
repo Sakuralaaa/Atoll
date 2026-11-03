@@ -118,7 +118,9 @@ type ZeaburService struct {
 	Volumes        []ZeaburVolume `json:"volumes"`
 	Configs        []ConfigFile   `json:"configs,omitempty"`
 	Domains        []string       `json:"domains"` // from Ingress objects (custom + *.zeabur.app)
-	Warnings       []string       `json:"warnings,omitempty"`
+	// MemUsageMB is the pods' current memory use (kubectl top; 0 when metrics are unavailable).
+	MemUsageMB int      `json:"mem_usage_mb,omitempty"`
+	Warnings   []string `json:"warnings,omitempty"`
 	// Status is the scan-time health: running|progressing|degraded|failed|suspended|unknown.
 	Status string `json:"status,omitempty"`
 	// DataStore is the data-store family detected from the image name (or StatefulSet with a
@@ -174,6 +176,40 @@ type ZeaburScalePayload struct {
 }
 type ZeaburIngressPayload struct {
 	Park bool `json:"park"` // true: stop zeabur ingress-controller (record original), false: restore
+	// The ingress is shared by every Zeabur project on the node. Namespaces lists the ones
+	// whose sites move to Atoll with this park (the cutover's jobs plus jobs already live).
+	// The agent refuses to park while any other environment-* namespace still runs workloads
+	// that have Ingress hosts, unless Force is set. Operators (control-plane=controller-manager,
+	// cluster-wide) are scaled to 0 only when no other namespace runs workloads at all.
+	Namespaces []string `json:"namespaces,omitempty"`
+	Force      bool     `json:"force,omitempty"`
+}
+
+// ZeaburNodeCutoverRequest is the body of POST /api/v1/servers/{id}/zeabur/cutover: cut over
+// several zeabur-local import jobs of that server together (one ingress park for all of them).
+type ZeaburNodeCutoverRequest struct {
+	ImportIDs []string `json:"import_ids"`
+	// Force parks the shared ingress even though other Zeabur projects on the server still
+	// serve hostnames through it (they go offline).
+	Force bool `json:"force,omitempty"`
+}
+
+// ZeaburCutoverRequest is the optional body of POST /api/v1/imports/{id}/cutover.
+type ZeaburCutoverRequest struct {
+	Force bool `json:"force,omitempty"`
+}
+
+// ZeaburRehearseRequest is the optional body of POST /api/v1/imports/{id}/rehearse.
+type ZeaburRehearseRequest struct {
+	// IgnoreMemory skips the free-memory check (409 insufficient_memory).
+	IgnoreMemory bool `json:"ignore_memory,omitempty"`
+}
+
+// ZeaburNodeOp is the answer of the node-level cutover / rollback: one entry per job, each
+// with its own status and steps (follow them with GET /imports/{id}).
+type ZeaburNodeOp struct {
+	ServerID string      `json:"server_id"`
+	Jobs     []ImportJob `json:"jobs"`
 }
 
 // REST additions (see docs/api.md "In-place Zeabur takeover"):
@@ -182,7 +218,9 @@ type ZeaburIngressPayload struct {
 //	POST /api/v1/imports/zeabur-local          ZeaburLocalImportRequest -> ImportJob
 //	POST /api/v1/imports/{id}/rehearse         start atoll copies without public ingress, copy data, verify
 //	POST /api/v1/imports/{id}/cutover          scale zeabur apps to 0, final data sync, park zeabur ingress, enable atoll ingress
-//	POST /api/v1/imports/{id}/rollback         reverse cutover
+//	POST /api/v1/imports/{id}/rollback         reverse cutover (409 node_rollback_required while other jobs on the node are cut over)
+//	POST /api/v1/servers/{id}/zeabur/cutover   ZeaburNodeCutoverRequest -> ZeaburNodeOp (several jobs, one ingress park)
+//	POST /api/v1/servers/{id}/zeabur/rollback  roll back every cut-over job of the server -> ZeaburNodeOp
 type ZeaburLocalImportRequest struct {
 	ServerID    string   `json:"server_id"`
 	Namespace   string   `json:"namespace"`

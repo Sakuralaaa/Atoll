@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { FlaskConical, Power, Trash2, Check, Loader2, Circle, X, Minus, Globe, AlertTriangle, ShieldCheck, Undo2, ArrowRight, PartyPopper } from 'lucide-react'
 import { Badge, Button, Card, Dot } from '../../components/ui'
 import { ConfirmDialog } from '../../components/feedback'
-import { api } from '../../api/client'
+import { api, ApiError } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
 import { bytes } from '../../api/view'
 import type { ImportJob, Server } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { LIVE, projBytes } from './model'
+import { NodeCutoverCard, NodeWideNote, useNodeLive } from './NodeCutover'
+import { useT } from '../../i18n'
 
 // ---------------- steps 4-6 ----------------
 function StepList({ job, from = 0, to }: { job: ImportJob; from?: number; to?: number }) {
@@ -112,16 +114,40 @@ export function JobView({ job, step, set, openConfirm }: { job: ImportJob; step:
   return <Cleanup job={job} srv={srv} onBack={() => set({})} />
 }
 function RehearseBtn({ job, label = '开始演练' }: { job: ImportJob; label?: string }) {
+  const { t } = useT()
   const [busy, wrap] = useBusy()
-  return <Button variant="primary" size="lg" disabled={busy} onClick={() => wrap(() => run(() => api.rehearse(job.id), { ok: '已开始演练', invalidate: [`imports`] }))}>{busy ? <Loader2 size={14} className="animate-spin" /> : <FlaskConical size={15} />}{label}</Button>
+  const [mem, setMem] = useState<string | null>(null)
+  const start = () => wrap(async () => {
+    try {
+      await api.rehearse(job.id)
+      run(async () => undefined, { ok: '已开始演练', invalidate: ['imports'] })
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'insufficient_memory') setMem(e.message)
+      else run(() => Promise.reject(e))
+    }
+  })
+  return <>
+    <Button variant="primary" size="lg" disabled={busy} onClick={start}>{busy ? <Loader2 size={14} className="animate-spin" /> : <FlaskConical size={15} />}{label}</Button>
+    {mem && <ConfirmDialog title={t('内存可能不足', 'Memory may be insufficient')} action={t('仍然演练', 'Rehearse anyway')} onClose={() => setMem(null)}
+      description={<>{t('演练期间 Zeabur 和 Atoll 两份副本同时运行。建议一次只演练一个项目，或先释放内存。', 'Zeabur and the Atoll copies run side by side during the rehearsal. Rehearse one project at a time or free memory first.')}<div className="mt-3 font-mono text-[12.5px] text-muted">{mem}</div></>}
+      onConfirm={() => run(() => api.rehearse(job.id, { ignore_memory: true }), { ok: '已开始演练', invalidate: ['imports'] })} />}
+  </>
 }
 function RollbackBtn({ job, disabled }: { job: ImportJob; disabled?: boolean }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
+  const others = useNodeLive(job)
+  const node = others.length > 0 && !!job.server_id
   return <>
-    <button disabled={disabled} onClick={() => setOpen(true)} className="btn-danger mt-4 w-full h-12 inline-flex items-center justify-center gap-2 text-[15px] disabled:opacity-50 disabled:pointer-events-none"><Undo2 size={18} />回滚到 Zeabur</button>
+    {node && <div className="text-[12.5px] text-muted mt-3 leading-5">{t(
+      `同一台服务器上还有 ${others.length} 个已切换的项目（${others.map(j => j.plan.project_name).join('、')}）共用入口控制器，只能一起回滚。`,
+      `${others.length} other cut-over project(s) on this server (${others.map(j => j.plan.project_name).join(', ')}) share the ingress; they roll back together.`)}</div>}
+    <button disabled={disabled} onClick={() => setOpen(true)} className="btn-danger mt-4 w-full h-12 inline-flex items-center justify-center gap-2 text-[15px] disabled:opacity-50 disabled:pointer-events-none"><Undo2 size={18} />{node ? t(`整体回滚 ${others.length + 1} 个项目`, `Roll back all ${others.length + 1} projects`) : '回滚到 Zeabur'}</button>
     {open && <ConfirmDialog title="回滚到 Zeabur" action="确认回滚" name={job.plan.project_name} onClose={() => setOpen(false)}
-      description={<>将停止 Atoll 上的 <b>{job.plan.services.length}</b> 个服务，恢复 Zeabur 入口控制器并扩回工作负载。切换后写进 Atoll 的数据不会同步回 Zeabur。</>}
-      onConfirm={() => run(() => api.rollbackImport(job.id), { ok: '正在回滚', invalidate: ['imports'] })} />}
+      description={node
+        ? <>{t(`将停止这台服务器上 ${others.length + 1} 个已切换项目的 Atoll 服务，恢复 Zeabur 入口控制器并扩回它们的工作负载。切换后写进 Atoll 的数据不会同步回 Zeabur。`, `Stops the Atoll services of all ${others.length + 1} cut-over projects on this server, restores Zeabur's ingress and scales their workloads back. Data written to Atoll after the cutover is not synced back to Zeabur.`)}</>
+        : <>将停止 Atoll 上的 <b>{job.plan.services.length}</b> 个服务，恢复 Zeabur 入口控制器并扩回工作负载。切换后写进 Atoll 的数据不会同步回 Zeabur。</>}
+      onConfirm={() => run<unknown>(() => node ? api.zeaburNodeRollback(job.server_id!) : api.rollbackImport(job.id), { ok: '正在回滚', invalidate: ['imports'] })} />}
   </>
 }
 
@@ -135,7 +161,7 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
           <Card className="p-6">
             <div className="text-[15px] font-semibold">切换会做什么</div>
             <div className="mt-4 space-y-3 text-[13.5px]">
-              {[['缩容 Zeabur 应用到 0', '数据库保持运行，直到最后一次导出'], ['最终数据同步', '增量 rsync 数据卷，重新 dump/restore 数据库并再次核对行数'], ['停用 Zeabur 入口控制器', '记录原配置，回滚时原样恢复'], ['atoll-caddy 接管 80/443', '用同样的主机名提供 HTTPS，新域名在 Cloudflare 自动建记录']].map(([t, d], i) => (
+              {[['缩容 Zeabur 应用到 0', '数据库保持运行，直到最后一次导出'], ['最终数据同步', '增量 rsync 数据卷，重新 dump/restore 数据库并再次核对行数'], ['停用 Zeabur 入口控制器', '整台服务器共用：所有 Zeabur 项目同时停止由 Zeabur 服务；记录原配置，回滚时原样恢复'], ['atoll-caddy 接管 80/443', '用同样的主机名提供 HTTPS，新域名在 Cloudflare 自动建记录']].map(([t, d], i) => (
                 <div key={t} className="flex gap-3"><span className="h-6 w-6 rounded-[4px] border-[1.5px] border-[var(--edge)] bg-[#c4b5fd] text-[#141414] grid place-items-center text-[12px] font-extrabold font-mono shrink-0">{i + 1}</span><div><div className="font-semibold">{t}</div><div className="text-[12.5px] text-muted mt-0.5">{d}</div></div></div>
               ))}
             </div>
@@ -145,7 +171,10 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
             <div className="flex-1"><div className="text-[14px] font-semibold">同一台机器，同一个 IP，DNS 不用动</div><div className="text-[13px] text-muted mt-1 leading-6">服务仍在 <span className="font-mono text-fg">{srv?.public_ipv4}</span> 上，只是从 Zeabur 的 k3s 换到了 Atoll 的 Docker。已有的 A 记录继续有效；只有 *.zeabur.app 地址会失效{hosts.length ? '，新地址会在切换时创建' : ''}。预计停机不到一分钟。</div></div>
           </Card>
           {running && <Card className="p-5"><div className="text-[13px] font-semibold mb-2 flex items-center gap-2"><Loader2 size={14} className="animate-spin text-accent" />正在切换…</div><StepList job={job} from={6} /></Card>}
+          {!running && <NodeWideNote />}
         </div>
+        <div className="space-y-5">
+        {!running && <NodeCutoverCard job={job} srv={srv} />}
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">新的访问地址</div>
           {hosts.length ? hosts.map(h => <div key={h} className="flex items-center gap-2 h-9 text-[13px]"><Globe size={14} className="text-accent" /><span className="font-semibold">{h}</span><span className="ml-auto text-[12px] text-dim">A {srv?.public_ipv4}</span></div>) : <div className="text-[13px] text-dim">无</div>}
@@ -156,6 +185,7 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
             <Button variant="danger" className="flex-1" disabled={running} onClick={() => setConfirm(true)}>{running ? <Loader2 size={14} className="animate-spin" /> : <Power size={15} />}开始切换</Button>
           </div>
         </Card>
+        </div>
       </div>
       {confirm && <ConfirmDialog title="切换到 Atoll" action="确认切换" name={job.plan.project_name} onClose={() => setConfirm(false)}
         description={<>Zeabur 上 <b>{job.plan.project_name}</b> 的应用会缩容到 0，入口控制器停用，由 Atoll 接管 {srv?.public_ipv4} 的 80/443。DNS 无需改动；zeabur.app 地址将失效。之后可一键回滚。</>}

@@ -814,6 +814,31 @@ func (c *Client) RollbackImport(ctx context.Context, id string) (*api.ImportJob,
 	return c.importStep(ctx, id, "rollback", nil)
 }
 
+// RehearseImportWith is RehearseImport with options (ignore_memory skips the memory check).
+func (c *Client) RehearseImportWith(ctx context.Context, id string, req api.ZeaburRehearseRequest) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "rehearse", req)
+}
+
+// CutoverImportWith is CutoverImport with options (force parks the shared ingress although
+// other Zeabur projects on the server still serve through it).
+func (c *Client) CutoverImportWith(ctx context.Context, id string, req api.ZeaburCutoverRequest) (*api.ImportJob, error) {
+	return c.importStep(ctx, id, "cutover", req)
+}
+
+// ZeaburNodeCutover cuts over several zeabur-local imports of one server together: each scales
+// down and syncs, the shared Zeabur ingress is parked once, Atoll serves all their hostnames.
+func (c *Client) ZeaburNodeCutover(ctx context.Context, serverID string, req api.ZeaburNodeCutoverRequest) (*api.ZeaburNodeOp, error) {
+	var v api.ZeaburNodeOp
+	return &v, c.do(ctx, http.MethodPost, "/servers/"+esc(serverID)+"/zeabur/cutover", req, &v)
+}
+
+// ZeaburNodeRollback rolls back every cut-over import of the server and restores Zeabur's
+// ingress once.
+func (c *Client) ZeaburNodeRollback(ctx context.Context, serverID string) (*api.ZeaburNodeOp, error) {
+	var v api.ZeaburNodeOp
+	return &v, c.do(ctx, http.MethodPost, "/servers/"+esc(serverID)+"/zeabur/rollback", nil, &v)
+}
+
 // CleanupImport uninstalls Zeabur's k3s from the host (irreversible). req.Confirm must equal
 // the server's name. The server treats it as session-only; with a PAT expect a Confirmation.
 func (c *Client) CleanupImport(ctx context.Context, id string, req api.ZeaburCleanupRequest) (*api.ImportJob, error) {

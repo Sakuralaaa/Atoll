@@ -151,6 +151,8 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/imports/{id}/rehearse", needDeployGlobal, s.handleRehearse)
 	a("POST "+v+"/imports/{id}/cutover", needMigrate, s.handleCutover)
 	a("POST "+v+"/imports/{id}/rollback", needMigrate, s.handleZeaburRollback)
+	a("POST "+v+"/servers/{id}/zeabur/cutover", needMigrate, s.handleNodeCutover)
+	a("POST "+v+"/servers/{id}/zeabur/rollback", needMigrate, s.handleNodeRollback)
 	a("POST "+v+"/imports/{id}/cleanup", needMigrate, s.handleZeaburCleanup)
 
 	// builds from source (git.go): GitHub push webhook, verified by HMAC instead of a login

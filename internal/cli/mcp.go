@@ -77,6 +77,7 @@ var mcpToolPerm = map[string]string{
 	"domain_add":            api.PermDomains,
 	"project_migrate":       api.PermMigrate,
 	"service_migrate":       api.PermMigrate,
+	"zeabur_node_cutover":   api.PermMigrate,
 	"backup_restore":        api.PermRestore,
 	"service_delete":        api.PermDelete,
 	"project_delete":        api.PermDelete,
@@ -725,7 +726,7 @@ func mcpTools(app *App) []server.ServerTool {
 				}
 				return c.ZeaburScan(ctx, s.ID)
 			}),
-		t(tool("zeabur_import_status", "Show an import job (imp_...) and its steps. Rehearse/cutover/rollback/cleanup are run by the user with `atoll zeabur ...` or in the panel.", true, false,
+		t(tool("zeabur_import_status", "Show an import job (imp_...) and its steps. Rehearse/rollback/cleanup are run by the user with `atoll zeabur ...` or in the panel; several imports of one server are cut over together with zeabur_node_cutover.", true, false,
 			mcp.WithString("import_id", mcp.Required(), mcp.Description("imp_... id"))),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
 				id, err := reqStr(r, "import_id")
@@ -733,6 +734,23 @@ func mcpTools(app *App) []server.ServerTool {
 					return nil, err
 				}
 				return c.GetImport(ctx, id)
+			}),
+		t(tool("zeabur_node_cutover", "Cut over several rehearsed Zeabur imports (imp_...) of ONE server together: each project's Zeabur workloads scale to 0 and get a final data sync, then Zeabur's ingress (shared by every Zeabur project on that server) is parked once and Atoll serves all their hostnames on 80/443. Refused with other_zeabur_projects while a project outside the list still serves through the ingress. Follow each job with zeabur_import_status. Roll back with `atoll zeabur rollback --server SERVER` or the panel."+fmt.Sprintf(imm, api.PermMigrate)+" If it returns PENDING CONFIRMATION, never retry to bypass it.", false, true,
+			mcp.WithArray("import_ids", mcp.Required(), mcp.Description("imp_... ids, all on the same server"), mcp.WithStringItems()),
+			mcp.WithBoolean("force", mcp.Description("park the ingress even though other Zeabur projects on the server still serve (they go offline); default false"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				ids := r.GetStringSlice("import_ids", nil)
+				if len(ids) == 0 {
+					return nil, fmt.Errorf("import_ids is required")
+				}
+				j, err := c.GetImport(ctx, ids[0])
+				if err != nil {
+					return nil, err
+				}
+				if j.ServerID == "" {
+					return nil, fmt.Errorf("import %s is not an in-place Zeabur takeover", ids[0])
+				}
+				return c.ZeaburNodeCutover(ctx, j.ServerID, api.ZeaburNodeCutoverRequest{ImportIDs: ids, Force: r.GetBool("force", false)})
 			}),
 		t(tool("update_list", "List image updates: services whose tag now points to a newer digest than what runs, or that have a newer semver tag (same major; major bumps in major_tag). Apply one with `atoll updates --apply SERVICE` or the panel.", true, false,
 			mcp.WithBoolean("available_only", mcp.Description("only services with an update (default true)")),

@@ -210,6 +210,8 @@ export interface ZeaburService {
   data_store?: 'postgres' | 'mysql' | 'redis' | 'mongo' | 'queue' | 'search' | 'other' | '' | string
   k8s_services?: string[]
   references?: ZeaburReference[]
+  /** pods' current memory use in MiB (kubectl top); absent without metrics-server */
+  mem_usage_mb?: number
 }
 /** One env-level connection from a service to another Zeabur service. */
 export interface ZeaburReference {
@@ -222,6 +224,10 @@ export interface ZeaburProject {
   /** namespace-level findings (orphan PVCs, non-Zeabur workloads); never secret values */
   warnings?: string[]
 }
+/** POST /servers/{id}/zeabur/cutover: several imports of one server, one ingress park */
+export interface ZeaburNodeCutoverRequest { import_ids: string[]; force?: boolean }
+/** answer of the node cutover / rollback: one job per import, each with its own status and steps */
+export interface ZeaburNodeOp { server_id: string; jobs: ImportJob[] }
 export interface ZeaburInventory {
   k3s: boolean; k3s_version?: string; projects: ZeaburProject[]; ingress_running: boolean
   disk_free_gb: number; mem_free_mb: number; scanned_at: string

@@ -52,21 +52,33 @@ atoll zeabur import my-vps --namespace environment-xxxx \
 ### 3. 演练（rehearse）
 
 ```sh
-atoll zeabur rehearse imp_xxxx
+atoll zeabur rehearse imp_xxxx [--ignore-memory]
 ```
 
 - Zeabur 构建的镜像从 containerd 导出并 `docker load`（标记为 `atoll-import/<服务>:<digest12>`）；来自 Docker Hub / GHCR 等仓库的镜像按原始引用（保留 tag）拉取，拉取失败时退回到 containerd 中的副本并打上同一个引用。
 - 应用的卷目录在本机复制；数据库用**同主版本**的工具 dump/restore，并核对每张表的行数。
 - Atoll 容器启动但**不接公网流量**。Zeabur 继续服务。
 - 在面板里检查服务、日志和数据。可以反复演练。
+- 演练期间 Zeabur 和 Atoll 两份副本同时占内存。开始前会估算所需内存（有 metrics-server 时用 Zeabur pod 的实际用量，否则按类型给默认值：postgres 256 MB、mysql 400、mongo 300、redis 64、其他 128），可用内存不够就拒绝（409 `insufficient_memory`）。**一次只演练一个项目**；确实要跳过检查用 `--ignore-memory`。
 
 ### 4. 切换（cutover）
 
+> **注意：停放 ingress 是整台服务器级别的。** Zeabur 的 ingress-controller 是一个 DaemonSet，这台服务器上**所有** Zeabur 项目都通过它对外服务。切换时把它停放，所有 `*.zeabur.app` 和自定义域名会同时不再由 Zeabur 提供服务——不只是你正在切换的那个项目。
+
+所以服务器上有多个 Zeabur 项目时，按这个顺序来：
+
+1. 每个项目分别 `import` 和 `rehearse`（逐个演练，见上面的内存检查）。
+2. 全部演练通过后，**一起切换**：
+
 ```sh
-atoll zeabur cutover imp_xxxx
+atoll zeabur cutover imp_aaaa imp_bbbb imp_cccc   # 同一台服务器的多个导入
 ```
 
-需要你确认（`--yes` 跳过提问）。步骤：Zeabur 应用缩容到 0（数据库保持运行直到最后一次 dump）→ 最终数据同步 → 暂停 Zeabur 的 operator（缩容到 0，否则它会把 ingress 改回去）并停放 ingress-controller → atoll-caddy 接管 80/443，使用相同主机名。会有短暂停机。
+（API：`POST /api/v1/servers/{id}/zeabur/cutover`，MCP：`zeabur_node_cutover`，面板：导入页出现「批量切换」。）只有一个项目时照旧 `atoll zeabur cutover imp_xxxx`。
+
+需要你确认（`--yes` 跳过提问）。步骤：每个项目依次把 Zeabur 应用缩容到 0（数据库保持运行直到最后一次 dump）→ 最终数据同步 → 然后**只停放一次** ingress-controller → atoll-caddy 接管 80/443，带上所有项目的主机名 → 逐个项目配置 DNS。每个导入任务各自显示状态和步骤；任一项目失败，这次切换的所有项目都会自动回滚。会有短暂停机。
+
+切换前会重新扫描服务器：如果还有**不在这次切换里**、仍在运行且有域名的 Zeabur 项目，切换会被拒绝（409 `other_zeabur_projects`，并列出这些项目和域名）。确定接受它们下线时才加 `--force`。Zeabur 的 operator 是整个集群共用的，只有在这台服务器上所有 Zeabur 项目都被覆盖时才会缩容到 0。
 
 ### 5. 验证
 
@@ -75,10 +87,13 @@ atoll zeabur cutover imp_xxxx
 ### 6. 出问题就回滚
 
 ```sh
-atoll zeabur rollback imp_xxxx
+atoll zeabur rollback imp_xxxx            # 这台服务器上只有它被切换过
+atoll zeabur rollback --server my-vps     # 一起切换的多个项目一起回滚
 ```
 
-停止 Atoll 副本，恢复 Zeabur 的 ingress-controller 和 operator，把 Zeabur 工作负载按记录的副本数恢复。Zeabur 上的对象从未被删除，所以回滚是完整的。
+停止 Atoll 副本，恢复 Zeabur 的 ingress-controller（以及被停掉的 operator），把 Zeabur 工作负载按记录的副本数恢复。Zeabur 上的对象从未被删除，所以回滚是完整的。
+
+恢复 ingress 同样是整台服务器级别的（会停掉 atoll-caddy）：只要同一台服务器上还有别的导入处于已切换状态，单独回滚一个会被拒绝（409 `node_rollback_required`），请用 `--server` 整体回滚（API：`POST /api/v1/servers/{id}/zeabur/rollback`）。
 
 ### 7. 清理（不可逆，稳定之后再做）
 

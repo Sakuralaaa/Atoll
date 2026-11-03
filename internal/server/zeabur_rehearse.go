@@ -3,6 +3,7 @@ package server
 // Zeabur takeover: rehearse (copy data and start services side by side without taking traffic).
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,12 +17,94 @@ import (
 // ---------- rehearse ----------
 
 func (s *Server) handleRehearse(w http.ResponseWriter, r *http.Request) error {
-	j, err := s.startZeaburOp(r.Context(), r.PathValue("id"), []string{zsPlanned, zsRehearsed, zsFailed, zsRolledBack}, zsRehearsing, (*zrun).rehearse)
+	ctx := r.Context()
+	var req api.ZeaburRehearseRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, &req); err != nil {
+			return err
+		}
+	}
+	allowed := []string{zsPlanned, zsRehearsed, zsFailed, zsRolledBack}
+	if !req.IgnoreMemory {
+		if err := s.checkRehearseMemory(ctx, r.PathValue("id"), allowed); err != nil {
+			return err
+		}
+	}
+	j, err := s.startZeaburOp(ctx, r.PathValue("id"), allowed, zsRehearsing, (*zrun).rehearse)
 	if err != nil {
 		return err
 	}
-	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "import.rehearse", j.ID, nil)
+	s.st.Audit(ctx, principalFrom(ctx).actor(), "import.rehearse", j.ID, map[string]any{"ignore_memory": req.IgnoreMemory})
 	writeJSON(w, 200, j)
+	return nil
+}
+
+// rehearseMemDefaultMB is the memory a service is assumed to need when the scan has no pod
+// usage for it (no metrics-server), by Atoll kind.
+var rehearseMemDefaultMB = map[string]int{"postgres": 256, "mysql": 400, "mongo": 300, "redis": 64}
+
+const rehearseMemDefaultAppMB = 128
+
+// estimateRehearseMB estimates the memory the job's Atoll copies need on top of what runs now:
+// each service not already running in Atoll counts its Zeabur pods' current use (scan), or
+// the default for its kind. It also returns how the estimate was made.
+func estimateRehearseMB(meta *zeaburMeta, inv *api.ZeaburInventory, running func(atollID string) bool) (int, []string) {
+	usage := map[string]int{}
+	for _, p := range inv.Projects {
+		if p.Namespace != meta.Namespace {
+			continue
+		}
+		for _, sv := range p.Services {
+			usage[sv.ServiceID] = sv.MemUsageMB
+		}
+	}
+	total := 0
+	var parts []string
+	for _, sv := range meta.Services {
+		if running(sv.AtollID) {
+			continue
+		}
+		mb, how := usage[sv.SourceServiceID], "pod usage"
+		if mb <= 0 {
+			mb, how = rehearseMemDefaultMB[sv.Kind], "default"
+			if mb == 0 {
+				mb = rehearseMemDefaultAppMB
+			}
+		}
+		total += mb
+		parts = append(parts, fmt.Sprintf("%s %d MB (%s)", sv.Name, mb, how))
+	}
+	return total, parts
+}
+
+// checkRehearseMemory refuses (409 insufficient_memory) when the server's available memory is
+// below the estimate: Zeabur's copy keeps running next to Atoll's during the rehearsal.
+func (s *Server) checkRehearseMemory(ctx context.Context, id string, allowed []string) error {
+	j, meta, err := s.loadZeaburJob(ctx, id)
+	if err != nil {
+		return err
+	}
+	ok := false
+	for _, a := range allowed {
+		ok = ok || j.Status == a
+	}
+	if !ok || !s.hub.Online(j.ServerID) {
+		return nil // startZeaburOp answers with the precise error
+	}
+	inv, err := s.scanZeabur(ctx, j.ServerID, true)
+	if err != nil {
+		return err
+	}
+	if inv.MemFreeMB <= 0 {
+		return nil // not reported
+	}
+	need, parts := estimateRehearseMB(meta, inv, func(atollID string) bool {
+		svc, stopped, err := s.st.GetService(ctx, atollID)
+		return err == nil && !stopped && svc.Status == "running"
+	})
+	if need > inv.MemFreeMB {
+		return errf(409, "insufficient_memory", "rehearsal needs about %d MB of memory (%s) but only %d MB is available on the server; Zeabur keeps running next to the Atoll copies. Free memory (rehearse projects one at a time, stop other Atoll copies) or pass ignore_memory to override", need, strings.Join(parts, ", "), inv.MemFreeMB)
+	}
 	return nil
 }
 

@@ -46,14 +46,16 @@ type fakeHost struct {
 	uninstaller string
 	calls       []string
 
-	nsYAML    []byte            // `get namespaces` and per-namespace object listing
-	ctrLs     string            // `ctr images ls`
-	du        string            // `du -sb`
-	ds        []*fakeDS         // daemonsets
-	node      string            // single node name
-	labels    map[string]string // node labels
-	replicas  map[string]int    // "<ns>/<workload>" -> replicas
-	archive   []byte            // `ctr images export` output
+	nsYAML    []byte              // `get namespaces` and per-namespace object listing
+	ctrLs     string              // `ctr images ls`
+	du        string              // `du -sb`
+	ds        []*fakeDS           // daemonsets
+	node      string              // single node name
+	labels    map[string]string   // node labels
+	replicas  map[string]int      // "<ns>/<workload>" -> replicas
+	archive   []byte              // `ctr images export` output
+	ingresses map[string][]string // namespace -> Ingress hosts (`get ingress -A`)
+	top       map[string]string   // namespace -> `kubectl top pods` output (absent: no metrics)
 	exportErr error
 }
 
@@ -178,6 +180,31 @@ func (h *fakeHost) run(name string, args []string, stdin io.Reader, w io.Writer)
 		return h.nsYAML, nil
 	case j == "get daemonsets -A -o json":
 		return h.dsJSON(), nil
+	case j == "get deployments,statefulsets -A -o json":
+		var items []any
+		for k, n := range h.replicas {
+			parts := strings.SplitN(k, "/", 3)
+			items = append(items, map[string]any{"metadata": map[string]any{"namespace": parts[0], "name": parts[2]}, "spec": map[string]any{"replicas": n}})
+		}
+		b, _ := json.Marshal(map[string]any{"items": items})
+		return b, nil
+	case j == "get ingress -A -o json":
+		var items []any
+		for ns, hosts := range h.ingresses {
+			var rules []any
+			for _, hst := range hosts {
+				rules = append(rules, map[string]any{"host": hst})
+			}
+			items = append(items, map[string]any{"metadata": map[string]any{"namespace": ns, "name": "ing"}, "spec": map[string]any{"rules": rules}})
+		}
+		b, _ := json.Marshal(map[string]any{"items": items})
+		return b, nil
+	case len(a) == 5 && a[0] == "top" && a[1] == "pods":
+		out, ok := h.top[a[3]]
+		if !ok {
+			return nil, errors.New("error: Metrics API not available")
+		}
+		return []byte(out), nil
 	case j == "get nodes -o json":
 		b, _ := json.Marshal(map[string]any{"items": []any{map[string]any{"metadata": map[string]any{"name": h.node, "labels": h.labels}}}})
 		return b, nil
@@ -308,6 +335,7 @@ func TestScanFixtures(t *testing.T) {
 		"5242880\t" + k8s.StorageRoot + "/pvc-aaaa_" + cloudNS + "_media-service-67000000000000000000a001\n"
 	// Glob must find at least one dir for du to run.
 	os.MkdirAll(filepath.Join(tk.StorageRoot, "pvc-x"), 0o755)
+	h.top = map[string]string{cloudNS: "service-67000000000000000000a001-5f7c9-abcde   2m   50Mi\n"}
 
 	out, err := tk.Handle(context.Background(), api.MsgZeaburScan, nil)
 	if err != nil {
@@ -358,6 +386,9 @@ func TestScanFixtures(t *testing.T) {
 		t.Fatalf("blog services %d", len(blog.Services))
 	}
 	app := find(blog.Services, "67000000000000000000a001")
+	if app.MemUsageMB != 50 {
+		t.Fatalf("pod memory from kubectl top: %d (workload %s)", app.MemUsageMB, app.Workload)
+	}
 	if app.Status != k8s.StatusRunning || app.DataStore != "" || len(app.K8sServices) == 0 || app.Volumes[0].Bytes != 5242880 {
 		t.Fatalf("blog app %+v", app)
 	}
@@ -425,7 +456,7 @@ func TestParkRestoreIngress(t *testing.T) {
 		}
 	}
 	// Re-park is idempotent and does not duplicate records.
-	if _, err := tk.ParkIngress(ctx); err != nil {
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true}); err != nil {
 		t.Fatal(err)
 	}
 	if st, _ := tk.State.Load(); len(st.ParkedDaemonSets) != 1 || len(st.NodeLabels) != 1 {
@@ -456,7 +487,7 @@ func TestParkRestoreIngress(t *testing.T) {
 func TestParkFailsWhenPortsStayBusy(t *testing.T) {
 	tk, _, _ := newTakeover(t)
 	tk.PortsFree = func(context.Context) error { return errors.New("port 80 busy") }
-	if _, err := tk.ParkIngress(context.Background()); err == nil || !strings.Contains(err.Error(), "ports still busy") {
+	if _, err := tk.ParkIngress(context.Background(), api.ZeaburIngressPayload{Park: true}); err == nil || !strings.Contains(err.Error(), "ports still busy") {
 		t.Fatalf("err %v", err)
 	}
 	if st, _ := tk.State.Load(); st.IngressParked || st.CutoverAt != nil {
@@ -518,7 +549,7 @@ func TestUninstallRefusals(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "no completed cutover") {
 		t.Fatalf("no cutover: %v", err)
 	}
-	if _, err := tk.ParkIngress(ctx); err != nil {
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = tk.Uninstall(ctx, api.ZeaburUninstallPayload{})
@@ -548,7 +579,7 @@ func TestUninstallWithBackup(t *testing.T) {
 	recovered := 0
 	tk.Recover = func(context.Context) error { recovered++; return nil }
 
-	if _, err := tk.ParkIngress(ctx); err != nil {
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true}); err != nil {
 		t.Fatal(err)
 	}
 	startCaddy(t, rt)
@@ -593,7 +624,7 @@ func TestUninstallVerificationFailure(t *testing.T) {
 	tk, h, rt := newTakeover(t)
 	h.uninstaller = tk.Uninstaller
 	ctx := context.Background()
-	if _, err := tk.ParkIngress(ctx); err != nil {
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true}); err != nil {
 		t.Fatal(err)
 	}
 	startCaddy(t, rt)
@@ -782,7 +813,7 @@ func TestParkStopsOperator(t *testing.T) {
 	ctx := context.Background()
 	h.ds = []*fakeDS{{NS: "zeabur-system", Name: "ingress-controller", HostPorts: []int{80, 443}, Operated: true}}
 	h.replicas["operator-system/deployment/op"] = 1
-	if _, err := tk.ParkIngress(ctx); err != nil {
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true}); err != nil {
 		t.Fatal(err)
 	}
 	if h.replicas["operator-system/deployment/op"] != 0 || h.ds[0].NodeSelector[zeabur.ParkLabel] == "" {
@@ -799,5 +830,63 @@ func TestParkStopsOperator(t *testing.T) {
 	}
 	if st, _ := tk.State.Load(); len(st.ParkedOperators) != 0 || len(st.Workloads) != 0 {
 		t.Fatalf("state after restore %+v", st)
+	}
+}
+
+// The ingress is shared by every Zeabur project on the node: parking it while a project outside
+// the cutover still serves hostnames is refused unless forced; operators are only stopped when
+// no other project runs at all.
+func TestParkRefusesWhileOtherProjectsServe(t *testing.T) {
+	tk, h, _ := newTakeover(t)
+	ctx := context.Background()
+	h.replicas["environment-a/deployment/service-a"] = 0 // the project being cut over (scaled down)
+	h.replicas["environment-b/deployment/service-b"] = 1
+	h.replicas["environment-c/statefulset/service-c"] = 1 // runs, but has no hostname
+	h.ingresses = map[string][]string{"environment-a": {"a.zeabur.app"}, "environment-b": {"b.zeabur.app", "b.example.org"}}
+
+	_, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true, Namespaces: []string{"environment-a"}})
+	if err == nil || !strings.HasPrefix(err.Error(), zeabur.ErrOtherProjects) || !strings.Contains(err.Error(), "environment-b (b.example.org, b.zeabur.app)") || strings.Contains(err.Error(), "environment-c") {
+		t.Fatalf("park must refuse while environment-b serves: %v", err)
+	}
+	if h.called(k3sBin + " kubectl patch") {
+		t.Fatal("nothing may be patched when refusing")
+	}
+	// covered together: allowed
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true, Namespaces: []string{"environment-a", "environment-b"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tk.RestoreIngress(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// forced: allowed too
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true, Namespaces: []string{"environment-a"}, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParkStopsOperatorOnlyForWholeNode(t *testing.T) {
+	tk, h, _ := newTakeover(t)
+	ctx := context.Background()
+	h.ds = []*fakeDS{{NS: "zeabur-system", Name: "ingress-controller", HostPorts: []int{80, 443}, Operated: true}}
+	h.replicas["operator-system/deployment/op"] = 1
+	h.replicas["environment-b/deployment/service-b"] = 1 // another project, no hostname
+	_, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true, Namespaces: []string{"environment-a"}, Force: true})
+	if err == nil || !strings.Contains(err.Error(), "operator") || h.replicas["operator-system/deployment/op"] != 1 {
+		t.Fatalf("operator must not be stopped while environment-b runs: %v (replicas %d)", err, h.replicas["operator-system/deployment/op"])
+	}
+	h.replicas["environment-b/deployment/service-b"] = 0
+	if _, err := tk.ParkIngress(ctx, api.ZeaburIngressPayload{Park: true, Namespaces: []string{"environment-a"}}); err != nil {
+		t.Fatal(err)
+	}
+	if h.replicas["operator-system/deployment/op"] != 0 {
+		t.Fatal("whole-node cutover must stop the operator")
+	}
+}
+
+func TestParseTopPods(t *testing.T) {
+	got := zeabur.ParseTopPods("service-a-7d9f-x   3m   120Mi\nservice-b-0   1m   1Gi\nbad line\nservice-c-0 1m 2048Ki\n")
+	want := map[string]int{"service-a-7d9f-x": 120, "service-b-0": 1024, "service-c-0": 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v", got)
 	}
 }

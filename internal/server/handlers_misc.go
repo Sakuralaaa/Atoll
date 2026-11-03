@@ -91,7 +91,14 @@ func (s *Server) execConfirmed(ctx context.Context, r *http.Request, c *api.Conf
 		_, err := s.startServiceMigration(ctx, c.Target, req.ServerID, s.publicURL(ctx, r), actor)
 		return err
 	case "import.cutover":
-		_, err := s.startCutover(ctx, c.Target, actor)
+		var req api.ZeaburCutoverRequest
+		json.Unmarshal(payload, &req)
+		_, err := s.startCutover(ctx, c.Target, req.Force, actor)
+		return err
+	case "zeabur.node_cutover":
+		var req api.ZeaburNodeCutoverRequest
+		json.Unmarshal(payload, &req)
+		_, err := s.startNodeCutover(ctx, c.Target, req.ImportIDs, req.Force, actor)
 		return err
 	case "backup.restore":
 		var req api.BackupRestoreRequest

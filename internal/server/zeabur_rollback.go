@@ -4,7 +4,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -17,32 +16,42 @@ import (
 // ---------- rollback ----------
 
 func (s *Server) handleZeaburRollback(w http.ResponseWriter, r *http.Request) error {
-	_, meta, err := s.loadZeaburJob(r.Context(), r.PathValue("id"))
+	ctx := r.Context()
+	j, meta, err := s.loadZeaburJob(ctx, r.PathValue("id"))
 	if err != nil {
 		return err
 	}
 	if meta.RollbackDisabled {
 		return errf(409, "rollback_disabled", "Zeabur was removed from this server; rollback is no longer possible")
 	}
-	j, err := s.startZeaburOp(r.Context(), r.PathValue("id"), []string{zsLive, zsFailed, zsRehearsed}, zsRollingBack, func(z *zrun) error {
-		if err := z.doRollback(); err != nil {
-			z.setStatus(zsFailed)
-			return err
-		}
-		z.setStatus(zsRolledBack)
-		return nil
-	})
+	op, err := s.startNodeOp(ctx, j.ServerID, []string{j.ID}, []string{zsLive, zsFailed, zsRehearsed}, zsRollingBack,
+		func(n *nodeRun) error {
+			// The ingress is node-wide: while another job of this server stays cut over,
+			// restoring it for this job alone is impossible (it would cut the others off).
+			if !n.runs[0].meta.IngressParked {
+				return nil
+			}
+			others, err := s.parkedJobs(n.ctx, n.node, n.ids())
+			if err != nil {
+				return err
+			}
+			if len(others) > 0 {
+				return errf(409, "node_rollback_required", "other imports on this server are cut over too (%s) and share the parked Zeabur ingress; roll them back together with POST /api/v1/servers/%s/zeabur/rollback (atoll zeabur rollback --server)", strings.Join(others, ", "), n.node)
+			}
+			return nil
+		},
+		(*nodeRun).rollback)
 	if err != nil {
 		return err
 	}
-	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "import.rollback", j.ID, nil)
-	writeJSON(w, 200, j)
+	s.st.Audit(ctx, principalFrom(ctx).actor(), "import.rollback", j.ID, nil)
+	writeJSON(w, 200, op.Jobs[0])
 	return nil
 }
 
-// doRollback stops Atoll's copies, restores Zeabur's ingress and scales Zeabur back.
-// It keeps going after errors so as much as possible is restored, then reports them all.
-func (z *zrun) doRollback() error {
+// rollbackRelease withdraws the job's Atoll routes, deletes the DNS records its cutover created
+// and stops its Atoll services (the first half of a rollback, before the ingress is restored).
+func (z *zrun) rollbackRelease() []string {
 	s, ctx := z.s, z.ctx
 	var errs []string
 	if err := s.st.SetIngressHold(ctx, z.job.ProjectID, true); err != nil {
@@ -66,14 +75,14 @@ func (z *zrun) doRollback() error {
 			s.publishService(ctx, sv.AtollID)
 		}
 	}
-	if z.meta.IngressParked {
-		if _, err := s.hub.Call(ctx, z.node, api.MsgZeaburIngress, api.ZeaburIngressPayload{Park: false}, 5*time.Minute); err != nil {
-			errs = append(errs, "restore Zeabur ingress: "+err.Error())
-		} else {
-			z.meta.IngressParked = false
-		}
-	}
-	// databases first, then apps
+	return errs
+}
+
+// rollbackScaleBack scales the job's Zeabur workloads back (databases first) and records the
+// outcome on the cutover steps (the second half of a rollback).
+func (z *zrun) rollbackScaleBack() []string {
+	s, ctx := z.s, z.ctx
+	var errs []string
 	order := append([]zeaburSvcMeta{}, z.meta.Services...)
 	sort.SliceStable(order, func(i, j int) bool { return order[i].isDB() && !order[j].isDB() })
 	scaled := map[string]bool{}
@@ -101,10 +110,7 @@ func (z *zrun) doRollback() error {
 		}
 	}
 	z.save()
-	if len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
-	}
-	return nil
+	return errs
 }
 
 // ---------- cleanup ----------

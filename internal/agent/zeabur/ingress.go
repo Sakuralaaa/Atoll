@@ -154,15 +154,104 @@ func (t *Takeover) IngressGuard(ctx context.Context) error {
 	return nil
 }
 
+// ErrOtherProjects prefixes the refusal to park while other Zeabur projects still serve.
+const ErrOtherProjects = "other_zeabur_projects"
+
+// OtherProjects inspects the environment-* namespaces not in covered: serving lists those whose
+// workloads run (replicas > 0) and that have Ingress hosts ("ns (host, ...)"), running every
+// one whose workloads run at all.
+func (t *Takeover) OtherProjects(ctx context.Context, covered []string) (serving, running []string, err error) {
+	cov := map[string]bool{}
+	for _, n := range covered {
+		cov[n] = true
+	}
+	out, err := t.kubectl(ctx, "get", "deployments,statefulsets", "-A", "-o", "json")
+	if err != nil {
+		return nil, nil, err
+	}
+	var wl struct {
+		Items []struct {
+			Metadata struct {
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+			Spec struct {
+				Replicas *int `json:"replicas"`
+			} `json:"spec"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(out, &wl); err != nil {
+		return nil, nil, fmt.Errorf("parse workloads: %w", err)
+	}
+	live := map[string]bool{}
+	for _, it := range wl.Items {
+		ns := it.Metadata.Namespace
+		if !strings.HasPrefix(ns, "environment-") || cov[ns] {
+			continue
+		}
+		if it.Spec.Replicas == nil || *it.Spec.Replicas > 0 {
+			live[ns] = true
+		}
+	}
+	out, err = t.kubectl(ctx, "get", "ingress", "-A", "-o", "json")
+	if err != nil {
+		return nil, nil, err
+	}
+	var ing struct {
+		Items []struct {
+			Metadata struct {
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+			Spec struct {
+				Rules []struct {
+					Host string `json:"host"`
+				} `json:"rules"`
+			} `json:"spec"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(out, &ing); err != nil {
+		return nil, nil, fmt.Errorf("parse ingresses: %w", err)
+	}
+	hosts := map[string][]string{}
+	for _, it := range ing.Items {
+		ns := it.Metadata.Namespace
+		if !live[ns] {
+			continue
+		}
+		for _, r := range it.Spec.Rules {
+			if r.Host != "" {
+				hosts[ns] = append(hosts[ns], r.Host)
+			}
+		}
+	}
+	for ns := range live {
+		running = append(running, ns)
+		if h := hosts[ns]; len(h) > 0 {
+			sort.Strings(h)
+			serving = append(serving, ns+" ("+strings.Join(h, ", ")+")")
+		}
+	}
+	sort.Strings(running)
+	sort.Strings(serving)
+	return serving, running, nil
+}
+
 // ParkIngress unschedules every ingress DaemonSet (recording the original nodeSelector), waits
-// for their pods to go, and verifies ports 80/443 are free.
-func (t *Takeover) ParkIngress(ctx context.Context) (string, error) {
+// for their pods to go, and verifies ports 80/443 are free. The ingress is node-wide: it
+// refuses while Zeabur projects outside p.Namespaces still serve hostnames, unless p.Force.
+func (t *Takeover) ParkIngress(ctx context.Context, p api.ZeaburIngressPayload) (string, error) {
 	st, err := t.State.Load()
 	if err != nil {
 		return "", err
 	}
 	if st.K3sRemoved {
 		return "k3s already removed; nothing to park", nil
+	}
+	serving, running, err := t.OtherProjects(ctx, p.Namespaces)
+	if err != nil {
+		return "", fmt.Errorf("check other Zeabur projects: %w", err)
+	}
+	if len(serving) > 0 && !p.Force {
+		return "", fmt.Errorf("%s: parking the shared Zeabur ingress would take these projects offline: %s; import and rehearse them too and cut them over together (or park with force)", ErrOtherProjects, strings.Join(serving, "; "))
 	}
 	ds, err := t.ingressDaemonSets(ctx)
 	if err != nil {
@@ -171,6 +260,11 @@ func (t *Takeover) ParkIngress(ctx context.Context) (string, error) {
 	var parked []string
 	for _, d := range ds {
 		if d.Operated() && !d.Parked() {
+			// The operator is cluster-wide: stopping it stops reconciliation for every
+			// project, so only a whole-node cutover may do it.
+			if len(running) > 0 {
+				return "", fmt.Errorf("%s: Zeabur's operator manages the ingress and is only stopped when every Zeabur project on this server is cut over (still running: %s)", ErrOtherProjects, strings.Join(running, ", "))
+			}
 			ops, err := t.parkOperators(ctx)
 			if err != nil {
 				return "", err

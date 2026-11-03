@@ -30,8 +30,14 @@ Install atoll-agent on that VPS first (panel → Servers → Add server), then:
   atoll zeabur scan SERVER
   atoll zeabur import SERVER --namespace environment-xxx --domain app.zeabur.app=app.example.com
   atoll zeabur rehearse IMPORT_ID     # Atoll copies start without public traffic; Zeabur keeps serving
-  atoll zeabur cutover IMPORT_ID      # Zeabur apps scaled to 0, Atoll takes ports 80/443
+  atoll zeabur cutover IMPORT_ID...   # Zeabur apps scaled to 0, Atoll takes ports 80/443
   atoll zeabur rollback IMPORT_ID     # back to Zeabur if anything is wrong
+  atoll zeabur rollback --server SERVER   # every cut-over project of the server at once
+
+Zeabur's ingress is shared by every Zeabur project on the server: cutting over parks it for
+all of them. Import and rehearse each project (one at a time), then cut them over together
+by naming all their import IDs; a cutover that would take another serving project offline is
+refused (--force accepts the outage).
   atoll zeabur cleanup IMPORT_ID      # LATER: uninstall Zeabur's k3s (irreversible)
 
 Nothing on Zeabur is deleted until cleanup, which you confirm by typing the server name.`,
@@ -281,33 +287,54 @@ var stepText = map[string]struct{ ask, done, next string }{
 		next: "Next: atoll zeabur cutover %s",
 	},
 	"cutover": {
-		ask:  "Cut over %d service(s): scale Zeabur apps to 0, do a final data sync, park Zeabur's ingress and let Atoll serve ports 80/443? Expect a short downtime.",
+		ask:  "Cut over %d service(s): scale Zeabur apps to 0, do a final data sync, park Zeabur's ingress (shared by every Zeabur project on this server) and let Atoll serve ports 80/443? Expect a short downtime.",
 		done: "Cutover finished: Atoll now serves your domains. Verify them now; *.zeabur.app URLs no longer work.",
 		next: "If anything is wrong: atoll zeabur rollback %s   (keep this possible until things are stable; cleanup much later)",
 	},
 	"rollback": {
-		ask:  "Roll back: stop the Atoll copies of %d service(s), restore Zeabur's ingress and scale Zeabur workloads back?",
+		ask:  "Roll back: stop the Atoll copies of %d service(s), restore Zeabur's ingress (only when no other import on the server stays cut over) and scale Zeabur workloads back?",
 		done: "Rolled back: Zeabur serves again.",
 		next: "You can rehearse again later: atoll zeabur rehearse %s",
 	},
 }
 
 func newZeaburStepCmd(app *App, step string) *cobra.Command {
-	var yes bool
+	var yes, force, ignoreMem bool
+	var server string
 	txt := stepText[step]
 	short := map[string]string{
 		"rehearse": "Run Atoll copies without public traffic, copy data and verify (Zeabur keeps serving)",
-		"cutover":  "Switch traffic from Zeabur to Atoll on the same machine",
-		"rollback": "Undo a cutover: Zeabur serves again",
+		"cutover":  "Switch traffic from Zeabur to Atoll on the same machine (several imports of one server together)",
+		"rollback": "Undo a cutover: Zeabur serves again (--server: every cut-over import of the server)",
 	}[step]
+	use := step + " IMPORT_ID [--yes]"
+	args := cobra.ExactArgs(1)
+	switch step {
+	case "cutover":
+		use, args = "cutover IMPORT_ID... [--force] [--yes]", cobra.MinimumNArgs(1)
+	case "rollback":
+		use, args = "rollback IMPORT_ID | --server SERVER [--yes]", cobra.MaximumNArgs(1)
+	}
 	cmd := &cobra.Command{
-		Use: step + " IMPORT_ID [--yes]", Short: short, Args: cobra.ExactArgs(1),
+		Use: use, Short: short, Args: args,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.client()
 			if err != nil {
 				return err
 			}
 			ctx := ctxOf(cmd)
+			if step == "rollback" && server != "" {
+				if len(args) > 0 {
+					return errors.New("give an import ID or --server, not both")
+				}
+				return app.zeaburNodeRollback(ctx, c, server, yes)
+			}
+			if len(args) == 0 {
+				return errors.New("an import ID is required (or --server SERVER)")
+			}
+			if step == "cutover" && len(args) > 1 {
+				return app.zeaburNodeCutover(ctx, c, args, force, yes)
+			}
 			job, err := c.GetImport(ctx, args[0])
 			if err != nil {
 				return err
@@ -318,9 +345,13 @@ func newZeaburStepCmd(app *App, step string) *cobra.Command {
 			var call func(context.Context, string) (*api.ImportJob, error)
 			switch step {
 			case "rehearse":
-				call = c.RehearseImport
+				call = func(ctx context.Context, id string) (*api.ImportJob, error) {
+					return c.RehearseImportWith(ctx, id, api.ZeaburRehearseRequest{IgnoreMemory: ignoreMem})
+				}
 			case "cutover":
-				call = c.CutoverImport
+				call = func(ctx context.Context, id string) (*api.ImportJob, error) {
+					return c.CutoverImportWith(ctx, id, api.ZeaburCutoverRequest{Force: force})
+				}
 			default:
 				call = c.RollbackImport
 			}
@@ -351,7 +382,109 @@ func newZeaburStepCmd(app *App, step string) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask for confirmation")
+	switch step {
+	case "cutover":
+		cmd.Flags().BoolVar(&force, "force", false, "park the shared Zeabur ingress even though other Zeabur projects on the server still serve (they go offline)")
+	case "rehearse":
+		cmd.Flags().BoolVar(&ignoreMem, "ignore-memory", false, "skip the free-memory check")
+	case "rollback":
+		cmd.Flags().StringVar(&server, "server", "", "roll back every cut-over import of this server (name or id) together")
+	}
 	return cmd
+}
+
+// zeaburNodeCutover cuts over several imports of one server together and follows each job.
+func (app *App) zeaburNodeCutover(ctx context.Context, c *client.Client, ids []string, force, yes bool) error {
+	var serverID string
+	services := 0
+	jobs := map[string]*api.ImportJob{}
+	for _, id := range ids {
+		j, err := c.GetImport(ctx, id)
+		if err != nil {
+			return err
+		}
+		if serverID == "" {
+			serverID = j.ServerID
+		} else if j.ServerID != serverID {
+			return fmt.Errorf("import %s is on another server: a node cutover covers imports of one server", id)
+		}
+		jobs[id] = j
+		services += len(j.Plan.Services)
+	}
+	if !zeabur.Confirm(app.In, app.Err, yes, "Cut over %d import(s) (%d service(s)) together: scale their Zeabur apps to 0, final data sync for each, park Zeabur's ingress once and let Atoll serve ports 80/443? Expect a short downtime.", len(ids), services) {
+		return errors.New("cancelled; nothing was changed")
+	}
+	before := map[string]string{}
+	op, err := c.ZeaburNodeCutover(ctx, serverID, api.ZeaburNodeCutoverRequest{ImportIDs: ids, Force: force})
+	if err == nil {
+		for _, j := range op.Jobs {
+			before[j.ID] = j.Status
+		}
+	} else if ok, err := app.handle(ctx, c, err); err != nil || !ok {
+		return err
+	}
+	return app.waitNode(ctx, c, ids, jobs, before, "cutover")
+}
+
+// zeaburNodeRollback rolls back every cut-over import of a server.
+func (app *App) zeaburNodeRollback(ctx context.Context, c *client.Client, ref string, yes bool) error {
+	s, err := c.ResolveServer(ctx, ref)
+	if err != nil {
+		return err
+	}
+	if !zeabur.Confirm(app.In, app.Err, yes, "Roll back every cut-over Zeabur import on %s: stop their Atoll copies, restore Zeabur's ingress and scale Zeabur workloads back?", s.Name) {
+		return errors.New("cancelled; nothing was changed")
+	}
+	op, err := c.ZeaburNodeRollback(ctx, s.ID)
+	if err != nil {
+		return err
+	}
+	var ids []string
+	before := map[string]string{}
+	for _, j := range op.Jobs {
+		ids = append(ids, j.ID)
+		before[j.ID] = j.Status
+	}
+	return app.waitNode(ctx, c, ids, nil, before, "rollback")
+}
+
+// waitNode follows each job of a node operation and reports per-job outcomes.
+func (app *App) waitNode(ctx context.Context, c *client.Client, ids []string, jobs map[string]*api.ImportJob, before map[string]string, step string) error {
+	var finals []*api.ImportJob
+	var failed []string
+	for _, id := range ids {
+		b := before[id]
+		if b == "" && jobs[id] != nil {
+			b = jobs[id].Status
+		}
+		if !app.JSON {
+			fmt.Fprintf(app.Err, "%s:\n", id)
+		}
+		final, err := app.waitImport(ctx, c, id, step, b)
+		if final != nil {
+			finals = append(finals, final)
+		}
+		if err != nil {
+			failed = append(failed, id)
+		}
+	}
+	if app.JSON {
+		app.printJSON(finals)
+	} else {
+		for _, j := range finals {
+			fmt.Fprintf(app.Out, "%s  %s  %s\n", j.ID, j.Plan.ProjectName, j.Status)
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("%s did not complete for %s", step, strings.Join(failed, ", "))
+	}
+	if !app.JSON {
+		fmt.Fprintln(app.Out, stepText[step].done)
+		if step == "cutover" {
+			fmt.Fprintln(app.Out, "If anything is wrong, roll back all of them together: atoll zeabur rollback --server SERVER")
+		}
+	}
+	return nil
 }
 
 // importOutcome lists, per step, the status that means success and the other statuses after
