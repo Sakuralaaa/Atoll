@@ -258,6 +258,77 @@ func TestLoginLockout(t *testing.T) {
 	}
 }
 
+// Panel domain proxied by Cloudflare, Caddy on loopback in front: Caddy records the Cloudflare
+// edge as the client, so the real address comes from CF-Connecting-IP — but only then.
+func TestClientIPCloudflare(t *testing.T) {
+	s := &Server{}
+	mk := func(remote, xff, cf string) *http.Request {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = remote
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		if cf != "" {
+			r.Header.Set("CF-Connecting-IP", cf)
+		}
+		return r
+	}
+	cases := []struct {
+		name string
+		r    *http.Request
+		want string
+	}{
+		{"edge via caddy", mk("127.0.0.1:1", "172.70.1.2", "203.0.113.9"), "203.0.113.9"},
+		{"edge v6 via caddy", mk("127.0.0.1:1", "2a06:98c0:3600::103", "2001:db8::7"), "2001:db8::7"},
+		{"caddy trusting cloudflare appends the edge", mk("127.0.0.1:1", "203.0.113.9, 162.158.9.9", "203.0.113.9"), "203.0.113.9"},
+		{"edge without the header", mk("127.0.0.1:1", "172.70.1.2", ""), "172.70.1.2"},
+		{"garbage header", mk("127.0.0.1:1", "172.70.1.2", "not-an-ip"), "172.70.1.2"},
+		{"direct to caddy: header is forged", mk("127.0.0.1:1", "198.51.100.66", "203.0.113.9"), "198.51.100.66"},
+		{"untrusted peer: nothing is believed", mk("172.70.1.2:1", "", "203.0.113.9"), "172.70.1.2"},
+		{"no proxy at all", mk("198.51.100.66:1", "", "203.0.113.9"), "198.51.100.66"},
+	}
+	for _, c := range cases {
+		if got := s.clientIP(c.r); got != c.want {
+			t.Errorf("%s: %q want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// The audit row for a login (and its session record) carries the same client address.
+func TestLoginAuditClientIPBehindCloudflare(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	login := func(xff, cf string) {
+		t.Helper()
+		req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/auth/login", strings.NewReader(`{"username":"admin","password":"correct-horse"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Forwarded-For", xff)
+		req.Header.Set("CF-Connecting-IP", cf)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("login: %d", resp.StatusCode)
+		}
+	}
+	login("172.70.1.2", "203.0.113.50")    // through Cloudflare
+	login("198.51.100.66", "203.0.113.51") // straight to Caddy with a forged header
+	var page api.AuditPage
+	e.mustDo("GET", "/api/v1/audit?action=auth.login", nil, &page, 200)
+	if len(page.Entries) < 2 {
+		t.Fatalf("entries %+v", page.Entries)
+	}
+	direct, viaCF := page.Entries[0], page.Entries[1] // newest first
+	if viaCF.IP != "203.0.113.50" || viaCF.Target != "203.0.113.50" {
+		t.Fatalf("via cloudflare: %+v", viaCF)
+	}
+	if direct.IP != "198.51.100.66" || direct.Target != "198.51.100.66" {
+		t.Fatalf("direct: %+v", direct)
+	}
+}
+
 func TestBackoffGrowsAndCaps(t *testing.T) {
 	l := newLockout()
 	now := time.Unix(1_000_000, 0)

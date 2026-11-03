@@ -1,21 +1,23 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Projects from './pages/Projects'
 import Login from './pages/Login'
-const Servers = lazy(() => import('./pages/Servers'))
-const ServerDetail = lazy(() => import('./pages/ServerDetail'))
-const ServicePage = lazy(() => import('./pages/ServicePage'))
-const LogsPage = lazy(() => import('./pages/LogsPage'))
-const FilesPage = lazy(() => import('./pages/FilesPage'))
-const Domains = lazy(() => import('./pages/Domains'))
-const Developer = lazy(() => import('./pages/Developer'))
-const ProjectSettings = lazy(() => import('./pages/ProjectSettings'))
-const ProjectIndex = lazy(() => import('./pages/ProjectIndex'))
-const Import = lazy(() => import('./pages/Import'))
-const Settings = lazy(() => import('./pages/Settings'))
-const Security = lazy(() => import('./pages/Security'))
-const Confirmations = lazy(() => import('./pages/Confirmations'))
-const Control = lazy(() => import('./pages/Control'))
+import { lazyPage } from './chunkReload'
+import { RouteBoundary } from './components/RouteBoundary'
+const Servers = lazyPage(() => import('./pages/Servers'))
+const ServerDetail = lazyPage(() => import('./pages/ServerDetail'))
+const ServicePage = lazyPage(() => import('./pages/ServicePage'))
+const LogsPage = lazyPage(() => import('./pages/LogsPage'))
+const FilesPage = lazyPage(() => import('./pages/FilesPage'))
+const Domains = lazyPage(() => import('./pages/Domains'))
+const Developer = lazyPage(() => import('./pages/Developer'))
+const ProjectSettings = lazyPage(() => import('./pages/ProjectSettings'))
+const ProjectIndex = lazyPage(() => import('./pages/ProjectIndex'))
+const Import = lazyPage(() => import('./pages/Import'))
+const Settings = lazyPage(() => import('./pages/Settings'))
+const Security = lazyPage(() => import('./pages/Security'))
+const Confirmations = lazyPage(() => import('./pages/Confirmations'))
+const Control = lazyPage(() => import('./pages/Control'))
 
 import { Toaster } from './components/feedback'
 import { CommandPalette } from './components/CommandPalette'
@@ -24,13 +26,16 @@ import { useQuery } from './api/hooks'
 import { useLiveEvents } from './api/ws'
 
 export default function App() {
-  const onLogin = useLocation().pathname === '/login'
+  const { pathname } = useLocation()
+  const onLogin = pathname === '/login'
   // a 401 here redirects to #/login (client.ts); the live socket only runs once we know who we are
   const me = useQuery(onLogin ? null : 'me', api.me)
   useLiveEvents(!onLogin && !!me.data)
   return (
     <>
       {/* pages load on first visit; Projects and Login stay in the entry chunk */}
+      {/* a page that fails to load or render shows a retry; navigating elsewhere clears it */}
+      <RouteBoundary resetKey={pathname}>
       <Suspense fallback={null}>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -53,6 +58,7 @@ export default function App() {
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
       </Suspense>
+      </RouteBoundary>
       <CommandPalette />
       <Toaster />
     </>

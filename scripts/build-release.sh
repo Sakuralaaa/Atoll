@@ -6,11 +6,18 @@ set -eu
 cd "$(dirname "$0")/.."
 VERSION=${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}
 MOD=github.com/Sakuralaaa/Atoll
+# The source revision, stamped explicitly. Go's own vcs stamp would say "-dirty" on every release:
+# sync.sh replaces the tracked placeholder in internal/server/webui/dist with the built panel. That
+# directory is a build output, so it is left out of the dirty check; anything else modified is real.
+COMMIT=${COMMIT:-$(git rev-parse --short=12 HEAD 2>/dev/null || echo "")}
+if [ -n "$COMMIT" ] && [ -n "$(git status --porcelain --untracked-files=no -- . ':(exclude)internal/server/webui/dist' 2>/dev/null)" ]; then
+  COMMIT="$COMMIT-dirty"
+fi
 OUT=${OUT:-dist}
 rm -rf "$OUT" && mkdir -p "$OUT"
 for arch in amd64 arm64; do
   for cmd in atoll atoll-agent atoll-server; do
-    ld="-s -w -X main.version=$VERSION -X $MOD/internal/agent.Version=$VERSION -X $MOD/internal/server.Version=$VERSION"
+    ld="-s -w -X main.version=$VERSION -X $MOD/internal/agent.Version=$VERSION -X $MOD/internal/server.Version=$VERSION -X $MOD/internal/server.Commit=$COMMIT"
     CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags "$ld" -o "$OUT/$cmd-linux-$arch" "./cmd/$cmd"
   done
 done

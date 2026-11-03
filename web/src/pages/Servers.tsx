@@ -33,14 +33,14 @@ export default function Servers() {
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-4 mb-5">
-          <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的服务器</h1>
+          <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('我的服务器', 'My servers')}</h1>
           <div className="flex items-center gap-3">
-            <button onClick={() => setSort(v => !v)} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
+            <button onClick={() => setSort(v => !v)} title={t('按名称排序', 'Sort by name')} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
             <div className="flex rounded-lg field p-0.5">
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
               <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
             </div>
-            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>添加服务器</Button>
+            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>{t('添加服务器', 'Add server')}</Button>
           </div>
         </div>
         <ProblemsBanner only={['node_offline', 'disk_high']} />
@@ -52,7 +52,7 @@ export default function Servers() {
           {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
           {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的服务器`, `No servers match “${f.def.en}”`)}
             action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
-          {q.data && !all.length && <Empty icon={<Server size={22} />} title="还没有服务器" desc="在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />添加服务器</Button>} />}
+          {q.data && !all.length && <Empty icon={<Server size={22} />} title={t('还没有服务器', 'No servers yet')} desc={t('在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。', 'Run one install command on any VPS; the agent connects back to the control server, no extra ports to open.')} action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{t('添加服务器', 'Add server')}</Button>} />}
         </div>
         <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(s => {
@@ -65,32 +65,32 @@ export default function Servers() {
                     <ProviderIcon provider={s.provider || '?'} online={on} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold truncate min-w-0">{s.name}</span>
-                        {needsAttention(s) && <Badge><AlertCircle size={12} />需要处理</Badge>}
-                        {s.role === 'control' && <Badge tone="violet">中控</Badge>}
-                        {s.status === 'pending' && <Badge tone="zinc">等待连接</Badge>}
+                        {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
+                        {s.role === 'control' && <Badge tone="violet">{t('中控', 'Control')}</Badge>}
+                        {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
                         <AgentUpgradeBadge s={s} />
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
                         <span className="truncate">{s.os || '—'}</span>
-                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">离线</span> : '离线'}</span>
+                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : t('离线', 'Offline')}</span>
                       </div>
                     </div>
                   </div>
                   <div className="mt-6 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
-                    <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
-                    <div><div className="text-muted">区域</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]">{flagFor(s.region)} {s.region || '—'}</div></div>
+                    <div><div className="text-muted">{t('IP 地址', 'IP address')}</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
+                    <div><div className="text-muted">{t('区域', 'Region')}</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]">{flagFor(s.region)} {s.region || '—'}</div></div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
                     <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5 truncate">{s.tailnet_ip || '—'}</div></div>
                     <div><div className="text-muted">{t('管理通道', 'Agent channel')}</div><div className="mt-1.5"><NetBadge s={s} /></div></div>
                   </div>
                   <div className="mt-5 space-y-2.5 text-[13px]">
-                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">CPU 使用率</span><Ticks value={on ? u.cpu : 0} n={34} /></div>
-                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">内存使用率</span><Ticks value={on ? u.mem : 0} n={34} /></div>
+                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">{t('CPU 使用率', 'CPU')}</span><Ticks value={on ? u.cpu : 0} n={34} /></div>
+                    <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">{t('内存使用率', 'Memory')}</span><Ticks value={on ? u.mem : 0} n={34} /></div>
                   </div>
                 </div>
                 <div className="border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
-                  {s.role === 'control' ? '仅运行面板与调度，不承载项目' : `${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
+                  {s.role === 'control' ? t('仅运行面板与调度，不承载项目', 'Runs the panel and scheduler only, no projects') : `${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
                 </div>
               </Link>
             )
@@ -103,20 +103,21 @@ export default function Servers() {
 }
 
 function AddServer({ onClose }: { onClose: () => void }) {
+  const { t: tr } = useT()
   const [t, setT] = useState<JoinToken>(); const [err, setErr] = useState<string>()
   useEffect(() => { api.joinToken().then(setT, e => setErr(e.message)) }, [])
   return (
-    <Modal title="添加服务器" width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>完成</Button>}>
-      <div className="text-[13.5px] text-fg2 leading-6">在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。</div>
+    <Modal title={tr('添加服务器', 'Add server')} width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{tr('完成', 'Done')}</Button>}>
+      <div className="text-[13.5px] text-fg2 leading-6">{tr('在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。', 'Run this as root on the new VPS. It installs Docker and the Atoll agent; the agent connects back to the control server and the server shows up in the list.')}</div>
       <div className="mt-4">
         {err && <div className="text-[13px] text-[#ef4444]">{err}</div>}
         {!t && !err && <div className="h-[76px] rounded-lg field grid place-items-center text-muted"><Loader2 className="animate-spin" size={18} /></div>}
         {t && <>
           <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{t.command}</CodeBlock></div>
-          <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />一次性令牌，{new Date(t.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} 前有效<span className="ml-auto"><CopyButton text={t.command} label="复制命令" /></span></div>
+          <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />{(() => { const at = new Date(t.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); return tr(`一次性令牌，${at} 前有效`, `One-time token, valid until ${at}`) })()}<span className="ml-auto"><CopyButton text={t.command} label={tr('复制命令', 'Copy')} /></span></div>
         </>}
       </div>
-      <div className="mt-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">支持 Debian 12+/Ubuntu 22.04+，amd64 与 arm64。80/443 默认只放行 Cloudflare IP。</div>
+      <div className="mt-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">{tr('支持 Debian 12+/Ubuntu 22.04+，amd64 与 arm64。80/443 默认只放行 Cloudflare IP。', 'Debian 12+ / Ubuntu 22.04+, amd64 and arm64. Ports 80/443 accept only Cloudflare IPs by default.')}</div>
     </Modal>
   )
 }

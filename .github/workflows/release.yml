@@ -26,6 +26,14 @@ jobs:
       - run: cd web && npm ci && npm run build
       - run: sh internal/server/webui/sync.sh
       - run: go test ./...
+      # A tagged build must come from exactly the tagged tree. The only allowed difference is the
+      # synced panel in internal/server/webui/dist (a build output that replaces a tracked placeholder).
+      - name: Check the tree is clean
+        run: |
+          if [ -n "$(git status --porcelain -- . ':(exclude)internal/server/webui/dist')" ]; then
+            git status --porcelain -- . ':(exclude)internal/server/webui/dist'
+            echo "::error::release tree is dirty"; exit 1
+          fi
       - run: VERSION=${GITHUB_REF_NAME} sh scripts/build-release.sh
       # Signed build provenance for every binary and SHA256SUMS: SHA256SUMS alone only proves
       # a file was not corrupted, not that this workflow built it. Verify with

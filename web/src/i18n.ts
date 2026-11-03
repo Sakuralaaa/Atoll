@@ -8,7 +8,9 @@ const subs = new Set<() => void>()
 export function getLang(): Lang {
   const v = localStorage.getItem(KEY)
   if (v === 'zh' || v === 'en') return v
-  return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en'
+  // Chinese unless the user picked English: most screens are still Chinese-only, so following an
+  // English browser locale gave a Chinese page with English islands (e.g. the agent-upgrade banner).
+  return 'zh'
 }
 export function setLang(l: Lang) {
   localStorage.setItem(KEY, l)

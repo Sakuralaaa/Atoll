@@ -44,11 +44,14 @@ type ControlStatus struct {
 	UpdateAvailable bool         `json:"update_available"`
 	ReleaseError    string       `json:"release_error,omitempty"`
 
-	SelfUpdate       bool          `json:"self_update_supported"` // running under systemd with systemd-run
-	UpdateInProgress bool          `json:"update_in_progress"`
-	UpdatePhase      string        `json:"update_phase,omitempty"`
-	LastUpdate       *UpdateResult `json:"last_update_result,omitempty"`
-	RollbackVersion  string        `json:"rollback_version,omitempty"` // version of atoll-server.prev, when present
+	SelfUpdate       bool   `json:"self_update_supported"` // running under systemd with systemd-run
+	UpdateInProgress bool   `json:"update_in_progress"`
+	UpdatePhase      string `json:"update_phase,omitempty"`
+	// UpdateTarget is the version being installed while UpdateInProgress. Version == UpdateTarget
+	// means the new binary is already serving and only the helper's health report is outstanding.
+	UpdateTarget    string        `json:"update_target,omitempty"`
+	LastUpdate      *UpdateResult `json:"last_update_result,omitempty"`
+	RollbackVersion string        `json:"rollback_version,omitempty"` // version of atoll-server.prev, when present
 }
 
 // ControlHost describes the machine atoll-server runs on.

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Sakuralaaa/Atoll/internal/cfips"
 )
 
 // ---------- brute-force protection ----------
@@ -192,20 +194,43 @@ func trusted(list []netip.Prefix, ip string) bool {
 	return false
 }
 
-// clientIP is the address of the real client: the TCP peer, or — when the peer is a
-// trusted proxy — the right-most X-Forwarded-For entry that is not itself trusted.
+// clientIP is the address of the real client, used for every audit entry, session record and
+// login backoff key (keep it the only place that reads these headers):
+//
+//   - the TCP peer, unless the peer is a trusted proxy;
+//   - behind a trusted proxy (Caddy on loopback), the right-most X-Forwarded-For entry that is
+//     not itself trusted, i.e. whoever connected to that proxy;
+//   - when that hop is a Cloudflare edge address, CF-Connecting-IP: with the panel domain proxied
+//     by Cloudflare, Caddy (which does not trust Cloudflare) records the edge as the client, an
+//     address that changes per request and is not the user's. The header is believed only in this
+//     case, so a client that reaches Caddy directly cannot pick its own address with it.
 func (s *Server) clientIP(r *http.Request) string {
-	peer, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		peer = r.RemoteAddr
-	}
 	tp := s.cfg.TrustedProxies
 	if tp == nil {
 		tp = DefaultTrustedProxies
 	}
+	return clientIPFrom(r, tp)
+}
+
+func clientIPFrom(r *http.Request, tp []netip.Prefix) string {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		peer = r.RemoteAddr
+	}
 	if !trusted(tp, peer) {
 		return peer
 	}
+	ip := forwardedHop(r, tp, peer)
+	if a, err := netip.ParseAddr(ip); err == nil && cfips.Contains(a) {
+		if cf, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); err == nil {
+			return cf.Unmap().String()
+		}
+	}
+	return ip
+}
+
+// forwardedHop walks X-Forwarded-For from the right past trusted proxies.
+func forwardedHop(r *http.Request, tp []netip.Prefix, peer string) string {
 	hops := []string{}
 	for _, h := range r.Header.Values("X-Forwarded-For") {
 		for _, f := range strings.Split(h, ",") {

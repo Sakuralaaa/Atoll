@@ -46,8 +46,17 @@ export default function Control() {
   if (inProgress !== remoteBusy) setRemoteBusy(inProgress) // adjust during render, not in an effect
   // finished: the helper reported a result newer than the one we saw when starting
   useEffect(() => {
-    if (!watch || !s || s.update_in_progress || q.error) return
+    if (!watch || !s || q.error) return
     const r = s.last_update_result
+    const target = watch.version || s.update_target
+    if (target && s.version === target && !(r && r.started_at !== watch.prevStart && !r.ok)) {
+      // the new binary is serving: done from the user's point of view (the helper's report follows)
+      toast(watch.mode === 'rollback' ? `已回滚到 ${target}` : `已升级到 ${target}`, 'ok')
+      // oxlint-disable-next-line react/set-state-in-effect
+      setWatch(undefined); invalidate('control')
+      return
+    }
+    if (s.update_in_progress) return
     if (r && r.started_at !== watch.prevStart) {
       if (r.ok) toast(r.mode === 'rollback' ? `已回滚到 ${r.to_version}` : `已升级到 ${r.to_version}`, 'ok')
       else toast(r.rolled_back ? `新版本不健康，已自动换回 ${r.from_version}` : `${r.mode === 'rollback' ? '回滚' : '升级'}失败：${r.error ?? ''}`, 'error')
@@ -170,6 +179,10 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
   const [confirm, setConfirm] = useState<'update' | 'rollback'>()
   const rel = s.latest_release
   const busy = s.update_in_progress || !!watch
+  // the new version is already serving (only the helper's health report is outstanding): show the
+  // finished state, not a progress header next to it
+  const target = watch?.version || s.update_target
+  const arrived = !!target && s.version === target && !offline
   const check = () => wrapCheck(() => run(() => controlApi.checkUpdate(), { invalidate: ['control'] }).then(r => {
     if (r) toast(r.update_available ? `发现新版本 ${r.latest_release?.tag}` : r.release_error ? `检查失败：${r.release_error}` : '已是最新版本', r.release_error && !r.update_available ? 'error' : r.update_available ? 'info' : 'ok')
   }))
@@ -184,7 +197,7 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
   }
   return (
     <div className="space-y-6">
-      {(busy) && <Progress s={s} offline={offline} watch={watch} />}
+      {busy && !arrived && <Progress s={s} offline={offline} watch={watch} />}
       <Card className="p-5 @2xl:p-6">
         <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 [&>*]:min-w-0">
           <div className="rounded-xl border-2 border-dashed border-line2 p-4 min-w-0">

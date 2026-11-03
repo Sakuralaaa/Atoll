@@ -558,8 +558,14 @@ func TestControlUpdateFlow(t *testing.T) {
 		t.Fatal("agent binary not refreshed")
 	}
 	e.mustDo("GET", "/api/v1/control", nil, &st, 200)
-	if !st.UpdateInProgress || st.UpdatePhase != "restarting" {
+	if !st.UpdateInProgress || st.UpdatePhase != "restarting" || st.UpdateTarget != "v9.9.9" {
 		t.Fatalf("in progress: %+v", st)
+	}
+	// restarted on the new binary, helper not reported yet: still in progress, target tells the UI it is up
+	e.srv.ctl.setPhase("", "", "")
+	e.mustDo("GET", "/api/v1/control", nil, &st, 200)
+	if !st.UpdateInProgress || st.UpdatePhase != "restarting" || st.UpdateTarget != "v9.9.9" {
+		t.Fatalf("restarted, unreported: %+v", st)
 	}
 	// the helper reports back (as after the restart)
 	selfupdate.WriteResult(filepath.Join(e.srv.updateDir(), "result.json"), api.UpdateResult{Mode: "update", FromVersion: "v0.0.1", ToVersion: "v9.9.9", OK: true, StartedAt: time.Now().UTC(), FinishedAt: time.Now().UTC()})

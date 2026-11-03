@@ -24,6 +24,12 @@ import (
 // Version is set at build time with -ldflags "-X github.com/Sakuralaaa/Atoll/internal/server.Version=v1.2.3".
 var Version = "dev"
 
+// Commit is the source revision, set at release time with -ldflags "-X …/internal/server.Commit=abc123".
+// Release builds stamp it explicitly because the release tree is never byte-identical to the commit:
+// sync.sh overwrites the tracked placeholder in internal/server/webui/dist with the built panel, which
+// would make Go's own vcs stamp report "-dirty". Empty = fall back to the VCS info Go embedded.
+var Commit = ""
+
 // Config configures a Server. Zero durations get defaults.
 type Config struct {
 	DataDir   string

@@ -75,7 +75,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
       last_backup: backups[0],
       latest_release: { tag: latest, name: `Atoll ${latest}`, url: `https://github.com/example/atoll/releases/tag/${latest}`, published_at: iso(26 * H), checked_at: new Date(checkedAt).toISOString() },
       update_available: version !== latest, release_error: stress ? 'GET https://api.github.com/repos/example/atoll/releases?per_page=10: 403 Forbidden: API rate limit exceeded for 203.0.113.40 (showing the cached result from the last successful check)' : undefined,
-      self_update_supported: true, update_in_progress: !!job, update_phase: phase,
+      self_update_supported: true, update_in_progress: !!job, update_phase: phase, update_target: job?.to,
       last_update_result: lastUpdate, rollback_version: rollbackVersion,
     }
   }

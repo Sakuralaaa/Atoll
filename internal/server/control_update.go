@@ -124,11 +124,11 @@ func (s *Server) fillUpdateStatus(st *api.ControlStatus) {
 	if _, _, ph := s.ctl.phase(); ph == "restarting" && reported {
 		s.ctl.setPhase("", "", "") // the helper finished without restarting us (it failed early)
 	}
-	if _, _, ph := s.ctl.phase(); ph != "" {
-		st.UpdateInProgress, st.UpdatePhase = true, ph
+	if _, v, ph := s.ctl.phase(); ph != "" {
+		st.UpdateInProgress, st.UpdatePhase, st.UpdateTarget = true, ph, v
 	} else if p != nil && !reported {
 		if time.Since(p.StartedAt) < pendingStale {
-			st.UpdateInProgress, st.UpdatePhase = true, "restarting"
+			st.UpdateInProgress, st.UpdatePhase, st.UpdateTarget = true, "restarting", p.Version
 		} else {
 			st.LastUpdate = &api.UpdateResult{Mode: p.Mode, FromVersion: p.From, ToVersion: p.Version, Error: "the update helper did not report back; check journalctl -u 'atoll-selfupdate-*'", StartedAt: p.StartedAt}
 		}

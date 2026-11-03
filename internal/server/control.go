@@ -200,6 +200,9 @@ func (s *Server) handleControlReauth(w http.ResponseWriter, r *http.Request) err
 // ---------- status ----------
 
 func buildCommit() string {
+	if Commit != "" {
+		return Commit
+	}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return ""

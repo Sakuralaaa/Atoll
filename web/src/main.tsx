@@ -4,8 +4,10 @@ import { HashRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { applyTheme, initialTheme } from './theme'
+import { installPreloadErrorReload } from './chunkReload'
 
 applyTheme(initialTheme())
+installPreloadErrorReload()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
