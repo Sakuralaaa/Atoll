@@ -20,6 +20,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
   const last = latestDeploy(deps.data)
   const [hist, setHist] = useState(false)
   const [bind, setBind] = useState(false)
+  const [stop, setStop] = useState(false)
   const [busy, wrap] = useBusy()
   const stopped = s.status === 'stopped'
   const cpu = (m.data ?? []).slice(-30).map(x => x.cpu_pct), mem = (m.data ?? []).slice(-30).map(x => x.mem_mb)
@@ -58,11 +59,14 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
         <div className="mt-6 pt-5 border-t border-line flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setHist(true)}><History size={14} />部署记录</Button>
           {stopped ? <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'start'), { ok: '正在启动', invalidate: [`project:${p.id}`] }))}><Play size={13} />启动</Button>
-            : <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'stop'), { ok: '已停止', invalidate: [`project:${p.id}`] }))}><Square size={13} />停止</Button>}
+            : <Button size="sm" disabled={busy} onClick={() => setStop(true)}><Square size={13} />停止</Button>}
           <span className="ml-auto text-[13px] text-dim @max-md:hidden">回滚到任意历史镜像摘要</span>
         </div>
       </Card>
 
+      {stop && <ConfirmDialog title="停止服务" action="停止" onClose={() => setStop(false)}
+        description={<>停止 {s.name} 的容器，域名访问会中断，数据卷保留，可随时再启动。</>}
+        onConfirm={() => wrap(() => run(() => api.action(s.id, 'stop'), { ok: '已停止', invalidate: [`project:${p.id}`] }))} />}
       <SourceCard s={s} />
       <ImageUpdateCard s={s} />
 
@@ -138,7 +142,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
           ))}
         </div>
       )}
-      {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} name={s.name} onClose={() => setTarget(undefined)}
+      {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} onClose={() => setTarget(undefined)}
         description={<>将用 <span className="font-mono">{target.image_digest?.slice(0, 19)}</span>（{dateTime(target.started_at)}）重新部署 {s.name}。</>}
         onConfirm={() => run(() => api.rollback(s.id, target.id), { ok: '正在回滚', invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] })} />}
       {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}

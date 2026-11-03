@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Activity, KeyRound, ArchiveRestore, BarChart3, Network, HardDrive, Settings, RotateCw, Rocket, Hammer } from 'lucide-react'
 import { ProjectShell } from '../components/Shell'
 import { Badge, Button, CopyId, ServiceIcon, Tabs } from '../components/ui'
-import { Empty, ErrorState, Skeleton, CardSkeleton } from '../components/feedback'
+import { ConfirmDialog, Empty, ErrorState, Skeleton, CardSkeleton } from '../components/feedback'
 import AddServiceModal from '../components/AddServiceModal'
 import BackupPanel from '../components/BackupPanel'
 import { isGit } from '../api/git'
@@ -72,6 +73,7 @@ function Header({ s, onChange }: { s: Service; onChange: () => void }) {
   const [busy, wrap] = useBusy()
   const { t } = useT()
   const git = isGit(s)
+  const [restart, setRestart] = useState(false)
   const act = (a: 'restart' | 'redeploy') => wrap(() => run(() => api.action(s.id, a), { ok: a === 'restart' ? '正在重新启动' : git ? t('已开始构建最新提交', 'Building the latest commit') : '已触发重新部署', invalidate: [`deployments:${s.id}`] }).then(onChange))
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -80,7 +82,9 @@ function Header({ s, onChange }: { s: Service; onChange: () => void }) {
         <div className="flex flex-wrap items-center gap-3"><h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
       </div>
-      <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => act('restart')}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => setRestart(true)}><RotateCw size={15} />重新启动</Button><Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />重新部署</>}</Button></div>
+      {restart && <ConfirmDialog title="重新启动服务" action="重新启动" danger={false} onClose={() => setRestart(false)}
+        description={<>重启 {s.name} 的容器，期间会短暂不可访问。</>} onConfirm={() => act('restart')} />}
     </div>
   )
 }

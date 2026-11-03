@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, ServerCog } from 'lucide-react'
+import { Menu, X, Search, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
@@ -19,9 +19,9 @@ const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
 function Team() {
   const me = useMe().data
   return (
-    <button className="w-full flex items-center gap-2.5 h-11 px-2 rounded-lg hover:bg-ov/5">
-      <Avatar size={28} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span><ChevronsUpDown size={14} className="ml-auto text-muted" />
-    </button>
+    <div className="w-full flex items-center gap-2.5 h-11 px-2">
+      <Avatar size={28} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span>
+    </div>
   )
 }
 /** zh / en switch (only some screens are translated so far). */
@@ -52,14 +52,32 @@ export function ThemeToggle() {
 }
 function UserRow() {
   const me = useMe().data
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const down = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    addEventListener('mousedown', down); addEventListener('keydown', key)
+    return () => { removeEventListener('mousedown', down); removeEventListener('keydown', key) }
+  }, [open])
   const logout = async () => { await api.logout().catch(() => {}); location.hash = '#/login' }
+  const row = 'w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-[13px] font-medium text-fg2 hover:bg-ov/5 text-left'
   return (
-    <div className="flex items-center gap-2.5 px-1 group">
-      <button onClick={logout} title="退出登录" className="tile h-8 w-8 rounded-lg bg-[#fde047] grid place-items-center text-[13px] font-extrabold font-mono text-[#141414] relative">
-        <span className="group-hover:opacity-0">{(me?.username ?? 'A')[0].toUpperCase()}</span><LogOut size={14} className="absolute opacity-0 group-hover:opacity-100" />
+    <div ref={ref} className="relative flex items-center gap-2.5 px-1">
+      <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} title="账户" className="flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-ov/5 -mx-1 px-1 py-0.5">
+        <span className="tile h-8 w-8 shrink-0 rounded-lg bg-[#fde047] grid place-items-center text-[13px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>
+        <span className="min-w-0 leading-tight text-left"><span className="block text-[13px] font-medium truncate">{me?.username ?? '…'}</span><span className="block text-[11.5px] text-dim">{isDemo() ? '演示模式' : '管理员'}</span></span>
       </button>
-      <div className="min-w-0 leading-tight"><div className="text-[13px] font-medium truncate">{me?.username ?? '…'}</div><div className="text-[11.5px] text-dim">{isDemo() ? '演示模式' : '管理员'}</div></div>
       <div className="ml-auto"><ThemeToggle /></div>
+      {open && (
+        <div role="menu" className="rise surface bg-pop absolute left-0 bottom-full mb-2 w-[220px] p-1.5 z-50">
+          <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />账户与安全</Link>
+          <Link role="menuitem" to="/settings" onClick={() => setOpen(false)} className={row}><SlidersHorizontal size={15} />设置</Link>
+          <div className="h-px bg-line my-1" />
+          <button role="menuitem" onClick={logout} className={cx(row, 'text-[#ef4444]')}><LogOut size={15} />退出登录</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -143,13 +161,12 @@ export function ProjectShell({ project, active, children }: { project: Project; 
     <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{project.name}</span></>} side={<>
         <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
         <div className="px-2 mt-3">
-          <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{project.name}</h1><ChevronsUpDown size={14} className="text-muted" /></div>
+          <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{project.name}</h1></div>
           {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
             : <div className="mt-1.5 h-5 w-40 rounded bg-ov/[0.07] animate-pulse" />}
         </div>
         <div className="mt-4 flex flex-col gap-1">
           <NavLink to={`/projects/${project.id}/settings`} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium', isActive ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}><Settings size={16} />项目设置</NavLink>
-          <button className="flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium text-fg2 hover:bg-ov/5"><Bell size={16} />通知</button>
           <button onClick={add} className="flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium text-accent hover:bg-ov/5"><Plus size={16} />新建服务</button>
         </div>
         <div className="h-px bg-line my-4" />

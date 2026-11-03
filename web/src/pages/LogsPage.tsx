@@ -131,7 +131,7 @@ function Deploys({ s }: { s: Service }) {
           ))}
         </div>
       )}
-      {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} name={s.name} onClose={() => setTarget(undefined)}
+      {target && <ConfirmDialog title="回滚部署" action="确认回滚" danger={false} onClose={() => setTarget(undefined)}
         description={<>将用 {dateTime(target.started_at)} 的镜像摘要重新部署 {s.name}。</>}
         onConfirm={() => run(() => api.rollback(s.id, target.id), { ok: '正在回滚', invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] })} />}
       {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}

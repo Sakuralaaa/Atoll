@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, MoreVertical, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
+import { ArrowUpDown, LayoutGrid, List, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, ProviderIcon, Segment, Ticks } from '../components/ui'
 import { CardSkeleton, CodeBlock, CopyButton, Empty, ErrorState, Modal } from '../components/feedback'
@@ -65,7 +65,6 @@ export default function Servers() {
                         <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : '离线'}</span>
                       </div>
                     </div>
-                    <MoreVertical size={16} className="text-dim" />
                   </div>
                   <div className="mt-6 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
                     <div><div className="text-muted">IP 地址</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>

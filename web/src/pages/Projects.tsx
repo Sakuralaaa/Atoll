@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, MoreVertical, Package, Plus } from 'lucide-react'
+import { ArrowUpDown, LayoutGrid, List, Package, Plus } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
@@ -54,7 +54,6 @@ export default function Projects() {
                       <div className="text-[15px] font-semibold truncate">{p.name}</div>
                       <div className="text-[12px] text-muted truncate mt-0.5">{dom ?? (ss.length ? '仅内网访问' : '空项目')}</div>
                     </div>
-                    <MoreVertical size={15} className="text-dim opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <div className="mt-5 flex items-center gap-1.5 h-[22px] overflow-hidden">
                     {ss.map(s => <span key={s.id} title={s.name}><ServiceIcon s={svcIcon(s)} size={22} /></span>)}

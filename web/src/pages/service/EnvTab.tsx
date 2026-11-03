@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { KeyRound, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Copy, Share2 } from 'lucide-react'
 import { Button, Card } from '../../components/ui'
-import { ConfirmDialog, Empty, ErrorState, Label, Modal, RowsSkeleton, TextInput, Toggle } from '../../components/feedback'
+import { Empty, ErrorState, Label, Modal, RowsSkeleton, TextInput, Toggle } from '../../components/feedback'
 import { api } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
 import type { EnvVar, Service } from '../../api/types'
 import { cx } from '../../components/ui-utils'
+import { toast } from '../../components/toast'
 
 // ---------------- env ----------------
 export function EnvTab({ s }: { s: Service }) {
@@ -14,12 +15,26 @@ export function EnvTab({ s }: { s: Service }) {
   const refs = useQuery(`env-refs:${s.id}`, () => api.envRefs(s.id))
   const [edit, setEdit] = useState<{ i: number; v: EnvVar } | null>(null)
   const [raw, setRaw] = useState(false)
-  const [del, setDel] = useState<EnvVar>()
+  // Deleting a variable is undoable: the row hides at once and the save (which redeploys)
+  // waits a few seconds, so a misclick costs nothing. Any other save carries the delete along.
+  const [hidden, setHidden] = useState<string>()
+  const timer = useRef<{ id: number; flush: () => void }>(undefined)
+  const cancelPending = () => { if (timer.current) { clearTimeout(timer.current.id); timer.current = undefined } }
+  useEffect(() => () => { const t = timer.current; if (t) { clearTimeout(t.id); t.flush() } }, [])
   const save = async (vars: EnvVar[]) => {
+    cancelPending()
     const r = await run(() => api.putEnv(s.id, vars), { ok: s.status === 'stopped' ? '已保存，下次启动时生效' : '已保存，正在重新部署', invalidate: [`env:${s.id}`, `deployments:${s.id}`] })
     return !!r
   }
-  const rows = q.data ?? []
+  const rows = (q.data ?? []).filter(x => x.key !== hidden)
+  const remove = (v: EnvVar) => {
+    cancelPending()
+    const next = rows.filter(x => x.key !== v.key)
+    setHidden(v.key)
+    const flush = () => { timer.current = undefined; void save(next).finally(() => setHidden(undefined)) }
+    timer.current = { id: window.setTimeout(flush, 6000), flush }
+    toast(`已删除 ${v.key}`, 'info', { label: '撤销', run: () => { cancelPending(); setHidden(undefined) } }, 6000)
+  }
   const byService = (refs.data ?? []).reduce<Record<string, EnvVar[]>>((a, v) => { (a[v.service ?? '同项目服务'] ??= []).push(v); return a }, {})
   return (
     <>
@@ -36,7 +51,7 @@ export function EnvTab({ s }: { s: Service }) {
               <span className="flex items-center justify-end gap-3 text-dim group-hover:text-muted transition-colors @max-3xl:row-start-1 @max-3xl:col-start-2">
                 {v.exposed && <span title="同项目其他服务可引用" className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Share2 size={11} />暴露</span>}
                 {v.secret && <span className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Lock size={11} />私有</span>}
-                <button title="编辑" onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title="删除" onClick={() => setDel(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                <button title="编辑" onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title="删除" onClick={() => remove(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>
               </span>
             </div>
           ))}
@@ -62,7 +77,6 @@ export function EnvTab({ s }: { s: Service }) {
         return save(next)
       }} />}
       {raw && <RawEnv rows={rows} onClose={() => setRaw(false)} onSave={save} />}
-      {del && <ConfirmDialog title="删除环境变量" name={del.key} onClose={() => setDel(undefined)} description={<>删除 <span className="font-mono">{del.key}</span>，重新部署后生效。</>} onConfirm={() => save(rows.filter(x => x.key !== del.key))} />}
     </>
   )
 }

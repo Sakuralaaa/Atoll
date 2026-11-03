@@ -187,7 +187,7 @@ function WebhookSection({ s }: { s: Service }) {
           </div>
         </div>
       )}
-      {rot && <ConfirmDialog title={t('轮换 Webhook 密钥', 'Rotate webhook secret')} action={t('确认轮换', 'Rotate')} danger={false} name={s.name} onClose={() => setRot(false)}
+      {rot && <ConfirmDialog title={t('轮换 Webhook 密钥', 'Rotate webhook secret')} action={t('确认轮换', 'Rotate')} danger={false} onClose={() => setRot(false)}
         description={t('旧密钥立即失效，在 GitHub 上更新为新密钥之前，推送不会触发构建。', 'The old secret stops working at once; pushes will not build until you update the secret on GitHub.')}
         onConfirm={async () => { const r = await run(() => gitApi.rotate(s.id), { ok: t('已生成新密钥，请更新到 GitHub', 'New secret issued, update it on GitHub') }); if (r) { q.set(r); setShow(true); invalidate(`webhook:${s.id}`) } }} />}
       {setup && wh && <Modal title={<><Webhook size={17} />{t('配置 GitHub Webhook', 'Set up the GitHub webhook')}</>} width={620} onClose={() => setSetup(false)}>

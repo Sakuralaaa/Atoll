@@ -14,6 +14,7 @@ export function Toaster() {
           t.tone === 'error' && '!bg-[#fca5a5] text-[#141414]', t.tone === 'ok' && '!bg-[#86efac] text-[#141414]')}>
           {t.tone === 'error' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : t.tone === 'ok' ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <Info size={16} className="mt-0.5 shrink-0 text-accent" />}
           <span className="flex-1 min-w-0 [overflow-wrap:anywhere]">{t.msg}</span>
+          {t.action && <button onClick={() => { dismissToast(t.id); t.action?.run() }} className="shrink-0 underline underline-offset-2 font-bold hover:opacity-80">{t.action.label}</button>}
           <button onClick={() => dismissToast(t.id)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
         </div>
       ))}
@@ -38,21 +39,24 @@ export function Modal({ title, onClose, children, width = 560, footer }: { title
   )
 }
 
-/** Destructive confirm: the user must type `name` exactly. */
+/** Confirm dialog. With `name`, the user must type it exactly (reserved for deleting a service,
+ *  project, server or other hard-to-undo actions); without it, it is a plain confirm. */
 export function ConfirmDialog({ title, description, name, action = '确认删除', danger = true, onConfirm, onClose, children }: {
-  title: string; description: React.ReactNode; name: string; action?: string; danger?: boolean
+  title: string; description: React.ReactNode; name?: string; action?: string; danger?: boolean
   onConfirm: () => Promise<unknown> | void; onClose: () => void; children?: React.ReactNode
 }) {
   const [v, setV] = useState(''); const [busy, setBusy] = useState(false)
-  const ok = v === name && !busy
+  const ok = (name === undefined || v === name) && !busy
   const go = async () => { if (!ok) return; setBusy(true); try { await onConfirm(); onClose() } finally { setBusy(false) } }
   return (
     <Modal title={<><AlertTriangle size={17} className={danger ? 'text-[#ef4444]' : 'text-accent'} />{title}</>} onClose={onClose}
-      footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
+      footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} autoFocus={name === undefined} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
       <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">{description}</div>
       {children}
-      <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span className="font-mono font-bold text-fg">{name}</span> 以确认</div>
-      <input autoFocus value={v} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
+      {name !== undefined && <>
+        <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span className="font-mono font-bold text-fg">{name}</span> 以确认</div>
+        <input autoFocus value={v} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
+      </>}
     </Modal>
   )
 }

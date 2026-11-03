@@ -50,6 +50,7 @@ export function Card({ children, className }: { children: React.ReactNode; class
 }
 
 export function Tabs({ items, value, onChange, className }: { items: { k: string; l: string; icon?: React.ReactNode }[]; value: string; onChange: (k: string) => void; className?: string }) {
+  if (items.length < 2) return null // one tab switches nothing
   return (
     <div className={cx('flex flex-wrap gap-2 pb-4 border-b-2 border-dashed border-line', className)}>
       {items.map(t => (

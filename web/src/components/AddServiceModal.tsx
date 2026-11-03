@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Search, Box, Database, LayoutTemplate, FileCode2, ChevronRight, X, ArrowLeft, Loader2, Webhook } from 'lucide-react'
+import { Search, Box, Database, ChevronRight, X, ArrowLeft, Loader2, Webhook } from 'lucide-react'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import type { GitSource, Service } from '../api/types'
 import { autoName, emptyGitForm, gitBody, gitFormError, type GitForm } from '../api/git'
 import { GitFields, SourceToggle, WebhookSetup, type SourceKind } from './GitSource'
-import { Badge, Button, ServiceIcon } from './ui'
+import { Button, ServiceIcon } from './ui'
 import { Label, Select, TextInput } from './feedback'
 import { useT } from '../i18n'
 import { cx } from './ui-utils'
 
 type Step = 'pick' | 'image' | 'db'
-const items: { k: Step | 'soon'; i: React.ReactNode; t: string; d: string }[] = [
+const items: { k: Step; i: React.ReactNode; t: string; d: string }[] = [
   { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: 'Docker 容器镜像 / GitHub 仓库', d: '从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建' },
   { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: '数据库', d: 'PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量' },
-  { k: 'soon', i: <LayoutTemplate size={20} className="text-accent" />, t: '模板', d: '一键部署常用开源应用' },
-  { k: 'soon', i: <FileCode2 size={20} className="text-[#34d399]" />, t: 'Docker Compose', d: '粘贴 compose 文件，拆成多个服务' },
 ]
 
 export default function AddServiceModal({ projectId, onClose, onCreated }: { projectId: string; onClose: () => void; onCreated?: (s: Service) => void }) {
@@ -29,7 +27,7 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
       if (step !== 'pick') return
       if (e.key === 'ArrowDown') setSel(v => Math.min(list.length - 1, v + 1))
       if (e.key === 'ArrowUp') setSel(v => Math.max(0, v - 1))
-      if (e.key === 'Enter' && list[sel] && list[sel].k !== 'soon') setStep(list[sel].k as Step)
+      if (e.key === 'Enter' && list[sel]) setStep(list[sel].k)
     }
     addEventListener('keydown', k); return () => removeEventListener('keydown', k)
   }, [step, sel, list, onClose])
@@ -50,9 +48,9 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
         {step === 'pick' && <>
           <div className="p-2">
             {list.map((x, idx) => (
-              <button key={x.t} onMouseEnter={() => setSel(idx)} onClick={() => x.k !== 'soon' && setStep(x.k as Step)} className={cx('w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl', idx === sel ? 'bg-ov/[0.06]' : 'hover:bg-ov/[0.04]', x.k === 'soon' && 'cursor-default')}>
+              <button key={x.t} onMouseEnter={() => setSel(idx)} onClick={() => setStep(x.k)} className={cx('w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl', idx === sel ? 'bg-ov/[0.06]' : 'hover:bg-ov/[0.04]')}>
                 <div className="h-10 w-10 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center">{x.i}</div>
-                <div className="flex-1"><div className="text-[14px] font-semibold flex items-center gap-2">{x.t}{x.k === 'soon' && <Badge tone="zinc">即将推出</Badge>}</div><div className="text-[13px] text-muted mt-0.5">{x.d}</div></div>
+                <div className="flex-1"><div className="text-[14px] font-semibold flex items-center gap-2">{x.t}</div><div className="text-[13px] text-muted mt-0.5">{x.d}</div></div>
                 <ChevronRight size={17} className="text-dim" />
               </button>
             ))}
