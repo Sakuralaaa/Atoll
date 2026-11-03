@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import { api } from '../api/client'
-import { invalidate } from '../api/hooks'
+import { invalidate, useQuery } from '../api/hooks'
 import { agentOutdated } from '../api/view'
 import type { AgentUpgradeRow, Server } from '../api/types'
 import { Badge, Button } from './ui'
@@ -9,8 +9,6 @@ import { CodeBlock, CopyButton, Modal } from './feedback'
 import { useT } from '../i18n'
 import { toast } from './toast'
 
-const installCmd = () =>
-  `curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server ${location.origin}`
 
 /** Status of the last upgrade, or "can upgrade" when outdated. */
 export function AgentUpgradeBadge({ s }: { s: Server }) {
@@ -47,13 +45,15 @@ export function AgentUpgradeAction({ s }: { s: Server }) {
 
 function ManualUpgrade({ names, onClose }: { names: string[]; onClose: () => void }) {
   const { t } = useT()
-  const cmd = installCmd()
+  // built by the server: its own script and version, with the hosted binaries' SHA-256 pinned
+  const q = useQuery('servers:install-command', api.agentInstallCommand)
+  const cmd = q.data?.command ?? ''
   return (
     <Modal title={t('这些 Agent 需要手动升级一次', 'These agents need one manual upgrade')} width={680} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{t('知道了', 'OK')}</Button>}>
       <div className="text-[13.5px] text-fg2 leading-6">{t('v0.1.6 之前的 Agent 不支持在面板里升级。在下面这些服务器上以 root 运行一次这条命令，之后就能在面板里一键升级。已加入的服务器不需要 token，容器不会重建。', 'Agents before v0.1.6 cannot upgrade from the panel. Run this once as root on each server below; after that, upgrades work from the panel. Joined servers need no token and containers are not recreated.')}</div>
       <div className="mt-3 text-[13px] font-semibold [overflow-wrap:anywhere]">{names.join('、')}</div>
-      <div className="mt-3 [&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{cmd}</CodeBlock></div>
-      <div className="mt-3 flex justify-end"><CopyButton text={cmd} label={t('复制命令', 'Copy')} /></div>
+      <div className="mt-3 [&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{cmd || (q.error ? q.error.message : t('正在生成命令…', 'Building the command…'))}</CodeBlock></div>
+      {cmd && <div className="mt-3 flex justify-end"><CopyButton text={cmd} label={t('复制命令', 'Copy')} /></div>}
     </Modal>
   )
 }

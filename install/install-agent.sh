@@ -43,6 +43,9 @@ BIN=${ATOLL_AGENT_BIN:-/usr/local/bin/atoll-agent}
 CONFIG=${ATOLL_AGENT_CONFIG:-/etc/atoll/agent.json}
 UNIT=${ATOLL_AGENT_UNIT:-/etc/systemd/system/atoll-agent.service}
 GITHUB_RELEASE=https://github.com/Sakuralaaa/Atoll/releases/latest/download
+# release tag of the GitHub fallback download ("latest" = newest release); the panel pins it
+# to the control server's own version so a fresh node never runs a newer agent than its server
+VERSION=latest
 # seconds to wait for the control server's tailnet URL after `tailscale up`
 PING_WAIT=${ATOLL_PING_WAIT:-60}
 
@@ -67,6 +70,8 @@ usage: install-agent.sh --server URL --token atl_join_... [options]
   --sha256-amd64 HEX          expected SHA-256 of the server-hosted amd64 binary
   --sha256-arm64 HEX          expected SHA-256 of the server-hosted arm64 binary
                               (the panel's "add server" command fills both in)
+  --version TAG               release to download when the control server hosts no agent
+                              binary (default: latest; the panel pins its own version)
 
 When the control server has the Tailscale network provider enabled, the node joins the
 tailnet automatically and talks to the control server over it (--server stays the fallback).
@@ -142,6 +147,15 @@ parse_args() {
 			;;
 		--binary=*)
 			LOCAL_BINARY=${1#*=}
+			shift
+			;;
+		--version)
+			need_arg "$@"
+			VERSION=$2
+			shift 2
+			;;
+		--version=*)
+			VERSION=${1#*=}
 			shift
 			;;
 		-h | --help) usage ;;
@@ -533,9 +547,13 @@ install_binary() {
 			ver=$("$out" version 2>/dev/null) || ver=""
 		fi
 		if [ -z "$ver" ]; then
-			warn "$SERVER/downloads/$name unavailable; using the latest GitHub release"
-			fetch "$GITHUB_RELEASE/$name" "$out" || die "could not download $name"
-			verify_release_file "$GITHUB_RELEASE" "$name" "$out"
+			rel=$GITHUB_RELEASE
+			if [ "$VERSION" != latest ]; then
+				rel="https://github.com/Sakuralaaa/Atoll/releases/download/$VERSION"
+			fi
+			warn "$SERVER/downloads/$name unavailable; using GitHub release $VERSION"
+			fetch "$rel/$name" "$out" || die "could not download $name ($VERSION)"
+			verify_release_file "$rel" "$name" "$out"
 			chmod 0755 "$out"
 			ver=$("$out" version 2>/dev/null) || die "downloaded atoll-agent does not run on this host ($ARCH)"
 		fi

@@ -326,12 +326,13 @@ function route(method: string, path: string, body: any): unknown {
   if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }
 
   if (G && m('servers')) return servers
+  if (G && m('servers/agent-install-command')) return { command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --sha256-amd64 3f9a…c21e --sha256-arm64 8b04…77d0 --version ${servers[0]?.agent_latest ?? 'v0.1.7'}`, version: servers[0]?.agent_latest ?? 'v0.1.7' }
   if (P && m('servers/agent-upgrade')) {
     const ids: string[] = body?.ids?.length ? body.ids : servers.filter(s => s.status === 'online' && s.agent_version !== s.agent_latest).map(s => s.id)
     return ids.map(id => { try { return { id, upgrade: demoAgentUpgrade(id) } } catch (e) { return { id, code: 'agent_too_old', error: (e as Error).message } } })
   }
   if (P && (a = m('servers/*/agent-upgrade'))) return demoAgentUpgrade(a[0])
-  if (P && m('servers/join-token')) return { token: 'atl_join_7Hq2xV9mK4pR', command: `curl -fsSL ${settings.public_url}/install.sh | sudo sh -s -- --server ${settings.public_url} --join atl_join_7Hq2xV9mK4pR`, expires_at: new Date(now + H).toISOString() }
+  if (P && m('servers/join-token')) return { token: 'atl_join_7Hq2xV9mK4pR', command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --token atl_join_7Hq2xV9mK4pR`, expires_at: new Date(now + H).toISOString() }
   if ((a = m('servers/*/metrics'))) {
     const s = servers.find(x => x.id === a![0])!; const u = s.usage!
     const c = metrics(1, u.cpu_pct, u.cpu_pct * 0.4, q.get('range') ?? '24h'), mm = metrics(2, u.mem_used_mb, u.mem_total_mb * 0.04, q.get('range') ?? '24h'), dd = metrics(3, u.disk_used_gb, u.disk_total_gb * 0.006, q.get('range') ?? '24h')

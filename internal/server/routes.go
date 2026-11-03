@@ -26,6 +26,8 @@ func (s *Server) Handler() http.Handler {
 	// health & downloads
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /downloads/{file}", s.handleDownload)
+	mux.HandleFunc("GET /install-agent.sh", agentScript)
+	mux.HandleFunc("GET /install-server.sh", serverScript)
 
 	// auth
 	open("GET "+v+"/auth/status", s.handleAuthStatus)
@@ -47,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	// servers
 	a("GET "+v+"/servers", needReadGlobal, s.handleListServers)
 	a("POST "+v+"/servers/join-token", needServers, s.handleJoinToken)
+	a("GET "+v+"/servers/agent-install-command", needReadGlobal, s.handleAgentInstallCommand)
 	a("GET "+v+"/servers/{id}", needReadGlobal, s.handleGetServer)
 	a("POST "+v+"/servers/agent-upgrade", needServers, s.handleAgentUpgradeBatch)
 	a("POST "+v+"/servers/{id}/agent-upgrade", needServers, s.handleAgentUpgrade)
@@ -161,6 +164,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /agent/v1/connect", s.handleAgentConnect)
 	open("PUT /agent/v1/blobs/{token}", s.handleBlobPut)
 	open("GET /agent/v1/blobs/{token}", s.handleBlobGet)
+
+	// unknown API and agent paths are JSON 404s, never the panel's HTML
+	notFound := func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 404, map[string]string{"error": "not found", "code": "not_found"})
+	}
+	mux.HandleFunc("/api/", notFound)
+	mux.HandleFunc("/agent/", notFound)
 
 	// web UI (SPA)
 	mux.Handle("/", spaHandler(webui.FS()))
@@ -284,7 +294,10 @@ func spaHandler(fsys fs.FS) http.Handler {
 				files.ServeHTTP(w, r)
 				return
 			}
-			if path.Ext(p) != "" && strings.HasPrefix(p, "assets/") {
+			// The panel routes by URL hash, so any other path that names a file (a script,
+			// a binary, an old asset) is a real 404: answering it with index.html and 200
+			// would let `curl …/x.sh | sh` run HTML.
+			if path.Ext(p) != "" || strings.HasPrefix(p, "assets/") {
 				http.NotFound(w, r)
 				return
 			}

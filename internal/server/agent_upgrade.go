@@ -120,9 +120,8 @@ func (s *Server) startAgentUpgrade(ctx context.Context, nodeID, actor string) (*
 		return nil, errf(409, "up_to_date", "%s already runs %s", n.Name, Version)
 	}
 	if !c.selfUpgrade {
-		return nil, errf(409, "agent_too_old", "the agent on %s (%s) cannot upgrade itself; run once on that server: "+
-			"curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server %s",
-			n.Name, n.AgentVersion, s.publicURL(ctx, nil))
+		return nil, errf(409, "agent_too_old", "the agent on %s (%s) cannot upgrade itself; run once on that server: %s",
+			n.Name, n.AgentVersion, s.agentInstallCommand(s.publicURL(ctx, nil)))
 	}
 	sum := s.hostedAgentSum(n.Arch)
 	if sum == "" {

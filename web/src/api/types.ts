@@ -42,6 +42,7 @@ export interface NodeNetwork {
 }
 
 export interface JoinToken { token: string; command: string; expires_at: string }
+export interface InstallCommand { command: string; version: string }
 
 export interface Port { name: string; container_port: number; protocol: 'http' | 'tcp' | 'udp' | string; public_port?: number }
 export interface Volume { name: string; mount_path: string }

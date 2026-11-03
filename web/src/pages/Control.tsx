@@ -19,7 +19,7 @@ import type { ControlStatus, UpdateResult } from '../api/types'
 import { RangePicker } from './ServerDetail'
 import { BackupsTab } from '../components/ControlBackups'
 import { AuditTab, LogsTab, MigrateTab } from '../components/ControlTabs'
-import { cx } from '../components/ui-utils'
+import { cx, installServerURL } from '../components/ui-utils'
 import { toast } from '../components/toast'
 import { useReauth } from '../components/useReauth'
 
@@ -212,7 +212,7 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
         </div>
         {!s.self_update_supported && <div className="mt-5">
           <div className="text-[13px] text-fg2 mb-2 leading-6">atoll-server 不是以 systemd 服务运行，无法在面板里自更新。请在中控主机上用安装脚本升级：</div>
-          <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{`curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh | sudo sh -s -- --version ${rel?.tag ?? 'vX.Y.Z'}`}</CodeBlock></div>
+          <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{`curl -fsSL ${installServerURL(rel?.tag ?? 'main')} | sudo sh -s -- --version ${rel?.tag ?? 'vX.Y.Z'}`}</CodeBlock></div>
         </div>}
       </Card>
       <Card className="p-5 flex gap-3 items-start">

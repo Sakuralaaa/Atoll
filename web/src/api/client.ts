@@ -1,6 +1,6 @@
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
+  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume,
 } from './types'
 
 export const API = '/api/v1'
@@ -95,6 +95,7 @@ export const api = {
   updateServer: (id: string, b: Partial<Pick<Server, 'name' | 'provider' | 'region'>>) => patch<Server>(`/servers/${e(id)}`, b),
   deleteServer: (id: string) => del<Confirmation | void>(`/servers/${e(id)}`),
   joinToken: () => post<JoinToken>('/servers/join-token'),
+  agentInstallCommand: () => get<InstallCommand>('/servers/agent-install-command'),
   /** start an agent upgrade to the control server's version (202; the outcome shows on the server) */
   upgradeAgent: (id: string) => request<AgentUpgrade>('POST', `/servers/${e(id)}/agent-upgrade`, {}),
   /** several servers at once; no ids = every online server whose agent is on another version */

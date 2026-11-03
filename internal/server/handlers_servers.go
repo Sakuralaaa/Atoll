@@ -125,14 +125,9 @@ func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	base := s.publicURL(r.Context(), r)
-	cmd := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server %s --token %s", base, tok)
-	// pin the agent binaries this server hosts: the script refuses a /downloads/ file that
+	// pins the agent binaries this server hosts: the script refuses a /downloads/ file that
 	// does not match, even when --server is plain http
-	for _, arch := range []string{"amd64", "arm64"} {
-		if sum := s.hostedAgentSum(arch); sum != "" {
-			cmd += fmt.Sprintf(" --sha256-%s %s", arch, sum)
-		}
-	}
+	cmd := s.agentInstallCommand(base, "--token "+tok)
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "server.join_token", "", nil)
 	writeJSON(w, 201, api.JoinToken{Token: tok, Command: cmd, ExpiresAt: exp})
 	return nil

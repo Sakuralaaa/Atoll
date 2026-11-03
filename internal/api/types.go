@@ -44,6 +44,12 @@ type JoinToken struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// InstallCommand is the agent install/upgrade one-liner for an already-joined server.
+type InstallCommand struct {
+	Command string `json:"command"`
+	Version string `json:"version"` // the control server's version the command installs
+}
+
 type Project struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`

@@ -8,7 +8,7 @@ import { controlApi, domainOf } from '../api/control'
 import { useQuery } from '../api/hooks'
 import { ago, dateTime } from '../api/view'
 import type { AuditEntry, ControlStatus } from '../api/types'
-import { cx } from './ui-utils'
+import { cx, installServerURL } from './ui-utils'
 
 // ---------- 日志 ----------
 const SINCE = [{ k: '15m', l: '最近 15 分钟' }, { k: '1h', l: '最近 1 小时' }, { k: '6h', l: '最近 6 小时' }, { k: '24h', l: '最近 24 小时' }, { k: '', l: '不限时间' }]
@@ -137,7 +137,6 @@ export function AuditTab() {
 }
 
 // ---------- 迁移 ----------
-const INSTALL = 'https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-server.sh'
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -156,6 +155,9 @@ export function MigrateTab({ s }: { s: ControlStatus }) {
   const dom = domainOf(s.public_url)
   const data = s.data_dir || '/var/lib/atoll'
   const ts = s.tailnet ? ' \\\n      --tailscale-authkey tskey-auth-...' : ''
+  const tagged = /^v\d+\.\d+\.\d+/.test(s.version)
+  const INSTALL = installServerURL(s.version)
+  const ver = tagged ? ` --version ${s.version}` : ''
   return (
     <div className="max-w-[920px]">
       <h2 className="text-[18px] font-semibold tracking-tight">把中控迁移到另一台机器</h2>
@@ -171,7 +173,7 @@ export function MigrateTab({ s }: { s: ControlStatus }) {
           <Cmd>{`scp /root/atoll-control.atollbak /root/pass root@<新机器 IP>:/root/`}</Cmd>
         </Step>
         <Step n={2} title="在新 VPS 上安装并恢复">
-          <Cmd>{`curl -fsSL ${INSTALL} \\\n  | sudo sh -s -- --restore /root/atoll-control.atollbak --restore-passphrase-file /root/pass \\\n      --adopt-public-ip${ts}`}</Cmd>
+          <Cmd>{`curl -fsSL ${INSTALL} \\\n  | sudo sh -s -- --restore /root/atoll-control.atollbak --restore-passphrase-file /root/pass \\\n      --adopt-public-ip${ver}${ts}`}</Cmd>
           <p>安装脚本会在第一次启动前把备份恢复到数据目录，合并备份里的 <span className="font-mono">server.env</span>，公网地址是域名时自动装 Caddy 并签证书，然后启动。</p>
           <ul className="list-disc pl-5 space-y-1.5 text-[12.5px] text-muted">
             <li><span className="font-mono text-fg2">--adopt-public-ip</span>：新中控第一次启动时把 {dom ? <b className="font-mono">{dom}</b> : '面板域名'} 的 A 记录改成本机公网 IPv4（保留代理开关）。不想自动改 DNS 就去掉，第 3 步手动改。</li>
