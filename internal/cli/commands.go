@@ -21,11 +21,13 @@ func ctxOf(cmd *cobra.Command) context.Context {
 // ---------- login ----------
 
 func newLoginCmd(app *App) *cobra.Command {
-	var url, token string
+	var url, token, name string
 	cmd := &cobra.Command{
-		Use:   "login --url URL --token TOKEN",
+		Use:   "login --url URL --token TOKEN [--name NAME]",
 		Short: "Store the panel URL and an API token (verified with /auth/me)",
-		Args:  cobra.NoArgs,
+		Long: "Saves the login as a named panel and makes it current. Without --name it replaces the\n" +
+			"current panel (\"default\" on first login). Switch panels with `atoll context use NAME`.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if url == "" {
 				url = app.URL
@@ -44,14 +46,26 @@ func newLoginCmd(app *App) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("could not verify the token: %w", err)
 			}
-			p, err := SaveConfig(app.ConfigPath, Config{URL: strings.TrimRight(url, "/"), Token: token, User: me.Name()})
+			cfg, err := LoadConfig(app.ConfigPath)
+			if err != nil {
+				return err
+			}
+			cfg.normalize()
+			if name == "" {
+				name = cfg.Current
+			}
+			if name == "" {
+				name = defaultPanel
+			}
+			cfg.Put(name, Panel{URL: strings.TrimRight(url, "/"), Token: token, User: me.Name()})
+			p, err := SaveConfig(app.ConfigPath, cfg)
 			if err != nil {
 				return err
 			}
 			if app.JSON {
-				return app.printJSON(map[string]any{"url": url, "user": me.Name(), "config": p, "permissions": me.Permissions(), "projects": me.Projects(), "require_approval": me.RequireApproval()})
+				return app.printJSON(map[string]any{"url": url, "user": me.Name(), "panel": name, "config": p, "permissions": me.Permissions(), "projects": me.Projects(), "require_approval": me.RequireApproval()})
 			}
-			fmt.Fprintf(app.Out, "Logged in to %s as %s (saved to %s)\n", url, me.Name(), p)
+			fmt.Fprintf(app.Out, "Logged in to %s as %s (panel %q, saved to %s)\n", url, me.Name(), name, p)
 			fmt.Fprintf(app.Out, "Token permissions: %s\n", strings.Join(me.Permissions(), ", "))
 			if pr := me.Projects(); len(pr) > 0 {
 				fmt.Fprintf(app.Out, "Limited to projects: %s\n", strings.Join(pr, ", "))
@@ -64,6 +78,7 @@ func newLoginCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&url, "url", "", "panel URL, e.g. https://atoll.example.com")
 	cmd.Flags().StringVar(&token, "token", "", "API token (atl_pat_...)")
+	cmd.Flags().StringVar(&name, "name", "", "save as this panel name (see `atoll context`)")
 	return cmd
 }
 

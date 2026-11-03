@@ -8,10 +8,77 @@ import (
 )
 
 // Config is ~/.config/atoll/config.json (mode 0600).
+//
+// URL/Token/User are the current panel. Panels holds every named panel (`atoll context`);
+// the top-level fields always mirror Panels[Current], so older CLIs keep working.
 type Config struct {
+	URL     string           `json:"url"`
+	Token   string           `json:"token"`
+	User    string           `json:"user,omitempty"`
+	Current string           `json:"current,omitempty"`
+	Panels  map[string]Panel `json:"panels,omitempty"`
+}
+
+// Panel is one saved panel login.
+type Panel struct {
 	URL   string `json:"url"`
 	Token string `json:"token"`
 	User  string `json:"user,omitempty"`
+}
+
+// defaultPanel names a login saved before contexts existed, or with no --name.
+const defaultPanel = "default"
+
+// normalize turns a pre-context config (only top-level fields) into one named panel.
+func (c *Config) normalize() {
+	if c.Panels == nil {
+		c.Panels = map[string]Panel{}
+	}
+	if len(c.Panels) == 0 && c.URL != "" {
+		c.Panels[defaultPanel] = Panel{URL: c.URL, Token: c.Token, User: c.User}
+		c.Current = defaultPanel
+	}
+}
+
+// Put saves a panel under name and makes it current.
+func (c *Config) Put(name string, p Panel) {
+	c.normalize()
+	c.Panels[name] = p
+	c.Use(name)
+}
+
+// Use makes name current; it must exist.
+func (c *Config) Use(name string) bool {
+	c.normalize()
+	p, ok := c.Panels[name]
+	if !ok {
+		return false
+	}
+	c.Current, c.URL, c.Token, c.User = name, p.URL, p.Token, p.User
+	return true
+}
+
+// Remove deletes a panel. Removing the current one clears the top-level login.
+func (c *Config) Remove(name string) bool {
+	c.normalize()
+	if _, ok := c.Panels[name]; !ok {
+		return false
+	}
+	delete(c.Panels, name)
+	if c.Current == name {
+		c.Current, c.URL, c.Token, c.User = "", "", "", ""
+	}
+	return true
+}
+
+// Panel returns the login for name, or the current one for "".
+func (c Config) Panel(name string) (Panel, bool) {
+	if name == "" {
+		return Panel{URL: c.URL, Token: c.Token, User: c.User}, c.URL != ""
+	}
+	c.normalize()
+	p, ok := c.Panels[name]
+	return p, ok
 }
 
 // ConfigPath resolves the config file: explicit path, $ATOLL_CONFIG, $XDG_CONFIG_HOME/atoll,

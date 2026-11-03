@@ -30,6 +30,7 @@ type App struct {
 	URL         string
 	Token       string
 	ConfigPath  string
+	Panel       string // --panel / $ATOLL_PANEL: a saved panel from `atoll context`
 	Wait        bool
 	WaitTimeout time.Duration
 
@@ -86,6 +87,7 @@ func NewRoot(app *App) *cobra.Command {
 	pf.StringVar(&app.URL, "url", "", "Atoll panel URL (default from config / $ATOLL_URL)")
 	pf.StringVar(&app.Token, "token", "", "API token (default from config / $ATOLL_TOKEN)")
 	pf.StringVar(&app.ConfigPath, "config", "", "config file (default ~/.config/atoll/config.json)")
+	pf.StringVar(&app.Panel, "panel", "", "use this saved panel (see `atoll context`) instead of the current one (default $ATOLL_PANEL)")
 	pf.BoolVar(&app.Wait, "wait", false, "for a token created with --require-approval: wait until the action is approved in the panel")
 	pf.DurationVar(&app.WaitTimeout, "wait-timeout", 15*time.Minute, "how long --wait waits")
 	pf.BoolVar(&app.WaitReady, "wait-ready", false, "deploy, redeploy, rollback, start, restart, env set/unset: wait until the service is running; exit 4 with the reason (and the build log tail) when the deployment fails")
@@ -100,8 +102,9 @@ func NewRoot(app *App) *cobra.Command {
 		newActionCmd(app, "redeploy", "Redeploy a service (pull image again, or build the branch head of a git service; recreate container)"),
 		newRollbackCmd(app), newDomainCmd(app), newMigrateCmd(app), newExecCmd(app),
 		newMCPCmd(app), newZeaburCmd(app), newImportCmd(app),
-		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app), newControlCmd(app), newStatusCmd(app),
+		newUpdatesCmd(app), newBackupCmd(app), newTokenCmd(app), newTemplatesCmd(app), newControlCmd(app), newStatusCmd(app), newContextCmd(app),
 	)
+	addCompletions(app, root)
 	return root
 }
 
@@ -123,7 +126,15 @@ func newVersionCmd(app *App) *cobra.Command {
 // client returns an authenticated client from flags, env and config.
 func (app *App) client() (*client.Client, error) {
 	cfg, _ := LoadConfig(app.ConfigPath)
-	url, token := cfg.URL, cfg.Token
+	name := app.Panel
+	if name == "" {
+		name = os.Getenv("ATOLL_PANEL")
+	}
+	p, ok := cfg.Panel(name)
+	if name != "" && !ok {
+		return nil, fmt.Errorf("no saved panel %q: see `atoll context ls`", name)
+	}
+	url, token := p.URL, p.Token
 	if v := os.Getenv("ATOLL_URL"); v != "" {
 		url = v
 	}
