@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/domains", lvlRead, s.handleListDomains)
 	a("POST "+v+"/services/{id}/domains", needDomains, s.handleAddDomain)
 	a("GET "+v+"/services/{id}/deployments", lvlRead, s.handleListDeployments)
+	a("GET "+v+"/services/{id}/deployments/{dep}", lvlRead, s.handleGetDeployment)
 	a("GET "+v+"/services/{id}/deployments/{dep}/logs", lvlRead, s.handleDeploymentLogs)
 	a("GET "+v+"/services/{id}/webhook", lvlRead, s.handleGetWebhook)
 	a("POST "+v+"/services/{id}/webhook/rotate", lvlSession, s.handleRotateWebhook)
