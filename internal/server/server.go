@@ -73,9 +73,12 @@ type Config struct {
 	// at this host's public IPv4 on start (--adopt-public-ip). PublicIP overrides detection.
 	AdoptPublicIP bool
 	// Problems & notifications (problems.go, notify.go)
-	ProblemsTick     time.Duration // how often conditions are evaluated (30s)
-	TelegramAPI      string        // default https://api.telegram.org (tests)
-	NotifyHTTP       *http.Client  // client for webhooks and Telegram (default 15s timeout)
+	ProblemsTick time.Duration // how often conditions are evaluated (30s)
+	TelegramAPI  string        // default https://api.telegram.org (tests)
+	NotifyHTTP   *http.Client  // client for webhooks and Telegram (default 15s timeout)
+	// Retention of history (audit log, decided confirmations, finished imports, old
+	// deployments). Nil means store.DefaultRetention.
+	Retention        *store.Retention
 	PublicIP         string
 	LookupPublicIPv4 func(ctx context.Context) (string, error)
 }
@@ -136,6 +139,10 @@ func New(cfg Config) (*Server, error) {
 	def(&cfg.ProvisionPoll, 3*time.Second)
 	def(&cfg.BuildTimeout, 20*time.Minute)
 	def(&cfg.ProblemsTick, 30*time.Second)
+	if cfg.Retention == nil {
+		r := store.DefaultRetention
+		cfg.Retention = &r
+	}
 	if cfg.TelegramAPI == "" {
 		cfg.TelegramAPI = "https://api.telegram.org"
 	}
@@ -251,6 +258,7 @@ func (s *Server) housekeeping() {
 	defer s.wg.Done()
 	hb := time.NewTicker(s.cfg.HeartbeatTimeout / 6)
 	prune := time.NewTicker(10 * time.Minute)
+	var lastRetention time.Time
 	defer hb.Stop()
 	defer prune.Stop()
 	for {
@@ -264,6 +272,14 @@ func (s *Server) housekeeping() {
 				s.log.Warn("prune metrics", "err", err)
 			}
 			s.st.ExpireConfirmations(s.bg, 24*time.Hour)
+			if time.Since(lastRetention) > 6*time.Hour {
+				lastRetention = time.Now()
+				if n, err := s.st.PruneHistory(s.bg, time.Now(), *s.cfg.Retention); err != nil {
+					s.log.Warn("prune history", "err", err)
+				} else if n != (store.PruneResult{}) {
+					s.log.Info("pruned history", "audit", n.Audit, "confirmations", n.Confirmations, "imports", n.Imports, "deployments", n.Deployments, "sessions", n.Sessions)
+				}
+			}
 			s.pruneBlobs(24 * time.Hour)
 			s.lock.prune()
 			s.mfa.prune()

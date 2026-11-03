@@ -43,6 +43,18 @@ API 细节见 [api.md → Control](api.md#control-中控)。
   atoll-server export --data /var/lib/atoll --out /root/atoll-control.atollbak --passphrase-file /root/pass
   ```
 
+## 历史数据保留
+
+中控每 6 小时清理一次历史，数据库不会无限增长：
+
+- 审计日志：保留 180 天。
+- 已处理或已过期的确认请求：保留 90 天。待确认的请求永远不删。
+- 导入任务：只删除 180 天前已结束的任务（计划导入为 done/failed，Zeabur 接管为 cleaned/rolled_back）。进行中或 live 的接管不会被删。
+- 部署记录：每个服务保留最近 50 条。只删除 failed 和 superseded 状态的记录；运行中和进行中的部署永远保留。
+- 已过期的登录会话。
+
+每次清理的条数会写入中控日志（`pruned history`）。
+
 ## 自更新与回滚
 
 1. 中控页显示有新版本 → 点更新（重新验证）。
