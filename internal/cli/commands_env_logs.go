@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 
@@ -213,11 +214,94 @@ func newEnvCmd(app *App) *cobra.Command {
 			return err
 		},
 	}
+	var outFile string
+	var includeSecrets bool
+	exp := &cobra.Command{
+		Use:   "export -s SERVICE [-o FILE] [--include-secrets]",
+		Short: "Write the variables as a .env file (secrets left out unless --include-secrets)",
+		Long: "Prints KEY=VALUE lines that `atoll env import` reads back unchanged: values with spaces, quotes,\n" +
+			"#, backslashes or newlines are double-quoted with \\, \\\" and \\n escapes.\n" +
+			"Secret variables are written as comments without their value; --include-secrets writes the real\n" +
+			"values (a panel session, or an API token with the exec permission; audited as env.reveal).\n" +
+			"-o writes the file with mode 0600 instead of printing to stdout.",
+		Example: "  atoll env export -s api > api.env\n  atoll env export -s api --include-secrets -o api.env",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, s, err := resolve(cmd)
+			if err != nil {
+				return err
+			}
+			var vars []api.EnvVar
+			if includeSecrets {
+				vars, err = c.GetEnvRevealed(ctxOf(cmd), s.ID)
+			} else {
+				vars, err = c.GetEnv(ctxOf(cmd), s.ID)
+			}
+			if err != nil {
+				return err
+			}
+			text, omitted := formatDotenv(vars, includeSecrets)
+			if outFile == "" || outFile == "-" {
+				_, err = io.WriteString(app.Out, text)
+				return err
+			}
+			f, err := os.OpenFile(outFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+			if err != nil {
+				return err
+			}
+			if _, err := io.WriteString(f, text); err != nil {
+				f.Close()
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+			msg := fmt.Sprintf("Wrote %d variables of %s to %s", len(vars)-omitted, s.Name, outFile)
+			if omitted > 0 {
+				msg += fmt.Sprintf(" (%d secret left out; --include-secrets to add them)", omitted)
+			}
+			fmt.Fprintln(app.Err, msg)
+			return nil
+		},
+	}
+	exp.Flags().StringVarP(&outFile, "output", "o", "", "write to FILE (mode 0600) instead of stdout")
+	exp.Flags().BoolVar(&includeSecrets, "include-secrets", false, "write the real values of secret variables")
+	cmd.AddCommand(exp)
 	imp.Flags().BoolVar(&secret, "secret", false, "mark every imported variable as secret")
 	imp.Flags().BoolVar(&exposed, "exposed", false, "share imported variables with other services as ${KEY}")
 	imp.Flags().BoolVar(&replace, "replace", false, "remove variables that are not in the file")
 	cmd.AddCommand(imp)
 	return cmd
+}
+
+// formatDotenv writes vars as .env lines that parseDotenv reads back unchanged. Secrets are
+// written as a comment (no value) unless includeSecrets; omitted counts them.
+func formatDotenv(vars []api.EnvVar, includeSecrets bool) (text string, omitted int) {
+	var b strings.Builder
+	for _, v := range vars {
+		if v.Secret && !includeSecrets {
+			fmt.Fprintf(&b, "# %s: secret, value not exported\n", v.Key)
+			omitted++
+			continue
+		}
+		b.WriteString(v.Key + "=" + quoteDotenv(v.Value) + "\n")
+	}
+	return b.String(), omitted
+}
+
+// quoteDotenv leaves plain values bare and double-quotes the rest, escaping exactly what
+// parseDotenv unescapes (\\, \" and \n). A bare value has no whitespace (it would be trimmed
+// or split), no # (" #" starts a comment) and no quote or backslash. The panel's export
+// (web/src/api/dotenv.ts) uses the same rule, so both write the same file.
+func quoteDotenv(v string) string {
+	if !strings.ContainsFunc(v, needsDotenvQuote) {
+		return v
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(v) + `"`
+}
+
+func needsDotenvQuote(r rune) bool {
+	return unicode.IsSpace(r) || r == '\uFEFF' || r == '#' || r == '"' || r == '\'' || r == '\\'
 }
 
 // parseDotenv reads KEY=VALUE lines. Later keys win; order is first appearance.

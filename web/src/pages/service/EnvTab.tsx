@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { KeyRound, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Copy, Share2 } from 'lucide-react'
+import { KeyRound, Pencil, Trash2, Plus, Eye, EyeOff, Lock, Copy, Share2, Download } from 'lucide-react'
 import { Button, Card } from '../../components/ui'
 import { Empty, ErrorState, Label, Modal, RowsSkeleton, TextInput, Toggle } from '../../components/feedback'
 import { api } from '../../api/client'
@@ -7,14 +7,18 @@ import { run, useBusy, useQuery } from '../../api/hooks'
 import type { EnvVar, Service } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { toast } from '../../components/toast'
+import { formatEnvText, parseEnvText, quoteEnvValue } from '../../api/dotenv'
+import { useT } from '../../i18n'
 
 // ---------------- env ----------------
 export function EnvTab({ s }: { s: Service }) {
+  const { t } = useT()
   const [reveal, setReveal] = useState(false)
   const q = useQuery(`env:${s.id}:${reveal ? 1 : 0}`, () => api.env(s.id, reveal))
   const refs = useQuery(`env-refs:${s.id}`, () => api.envRefs(s.id))
   const [edit, setEdit] = useState<{ i: number; v: EnvVar } | null>(null)
   const [raw, setRaw] = useState(false)
+  const [exp, setExp] = useState(false)
   // Deleting a variable is undoable: the row hides at once and the save (which redeploys)
   // waits a few seconds, so a misclick costs nothing. Any other save carries the delete along.
   const [hidden, setHidden] = useState<string>()
@@ -41,7 +45,7 @@ export function EnvTab({ s }: { s: Service }) {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">用户变量</div><div className="text-[13px] text-muted mt-0.5">修改后需重新部署生效。可用 {'${变量名}'} 引用同项目其他服务暴露的变量。</div></div>
-        <div className="flex flex-wrap gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? '隐藏私有值' : '显示私有值'}</Button><Button onClick={() => setRaw(true)}><Pencil size={14} />编辑原始环境变量</Button><Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button></div>
+        <div className="flex flex-wrap gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? '隐藏私有值' : '显示私有值'}</Button><Button onClick={() => setRaw(true)}><Pencil size={14} />编辑原始环境变量</Button><Button disabled={!rows.length} onClick={() => setExp(true)}><Download size={14} />{t('导出 .env', 'Export .env')}</Button><Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button></div>
       </div>
       {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.refetch} /> : !q.data ? <RowsSkeleton n={5} /> : !rows.length ? <Empty icon={<KeyRound size={22} />} title="还没有环境变量" action={<Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />添加</Button>} /> : (
         <Card className="divide-y divide-line">
@@ -78,6 +82,7 @@ export function EnvTab({ s }: { s: Service }) {
         return save(next)
       }} />}
       {raw && <RawEnv rows={rows} onClose={() => setRaw(false)} onSave={save} />}
+      {exp && <ExportEnv s={s} onClose={() => setExp(false)} />}
     </>
   )
 }
@@ -93,32 +98,8 @@ function EnvEditor({ init, isNew, onClose, onSave }: { init: EnvVar; isNew: bool
     </Modal>
   )
 }
-// parseEnvText reads KEY=VALUE lines like a .env file: blank lines and # comments are skipped, a
-// leading `export` is dropped, quoted values are unwrapped ("..." understands \n), and an
-// unquoted value loses a trailing " # comment". Bad lines are reported, later keys win.
-function parseEnvText(text: string): { vars: { key: string; value: string }[]; errors: string[] } {
-  const out = new Map<string, string>(); const errors: string[] = []
-  text.split('\n').forEach((raw, n) => {
-    let l = raw.trim()
-    if (!l || l.startsWith('#')) return
-    if (l.startsWith('export ')) l = l.slice(7).trim()
-    const i = l.indexOf('=')
-    const key = i > 0 ? l.slice(0, i).trim() : ''
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) { errors.push(`第 ${n + 1} 行：${raw.trim().slice(0, 40)}`); return }
-    let value = l.slice(i + 1).trim()
-    const q = value[0]
-    if (value.length >= 2 && (q === '"' || q === "'") && value.endsWith(q)) {
-      value = value.slice(1, -1)
-      if (q === '"') value = value.replace(/\\(n|"|\\)/g, (_, c: string) => c === 'n' ? '\n' : c)
-    } else {
-      const j = value.indexOf(' #'); if (j >= 0) value = value.slice(0, j).trim()
-    }
-    out.delete(key); out.set(key, value)
-  })
-  return { vars: [...out].map(([key, value]) => ({ key, value })), errors }
-}
 function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void; onSave: (v: EnvVar[], redeploy: boolean) => Promise<boolean> }) {
-  const [text, setText] = useState(rows.map(r => `${r.key}=${r.value}`).join('\n'))
+  const [text, setText] = useState(rows.map(r => `${r.key}=${quoteEnvValue(r.value)}`).join('\n'))
   const [redeploy, setRedeploy] = useState(true)
   const [busy, wrap] = useBusy()
   const parsed = parseEnvText(text)
@@ -136,7 +117,44 @@ function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void
       <div className="text-[12.5px] text-muted mb-3">每行一个 KEY=VALUE，可直接粘贴 .env 文件。私有变量显示为空值，保持为空即不修改；删掉的行会被移除。</div>
       <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} wrap="off" className="w-full h-[320px] max-h-[50vh] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
       <div className="mt-2 text-[12px] text-dim">共 {parsed.vars.length} 个变量{added ? `，新增 ${added}` : ''}{removed ? `，移除 ${removed}` : ''}</div>
-      {parsed.errors.length > 0 && <div className="mt-1 text-[12px] text-[#ef4444]">无法解析：{parsed.errors.slice(0, 3).join('；')}{parsed.errors.length > 3 ? ` 等 ${parsed.errors.length} 行` : ''}</div>}
+      {parsed.errors.length > 0 && <div className="mt-1 text-[12px] text-[#ef4444]">无法解析：{parsed.errors.slice(0, 3).map(e => `第 ${e.line} 行：${e.text}`).join('；')}{parsed.errors.length > 3 ? ` 等 ${parsed.errors.length} 行` : ''}</div>}
+    </Modal>
+  )
+}
+
+/** 导出 .env: secrets are left out (a comment line) unless 包含私有值 is on, which reveals them
+ *  (GET ?reveal=1: panel session only, audited as env.reveal). Copy or download as <service>.env. */
+function ExportEnv({ s, onClose }: { s: Service; onClose: () => void }) {
+  const { t } = useT()
+  const [secrets, setSecrets] = useState(false)
+  const q = useQuery(`env:${s.id}:${secrets ? 1 : 0}`, () => api.env(s.id, secrets))
+  const out = q.data ? formatEnvText(q.data, secrets) : undefined
+  const file = `${s.name.replace(/[^\w.-]+/g, '_') || 'service'}.env`
+  const copy = async () => {
+    if (!out) return
+    try { await navigator.clipboard.writeText(out.text); toast(t('已复制到剪贴板', 'Copied to clipboard'), 'ok') }
+    catch { toast(t('无法访问剪贴板，请改用下载', 'Clipboard unavailable, use Download'), 'error') }
+  }
+  const download = () => {
+    if (!out) return
+    const url = URL.createObjectURL(new Blob([out.text], { type: 'text/plain;charset=utf-8' }))
+    const a = document.createElement('a'); a.href = url; a.download = file
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  return (
+    <Modal title={t('导出 .env', 'Export .env')} width={720} onClose={onClose} footer={<>
+      <label className="mr-auto flex items-center gap-2 text-[12.5px] text-muted"><Toggle on={secrets} onChange={setSecrets} />{t('包含私有值', 'Include secret values')}</label>
+      <Button size="sm" disabled={!out} onClick={copy}><Copy size={14} />{t('复制', 'Copy')}</Button>
+      <Button size="sm" variant="primary" disabled={!out} onClick={download}><Download size={14} />{t('下载', 'Download')} {file}</Button></>}>
+      <div className="text-[12.5px] text-muted mb-3">{secrets
+        ? t('文件里包含私有变量的真实值，请妥善保管。显示私有值会记入审计日志。', 'The file contains the real secret values; keep it safe. Revealing them is recorded in the audit log.')
+        : t('私有变量只保留变量名（注释行），不含值；打开「包含私有值」导出真实值。', 'Secret variables are kept as comment lines without their value; turn on “Include secret values” to export them.')}
+        {' '}{t('可直接用「编辑原始环境变量」或 atoll env import 导入。', 'Import it again with “Edit raw variables” or atoll env import.')}</div>
+      {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.refetch} /> : !out ? <RowsSkeleton n={4} /> : <>
+        <textarea readOnly value={out.text} spellCheck={false} wrap="off" className="w-full h-[300px] max-h-[50vh] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
+        <div className="mt-2 text-[12px] text-dim">{t(`共 ${q.data!.length - out.omitted} 个变量`, `${q.data!.length - out.omitted} variables`)}{out.omitted ? t(`，${out.omitted} 个私有变量未导出值`, `, ${out.omitted} secret values left out`) : ''}</div>
+      </>}
     </Modal>
   )
 }

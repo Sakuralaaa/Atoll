@@ -19,14 +19,35 @@ func (s *Server) handleGetEnv(w http.ResponseWriter, r *http.Request) error {
 	}
 	if r.URL.Query().Get("reveal") == "1" {
 		p := principalFrom(r.Context())
-		if !p.Session {
-			return errf(403, "session_required", "revealing secrets is only allowed from the panel")
+		if err := canRevealEnv(p); err != nil {
+			return err
 		}
-		s.st.Audit(r.Context(), p.actor(), "env.reveal", svc.ID, nil)
+		var detail map[string]string
+		if !p.Session {
+			detail = map[string]string{"token_id": p.TokenID}
+		}
+		s.st.Audit(r.Context(), p.actor(), "env.reveal", svc.ID, detail)
 		writeJSON(w, 200, vars)
 		return nil
 	}
 	writeJSON(w, 200, maskEnv(vars))
+	return nil
+}
+
+// canRevealEnv decides who may read secret values (?reveal=1): a panel session, or an API
+// token holding "exec" — a shell in the container already reads its environment, so this
+// grants nothing new. A require_approval token is refused: a read cannot wait for approval.
+// (The project scope of the token was checked by the route already.)
+func canRevealEnv(p *principal) error {
+	if p.Session {
+		return nil
+	}
+	if !p.Perms[api.PermExec] {
+		return errf(403, "missing_permission", "revealing secret values needs a panel session or an API token with the %q permission", permLabel[api.PermExec])
+	}
+	if p.RequireApproval {
+		return errf(403, "approval_required", "this API token requires approval for its actions; secret values cannot be revealed with it")
+	}
 	return nil
 }
 

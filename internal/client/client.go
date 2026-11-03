@@ -534,6 +534,13 @@ func (c *Client) GetEnv(ctx context.Context, serviceID string) ([]api.EnvVar, er
 	return v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/env", nil, &v)
 }
 
+// GetEnvRevealed lists variables with secret values (?reveal=1). The server allows it for a
+// panel session or an API token holding "exec" (not require_approval); it is audited.
+func (c *Client) GetEnvRevealed(ctx context.Context, serviceID string) ([]api.EnvVar, error) {
+	var v []api.EnvVar
+	return v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/env?reveal=1", nil, &v)
+}
+
 // PutEnv replaces all variables. A secret with Value "" keeps its stored value.
 func (c *Client) PutEnv(ctx context.Context, serviceID string, vars []api.EnvVar) ([]api.EnvVar, error) {
 	return c.PutEnvOpt(ctx, serviceID, vars, true)
