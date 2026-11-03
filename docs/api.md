@@ -262,7 +262,7 @@ Restic to any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3, MinIO).
 - The agent host needs the docker CLI (restic and the dump tools run in containers).
 
 ## Backup verification
-Backups are only proven by restores, so two jobs test them. Like backups, both are **scheduled and run by the agents** (`internal/agent/backup/verify.go`) from the persisted config, so they keep running while the control server is offline; results are `backup_verify` events (queued while disconnected), recorded in `backup_verifications` (migration 0015) by `internal/server/backups_verify.go`.
+Backups are only proven by restores, so two jobs test them. Like backups, both are **scheduled and run by the agents** (`internal/agent/backup/verify.go`) from the persisted config, so they keep running while the control server is offline; results are `backup_verify` events (queued while disconnected), recorded in `backup_verifications` (migration 0014) by `internal/server/backups_verify.go`.
 
 **Repository check** (weekly): `restic check --read-data-subset=<subset> --retry-lock 30m` against the shared repository (it never initialises a missing one). The repository is shared by every node, so the control server chooses **one** node to schedule it (`run_check` in the node's config; the previous choice while it stays online, else the oldest online node). restic's exclusive lock guards the rare overlap (e.g. an old node reconnecting with a stale config): a check that cannot get the lock reports `skipped`, which is not a failure. Backups and drills use `--retry-lock 30m`, so a running check delays them instead of failing them. `subset` is a percentage (`5%`, default), a fraction (`1/20`) or a size (`500M`).
 
