@@ -106,6 +106,10 @@ type Server struct {
 	bg     context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// closing is set by Close; long-lived handlers (agent connections) join wg only
+	// while it is false, so Close also waits for their cleanup writes.
+	closingMu sync.Mutex
+	closing   bool
 }
 
 // New opens the data dir (creating master.key and the database) and returns a Server.
@@ -198,6 +202,9 @@ func New(cfg Config) (*Server, error) {
 
 // Close stops background work and closes the database.
 func (s *Server) Close() error {
+	s.closingMu.Lock()
+	s.closing = true
+	s.closingMu.Unlock()
 	s.cancel()
 	s.hub.closeAll()
 	s.wg.Wait()
@@ -206,6 +213,18 @@ func (s *Server) Close() error {
 
 // Store exposes the store (tests, main).
 func (s *Server) Store() *store.Store { return s.st }
+
+// track registers a long-lived request handler with Close. It returns false once the server
+// is closing; otherwise the caller must call s.wg.Done when it returns.
+func (s *Server) track() bool {
+	s.closingMu.Lock()
+	defer s.closingMu.Unlock()
+	if s.closing {
+		return false
+	}
+	s.wg.Add(1)
+	return true
+}
 
 // goBG runs fn in a tracked background goroutine.
 func (s *Server) goBG(fn func(ctx context.Context)) {

@@ -197,6 +197,13 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, api.ErrorBody{Error: "invalid node token", Code: "unauthorized"})
 		return
 	}
+	// The connection outlives http.Server.Close (it is hijacked), and its cleanup writes the
+	// node's offline status: let Server.Close wait for it instead of closing the store under it.
+	if !s.track() {
+		writeJSON(w, 503, api.ErrorBody{Error: "server is shutting down", Code: "unavailable"})
+		return
+	}
+	defer s.wg.Done()
 	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
 		return
