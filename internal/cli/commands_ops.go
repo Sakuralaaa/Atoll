@@ -28,11 +28,31 @@ func newActionCmd(app *App, action, short string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rw, err := app.beforeDeploy(ctx, c, s)
+			if err != nil {
+				return err
+			}
 			if _, err := app.handle(ctx, c, c.ServiceAction(ctx, s.ID, action)); err != nil {
 				return err
 			}
+			if app.WaitReady {
+				switch action {
+				case "redeploy":
+					if _, err := rw.wait(ctx); err != nil {
+						return err
+					}
+				case "start", "restart":
+					if err := app.waitRunning(ctx, c, s); err != nil {
+						return err
+					}
+				}
+			}
 			if app.JSON {
 				return app.printJSON(map[string]string{"service": s.ID, "action": action, "status": "ok"})
+			}
+			if app.WaitReady && action != "stop" {
+				fmt.Fprintf(app.Out, "%s: %s done, running\n", s.Name, action)
+				return nil
 			}
 			fmt.Fprintf(app.Out, "%s: %s requested\n", s.Name, action)
 			return nil
@@ -70,7 +90,14 @@ func newRollbackCmd(app *App) *cobra.Command {
 				}
 				depID = d.ID
 			}
+			rw, err := app.beforeDeploy(ctx, c, s)
+			if err != nil {
+				return err
+			}
 			if _, err := app.handle(ctx, c, c.Rollback(ctx, s.ID, depID)); err != nil {
+				return err
+			}
+			if _, err := rw.wait(ctx); err != nil {
 				return err
 			}
 			if app.JSON {

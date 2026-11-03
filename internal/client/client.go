@@ -476,6 +476,23 @@ func (c *Client) ListDeployments(ctx context.Context, serviceID string) ([]api.D
 	return v, c.do(ctx, http.MethodGet, "/services/"+esc(serviceID)+"/deployments", nil, &v)
 }
 
+// GetDeployment returns one deployment. A wait above zero long-polls (the server caps it at
+// 90s): the call returns once the deployment is running, failed or superseded, or when the
+// wait runs out, with its state at that moment.
+func (c *Client) GetDeployment(ctx context.Context, serviceID, deploymentID string, wait time.Duration) (*api.Deployment, error) {
+	var v api.Deployment
+	p := fmt.Sprintf("/services/%s/deployments/%s", esc(serviceID), esc(deploymentID))
+	if wait > 0 {
+		p += "?wait=" + url.QueryEscape(wait.String())
+	}
+	return &v, c.do(ctx, http.MethodGet, p, nil, &v)
+}
+
+// DeploymentDone reports whether a deployment status is final.
+func DeploymentDone(status string) bool {
+	return status == "running" || status == "failed" || status == "superseded"
+}
+
 // DeploymentLogs returns a deployment's build log (builds from source), lines after seq `after`.
 func (c *Client) DeploymentLogs(ctx context.Context, serviceID, deploymentID string, after int64) (*api.DeploymentLogs, error) {
 	var v api.DeploymentLogs

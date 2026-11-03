@@ -53,6 +53,7 @@ var mcpToolPerm = map[string]string{
 	"list_services":        api.PermRead,
 	"get_logs":             api.PermRead,
 	"get_deployment":       api.PermRead,
+	"wait_deployment":      api.PermRead,
 	"get_build_logs":       api.PermRead,
 	"zeabur_scan":          api.PermRead,
 	"zeabur_import_status": api.PermRead,
@@ -424,6 +425,17 @@ func MCPTools(app *App) []server.ServerTool {
 					return nil, err
 				}
 				return fmt.Sprintf("%s: rolling back to %s", s.Name, dep), nil
+			}),
+		t(tool("wait_deployment", "Wait until a service's deployment finishes (default: its newest) and return it. status running means the service is up; failed carries the reason and the last build log lines. Call it after deploy, redeploy, rollback or set_env instead of polling.", true, false,
+			append(svcArgs(),
+				mcp.WithString("deployment_id", mcp.Description("dep_... to wait for (default: the newest)")),
+				mcp.WithNumber("timeout_sec", mcp.Description("how long to wait (default 300, max 900)")))...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return waitDeploymentTool(ctx, c, s, r.GetString("deployment_id", ""), r.GetInt("timeout_sec", 300))
 			}),
 		t(tool("add_domain", "Route a hostname to a service (changes DNS)."+fmt.Sprintf(imm, api.PermDomains), false, true,
 			append(svcArgs(),

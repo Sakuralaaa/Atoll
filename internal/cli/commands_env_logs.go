@@ -85,15 +85,24 @@ func newEnvCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rw, err := app.beforeDeploy(ctxOf(cmd), c, s)
+			if err != nil {
+				return err
+			}
+			rw.onlyIfDeployed() // the server redeploys only services deployed before
 			out, err := c.PutEnv(ctxOf(cmd), s.ID, client.MergeEnv(cur, vars, nil))
 			if err != nil {
 				return err
 			}
 			if app.JSON {
-				return app.printJSON(out)
+				if err := app.printJSON(out); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintf(app.Out, "Set %s on %s\n", strings.Join(order, ", "), s.Name)
 			}
-			fmt.Fprintf(app.Out, "Set %s on %s\n", strings.Join(order, ", "), s.Name)
-			return nil
+			_, err = rw.wait(ctxOf(cmd))
+			return err
 		},
 	}
 	set.Flags().BoolVar(&secret, "secret", false, "mark as secret")
@@ -110,15 +119,24 @@ func newEnvCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rw, err := app.beforeDeploy(ctxOf(cmd), c, s)
+			if err != nil {
+				return err
+			}
+			rw.onlyIfDeployed() // the server redeploys only services deployed before
 			out, err := c.PutEnv(ctxOf(cmd), s.ID, client.MergeEnv(cur, nil, args))
 			if err != nil {
 				return err
 			}
 			if app.JSON {
-				return app.printJSON(out)
+				if err := app.printJSON(out); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintf(app.Out, "Unset %s on %s\n", strings.Join(args, ", "), s.Name)
 			}
-			fmt.Fprintf(app.Out, "Unset %s on %s\n", strings.Join(args, ", "), s.Name)
-			return nil
+			_, err = rw.wait(ctxOf(cmd))
+			return err
 		},
 	})
 	return cmd

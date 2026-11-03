@@ -33,6 +33,11 @@ type App struct {
 	Wait        bool
 	WaitTimeout time.Duration
 
+	// WaitReady makes deploying commands wait until the deployment is running (exit 4 when
+	// it fails), for scripts and agents that act on the result.
+	WaitReady    bool
+	ReadyTimeout time.Duration
+
 	// NewClient may be replaced in tests.
 	NewClient func(url, token string) *client.Client
 }
@@ -46,6 +51,11 @@ func Execute(version string) int {
 		if errors.As(err, &pe) {
 			fmt.Fprintln(app.Err, pe.Error())
 			return 3
+		}
+		var rf *readyFailedError
+		if errors.As(err, &rf) {
+			fmt.Fprintln(app.Err, "Error:", rf.Error())
+			return 4
 		}
 		fmt.Fprintln(app.Err, "Error:", ExplainError(err))
 		return 1
@@ -74,6 +84,8 @@ func NewRoot(app *App) *cobra.Command {
 	pf.StringVar(&app.ConfigPath, "config", "", "config file (default ~/.config/atoll/config.json)")
 	pf.BoolVar(&app.Wait, "wait", false, "for a token created with --require-approval: wait until the action is approved in the panel")
 	pf.DurationVar(&app.WaitTimeout, "wait-timeout", 15*time.Minute, "how long --wait waits")
+	pf.BoolVar(&app.WaitReady, "wait-ready", false, "deploy, redeploy, rollback, start, restart, env set/unset: wait until the service is running; exit 4 with the reason (and the build log tail) when the deployment fails")
+	pf.DurationVar(&app.ReadyTimeout, "ready-timeout", 15*time.Minute, "how long --wait-ready waits")
 
 	root.AddCommand(
 		newLoginCmd(app), newVersionCmd(app), newServersCmd(app), newProjectsCmd(app),

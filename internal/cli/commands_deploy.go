@@ -155,7 +155,16 @@ func newDeployCmd(app *App) *cobra.Command {
 				}
 				parsed = append(parsed, pp)
 			}
-			res, err := Deploy(ctxOf(cmd), c, DeployRequest{Project: project, Image: image, Git: git, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains, Server: server})
+			ctx := ctxOf(cmd)
+			rw := &readyWaiter{app: app, c: c}
+			if app.WaitReady {
+				if s, err := c.ResolveService(ctx, project, name); err == nil {
+					if rw, err = app.beforeDeploy(ctx, c, s); err != nil {
+						return err
+					}
+				}
+			}
+			res, err := Deploy(ctx, c, DeployRequest{Project: project, Image: image, Git: git, Name: name, Ports: parsed, Env: envMap, EnvOrder: envOrder, Domains: domains, Server: server})
 			if res != nil && len(res.Pending) > 0 {
 				for _, p := range res.Pending {
 					fmt.Fprintln(app.Err, "pending approval:", p)
@@ -164,15 +173,20 @@ func newDeployCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if app.JSON {
-				return app.printJSON(res)
-			}
-			if git != nil {
+			// print first: a new git service's webhook secret is shown only once
+			switch {
+			case app.JSON:
+				if err := app.printJSON(res); err != nil {
+					return err
+				}
+			case git != nil:
 				printGitDeploy(app, res, git)
-				return nil
+			default:
+				fmt.Fprintf(app.Out, "%s service %s (%s) with %s\n", res.Action, res.Service.Name, res.Service.ID, image)
 			}
-			fmt.Fprintf(app.Out, "%s service %s (%s) with %s\n", res.Action, res.Service.Name, res.Service.ID, image)
-			return nil
+			rw.svc = &res.Service
+			_, err = rw.wait(ctx)
+			return err
 		},
 	}
 	f := cmd.Flags()

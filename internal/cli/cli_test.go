@@ -377,7 +377,7 @@ func TestMCPDestructiveReturnsPending(t *testing.T) {
 			migrate = st.Handler
 		}
 	}
-	for _, n := range []string{"list_servers", "list_projects", "list_services", "deploy", "set_env", "get_logs", "restart", "redeploy", "rollback", "add_domain", "migrate", "get_deployment", "zeabur_scan", "zeabur_import_status"} {
+	for _, n := range []string{"list_servers", "list_projects", "list_services", "deploy", "set_env", "get_logs", "restart", "redeploy", "rollback", "add_domain", "migrate", "get_deployment", "wait_deployment", "zeabur_scan", "zeabur_import_status"} {
 		if !names[n] {
 			t.Errorf("missing tool %s", n)
 		}
