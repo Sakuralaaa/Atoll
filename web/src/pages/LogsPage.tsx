@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Loader2, Undo2, ScrollText } from 'lucide-react'
+import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Pause, Loader2, Undo2, ScrollText, Search } from 'lucide-react'
 import { Button, CopyId, Dot } from '../components/ui'
 import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
@@ -17,6 +17,23 @@ import { useNow } from '../api/useNow'
 
 const level = (l: LogLine) => /\b(ERROR|FATAL|CRITICAL|panic)\b/i.test(l.line) ? 'ERROR' : /\bWARN(ING)?\b/i.test(l.line) ? 'WARN' : 'INFO'
 const fmt = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
+const LEVELS = [{ k: '', l: '全部级别' }, { k: 'ERROR', l: '仅错误' }, { k: 'WARN', l: '警告及以上' }]
+// rowKey identifies a line across stream updates: the buffer drops old lines from the front, so an
+// index would make an expanded row jump to another line.
+const rowKey = (l: LogLine) => `${l.at}\u0000${l.stream}\u0000${l.line}`
+/** Highlights every case-insensitive match of q in text. */
+function Mark({ text, q }: { text: string; q: string }) {
+  if (!q) return <>{text}</>
+  const parts: React.ReactNode[] = []; const lo = text.toLowerCase(), ql = q.toLowerCase()
+  let i = 0
+  for (let j = lo.indexOf(ql); j >= 0 && parts.length < 200; j = lo.indexOf(ql, i)) {
+    if (j > i) parts.push(text.slice(i, j))
+    parts.push(<mark key={j} className="bg-amber-400/35 text-fg rounded-[2px]">{text.slice(j, j + q.length)}</mark>)
+    i = j + q.length
+  }
+  parts.push(text.slice(i))
+  return <>{parts}</>
+}
 const WINDOWS = [{ k: 0, l: '全部时间' }, { k: 15, l: '最近 15 分钟' }, { k: 60, l: '最近 1 小时' }, { k: 360, l: '最近 6 小时' }]
 
 export default function LogsPage() {
@@ -39,7 +56,7 @@ export default function LogsPage() {
             ))}
           </div>
         </div>
-        {view === 'logs' && <div ref={setActions} className="flex gap-2" />}
+        {view === 'logs' && <div ref={setActions} className="flex flex-wrap gap-2" />}
       </div>
       {view === 'logs' && <Logs sid={sid} name={s?.name} actions={actions} />}
       {view === 'deploys' && s && <Deploys s={s} />}
@@ -49,13 +66,22 @@ export default function LogsPage() {
 }
 
 function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HTMLElement | null }) {
-  const { lines, live } = useLogStream(sid)
+  const { lines: live$, live } = useLogStream(sid)
+  const [frozen, setFrozen] = useState<LogLine[]>()
+  const lines = frozen ?? live$
   const [win, setWin] = useState(0); const [winOpen, setWinOpen] = useState(false)
-  const [open, setOpen] = useState<Set<number>>(new Set())
+  const [lvl, setLvl] = useState('')
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState<Set<string>>(new Set())
   const [follow, setFollow] = useState(true)
   const box = useRef<HTMLDivElement>(null)
   const now = useNow(15000)
-  const shown = useMemo(() => win ? lines.filter(l => new Date(l.at).getTime() >= now - win * 60e3) : lines, [lines, win, now])
+  const query = q.trim()
+  const shown = useMemo(() => lines.filter(l => {
+    if (win && new Date(l.at).getTime() < now - win * 60e3) return false
+    if (lvl) { const v = level(l); if (v !== 'ERROR' && (lvl === 'ERROR' || v !== 'WARN')) return false }
+    return !query || l.line.toLowerCase().includes(query.toLowerCase())
+  }), [lines, win, now, lvl, query])
   const { bars, ticks, max } = useMemo(() => {
     const n = 48
     if (shown.length < 2) return { bars: Array(n).fill(0) as number[], ticks: [] as string[], max: 1 }
@@ -70,15 +96,24 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
     const blob = new Blob([shown.map(l => `${l.at} ${l.stream} ${l.line}`).join('\n')], { type: 'text/plain' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name ?? sid}-logs.txt`; a.click(); URL.revokeObjectURL(a.href)
   }
+  const toggle = (k: string) => {
+    setFollow(false) // expanding a row must not be scrolled away by the next line
+    setOpen(o => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  }
   const top = Math.max(4, Math.ceil(max / 2) * 2)
+  const seen = new Map<string, number>() // identical lines in the same instant get #2, #3, ...
+  const btn = 'h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold'
   return (
     <>
       <Portal el={actions}>
+        <label className="h-11 w-[min(240px,40vw)] rounded-lg field px-3 flex items-center gap-2 text-[13.5px]"><Search size={15} className="text-dim shrink-0" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索日志" className="flex-1 min-w-0 bg-transparent outline-none text-fg placeholder:text-dim" /></label>
+        <select aria-label="日志级别" value={lvl} onChange={e => setLvl(e.target.value)} className={cx(btn, 'outline-none')}>{LEVELS.map(x => <option key={x.k} value={x.k}>{x.l}</option>)}</select>
         <div className="relative">
-          <button onClick={() => setWinOpen(v => !v)} className="h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
+          <button onClick={() => setWinOpen(v => !v)} className={btn}><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
           {winOpen && <div className="absolute right-0 top-12 z-20 surface bg-pop p-1 w-44">{WINDOWS.map(w => <button key={w.k} onClick={() => { setWin(w.k); setWinOpen(false) }} className={cx('w-full text-left px-3 h-9 rounded-md text-[13px]', w.k === win ? 'nav-active' : 'hover:bg-ov/5')}>{w.l}</button>)}</div>}
         </div>
-        <button onClick={exportLogs} className="h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Download size={16} />导出</button>
+        <button onClick={() => setFrozen(f => f ? undefined : live$.slice())} className={btn} title={frozen ? '继续接收新日志' : '暂停滚动新日志，方便查看'}>{frozen ? <><Play size={15} />继续</> : <><Pause size={15} />暂停</>}</button>
+        <button onClick={exportLogs} className={btn}><Download size={16} />导出</button>
       </Portal>
       <div className="px-4 md:px-10 pt-5 pb-3 border-b border-line">
         <div className="flex gap-3 h-[110px] md:h-[150px]">
@@ -92,17 +127,18 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
       <div className="grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">SEVERITY</span><span className="max-md:hidden">TIME</span><span>SUMMARY</span></div>
       <div ref={box} onScroll={e => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40) }} className="flex-1 overflow-auto font-mono text-[13px] relative">
         {!lines.length && !live && <div className="p-4"><RowsSkeleton n={6} /></div>}
-        {!shown.length && live && <div className="h-24 grid place-items-center text-[13px] text-muted font-sans">{lines.length ? '这个时间段没有日志' : '还没有日志输出'}</div>}
-        {shown.map((l, i) => {
-          const lv = level(l), isOpen = open.has(i)
+        {!shown.length && (live || frozen) && <div className="h-24 grid place-items-center text-[13px] text-muted font-sans">{!lines.length ? '还没有日志输出' : query || lvl ? '没有匹配的日志' : '这个时间段没有日志'}</div>}
+        {shown.map(l => {
+          const base = rowKey(l); const n = (seen.get(base) ?? 0) + 1; seen.set(base, n)
+          const k = n > 1 ? `${base}#${n}` : base, lv = level(l), isOpen = open.has(k)
           return (
-            <div key={i} onClick={() => setOpen(o => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n })} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 items-center border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px]')}>
-              <span className="flex items-center gap-2">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
-              <span className="text-muted max-md:hidden">{fmt(l.at)}</span><span className={cx('text-fg2 min-w-0', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}>{l.line}{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
+            <div key={k} onClick={() => toggle(k)} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px] items-center')}>
+              <span className="flex items-center gap-2 h-[17px]">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
+              <span className="text-muted max-md:hidden">{fmt(l.at)}</span><span className={cx('text-fg2 min-w-0', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}><Mark text={l.line} q={query} />{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
             </div>
           )
         })}
-        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans"><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? 'Streaming logs' : '连接中…'}</div>
+        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans">{frozen ? <><span className="h-2 w-2 rounded-full bg-amber-400" />已暂停，{Math.max(0, live$.length - frozen.length)} 条新日志未显示</> : <><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? 'Streaming logs' : '连接中…'}</>}</div>
         {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="sticky float-right right-6 bottom-4 mr-6 h-10 w-10 rounded-full bg-card2 ring-1 ring-line2 grid place-items-center"><ArrowDown size={17} /></button>}
       </div>
     </>
