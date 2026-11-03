@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, Package, Plus } from 'lucide-react'
+import { ArrowUpDown, LayoutGrid, List, Package, Plus, SearchX } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
@@ -11,7 +11,11 @@ import { primaryDomain, projIcon, svcIcon } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from '../components/ImageUpdateCard'
 import { cx } from '../components/ui-utils'
-import { useProjects } from '../api/queries'
+import { useProblems, useProjects } from '../api/queries'
+import { FilterChips } from '../components/StatusFilter'
+import { projectFilters, useStatusFilter } from '../api/filters'
+import { useT } from '../i18n'
+import type { Project } from '../api/types'
 
 export default function Projects() {
   const q = useProjects()
@@ -20,7 +24,12 @@ export default function Projects() {
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [create, setCreate] = useState(false)
-  const list = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
+  const { t } = useT()
+  const all = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
+  const problems = (useProblems().data ?? []).filter(p => !p.resolved_at)
+  const defs = projectFilters<Project>(problems)
+  const f = useStatusFilter(all, defs)
+  const list = f.list
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
@@ -38,7 +47,10 @@ export default function Projects() {
         <ProblemsBanner />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <CardSkeleton n={6} h={120} />}
-        {q.data && !list.length && <Empty icon={<Package size={22} />} title="还没有项目" desc="项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。"
+        {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
+        {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的项目`, `No projects match “${f.def.en}”`)}
+          desc={t('项目里任一服务符合条件即会列出。', 'A project is listed when any of its services matches.')} action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
+        {q.data && !all.length && <Empty icon={<Package size={22} />} title="还没有项目" desc="项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。"
           action={<div className="flex gap-2"><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />创建项目</Button><Link to="/import"><Button>从 Zeabur 迁移</Button></Link></div>} />}
         <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(p => {

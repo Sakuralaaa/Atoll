@@ -11,7 +11,9 @@ import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 import { cx } from './ui-utils'
-import { usePending } from '../api/queries'
+import { usePending, useProblems } from '../api/queries'
+import { FilterChips } from './StatusFilter'
+import { FILTER_PARAM, serviceFilters, useStatusFilter } from '../api/filters'
 import { useFiringProblems } from '../api/problems'
 import { openPalette } from './palette'
 
@@ -159,8 +161,13 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const nav = useNavigate()
   const loc = useLocation()
   const srv = useServers().data?.find(s => s.id === project.server_id)
+  const { t } = useT()
   const services = project.services ?? []
   const updates = useUpdatesByService()
+  const defs = serviceFilters((useProblems().data ?? []).filter(p => !p.resolved_at))
+  const f = useStatusFilter(services, defs)
+  // keep the chosen chip when moving between services, so a filtered view can be shared too
+  const keep = f.active ? `?${FILTER_PARAM}=${f.active}` : ''
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
     <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{project.name}</span></>} side={<>
@@ -176,10 +183,12 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         </div>
         <div className="h-px bg-line my-4" />
         <div className="px-2 text-[12px] font-semibold text-dim tracking-wider mb-2">服务</div>
+        {services.length > 1 && <FilterChips f={f} defs={defs} compact className="px-1 mb-2" />}
         <div className="flex flex-col gap-1 overflow-auto">
           {!services.length && <div className="px-2 text-[12.5px] text-dim">还没有服务</div>}
-          {services.map(s => (
-            <Link key={s.id} to={`/projects/${project.id}/services/${s.id}`} className={cx('flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
+          {!!services.length && !f.list.length && f.def && <div className="px-2 py-1 text-[12.5px] text-dim">{t(`没有「${f.def.zh}」的服务`, `No services match “${f.def.en}”`)} · <button onClick={() => f.set('')} className="text-accent hover:underline">{t('显示全部', 'Show all')}</button></div>}
+          {f.list.map(s => (
+            <Link key={s.id} to={`/projects/${project.id}/services/${s.id}${keep}`} className={cx('flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
               <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{s.name}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
             </Link>
           ))}

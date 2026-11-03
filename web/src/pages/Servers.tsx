@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
+import { ArrowUpDown, LayoutGrid, List, AlertCircle, Server, Plus, Loader2, Clock, SearchX } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, ProviderIcon, Ticks } from '../components/ui'
@@ -14,6 +14,9 @@ import { useT } from '../i18n'
 import { ControlCard } from './Control'
 import { AgentUpgradeAll, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { cx } from '../components/ui-utils'
+import { FilterChips } from '../components/StatusFilter'
+import { serverFilters, useStatusFilter } from '../api/filters'
+import { useProblems } from '../api/queries'
 
 export default function Servers() {
   const { t } = useT()
@@ -22,7 +25,10 @@ export default function Servers() {
   const [listView, setListView] = useState(false)
   const [add, setAdd] = useState(false)
   // the control host has its own card above the list and the 中控 page; it is not a server
-  const list = (q.data ?? []).filter(s => s.role !== 'control').sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
+  const all = (q.data ?? []).filter(s => s.role !== 'control').sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
+  const defs = serverFilters((useProblems().data ?? []).filter(p => !p.resolved_at))
+  const f = useStatusFilter(all, defs)
+  const list = f.list
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
@@ -39,11 +45,14 @@ export default function Servers() {
         </div>
         <ProblemsBanner only={['node_offline', 'disk_high']} />
         <ControlCard />
-        <AgentUpgradeAll servers={list} />
+        <AgentUpgradeAll servers={all} />
         <div className="mt-6">
           {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
           {!q.data && !q.error && <CardSkeleton n={3} h={220} />}
-          {q.data && !list.length && <Empty icon={<Server size={22} />} title="还没有服务器" desc="在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />添加服务器</Button>} />}
+          {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
+          {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的服务器`, `No servers match “${f.def.en}”`)}
+            action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
+          {q.data && !all.length && <Empty icon={<Server size={22} />} title="还没有服务器" desc="在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />添加服务器</Button>} />}
         </div>
         <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(s => {
