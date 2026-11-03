@@ -59,6 +59,10 @@ type Runtime interface {
 	// RemoveImage removes a local image reference (untag; the image goes with its last tag
 	// unless a container uses it). ErrNotFound when absent.
 	RemoveImage(ctx context.Context, ref string) error
+	// PruneImages removes images no container uses that are older than olderThan, except
+	// Atoll's own build images (label atoll.build.service), which the builder keeps for
+	// rollback. It returns the bytes reclaimed.
+	PruneImages(ctx context.Context, olderThan time.Duration) (uint64, error)
 }
 
 // ImageSummary is one tagged local image.

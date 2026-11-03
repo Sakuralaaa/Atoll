@@ -29,6 +29,9 @@ import (
 // BuildImageRepo prefixes every image built from source.
 const BuildImageRepo = "atoll-build/"
 
+// BuildLabel marks images the builder made (value: service id); PruneImages leaves them alone.
+const BuildLabel = "atoll.build.service"
+
 // BuildImageTag is the local tag of a service's build of commit.
 func BuildImageTag(serviceID, commit string) string {
 	c := commit
@@ -371,7 +374,7 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 
 	tag := BuildImageTag(p.ServiceID, sha)
 	args := []string{"build", "--progress=plain", "-f", dockerfile, "-t", tag,
-		"--label", "atoll.build.service=" + p.ServiceID, "--label", "atoll.build.commit=" + sha}
+		"--label", BuildLabel + "=" + p.ServiceID, "--label", "atoll.build.commit=" + sha}
 	keys := make([]string, 0, len(p.BuildArgs))
 	for k := range p.BuildArgs {
 		keys = append(keys, k)

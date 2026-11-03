@@ -47,8 +47,12 @@ type Agent struct {
 	StatusEvery  time.Duration // forced status frame
 	StatusCheck  time.Duration // change detection poll
 	MetricsEvery time.Duration
-	MaxBackoff   time.Duration
-	HelloFunc    func(ctx context.Context) api.HelloPayload
+	// ImagePruneEvery is how often unused images older than ImagePruneAge are removed
+	// (default 24h, first run 10 minutes after start; negative disables).
+	ImagePruneEvery time.Duration
+	ImagePruneAge   time.Duration // default 7 days
+	MaxBackoff      time.Duration
+	HelloFunc       func(ctx context.Context) api.HelloPayload
 	// FailoverAfter is how many failed connection attempts on one control URL make the agent
 	// try the next one (fallback URLs, e.g. public after a tailnet switch). Default 3.
 	FailoverAfter int
@@ -87,6 +91,7 @@ func New(cfg *Config, rt Runtime, fw interface {
 	a := &Agent{
 		Cfg: cfg, RT: rt, Paths: p, Firewall: fw, Log: log,
 		StatusEvery: 30 * time.Second, StatusCheck: 5 * time.Second, MetricsEvery: 15 * time.Second,
+		ImagePruneEvery: 24 * time.Hour, ImagePruneAge: 7 * 24 * time.Hour,
 		MaxBackoff: 30 * time.Second,
 		streams:    map[string]context.CancelFunc{}, statusKick: make(chan struct{}, 1),
 	}
@@ -142,6 +147,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	go a.statusLoop(ctx)
 	go a.metricsLoop(ctx)
+	go a.imagePruneLoop(ctx, 10*time.Minute)
 	a.connectLoop(ctx)
 	return nil
 }
@@ -246,6 +252,35 @@ func (a *Agent) metricsLoop(ctx context.Context) {
 			cs = []api.ContainerMetrics{}
 		}
 		a.Emit(api.MsgMetrics, api.MetricsPayload{Node: node, Containers: cs})
+	}
+}
+
+// imagePruneLoop removes old unused images so pulls and builds do not fill the disk. Images a
+// container still uses (running or stopped) and Atoll's build images are kept.
+func (a *Agent) imagePruneLoop(ctx context.Context, first time.Duration) {
+	if a.ImagePruneEvery < 0 || a.RT == nil {
+		return
+	}
+	every, age := a.ImagePruneEvery, a.ImagePruneAge
+	if every == 0 {
+		every = 24 * time.Hour
+	}
+	if age <= 0 {
+		age = 7 * 24 * time.Hour
+	}
+	wait := first
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		wait = every
+		if n, err := a.RT.PruneImages(ctx, age); err != nil {
+			a.Log.Warn("prune images", "err", err)
+		} else if n > 0 {
+			a.Log.Info("pruned unused images", "reclaimed_mb", n>>20)
+		}
 	}
 }
 

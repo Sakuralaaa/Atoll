@@ -349,6 +349,14 @@ func (f *Fake) ListImages(_ context.Context, repo string) ([]agent.ImageSummary,
 	return out, nil
 }
 
+// PruneImages records the call; the fake keeps every image.
+func (f *Fake) PruneImages(_ context.Context, olderThan time.Duration) (uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.call("image prune %s", olderThan)
+	return 0, nil
+}
+
 func (f *Fake) RemoveImage(_ context.Context, ref string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

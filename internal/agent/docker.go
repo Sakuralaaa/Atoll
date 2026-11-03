@@ -510,6 +510,18 @@ func (d *DockerRuntime) ListImages(ctx context.Context, repo string) ([]ImageSum
 	return out, nil
 }
 
+func (d *DockerRuntime) PruneImages(ctx context.Context, olderThan time.Duration) (uint64, error) {
+	rep, err := d.cli.ImagesPrune(ctx, filters.NewArgs(
+		filters.Arg("dangling", "false"), // unused tagged images too, not only <none>
+		filters.Arg("until", olderThan.String()),
+		filters.Arg("label!", BuildLabel),
+	))
+	if err != nil {
+		return 0, mapErr(err)
+	}
+	return rep.SpaceReclaimed, nil
+}
+
 func (d *DockerRuntime) RemoveImage(ctx context.Context, ref string) error {
 	_, err := d.cli.ImageRemove(ctx, ref, image.RemoveOptions{PruneChildren: true})
 	return mapErr(err)
