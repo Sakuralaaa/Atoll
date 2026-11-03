@@ -180,6 +180,47 @@ func TestApplyCrashRestoresPreviousVersion(t *testing.T) {
 	}
 }
 
+// A new version that fails its healthcheck, or comes up only because the restart policy keeps
+// restarting it, is rolled back to the old container like one that exits.
+func TestApplyUnhealthyOrRestartLoopRestoresPreviousVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name, want string
+		setup      func(f *agenttest.Fake, image string)
+	}{
+		{"unhealthy", "healthcheck failing", func(f *agenttest.Fake, image string) { f.HealthOnStart[image] = "unhealthy" }},
+		{"restart loop", "keeps restarting", func(f *agenttest.Fake, image string) { f.RestartsOnStart[image] = 3 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, f, ev, _ := newManager(t)
+			ctx := context.Background()
+			if err := m.Apply(ctx, webSpec()); err != nil {
+				t.Fatal(err)
+			}
+			v2 := webSpec()
+			v2.DeploymentID, v2.Image = "dep_2", "ghcr.io/me/web:bad"
+			tc.setup(f, v2.Image)
+			err := m.Apply(ctx, v2)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+			c, _ := f.Get("atoll-svc_web")
+			if c.Spec.Image != "ghcr.io/me/web:v1" || c.Info.State != "running" {
+				t.Fatalf("old container not restored: %s %s", c.Spec.Image, c.Info.State)
+			}
+			if _, ok := f.Get("atoll-svc_web-old"); ok {
+				t.Fatal("leftover -old container")
+			}
+			if st, _ := m.Store().Load("svc_web"); st.DeploymentID != "dep_1" {
+				t.Fatalf("state should roll back to dep_1, got %s", st.DeploymentID)
+			}
+			d := ev.deploys()
+			if last := d[len(d)-1]; last.Status != "failed" || last.DeploymentID != "dep_2" || !strings.Contains(last.Message, tc.want) {
+				t.Fatalf("last event %+v", last)
+			}
+		})
+	}
+}
+
 func TestApplyPullFailureLeavesOldRunning(t *testing.T) {
 	m, f, _, _ := newManager(t)
 	ctx := context.Background()

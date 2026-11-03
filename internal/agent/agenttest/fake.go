@@ -32,20 +32,22 @@ type Fake struct {
 	seq        int
 
 	// Hooks / scripted behaviour.
-	PullErr     map[string]error  // image -> error
-	CreateErr   error             // next CreateContainer fails
-	ExitOnStart map[string]int    // image -> exit code: container "exits" right after start
-	LogLines    []agent.LogRecord // returned by Logs
-	ExecFunc    func(name string, cmd []string, stdin io.Reader, stdout io.Writer) int
-	Loaded      [][]byte // archives given to LoadImage
-	LoadRefs    []string // refs LoadImage reports
-	StatsFunc   func(name string) agent.ContainerStats
+	PullErr         map[string]error  // image -> error
+	CreateErr       error             // next CreateContainer fails
+	ExitOnStart     map[string]int    // image -> exit code: container "exits" right after start
+	HealthOnStart   map[string]string // image -> health reported once started (healthy/unhealthy/starting)
+	RestartsOnStart map[string]int    // image -> restart count reported once started (a restart loop)
+	LogLines        []agent.LogRecord // returned by Logs
+	ExecFunc        func(name string, cmd []string, stdin io.Reader, stdout io.Writer) int
+	Loaded          [][]byte // archives given to LoadImage
+	LoadRefs        []string // refs LoadImage reports
+	StatsFunc       func(name string) agent.ContainerStats
 }
 
 func New() *Fake {
 	return &Fake{
 		Containers: map[string]*Container{}, Networks: map[string]bool{}, Images: map[string]agent.ImageInfo{}, Created: map[string]time.Time{},
-		PullErr: map[string]error{}, ExitOnStart: map[string]int{},
+		PullErr: map[string]error{}, ExitOnStart: map[string]int{}, HealthOnStart: map[string]string{}, RestartsOnStart: map[string]int{},
 	}
 }
 
@@ -203,6 +205,8 @@ func (f *Fake) StartContainer(_ context.Context, name string) error {
 	}
 	c.Info.State = "running"
 	c.Info.StartedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	c.Info.Health = f.HealthOnStart[c.Spec.Image]
+	c.Info.RestartCount = f.RestartsOnStart[c.Spec.Image]
 	return nil
 }
 

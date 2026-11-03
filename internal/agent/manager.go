@@ -191,8 +191,9 @@ func (m *Manager) cleanupOld(ctx context.Context, serviceID string) {
 	}
 }
 
-// recreate pulls the image, then replaces the container (stop old → start new). On a failed
-// create/start the old container is restored and, if given, prev is written back as state.
+// recreate pulls the image, then replaces the container (stop old → start new). When the new
+// container fails to create or start, exits or restart-loops within the settle time, or fails
+// its healthcheck, the old container is restored and, if given, prev is written back as state.
 func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit bool, prev *api.ResolvedSpec) (err error) {
 	sid := spec.ServiceID
 	name := ContainerName(sid)
@@ -308,29 +309,42 @@ func (m *Manager) recreate(ctx context.Context, spec api.ResolvedSpec, explicit 
 		rollback()
 		return fail("inspect new container", err)
 	}
-	if info.State == "exited" || info.State == "dead" {
-		msg := fmt.Sprintf("container exited with code %d", info.ExitCode)
+	// withLogs adds the new container's last log lines, read before rollback removes it.
+	withLogs := func(msg string) string {
 		if tail := m.tailLogs(ctx, name, 20); tail != "" {
 			msg += "\n" + tail
 		}
+		return msg
+	}
+	switch {
+	case info.State == "exited" || info.State == "dead":
+		msg := withLogs(fmt.Sprintf("container exited with code %d", info.ExitCode))
+		rollback()
+		return fail(msg, nil)
+	case info.State == "restarting" || info.RestartCount > 0:
+		// up after the settle time only because the restart policy brought it back
+		msg := withLogs(fmt.Sprintf("container keeps restarting (%d restarts, last exit code %d)", info.RestartCount, info.ExitCode))
 		rollback()
 		return fail(msg, nil)
 	}
-	m.cleanupOld(ctx, sid)
-	m.pruneConfigs(spec)
 
+	// The old container stays (stopped, renamed) until the new one has proven itself, so a
+	// failing healthcheck still rolls back to it.
 	msg := ""
 	if cs.Health != nil {
 		h := m.waitHealthy(ctx, name)
 		switch h {
 		case "unhealthy":
-			m.deployEvent(spec, "failed", "healthcheck failing", digest)
-			return errors.New("healthcheck failing")
+			msg := withLogs("healthcheck failing")
+			rollback()
+			return fail(msg, nil)
 		case "healthy":
 		default:
 			msg = "health: " + h
 		}
 	}
+	m.cleanupOld(ctx, sid)
+	m.pruneConfigs(spec)
 	m.log.Info("deployed", "service", sid, "deployment", spec.DeploymentID, "image", spec.Image, "digest", digest)
 	m.deployEvent(spec, "running", msg, digest)
 	return nil
