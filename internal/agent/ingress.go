@@ -188,6 +188,9 @@ func (in *Ingress) caddySpec() ContainerSpec {
 			LabelManaged: "true", LabelRole: "ingress", LabelSpecHash: "caddy-v1-" + in.Image,
 		},
 		Networks: []NetworkAttach{{Name: IngressNetwork}},
+		// Every site goes through Caddy: under memory pressure the kernel kills a service first.
+		// (Applied when the container is next recreated, e.g. a new Caddy image.)
+		OomScoreAdj: -500,
 		Mounts: []Mount{
 			{Source: filepath.Join(d, "data"), Target: "/data"},
 			{Source: filepath.Join(d, "config"), Target: "/config"},

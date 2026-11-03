@@ -39,7 +39,7 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
       </Sec>
       <Sec t="资源限制">
         <Row t="CPU" d="核，留空不限"><TextInput className="w-full @4xl:w-[420px]" value={f.cpu} onChange={set('cpu')} placeholder="不限" /></Row>
-        <Row t="内存" d="MB，超出后容器会被 OOM 重启"><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder="不限" /></Row>
+        <Row t="内存" d="MB，超出后容器会被 OOM 重启。建议填写：不限时一个服务泄漏内存可能拖垮整台机器"><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder="不限" /></Row>
       </Sec>
       {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">有未保存的修改，保存后会重新部署</span><Button size="sm" onClick={() => setF({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />放弃</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}保存并部署</Button></div>}
       <Sec t="危险区域">

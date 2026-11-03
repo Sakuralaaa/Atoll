@@ -676,6 +676,8 @@ Restart=always
 RestartSec=5
 TimeoutStopSec=30
 LimitNOFILE=1048576
+# Keep the agent alive under memory pressure: the OOM killer picks a service container first.
+OOMScoreAdjust=-500
 
 [Install]
 WantedBy=multi-user.target

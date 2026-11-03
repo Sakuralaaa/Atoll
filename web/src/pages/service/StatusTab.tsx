@@ -41,7 +41,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
-              <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : '不限'} · 重启策略 unless-stopped</span>
+              <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title="没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在「设置」里填写上限。">未限制</span>} · 进程数上限 4096 · 重启策略 unless-stopped</span>
             </div>
           </div>
           <div className="w-full @5xl:w-[380px] @5xl:shrink-0 grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @5xl:grid-cols-1 gap-3">

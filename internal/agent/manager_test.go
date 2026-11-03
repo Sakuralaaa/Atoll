@@ -119,8 +119,8 @@ func TestApplyCreatesExpectedContainer(t *testing.T) {
 	if !reflect.DeepEqual(s.Ports, []agent.PortBinding{{ContainerPort: 22, HostPort: 2222, Protocol: "tcp"}}) {
 		t.Errorf("published ports = %+v (http ports must never be published)", s.Ports)
 	}
-	if s.NanoCPUs != 500_000_000 || s.MemoryBytes != 256<<20 {
-		t.Errorf("limits = %d %d", s.NanoCPUs, s.MemoryBytes)
+	if s.NanoCPUs != 500_000_000 || s.MemoryBytes != 256<<20 || s.PidsLimit != agent.DefaultPidsLimit {
+		t.Errorf("limits = %d %d %d", s.NanoCPUs, s.MemoryBytes, s.PidsLimit)
 	}
 	if s.Health == nil || s.Health.Test[0] != "CMD-SHELL" || !strings.Contains(s.Health.Test[1], "http://127.0.0.1:3000/healthz") {
 		t.Errorf("health = %+v", s.Health)

@@ -120,8 +120,14 @@ type ContainerSpec struct {
 	RestartPolicy string        // "unless-stopped"
 	NanoCPUs      int64
 	MemoryBytes   int64
+	PidsLimit     int64 // 0 = no limit
+	OomScoreAdj   int   // <0 makes the kernel OOM killer pick this container last
 	Health        *HealthSpec
 }
+
+// DefaultPidsLimit caps the processes of every service container, so a fork bomb or a leaking
+// worker pool cannot exhaust the host's PIDs (and take the agent and Caddy with it).
+const DefaultPidsLimit = 4096
 
 type ContainerInfo struct {
 	ID           string

@@ -239,6 +239,10 @@ func (d *DockerRuntime) CreateContainer(ctx context.Context, s ContainerSpec) er
 	}
 	host.NanoCPUs = s.NanoCPUs
 	host.Memory = s.MemoryBytes
+	if s.PidsLimit > 0 {
+		host.PidsLimit = &s.PidsLimit
+	}
+	host.OomScoreAdj = s.OomScoreAdj
 	for _, p := range s.ExposedPorts {
 		cfg.ExposedPorts[nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, protoOr(p.Protocol)))] = struct{}{}
 	}
