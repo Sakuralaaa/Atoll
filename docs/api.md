@@ -55,7 +55,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /servers/agent-upgrade | {ids} (empty = every online server on another version) → [{id, upgrade?, code?, error?}]; three at a time |
 | GET/POST | /projects | POST {name, server_id, description} |
 | GET/PATCH/DELETE | /projects/{id} | GET includes services |
-| GET/POST | /projects/{id}/services | POST Service (kind+image or template kind) |
+| GET/POST | /projects/{id}/services | POST Service (kind+image or template kind). `mem_limit_mb` / `cpu_limit` left out (0) take the defaults from Settings (`default_mem_limit_mb`, default 1024; `default_cpu_limit`, default 0 = no limit); `-1` asks for no limit explicitly. Applies to every way a service is created (image, template, git build, imports) |
 | GET/PATCH/DELETE | /services/{id} | PATCH partial Service → triggers redeploy |
 | POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} (redeploy → Deployment) |
 | POST | /services/{id}/rollback | {deployment_id} |
@@ -95,7 +95,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET/POST/DELETE | /tokens, /tokens/{id} | APIToken |
 | GET | /confirmations?status=pending | |
 | POST | /confirmations/{id}/approve, /reject | session only |
-| GET/PUT | /settings | Settings |
+| GET/PUT | /settings | Settings. `default_mem_limit_mb` (0 = no limit, else 6–1048576) and `default_cpu_limit` (cores, 0 = no limit, ≤ 1024) are the limits new services get when created without their own; GET always returns both, a PUT leaving one out (or null) keeps it. Changing them never touches existing services |
 | GET/POST | /imports | POST ImportPlan → ImportJob (creates project+services, not started) |
 | GET | /imports/{id} | ImportJob |
 | PUT | /imports/{id}/volumes/{service_name}/{volume} | raw tar.gz body, streamed to target agent via volume.import |
@@ -161,6 +161,7 @@ Nodes that are not on the tailnet then cannot connect, so move every node first.
 ## Conventions
 - IDs: 12-char lowercase base32 with prefix: `srv_`, `prj_`, `svc_`, `dep_`, `dom_`, `tok_`, `cfm_`, `imp_`, `bak_`, `rst_`.
 - Docker: container name `atoll-<service_id>`, labels `atoll.service=<id>`, `atoll.project=<id>`, `atoll.deployment=<id>`; network per project `atoll-<project_id>` with alias = service name (the agent removes it when the project's last service on that node is removed, unless a container is still attached); every container with an http port also joins `atoll-ingress`, where `atoll-caddy` runs. Restart policy `unless-stopped`.
+- Replacing a container (agent): a service with **no volumes and no host-published ports** whose container is running is deployed **start-first** (zero downtime): the new container starts as `atoll-<service_id>-next` on the project network (sharing the service-name alias), must stay up through the settle time without restarts and pass its healthcheck, then joins `atoll-ingress` with the network alias `atoll-<service_id>` (the name Caddy's routes dial), the old container is stopped gracefully and removed, and the new one is renamed to `atoll-<service_id>`. If the new container fails before the switch it is removed and the old one keeps serving untouched. Everything else (volumes are single-writer, host ports can only be bound once, no running container, desired state stopped) is deployed **recreate**: old renamed to `-old` and stopped, new started, rolled back to the old one on failure. The deployment `message` names the strategy (`strategy: start-first (...)` / `strategy: recreate (...)`), as does the agent log (`deploy strategy`).
 - Deployments of one service are applied one at a time. A deploy requested while another is in flight (e.g. `env_set` then `redeploy` right away) is queued and sent when the in-flight one finishes; of several queued requests only the newest is sent, the ones it replaced become `superseded` without running. A finished deployment supersedes only OLDER ones, never a newer queued one.
 - Volumes: bind mounts under `/var/lib/atoll/volumes/<service_id>/<volume_name>`.
 - Env references: `${KEY}` resolves own vars then exposed vars of other services in project; `${SERVICE.KEY}` for explicit; built-ins: `${<SERVICE>_HOST}` (service name), `${<PORTNAME>_PORT}`, `${ATOLL_<PORTNAME>_DOMAIN}`, `${ATOLL_<PORTNAME>_URL}`, `PORT` = first port, `PASSWORD` random 32 chars for db templates. Binding or unbinding a domain only updates the route table (Caddy reload, the container keeps running); services whose env or command/args explicitly reference `${ATOLL_<PORTNAME>_DOMAIN}`/`_URL` (own or `${SERVICE.…}`) are redeployed when the value changes, while the implicitly injected `ATOLL_<PORTNAME>_DOMAIN`/`_URL` of an unreferencing service is refreshed at its next deploy.

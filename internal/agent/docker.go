@@ -309,6 +309,10 @@ func (d *DockerRuntime) RenameContainer(ctx context.Context, oldName, newName st
 	return mapErr(d.cli.ContainerRename(ctx, oldName, newName))
 }
 
+func (d *DockerRuntime) ConnectNetwork(ctx context.Context, name, net string, aliases []string) error {
+	return mapErr(d.cli.NetworkConnect(ctx, net, name, &network.EndpointSettings{Aliases: aliases}))
+}
+
 func (d *DockerRuntime) Stats(ctx context.Context, name string) (ContainerStats, error) {
 	// stream=false returns a single sample that includes precpu_stats, so CPU% is computable.
 	r, err := d.cli.ContainerStats(ctx, name, false)

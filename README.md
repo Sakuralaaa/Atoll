@@ -58,7 +58,7 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 
 | 方向 | 内容 |
 | --- | --- |
-| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量可跨服务引用；卷、端口、域名；一键回滚 |
+| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量可跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署（先起新容器，健康后再切流量）；新服务默认内存上限 1024 MB（可在设置里改） |
 | 模板 | PostgreSQL / MySQL / Redis / MongoDB |
 | 流量 | 每台机器自己的 Caddy 入口，中控离线不影响业务；绑定子域名时自动在 Cloudflare 建 proxied 记录 |
 | 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；[从 Zeabur 原地接管](docs/migrate-from-zeabur.md)（扫描 → 导入 → 演练 → 切换 → 可回滚 → 卸载 k3s） |

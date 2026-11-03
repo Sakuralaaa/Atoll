@@ -41,6 +41,9 @@ type Runtime interface {
 	RestartContainer(ctx context.Context, name string, timeout time.Duration) error
 	RemoveContainer(ctx context.Context, name string) error
 	RenameContainer(ctx context.Context, oldName, newName string) error
+	// ConnectNetwork attaches an existing (possibly running) container to one more network
+	// with the given DNS aliases.
+	ConnectNetwork(ctx context.Context, container, network string, aliases []string) error
 
 	// Stats returns a one-shot resource sample.
 	Stats(ctx context.Context, name string) (ContainerStats, error)

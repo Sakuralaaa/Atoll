@@ -95,7 +95,7 @@ const confirmations: Confirmation[] = [
 ]
 if (stressEnabled()) addStressData({ now, servers, projects, services, domains, env, deployments, tokens, confirmations })
 const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true,
-  network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true }
+  network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true, default_mem_limit_mb: 1024, default_cpu_limit: 0 }
 const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
   ({ kind, name, image, description, ports: [{ name: kind, container_port: port, protocol: 'tcp' }], volumes: [{ name: 'data', mount_path: mount }], env: [] })
 const templates: Template[] = [
@@ -367,7 +367,8 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('projects/*/services'))) {
     if (G) return services.filter(s => s.project_id === a![0]).map(withSvc)
     const t = templates.find(x => x.kind === body.kind)
-    const s: Service = { id: nid('svc'), project_id: a[0], server_id: body.server_id || projects.find(x => x.id === a![0])?.server_id, name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString() }
+    const s: Service = { id: nid('svc'), project_id: a[0], server_id: body.server_id || projects.find(x => x.id === a![0])?.server_id, name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString(),
+      mem_limit_mb: body.mem_limit_mb === -1 ? 0 : body.mem_limit_mb || settings.default_mem_limit_mb || 0, cpu_limit: body.cpu_limit === -1 ? 0 : body.cpu_limit || settings.default_cpu_limit || 0 }
     services.push(s); env[s.id] = []; deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: new Date().toISOString() }]
     if (body.git) return { ...withSvc(s), ...demoGit.create(s, body.git) }
     return withSvc(s)
@@ -433,8 +434,8 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('settings') && location.hash.includes('nocf=1')) return { ...settings, base_domain: '', has_cloudflare_token: false }
   if (m('settings')) {
     if (U) {
-      const { tailscale_auth_key: tsKey, clear_tailscale_auth_key: tsClear, network_provider: np, tailnet_name: tn, tailnet_control_url: tcu, tailnet_listen: _tl, tailnet_listen_error: _tle, agent_public: _ap, has_tailscale_auth_key: _hts, cloudflare_token, backup_access_key: _ak, backup_secret_key: _sk, backup_repo_password: _pw, backup_endpoint: _e, backup_bucket: _b, backup_prefix: _p, backup_region: _r, has_backup_credentials: _h1, has_backup_password: _h2, backup_configured: _c, ...rest } = body as Settings
-      Object.assign(settings, rest); if (cloudflare_token) settings.has_cloudflare_token = true
+      const { tailscale_auth_key: tsKey, clear_tailscale_auth_key: tsClear, network_provider: np, tailnet_name: tn, tailnet_control_url: tcu, tailnet_listen: _tl, tailnet_listen_error: _tle, agent_public: _ap, has_tailscale_auth_key: _hts, cloudflare_token, backup_access_key: _ak, backup_secret_key: _sk, backup_repo_password: _pw, backup_endpoint: _e, backup_bucket: _b, backup_prefix: _p, backup_region: _r, has_backup_credentials: _h1, has_backup_password: _h2, backup_configured: _c, default_mem_limit_mb: dm, default_cpu_limit: dc, ...rest } = body as Settings
+      Object.assign(settings, rest); if (dm != null) settings.default_mem_limit_mb = dm; if (dc != null) settings.default_cpu_limit = dc; if (cloudflare_token) settings.has_cloudflare_token = true
       if (tsKey) { if (!tsKey.startsWith('tskey-')) fail(400, 'tailscale_auth_key must be a Tailscale auth key (tskey-auth-...)'); settings.has_tailscale_auth_key = true } else if (tsClear) settings.has_tailscale_auth_key = false
       if (np === 'none') settings.network_provider = ''
       else if (np === 'tailscale') { if (!settings.has_tailscale_auth_key) fail(400, 'tailscale needs an auth key'); settings.network_provider = 'tailscale' }

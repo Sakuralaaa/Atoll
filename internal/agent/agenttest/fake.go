@@ -34,6 +34,7 @@ type Fake struct {
 	// Hooks / scripted behaviour.
 	PullErr         map[string]error  // image -> error
 	CreateErr       error             // next CreateContainer fails
+	ConnectErr      error             // next ConnectNetwork fails
 	ExitOnStart     map[string]int    // image -> exit code: container "exits" right after start
 	HealthOnStart   map[string]string // image -> health reported once started (healthy/unhealthy/starting)
 	RestartsOnStart map[string]int    // image -> restart count reported once started (a restart loop)
@@ -260,6 +261,31 @@ func (f *Fake) RenameContainer(_ context.Context, oldName, newName string) error
 	delete(f.Containers, oldName)
 	c.Info.Name = newName
 	f.Containers[newName] = c
+	return nil
+}
+
+func (f *Fake) ConnectNetwork(_ context.Context, name, network string, aliases []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.Containers[name]
+	if !ok {
+		return agent.ErrNotFound
+	}
+	if f.ConnectErr != nil {
+		err := f.ConnectErr
+		f.ConnectErr = nil
+		return err
+	}
+	if !f.Networks[network] {
+		return fmt.Errorf("network %s not found", network)
+	}
+	for _, n := range c.Spec.Networks {
+		if n.Name == network {
+			return fmt.Errorf("endpoint with name %s already exists in network %s", name, network)
+		}
+	}
+	f.call("connect %s %s aliases=%s", name, network, strings.Join(aliases, ","))
+	c.Spec.Networks = append(append([]agent.NetworkAttach(nil), c.Spec.Networks...), agent.NetworkAttach{Name: network, Aliases: aliases})
 	return nil
 }
 

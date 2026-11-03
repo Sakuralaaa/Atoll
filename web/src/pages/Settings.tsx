@@ -7,6 +7,7 @@ import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Settings as S } from '../api/types'
 import ImageCheckSettings from '../components/ImageCheckSettings'
+import ResourceDefaultsSettings from '../components/ResourceDefaultsSettings'
 import BackupStorageSettings from '../components/BackupStorageSettings'
 import NetworkSettings from '../components/NetworkSettings'
 import NotificationSettings from '../components/NotificationSettings'
@@ -26,6 +27,7 @@ export default function Settings() {
         {q.data && <Form key={JSON.stringify(q.data)} s={q.data} />}
         {q.data && <NotificationSettings />}
         {q.data && <ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} />}
+        {q.data && <ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} />}
         {q.data && <BackupStorageSettings s={q.data} />}
         {q.data && <NetworkSettings s={q.data} />}
       </div>
