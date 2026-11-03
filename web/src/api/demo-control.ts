@@ -3,8 +3,8 @@
 // `#…&2fa=1` (or 2FA enabled in Settings → Security) also asks for a 6-digit code.
 // `?stress=1` swaps in long hostnames/paths/errors and a long backup list; `#…&nojournal=1` makes logs unavailable.
 import { ApiError } from './client'
-import { series } from '../components/ui'
 import type { AuditEntry, ControlBackup, ControlStatus, NodeMetrics, Server, Settings, UpdateResult } from './types'
+import { series } from '../components/ui-utils'
 
 const H = 3600e3, D = 24 * H
 const fail = (status: number, msg: string, code?: string, retryAfter?: number): never => { throw new ApiError(status, msg, code, retryAfter) }

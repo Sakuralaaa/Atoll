@@ -2,12 +2,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ChevronDown, ChevronRight, Loader2, RefreshCw, ScrollText, Search, ShieldCheck, X, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
-import { Badge, Button, Card, cx } from './ui'
+import { Badge, Button, Card } from './ui'
 import { CodeBlock, Empty, ErrorState, RowsSkeleton, Select, TextInput, Toggle } from './feedback'
 import { controlApi, domainOf } from '../api/control'
 import { useQuery } from '../api/hooks'
 import { ago, dateTime } from '../api/view'
 import type { AuditEntry, ControlStatus } from '../api/types'
+import { cx } from './ui-utils'
 
 // ---------- 日志 ----------
 const SINCE = [{ k: '15m', l: '最近 15 分钟' }, { k: '1h', l: '最近 1 小时' }, { k: '6h', l: '最近 6 小时' }, { k: '24h', l: '最近 24 小时' }, { k: '', l: '不限时间' }]
@@ -64,22 +65,26 @@ export function AuditTab() {
   const [rows, setRows] = useState<AuditEntry[]>()
   const [next, setNext] = useState<number>()
   const [err, setErr] = useState<Error>()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<number>()
   const seq = useRef(0)
-  const load = useCallback(async (before?: number) => {
+  // fetch only; callers flip `loading` first, so the mount effect sets no state synchronously
+  const fetchPage = useCallback(async (before?: number) => {
     const my = ++seq.current
-    setLoading(true); setErr(undefined)
     try {
       const p = await controlApi.audit({ limit: PAGE, before, actor: f.actor || undefined, action: f.action || undefined })
       if (my !== seq.current) return
       setRows(r => before ? [...(r ?? []), ...p.entries] : p.entries); setNext(p.next_before)
     } catch (x) { if (my === seq.current) setErr(x as Error) } finally { if (my === seq.current) setLoading(false) }
   }, [f])
-  useEffect(() => { load() }, [load])
-  const apply = () => setF({ actor: actor.trim(), action: action.trim() })
-  const clear = () => { setActor(''); setAction(''); setF({ actor: '', action: '' }) }
-  const filterBy = (k: 'actor' | 'action', v: string) => { if (k === 'actor') setActor(v); else setAction(v); setF(x => ({ ...x, [k]: v })) }
+  // data fetch: state is only set after the request settles (the analyzer cannot see past the await)
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { fetchPage() }, [fetchPage])
+  const load = (before?: number) => { setLoading(true); setErr(undefined); fetchPage(before) }
+  const refilter = (nf: typeof f) => { setLoading(true); setErr(undefined); setF(nf) }
+  const apply = () => refilter({ actor: actor.trim(), action: action.trim() })
+  const clear = () => { setActor(''); setAction(''); refilter({ actor: '', action: '' }) }
+  const filterBy = (k: 'actor' | 'action', v: string) => { if (k === 'actor') setActor(v); else setAction(v); refilter({ ...f, [k]: v }) }
   const COLS = '@4xl:grid-cols-[150px_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)]'
   return (
     <div>

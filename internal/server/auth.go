@@ -37,9 +37,6 @@ func (p *principal) actor() string {
 	return "token:" + p.TokenID
 }
 
-// can reports whether p holds perm (panel sessions hold everything).
-func (p *principal) can(perm string) bool { return p.Session || p.Perms[perm] }
-
 // inProject reports whether p may touch projectID.
 func (p *principal) inProject(projectID string) bool {
 	return p.Session || p.Projects == nil || p.Projects[projectID]

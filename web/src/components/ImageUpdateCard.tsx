@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowUpCircle, ExternalLink, Loader2, RefreshCw, Rocket, TriangleAlert } from 'lucide-react'
-import { Badge, Button, Card, cx } from './ui'
+import { Badge, Button, Card } from './ui'
 import { Modal, Select, Skeleton, TextInput } from './feedback'
 import { invalidate, run, useBusy } from '../api/hooks'
 import { ago } from '../api/view'
@@ -8,6 +8,7 @@ import { shortDigest, updatesApi, useImageUpdate } from '../api/updates'
 import type { ImageUpdate, ImageUpdatePolicyKind, Service } from '../api/types'
 import { isGit } from '../api/git'
 import { useT } from '../i18n'
+import { cx } from './ui-utils'
 
 const STATUS: Record<string, [string, 'amber' | 'green' | 'red' | 'zinc']> = {
   update_available: ['有更新', 'amber'],

@@ -5,13 +5,13 @@ import { Link } from 'react-router-dom'
 import { Archive, Download, FileLock2, KeyRound, Eye, EyeOff, Loader2, Play, AlertTriangle, CalendarClock, HardDrive, Cloud } from 'lucide-react'
 import { Badge, Button, Card } from './ui'
 import { CopyButton, Empty, ErrorState, Modal, RowsSkeleton, TextInput } from './feedback'
-import { useReauth } from './Reauth'
 import { controlApi, downloadBackup, exportBundle, MIN_PASSPHRASE, passphraseFromText, pickExportFile, triggerLabel } from '../api/control'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { ago, bytes, dateTime } from '../api/view'
 import type { ApiError } from '../api/client'
 import type { ControlBackup, ControlPassphrase, ControlStatus } from '../api/types'
 import { Where } from './control-ui'
+import { useReauth } from './useReauth'
 
 export function BackupsTab({ s }: { s: ControlStatus }) {
   const q = useQuery('control-backups', controlApi.backups, { interval: 60000 })

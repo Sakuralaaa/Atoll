@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ApiError, isConfirmation } from './client'
-import { toast } from '../components/feedback'
+import { toast } from '../components/toast'
 
 // ---- tiny query cache: key -> last data, plus invalidation by key prefix ----
 const cache = new Map<string, unknown>()
@@ -36,10 +36,19 @@ export function useQuery<T>(key: string | null, fn: () => Promise<T>, opts: { in
     })
   }, [key])
 
+  // key changed: show the cached value (or nothing) for the new key right away, during render
+  const [shownKey, setShownKey] = useState(key)
+  if (shownKey !== key) {
+    setShownKey(key)
+    setData(key === null ? undefined : cache.get(key) as T | undefined)
+    setLoading(key !== null && !cache.has(key))
+  }
+
   useEffect(() => {
-    if (key === null) { setData(undefined); setLoading(false); return }
-    setData(cache.get(key) as T | undefined)
-    load()
+    if (key === null) return
+    // data fetch: loading was set for this key during render; state changes only when the request settles
+    // oxlint-disable-next-line react/set-state-in-effect
+    load(true)
     const l = (p: string) => { if (key.startsWith(p)) load(true) }
     listeners.add(l)
     const t = opts.interval ? setInterval(() => load(true), opts.interval) : undefined

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ChevronDown, Folder, FileText, FolderPlus, FilePlus, RefreshCw, Loader2, Save, AlertTriangle } from 'lucide-react'
-import { Button, cx } from '../components/ui'
-import { Empty, Skeleton, toast } from '../components/feedback'
+import { Button } from '../components/ui'
+import { Empty, Skeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { useBusy } from '../api/hooks'
 import { bytes } from '../api/view'
-import { useProject } from './ServicePage'
+import { cx } from '../components/ui-utils'
+import { toast } from '../components/toast'
+import { useProject } from '../api/queries'
 
 type Entry = { name: string; dir: boolean }
 type DirState = Entry[] | 'loading' | { error: string }
@@ -51,12 +53,13 @@ export default function FilesPage() {
   }, [sid])
 
   const start = useCallback(async () => {
-    setRootErr(undefined)
     try {
       const r = (await sh(sid, ['pwd'])).trim() || '/'
-      setRoot(r); setOpen(new Set([r])); list(r)
+      setRootErr(undefined); setRoot(r); setOpen(new Set([r])); list(r)
     } catch (e) { setRootErr((e as Error).message) }
   }, [sid, list])
+  // data fetch: state is only set after the request settles (the analyzer cannot see past the await)
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { if (sid) start() }, [sid, start])
 
   const toggle = (p: string) => {

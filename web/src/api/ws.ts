@@ -60,9 +60,11 @@ export function useLogStream(serviceId: string | undefined, tail = 200, max = 20
   const [lines, setLines] = useState<LogLine[]>([])
   const [live, setLive] = useState(false)
   const buf = useRef<LogLine[]>([])
+  const [shownId, setShownId] = useState(serviceId)
+  if (shownId !== serviceId) { setShownId(serviceId); setLines([]) } // new service: clear during render
   useEffect(() => {
     if (!serviceId) return
-    buf.current = []; setLines([])
+    buf.current = []
     let t: ReturnType<typeof setTimeout> | undefined
     const push = (l: LogLine) => {
       buf.current.push(l); if (buf.current.length > max) buf.current.splice(0, buf.current.length - max)

@@ -7,7 +7,7 @@ import { ConfirmDialog, ErrorState, Modal, Select, Skeleton, TextInput } from '.
 import { api, isConfirmation } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Project, Server } from '../api/types'
-import { placeholder, useProject } from './ServicePage'
+import { placeholder, useProject } from '../api/queries'
 
 const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => (
   <div className="px-6 py-5 flex items-center gap-6"><div className="flex-1 min-w-0"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 leading-5">{d}</div>}</div>{children}</div>

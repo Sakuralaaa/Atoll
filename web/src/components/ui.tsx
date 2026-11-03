@@ -1,10 +1,6 @@
-import clsx from 'clsx'
 import { Copy, Server as ServerGlyph } from 'lucide-react'
-import * as si from 'simple-icons'
-export { si }
 import type { IconSpec } from '../api/view'
-
-export const cx = clsx
+import { cx, si } from './ui-utils'
 
 export function LogoMark({ size = 28 }: { size?: number }) {
   return (
@@ -80,7 +76,6 @@ export function Dot({ status }: { status: string }) {
   const glow = !['stopped', 'offline', 'unknown'].includes(status) && !!DOT[status]
   return <span className={cx('inline-block h-[7px] w-[7px] rounded-full shrink-0', c, glow && 'dot-glow')} />
 }
-export const statusText: Record<string, string> = { running: '运行中', deploying: '部署中', stopped: '已停止', failed: '崩溃', unknown: '未知', online: '在线', offline: '离线', pending: '等待连接', draining: '迁出中' }
 
 export function Spark({ data, color, w = 72, h = 26 }: { data: number[]; color: string; w?: number; h?: number }) {
   if (data.length < 2) return <svg width={w} height={h}><path d={`M0,${h - 1} L${w},${h - 1}`} stroke={color} strokeWidth="1.5" strokeDasharray="3 3" /></svg>
@@ -213,5 +208,3 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
   )
 }
 
-export const series = (n: number, base: number, amp: number, seed = 1) =>
-  Array.from({ length: n }, (_, i) => Math.max(0.2, base + Math.sin(i / 2.3 + seed) * amp + Math.cos(i / 1.1 + seed * 2) * amp * 0.45 + (i % 9 === 0 ? amp * 1.2 : 0)))

@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card, cx } from '../components/ui'
-import { ErrorState, Modal, Skeleton, TextInput, toast } from '../components/feedback'
+import { Badge, Button, Card } from '../components/ui'
+import { ErrorState, Modal, Skeleton, TextInput } from '../components/feedback'
 import QRCode from '../components/QRCode'
 import { api, ApiError, isDemo } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import type { SessionInfo, TwoFactorEnrollment, TwoFactorStatus } from '../api/types'
 import { useT } from '../i18n'
+import { cx } from '../components/ui-utils'
+import { toast } from '../components/toast'
 
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
@@ -240,7 +242,8 @@ function ReauthModal({ mode, onClose, onDone }: { mode: 'disable' | 'regen'; onC
 function RecoveryCodesModal({ codes, onClose }: { codes: string[]; onClose: () => void }) {
   const { t } = useT()
   const [saved, setSaved] = useState(false); const [copied, setCopied] = useState(false)
-  const text = `Atoll recovery codes (${location.host}, ${new Date().toISOString().slice(0, 10)})\n${t('每个只能用一次。', 'Each code works once.')}\n\n${codes.join('\n')}\n`
+  const [issued] = useState(() => new Date().toISOString().slice(0, 10))
+  const text = `Atoll recovery codes (${location.host}, ${issued})\n${t('每个只能用一次。', 'Each code works once.')}\n\n${codes.join('\n')}\n`
   const download = () => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))

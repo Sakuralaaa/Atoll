@@ -4,7 +4,7 @@ import { ProjectShell } from '../components/Shell'
 import { Button } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState } from '../components/feedback'
 import AddServiceModal from '../components/AddServiceModal'
-import { placeholder, useProject } from './ServicePage'
+import { placeholder, useProject } from '../api/queries'
 
 /** /projects/:pid — jump to the first service, or show an empty state with the add dialog. */
 export default function ProjectIndex() {

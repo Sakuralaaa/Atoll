@@ -165,7 +165,7 @@ func (s *Server) checkReauth(w http.ResponseWriter, r *http.Request, f api.Reaut
 		}
 		return errf(401, "code_required", "two-factor authentication is on; enter the current code from your authenticator")
 	}
-	if err := s.reauth(w, r, api.TwoFactorRequest{Password: f.Password, Code: f.Code}, true, tf.Enabled, false); err != nil {
+	if err := s.reauth(w, r, api.TwoFactorRequest(f), true, tf.Enabled, false); err != nil {
 		var reason string
 		if ae, ok := err.(*apiError); ok {
 			reason = ae.code

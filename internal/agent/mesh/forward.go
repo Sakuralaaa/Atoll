@@ -287,7 +287,7 @@ func (f *Forwarder) serveUDP(ctx context.Context, pc net.PacketConn, target stri
 // ParseArgs parses forwarder command-line rules.
 func ParseArgs(args []string) ([]Rule, error) {
 	if len(args) == 0 {
-		return nil, errors.New("usage: atoll-agent forward proto,listen,target ...")
+		return nil, errors.New("usage: atoll-agent forward proto,listen,target [proto,listen,target]")
 	}
 	var rules []Rule
 	for _, a := range args {

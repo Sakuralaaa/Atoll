@@ -2,16 +2,18 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Info, Code2, SquareTerminal, BarChart3, Cpu, Settings, Bell, MemoryStick, HardDrive, Minus, Plus, Server as ServerIcon, ChevronDown } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Avatar, Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks, statusText } from '../components/ui'
+import { Avatar, Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, CardSkeleton, Select, Skeleton, TextInput, CodeBlock } from '../components/feedback'
 import { api, isDemo, type Range } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import { ago, day, flagFor, gb, projIcon, timeLabels, usagePct } from '../api/view'
 import type { Project, Server } from '../api/types'
-import { useProjects } from './Projects'
-import { NetBadge, ServerNetworkAction, useNetState } from '../components/ServerNetwork'
+import { NetBadge, ServerNetworkAction } from '../components/ServerNetwork'
 import { useT } from '../i18n'
 import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
+import { statusText } from '../components/ui-utils'
+import { useProjects } from '../api/queries'
+import { useNetState } from '../components/net'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
 const projectsOn = (ps: Project[] | undefined, sid: string) => (ps ?? []).filter(p => p.server_id === sid)
@@ -124,7 +126,7 @@ function ProjectsTab({ s }: { s: Server }) {
   )
 }
 
-export const RANGES: { k: Range; l: string }[] = [{ k: '1h', l: '最近 1 小时' }, { k: '24h', l: '最近 24 小时' }, { k: '7d', l: '最近 7 天' }]
+const RANGES: { k: Range; l: string }[] = [{ k: '1h', l: '最近 1 小时' }, { k: '24h', l: '最近 24 小时' }, { k: '7d', l: '最近 7 天' }]
 export function RangePicker({ v, set }: { v: Range; set: (r: Range) => void }) {
   return (
     <div className="relative">

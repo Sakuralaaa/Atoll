@@ -2,16 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, Clock, Download, ChevronDown, ChevronRight, ArrowDown, Play, Loader2, Undo2, ScrollText } from 'lucide-react'
-import { Button, CopyId, Dot, cx } from '../components/ui'
+import { Button, CopyId, Dot } from '../components/ui'
 import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { useLogStream } from '../api/ws'
 import { dateTime, deployStatusText, shortDigests, triggerText } from '../api/view'
 import type { Deployment, LogLine, Service } from '../api/types'
-import { useProject } from './ServicePage'
 import { BuildLogModal, CommitLink } from '../components/GitSource'
 import { hasBuildLog } from '../api/git'
+import { cx } from '../components/ui-utils'
+import { useProject } from '../api/queries'
+import { useNow } from '../api/useNow'
 
 const level = (l: LogLine) => /\b(ERROR|FATAL|CRITICAL|panic)\b/i.test(l.line) ? 'ERROR' : /\bWARN(ING)?\b/i.test(l.line) ? 'WARN' : 'INFO'
 const fmt = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
@@ -23,6 +25,7 @@ export default function LogsPage() {
   const p = useProject(pid).data
   const s = p?.services?.find(x => x.id === sid)
   const view = sp.get('view') ?? 'logs'
+  const [actions, setActions] = useState<HTMLElement | null>(null)
   return (
     <div className="h-full flex flex-col topline bg-bg">
       <div className="px-4 md:px-10 pt-6 md:pt-8 pb-5 flex flex-wrap items-end justify-between gap-3 border-b border-line">
@@ -36,22 +39,23 @@ export default function LogsPage() {
             ))}
           </div>
         </div>
-        {view === 'logs' && <div id="logs-actions" className="flex gap-2" />}
+        {view === 'logs' && <div ref={setActions} className="flex gap-2" />}
       </div>
-      {view === 'logs' && <Logs sid={sid} name={s?.name} />}
+      {view === 'logs' && <Logs sid={sid} name={s?.name} actions={actions} />}
       {view === 'deploys' && s && <Deploys s={s} />}
       {view === 'exec' && sid && <Exec sid={sid} />}
     </div>
   )
 }
 
-function Logs({ sid, name }: { sid?: string; name?: string }) {
+function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HTMLElement | null }) {
   const { lines, live } = useLogStream(sid)
   const [win, setWin] = useState(0); const [winOpen, setWinOpen] = useState(false)
   const [open, setOpen] = useState<Set<number>>(new Set())
   const [follow, setFollow] = useState(true)
   const box = useRef<HTMLDivElement>(null)
-  const shown = useMemo(() => win ? lines.filter(l => new Date(l.at).getTime() >= Date.now() - win * 60e3) : lines, [lines, win])
+  const now = useNow(15000)
+  const shown = useMemo(() => win ? lines.filter(l => new Date(l.at).getTime() >= now - win * 60e3) : lines, [lines, win, now])
   const { bars, ticks, max } = useMemo(() => {
     const n = 48
     if (shown.length < 2) return { bars: Array(n).fill(0) as number[], ticks: [] as string[], max: 1 }
@@ -69,7 +73,7 @@ function Logs({ sid, name }: { sid?: string; name?: string }) {
   const top = Math.max(4, Math.ceil(max / 2) * 2)
   return (
     <>
-      <Portal>
+      <Portal el={actions}>
         <div className="relative">
           <button onClick={() => setWinOpen(v => !v)} className="h-11 px-3 md:px-4 whitespace-nowrap rounded-lg border border-line2 bg-card flex items-center gap-2 text-[13.5px] font-semibold"><Clock size={16} />{WINDOWS.find(w => w.k === win)?.l}<ChevronDown size={15} /></button>
           {winOpen && <div className="absolute right-0 top-12 z-20 surface bg-pop p-1 w-44">{WINDOWS.map(w => <button key={w.k} onClick={() => { setWin(w.k); setWinOpen(false) }} className={cx('w-full text-left px-3 h-9 rounded-md text-[13px]', w.k === win ? 'nav-active' : 'hover:bg-ov/5')}>{w.l}</button>)}</div>}
@@ -105,14 +109,8 @@ function Logs({ sid, name }: { sid?: string; name?: string }) {
   )
 }
 
-/** Renders children into the header action slot. */
-function Portal({ children }: { children: React.ReactNode }) {
-  const [el, setEl] = useState<HTMLElement | null>(null)
-  useEffect(() => setEl(document.getElementById('logs-actions')), [])
-  if (!el) return null
-  return <PortalInner el={el}>{children}</PortalInner>
-}
-function PortalInner({ el, children }: { el: HTMLElement; children: React.ReactNode }) { return createPortal(children, el) }
+/** Renders children into the header action slot (a callback ref from LogsPage). */
+function Portal({ el, children }: { el: HTMLElement | null; children: React.ReactNode }) { return el ? createPortal(children, el) : null }
 
 function Deploys({ s }: { s: Service }) {
   const q = useQuery(`deployments:${s.id}`, () => api.deployments(s.id), { interval: 10000 })

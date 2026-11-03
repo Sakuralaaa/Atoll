@@ -7,8 +7,8 @@ import { ConfirmDialog, Empty, ErrorState, Label, Modal, RowsSkeleton, Select, S
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Domain, Project, Service } from '../api/types'
-import { useProjects } from './Projects'
 import { DomainBadge, DomainNote } from '../components/DomainStatus'
+import { useProjects } from '../api/queries'
 
 
 export default function Domains() {

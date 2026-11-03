@@ -4,20 +4,14 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { AlertTriangle, Loader2, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { Button } from './ui'
-import { Modal, TextInput, toast } from './feedback'
+import { Modal, TextInput } from './feedback'
 import { api, ApiError, isDemo } from '../api/client'
 import { controlApi } from '../api/control'
 import { useQuery } from '../api/hooks'
-
-// ---- the window (module-wide: one per tab, like the server's per-session window) ----
-let until = 0
-const subs = new Set<() => void>()
-const setUntil = (t: number) => { until = t; subs.forEach(f => f()) }
-/** 15 s margin so an action never races the server-side expiry. */
-const reauthValid = () => Date.now() < until - 15000
+import { reauthSubs, reauthUntil, setUntil } from './reauthWindow'
 
 function useWindowLeft() {
-  const u = useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => until)
+  const u = useSyncExternalStore(f => { reauthSubs.add(f); return () => { reauthSubs.delete(f) } }, reauthUntil)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { if (u <= Date.now()) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [u])
   return Math.max(0, Math.floor((u - now) / 1000))
@@ -32,31 +26,6 @@ export function ReauthChip() {
       <ShieldCheck size={13} />已验证 {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
     </span>
   )
-}
-
-type Pending = { title?: string; desc?: React.ReactNode; resolve: (ok: boolean) => void }
-
-/** `ensure()` asks for the password unless the window is open; `guard(fn)` runs fn inside a valid
- *  window, asks again once when the server answers reauth_required, and toasts other errors
- *  (or rethrows them with `rethrow`). Render `dialog` somewhere in the component. */
-export function useReauth() {
-  const [pending, setPending] = useState<Pending>()
-  const ensure = useCallback((title?: string, desc?: React.ReactNode) =>
-    reauthValid() ? Promise.resolve(true) : new Promise<boolean>(resolve => setPending({ title, desc, resolve })), [])
-  const guard = useCallback(async <T,>(fn: () => Promise<T>, o: { title?: string; desc?: React.ReactNode; rethrow?: boolean } = {}): Promise<T | undefined> => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (!await ensure(o.title, o.desc)) return undefined
-      try { return await fn() } catch (x) {
-        const err = x as ApiError
-        if (err.status === 401 && err.code === 'reauth_required' && attempt === 0) { setUntil(0); continue }
-        if (o.rethrow) throw err
-        toast(err.message || '操作失败', 'error'); return undefined
-      }
-    }
-    return undefined
-  }, [ensure])
-  const dialog = pending ? <ReauthDialog title={pending.title} desc={pending.desc} onDone={ok => { pending.resolve(ok); setPending(undefined) }} /> : null
-  return { ensure, guard, dialog }
 }
 
 function waitText(sec?: number) {

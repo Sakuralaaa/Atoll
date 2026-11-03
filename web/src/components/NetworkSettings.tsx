@@ -8,10 +8,6 @@ import { run, useBusy } from '../api/hooks'
 import type { Settings } from '../api/types'
 import { useT } from '../i18n'
 
-/** Spread into other PUT /settings bodies built from GET: keeps the stored network settings
- * (GET returns a derived tailnet_control_url that must not be stored back). */
-export const KEEP_NETWORK: Partial<Settings> = { network_provider: '', tailnet_name: '', tailnet_control_url: '' }
-
 /** Settings → 私有网络: Tailscale provider, write-only auth key, tailnet name, agent listener status. */
 export default function NetworkSettings({ s }: { s: Settings }) {
   const { t } = useT()

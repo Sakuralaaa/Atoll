@@ -1,21 +1,12 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, RefreshCw, X, Loader2, Copy, Check } from 'lucide-react'
-import { Button, Card, cx } from './ui'
+import { Button, Card } from './ui'
+import { cx } from './ui-utils'
+import { dismissToast, toast, useToasts } from './toast'
 
 // ---------- toasts ----------
-type Tone = 'ok' | 'error' | 'info'
-type T = { id: number; msg: string; tone: Tone }
-let toasts: T[] = []
-let nextId = 1
-const subs = new Set<() => void>()
-const emit = () => subs.forEach(f => f())
-export function toast(msg: string, tone: Tone = 'info') {
-  const id = nextId++
-  toasts = [...toasts, { id, msg, tone }].slice(-4); emit()
-  setTimeout(() => { toasts = toasts.filter(t => t.id !== id); emit() }, tone === 'error' ? 6000 : 3500)
-}
 export function Toaster() {
-  const list = useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => toasts)
+  const list = useToasts()
   return (
     <div className="fixed left-4 right-4 bottom-4 sm:left-auto sm:right-6 sm:bottom-6 z-[70] flex flex-col gap-3 sm:w-[380px]">
       {list.map(t => (
@@ -23,7 +14,7 @@ export function Toaster() {
           t.tone === 'error' && '!bg-[#fca5a5] text-[#141414]', t.tone === 'ok' && '!bg-[#86efac] text-[#141414]')}>
           {t.tone === 'error' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : t.tone === 'ok' ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <Info size={16} className="mt-0.5 shrink-0 text-accent" />}
           <span className="flex-1 min-w-0 [overflow-wrap:anywhere]">{t.msg}</span>
-          <button onClick={() => { toasts = toasts.filter(x => x.id !== t.id); emit() }} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+          <button onClick={() => dismissToast(t.id)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
         </div>
       ))}
     </div>

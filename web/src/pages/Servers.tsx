@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpDown, LayoutGrid, List, MoreVertical, AlertCircle, Server, Plus, Loader2, Clock } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, ProviderIcon, Segment, Ticks, cx } from '../components/ui'
+import { Badge, Button, ProviderIcon, Segment, Ticks } from '../components/ui'
 import { CardSkeleton, CodeBlock, CopyButton, Empty, ErrorState, Modal } from '../components/feedback'
 import { api } from '../api/client'
 import { invalidate, useQuery } from '../api/hooks'
@@ -12,6 +12,7 @@ import { NetBadge } from '../components/ServerNetwork'
 import { useT } from '../i18n'
 import { ControlCard } from './Control'
 import { AgentUpgradeAll, AgentUpgradeBadge } from '../components/AgentUpgrade'
+import { cx } from '../components/ui-utils'
 
 export default function Servers() {
   const { t } = useT()

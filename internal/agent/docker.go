@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -20,7 +21,6 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
@@ -45,7 +45,7 @@ func mapErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errdefs.IsNotFound(err) {
+	if cerrdefs.IsNotFound(err) {
 		return fmt.Errorf("%w: %v", ErrNotFound, err)
 	}
 	return err
@@ -64,14 +64,14 @@ func (d *DockerRuntime) EnsureNetwork(ctx context.Context, name string) error {
 	if err == nil {
 		return nil
 	}
-	if !errdefs.IsNotFound(err) {
+	if !cerrdefs.IsNotFound(err) {
 		return err
 	}
 	_, err = d.cli.NetworkCreate(ctx, name, network.CreateOptions{
 		Driver: "bridge",
 		Labels: map[string]string{LabelManaged: "true"},
 	})
-	if err != nil && errdefs.IsConflict(err) {
+	if err != nil && cerrdefs.IsConflict(err) {
 		return nil // created concurrently
 	}
 	return err
@@ -92,7 +92,7 @@ func (d *DockerRuntime) RemoveNetwork(ctx context.Context, name string) error {
 	switch {
 	case err == nil:
 		return nil
-	case errdefs.IsForbidden(err) || errdefs.IsConflict(err):
+	case cerrdefs.IsPermissionDenied(err) || cerrdefs.IsConflict(err):
 		// "has active endpoints": a container attached between inspect and remove.
 		return fmt.Errorf("%w: %v", ErrNetworkInUse, err)
 	}

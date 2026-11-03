@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { AlertTriangle, Archive, Check, CheckCircle2, Download, Eye, KeyRound, Loader2, PlugZap, Save, Trash2, XCircle } from 'lucide-react'
-import { Badge, Button, Card, cx } from './ui'
+import { Badge, Button, Card } from './ui'
 import { ConfirmDialog, CopyButton, TextInput } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
 import { backupsApi } from '../api/backups'
 import type { BackupTestResult, Settings } from '../api/types'
-import { KEEP_NETWORK } from './NetworkSettings'
+import { cx } from './ui-utils'
+import { KEEP_NETWORK } from './net'
 
 type Secret = { password: string; repository: string; first: boolean }
 

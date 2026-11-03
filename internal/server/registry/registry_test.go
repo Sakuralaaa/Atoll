@@ -238,8 +238,8 @@ func TestRateLimitBackoff(t *testing.T) {
 	c.Now = func() time.Time { return now }
 	ref, _ := ParseRef(f.host() + "/acme/mail-relay:3")
 	// first attempt gets a token, then 429 on the HEAD
-	f.rateLimit = 1
 	f.mu.Lock()
+	f.rateLimit = 1
 	f.mu.Unlock()
 	_, err := c.Digest(context.Background(), ref, Auth{})
 	var rl *RateLimitError

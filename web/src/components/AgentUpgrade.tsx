@@ -5,8 +5,9 @@ import { invalidate } from '../api/hooks'
 import { agentOutdated } from '../api/view'
 import type { AgentUpgradeRow, Server } from '../api/types'
 import { Badge, Button } from './ui'
-import { CodeBlock, CopyButton, Modal, toast } from './feedback'
+import { CodeBlock, CopyButton, Modal } from './feedback'
 import { useT } from '../i18n'
+import { toast } from './toast'
 
 const installCmd = () =>
   `curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/install-agent.sh | sudo sh -s -- --server ${location.origin}`

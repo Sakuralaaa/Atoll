@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { Plus, Terminal, KeyRound, Trash2, Bot, Loader2, AlertTriangle, Pencil, Check, ShieldAlert, FolderLock } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card, cx } from '../components/ui'
+import { Badge, Button, Card } from '../components/ui'
 import { CodeBlock, ConfirmDialog, CopyButton, Empty, ErrorState, Label, Modal, RowsSkeleton, TextInput, Toggle } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { ago } from '../api/view'
 import { ALL_PERMISSIONS, GLOBAL_PERMISSIONS, type APIToken, type Permission } from '../api/types'
-import { useProjects } from './Projects'
 import { useT } from '../i18n'
+import { cx } from '../components/ui-utils'
+import { useProjects } from '../api/queries'
 
 type Tr = (zh: string, en: string) => string
 /** label + what it allows, per permission (internal/api Perm*) */

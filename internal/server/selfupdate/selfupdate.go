@@ -8,7 +8,6 @@ package selfupdate
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -141,15 +140,13 @@ func restartAndWait(ctx context.Context, cfg Config, ops Ops, want string) error
 		return fmt.Errorf("restart: %w", err)
 	}
 	deadline := ops.Now().Add(cfg.Timeout)
-	var last error = errors.New("no answer")
 	for {
-		if err := ops.Healthy(ctx, want); err == nil {
+		err := ops.Healthy(ctx, want)
+		if err == nil {
 			return nil
-		} else {
-			last = err
 		}
 		if !ops.Now().Before(deadline) || ctx.Err() != nil {
-			return last
+			return err
 		}
 		ops.Sleep(cfg.Poll)
 	}

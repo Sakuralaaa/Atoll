@@ -35,7 +35,6 @@ func (st *stepper) set(name, status, detail string) {
 func (st *stepper) run(name string)             { st.set(name, "running", "") }
 func (st *stepper) done(name, detail string)    { st.set(name, "done", detail) }
 func (st *stepper) fail(name string, err error) { st.set(name, "failed", err.Error()) }
-func (st *stepper) skip(name, why string)       { st.set(name, "skipped", why) }
 
 // do runs fn as a named step.
 func (st *stepper) do(name string, fn func() (string, error)) error {

@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArchiveRestore, CalendarClock, CheckCircle2, Database, HardDrive, Loader2, Play, RefreshCw, RotateCcw, Save, Settings as Cog, XCircle } from 'lucide-react'
-import { Badge, Button, Card, CopyId, cx } from './ui'
+import { Badge, Button, Card, CopyId } from './ui'
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle } from './feedback'
 import { api, isConfirmation } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import { ago, bytes, dateTime } from '../api/view'
 import { backupsApi, duration, shortSnap, useBackupPolicy, useBackups, useRestores, type BackupPolicyInput } from '../api/backups'
 import type { Backup, BackupPolicy, Project, RestoreJob, Server, Service } from '../api/types'
+import { cx } from './ui-utils'
+import { useNow } from '../api/useNow'
 
 const PRESETS = [
   { l: '每天 03:00', v: '0 3 * * *' },
@@ -253,11 +255,12 @@ function RestoreFlow({ p, s, list, initial, onClose }: { p: Project; s: Service;
 function RestoreStatus({ s }: { s: Service }) {
   const [poll, setPoll] = useState(false)
   const q = useRestores(s.id, poll)
+  const now = useNow(60000)
   const j: RestoreJob | undefined = q.data?.[0]
   const active = j?.status === 'running'
   if (active !== poll) setPoll(active)
   if (!j) return null
-  const recent = active || (j.finished_at && Date.now() - new Date(j.finished_at).getTime() < 24 * 3600e3)
+  const recent = active || (j.finished_at && now - new Date(j.finished_at).getTime() < 24 * 3600e3)
   if (!recent) return null
   return (
     <Card className={cx('mt-6 px-4 @2xl:px-6 py-4', j.status === 'failed' && '!bg-[#fca5a5] text-[#141414]')}>

@@ -3,17 +3,18 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Menu, X, Search, Package, Server, Globe, ChevronsUpDown, ArrowLeft, Settings, Plus, Copy, Bell, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
-import { Avatar, Logo, ServiceIcon, Mini, Dot, cx } from './ui'
+import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
 import { useQuery } from '../api/hooks'
 import { svcIcon } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
+import { cx } from './ui-utils'
+import { usePending } from '../api/queries'
 
 const useMe = () => useQuery('me', api.me)
 const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
-export const usePending = () => useQuery('confirmations:pending', () => api.confirmations('pending'), { interval: 30000 })
 
 function Team() {
   const me = useMe().data

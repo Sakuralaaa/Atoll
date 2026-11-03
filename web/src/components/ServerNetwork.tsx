@@ -7,24 +7,13 @@ import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { NetworkResult, Server, ServerNetworkRequest } from '../api/types'
 import { useT } from '../i18n'
-
-/** Agent reaches the control server over the tailnet. */
-export const onTailnet = (s: Server) => !!s.network?.via_tailnet
+import { onTailnet } from './net'
 
 /** 内网 / 公网 badge for the agent's management channel. */
 export function NetBadge({ s }: { s: Server }) {
   const { t } = useT()
   if (onTailnet(s)) return <Badge tone="green"><Lock size={11} strokeWidth={2.5} />{t('内网', 'Tailnet')}</Badge>
   return <Badge tone="zinc"><Globe size={11} strokeWidth={2.5} />{t('公网', 'Public')}</Badge>
-}
-
-/** Human text for NodeNetwork.state. */
-export function useNetState() {
-  const { t } = useT()
-  return (st?: string) => ({
-    running: t('运行中', 'running'), not_installed: t('未安装 Tailscale', 'Tailscale not installed'), stopped: t('已停止', 'stopped'),
-    needs_login: t('需要登录', 'needs login'), starting: t('启动中', 'starting'), unknown: t('未知', 'unknown'),
-  } as Record<string, string>)[st ?? ''] ?? (st || t('未上报', 'not reported'))
 }
 
 /** Join / switch / leave the tailnet for one server (POST /servers/{id}/network). */

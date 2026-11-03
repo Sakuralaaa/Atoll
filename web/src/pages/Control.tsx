@@ -7,9 +7,9 @@ import {
   CheckCircle2, XCircle, Undo2, Rocket, Info, AlertTriangle, Circle, ServerCog,
 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card, Chart, Dot, Tabs, Ticks, cx } from '../components/ui'
-import { CardSkeleton, CodeBlock, ErrorState, Modal, Skeleton, toast } from '../components/feedback'
-import { ReauthChip, useReauth } from '../components/Reauth'
+import { Badge, Button, Card, Chart, Dot, Tabs, Ticks } from '../components/ui'
+import { CardSkeleton, CodeBlock, ErrorState, Modal, Skeleton } from '../components/feedback'
+import { ReauthChip } from '../components/Reauth'
 import { KV, Where } from '../components/control-ui'
 import { type Range } from '../api/client'
 import { controlApi, PHASES, phaseLabel, triggerLabel, uptime, useControl } from '../api/control'
@@ -19,6 +19,9 @@ import type { ControlStatus, UpdateResult } from '../api/types'
 import { RangePicker } from './ServerDetail'
 import { BackupsTab } from '../components/ControlBackups'
 import { AuditTab, LogsTab, MigrateTab } from '../components/ControlTabs'
+import { cx } from '../components/ui-utils'
+import { toast } from '../components/toast'
+import { useReauth } from '../components/useReauth'
 
 const TABS = [
   { k: 'overview', l: '概览', icon: <Gauge size={16} /> },
@@ -40,7 +43,7 @@ export default function Control() {
   const q = useControl(watch || remoteBusy ? 2000 : 30000)
   const s = q.data
   const inProgress = !!s?.update_in_progress
-  useEffect(() => { setRemoteBusy(inProgress) }, [inProgress])
+  if (inProgress !== remoteBusy) setRemoteBusy(inProgress) // adjust during render, not in an effect
   // finished: the helper reported a result newer than the one we saw when starting
   useEffect(() => {
     if (!watch || !s || s.update_in_progress || q.error) return
@@ -48,6 +51,8 @@ export default function Control() {
     if (r && r.started_at !== watch.prevStart) {
       if (r.ok) toast(r.mode === 'rollback' ? `已回滚到 ${r.to_version}` : `已升级到 ${r.to_version}`, 'ok')
       else toast(r.rolled_back ? `新版本不健康，已自动换回 ${r.from_version}` : `${r.mode === 'rollback' ? '回滚' : '升级'}失败：${r.error ?? ''}`, 'error')
+      // reacting to a polled result (toast + stop watching) is the effect's job; nothing to derive in render
+      // oxlint-disable-next-line react/set-state-in-effect
       setWatch(undefined); invalidate('control')
     } else if (Date.now() - watch.since > 5 * 60e3) setWatch(undefined)
   }, [s, watch, q.error])

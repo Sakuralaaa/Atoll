@@ -5,7 +5,7 @@ import { TextInput } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy } from '../api/hooks'
 import type { Settings } from '../api/types'
-import { KEEP_NETWORK } from './NetworkSettings'
+import { KEEP_NETWORK } from './net'
 
 /** Settings → 镜像更新: how often the server asks registries for new image digests. */
 export default function ImageCheckSettings({ s }: { s: Settings }) {

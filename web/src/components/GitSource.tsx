@@ -1,7 +1,7 @@
 // Builds from source: form fields, webhook setup, the service source card and the build log viewer.
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, Box, Eye, EyeOff, GitBranch, GitCommitHorizontal, Hammer, KeyRound, Loader2, Pencil, Plus, RefreshCw, Rocket, ScrollText, Trash2, Webhook, X } from 'lucide-react'
-import { Badge, Brand, Button, Card, cx, si } from './ui'
+import { Badge, Brand, Button, Card } from './ui'
 import { CodeBlock, ConfirmDialog, CopyButton, Label, Modal, Skeleton, TextInput } from './feedback'
 import { api } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
@@ -9,6 +9,7 @@ import { ago, dateTime, deployStatusText, latestDeploy, triggerText } from '../a
 import { buildActive, commitUrl, gitApi, gitBody, gitFormError, gitFormFrom, repoPath, repoUrl, shortSha, useBuildLogs, type GitForm } from '../api/git'
 import type { Deployment, GitWebhook, Service } from '../api/types'
 import { useT } from '../i18n'
+import { cx, si } from './ui-utils'
 
 /** GitHub mark (lucide has no brand icons); follows the text color so it works in both themes. */
 export const GithubIcon = ({ size = 16 }: { size?: number }) => <Brand icon={si.siGithub} size={size} color="currentColor" />

@@ -1,7 +1,6 @@
 // Demo backend: serves the original mock data through the same REST paths the real client uses.
 // Enabled with ?demo=1 or VITE_DEMO=1. Mutations live in memory for the tab.
 import { projects as mockProjects, servers as mockServers } from '../mock'
-import { series } from '../components/ui'
 import { ApiError } from './client'
 import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
@@ -12,6 +11,7 @@ import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
   LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
 } from './types'
+import { series } from '../components/ui-utils'
 
 const now = Date.now()
 const iso = (msAgo: number) => new Date(now - msAgo).toISOString()

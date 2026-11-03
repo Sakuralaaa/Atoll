@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Globe, Cloud, ShieldCheck, Link2, Check, KeyRound } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card, cx } from '../components/ui'
+import { Badge, Button, Card } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
@@ -10,6 +10,7 @@ import ImageCheckSettings from '../components/ImageCheckSettings'
 import BackupStorageSettings from '../components/BackupStorageSettings'
 import NetworkSettings from '../components/NetworkSettings'
 import { SettingsTabs } from './Security'
+import { cx } from '../components/ui-utils'
 
 export default function Settings() {
   const q = useQuery('settings', api.settings)

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { type LucideIcon, ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card, cx } from '../components/ui'
+import { Badge, Button, Card } from '../components/ui'
 import { Empty, ErrorState, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import { ago, dateTime } from '../api/view'
 import type { Confirmation } from '../api/types'
+import { cx } from '../components/ui-utils'
 
 const ACTION: Record<string, [string, LucideIcon]> = {
   'service.delete': ['删除服务', Trash2],

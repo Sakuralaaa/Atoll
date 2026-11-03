@@ -5,9 +5,10 @@ import { run, useQuery } from '../api/hooks'
 import type { GitSource, Service } from '../api/types'
 import { autoName, emptyGitForm, gitBody, gitFormError, type GitForm } from '../api/git'
 import { GitFields, SourceToggle, WebhookSetup, type SourceKind } from './GitSource'
-import { Badge, Button, ServiceIcon, cx } from './ui'
+import { Badge, Button, ServiceIcon } from './ui'
 import { Label, Select, TextInput } from './feedback'
 import { useT } from '../i18n'
+import { cx } from './ui-utils'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'soon'; i: React.ReactNode; t: string; d: string }[] = [

@@ -2,15 +2,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowUpDown, LayoutGrid, List, MoreVertical, Package, Plus } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Button, Dot, Mini, ServiceIcon, cx } from '../components/ui'
+import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import { primaryDomain, projIcon, svcIcon } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from '../components/ImageUpdateCard'
-
-export const useProjects = () => useQuery('projects', api.projectsFull)
+import { cx } from '../components/ui-utils'
+import { useProjects } from '../api/queries'
 
 export default function Projects() {
   const q = useProjects()
