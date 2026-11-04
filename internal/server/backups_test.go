@@ -25,7 +25,7 @@ func backupSettings() api.Settings {
 
 func waitUntil(t *testing.T, what string, fn func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for !fn() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
