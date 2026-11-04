@@ -7,7 +7,7 @@ import { Badge, Button, ProviderIcon, Ticks } from '../components/ui'
 import { CardSkeleton, CodeBlock, CopyButton, Empty, ErrorState, Modal } from '../components/feedback'
 import { api } from '../api/client'
 import { invalidate, useQuery } from '../api/hooks'
-import { flagFor, gb, needsAttention, usagePct } from '../api/view'
+import { gb, needsAttention, usagePct } from '../api/view'
 import type { JoinToken } from '../api/types'
 import { NetBadge } from '../components/ServerNetwork'
 import { useT } from '../i18n'
@@ -16,6 +16,8 @@ import { AgentUpgradeAll, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { cx } from '../components/ui-utils'
 import { FilterChips } from '../components/StatusFilter'
 import { serverFilters, useStatusFilter } from '../api/filters'
+import { providerOf, countryOf, regionOf } from '../api/providers'
+import { Flag } from '../components/Flag'
 import { useProblems } from '../api/queries'
 
 export default function Servers() {
@@ -62,7 +64,7 @@ export default function Servers() {
                 <div className="absolute -right-6 top-6 w-48 h-36 dotgrid pointer-events-none" style={{ maskImage: 'radial-gradient(ellipse at 60% 50%, black 20%, transparent 70%)' }} />
                 <div className="p-6 pb-5">
                   <div className="flex items-start gap-3">
-                    <ProviderIcon provider={s.provider || '?'} online={on} />
+                    <ProviderIcon provider={providerOf(s)} online={on} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[15px] font-semibold truncate min-w-0" title={s.name}>{s.name}</div>
                       <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
@@ -78,7 +80,7 @@ export default function Servers() {
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
                     <div><div className="text-muted">{t('IP 地址', 'IP address')}</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
-                    <div><div className="text-muted">{t('区域', 'Region')}</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]">{flagFor(s.region)} {s.region || '—'}</div></div>
+                    <div><div className="text-muted">{t('区域', 'Region')}</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]"><Flag code={countryOf(s)} className="mt-[3px]" />{regionOf(s) || '—'}</div></div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
                     <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5 truncate">{s.tailnet_ip || '—'}</div></div>

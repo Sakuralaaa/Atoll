@@ -20,7 +20,10 @@ export interface Server {
   /** agent version this control server hosts for the server's arch ("" / missing = none) */ agent_latest?: string
   /** the agent can upgrade itself from the panel (v0.1.6+) */ agent_self_upgrade?: boolean
   /** last panel-started agent upgrade (kept until the control server restarts) */ agent_upgrade?: AgentUpgrade
+  /** GeoIP record of the public address (flag, provider guess) */ geo?: NodeGeo
 }
+
+export interface NodeGeo { ip: string; country?: string; city?: string; asn?: string; org?: string; source?: string; at: string }
 
 export interface AgentUpgrade {
   state: 'upgrading' | 'done' | 'failed' | string
@@ -129,6 +132,7 @@ export interface Confirmation {
 }
 
 export interface Settings {
+  /** GeoIP lookups of server addresses for flags and provider icons */ geoip?: 'on' | 'off' | string
   base_domain: string; cloudflare_zone_id: string; cloudflare_token?: string
   has_cloudflare_token: boolean; tls_mode: 'cloudflare-origin' | 'acme' | string; public_url: string
   /** write-only like cloudflare_token */ origin_cert_pem?: string; origin_key_pem?: string; has_origin_cert: boolean; acme_email?: string

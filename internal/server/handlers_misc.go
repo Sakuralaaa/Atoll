@@ -132,6 +132,10 @@ func (s *Server) settings(ctx context.Context) api.Settings {
 	s.fillBackupSettings(ctx, &st)   // backups.go
 	s.fillNetworkSettings(ctx, &st)  // network.go
 	s.fillResourceDefaults(ctx, &st) // resource_defaults.go
+	st.GeoIP = "on"
+	if !s.geoEnabled(ctx) {
+		st.GeoIP = "off"
+	}
 	return st
 }
 
@@ -179,6 +183,13 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	if req.ImageCheckIntervalHours > 0 { // 0 keeps the stored value
 		set["image_check_interval_hours"] = intStr(req.ImageCheckIntervalHours)
 	}
+	switch req.GeoIP { // geoip.go
+	case "":
+	case "on", "off":
+		set["geoip"] = req.GeoIP
+	default:
+		return badRequest("geoip must be on or off")
+	}
 	if err := applyResourceDefaultsSettings(req, set); err != nil { // resource_defaults.go
 		return err
 	}
@@ -204,6 +215,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 		}
 	}
 	s.st.Audit(ctx, principalFrom(ctx).actor(), "settings.update", "", nil)
+	if req.GeoIP == "on" {
+		s.kickGeo()
+	}
 	// push TLS + ingress to every online node
 	nodes, _ := s.st.ListNodes(ctx)
 	tls := s.tlsPayload(ctx)

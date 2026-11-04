@@ -15,6 +15,7 @@ import { usePending, useProblems } from '../api/queries'
 import { FilterChips } from './StatusFilter'
 import { FILTER_PARAM, serviceFilters, useStatusFilter } from '../api/filters'
 import { useFiringProblems } from '../api/problems'
+import { providerOf } from '../api/providers'
 import { openPalette } from './palette'
 
 const useMe = () => useQuery('me', api.me)
@@ -174,7 +175,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
         <div className="px-2 mt-3">
           <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{project.name}</h1></div>
-          {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
+          {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
             : <div className="mt-1.5 h-5 w-40 rounded bg-ov/[0.07] animate-pulse" />}
         </div>
         <div className="mt-4 flex flex-col gap-1">

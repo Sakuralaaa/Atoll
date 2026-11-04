@@ -8,6 +8,7 @@ import { bytes, colorFor, flagFor, gb, letterFor, usagePct } from '../../api/vie
 import type { JoinToken, Server, ZeaburInventory } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { ZRow } from './zeabur'
+import { providerOf } from '../../api/providers'
 import { projBytes, useScan } from './model'
 
 // ---------------- step 1 ----------------
@@ -44,7 +45,7 @@ function ServerPick({ s, onPick }: { s: Server; onPick: () => void }) {
   const u = usagePct(s), on = s.status === 'online'
   return (
     <button disabled={!on} onClick={onPick} className={cx('w-full text-left rounded-2xl surface px-4 @2xl:px-5 py-4 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-3', on ? 'surface-hover' : 'opacity-60')}>
-      <ProviderIcon provider={s.provider || '?'} online={on} />
+      <ProviderIcon provider={providerOf(s)} online={on} />
       <div className="flex-1 min-w-[min(100%,180px)]">
         <div className="text-[15px] font-semibold truncate">{s.name}</div>
         <div className="text-[13px] text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5"><span className="font-mono">{s.public_ipv4}</span><span>{flagFor(s.region)} {s.region}</span><span>{s.cpu_cores} vCPU · {gb(s.mem_mb)} · {s.arch}</span></div>

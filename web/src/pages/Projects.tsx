@@ -17,6 +17,7 @@ import { projectFilters, useStatusFilter } from '../api/filters'
 import { useT } from '../i18n'
 import { ServerGroupCards } from '../components/ServerGroups'
 import { groupByServer } from '../api/groups'
+import { providerOf } from '../api/providers'
 import type { Project } from '../api/types'
 
 const GROUP_KEY = 'atoll.projects.byServer'
@@ -95,7 +96,7 @@ export default function Projects() {
                   </div>
                 </div>
                 <div className="mt-5 px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
-                  {srv ? <><Mini provider={srv.provider ?? '?'} size={13} /><span className="text-fg2 truncate min-w-0">{srv.name}</span></> : <span className="text-dim">—</span>}
+                  {srv ? <><Mini provider={providerOf(srv)} size={13} /><span className="text-fg2 truncate min-w-0">{srv.name}</span></> : <span className="text-dim">—</span>}
                   <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length}</span>
                 </div>
               </Link>

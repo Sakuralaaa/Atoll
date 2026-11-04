@@ -8,6 +8,7 @@ import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Domain, Project, Service } from '../api/types'
 import { DomainBadge, DomainNote } from '../components/DomainStatus'
+import { providerOf } from '../api/providers'
 import { useProjects } from '../api/queries'
 
 
@@ -50,7 +51,7 @@ export default function Domains() {
                 <div key={d.id} className="flex flex-wrap @4xl:grid @4xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-x-4 gap-y-1.5 px-4 @2xl:px-6 min-h-14 py-3 @4xl:py-2 items-center text-[13px] border-b border-line last:border-0">
                   <div className="min-w-0 @max-4xl:flex-1"><div className="font-semibold truncate" title={d.hostname}>{d.hostname}</div><DomainNote d={d} /></div>
                   {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate @max-4xl:order-2 @max-4xl:basis-full" title={`${o.p.name} / ${o.s.name}`}>{o.p.name} / {o.s.name}</Link> : <span className="text-dim @max-4xl:order-2 @max-4xl:basis-full">—</span>}
-                  <span className="flex items-center gap-2 text-fg2 min-w-0 @max-4xl:order-3 @max-4xl:max-w-full">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
+                  <span className="flex items-center gap-2 text-fg2 min-w-0 @max-4xl:order-3 @max-4xl:max-w-full">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
                   <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">

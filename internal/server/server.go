@@ -72,6 +72,8 @@ type Config struct {
 	BinaryPath    string // default os.Executable() (tests)
 	// SpawnHelper starts the detached self-update helper (default systemd-run); tests stub it.
 	SpawnHelper func(ctx context.Context, args []string) error
+	// GeoLookup replaces the ipinfo.io / ip-api.com lookup of a public IP (tests).
+	GeoLookup func(ctx context.Context, ip string) (*api.NodeGeo, error)
 	// Journalctl runs journalctl with args (default exec); tests stub it.
 	Journalctl func(ctx context.Context, args ...string) ([]byte, error)
 	S3HTTP     *http.Client // HTTP client for the control backup bucket (tests)
@@ -91,13 +93,14 @@ type Config struct {
 
 // Server is the control plane.
 type Server struct {
-	cfg    Config
-	st     *store.Store
-	hub    *Hub
-	events *eventBus
-	log    *slog.Logger
-	lock   *lockout
-	mfa    *pendingLogins
+	cfg     Config
+	st      *store.Store
+	hub     *Hub
+	events  *eventBus
+	log     *slog.Logger
+	geoKick chan struct{} // geoip.go
+	lock    *lockout
+	mfa     *pendingLogins
 
 	jobMu   sync.Mutex
 	jobBusy map[string]bool
@@ -188,7 +191,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}}
+	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}, geoKick: make(chan struct{}, 1)}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
 	s.ctl = newControlState()
@@ -227,6 +230,7 @@ func New(cfg Config) (*Server, error) {
 	go s.imageUpdateLoop()
 	s.startBackupScheduler() // backups.go
 	s.startProblemWatcher()  // problems.go
+	s.startGeoIP()           // geoip.go
 	// control*.go: own metrics, daily control backup, panel DNS after a move, update result
 	s.controlSampleLoop()
 	s.startControlBackupScheduler()

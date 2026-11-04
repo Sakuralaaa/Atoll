@@ -254,6 +254,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("hello", "err", err)
 		return
 	}
+	s.kickGeo() // geoip.go: a new or moved node gets its flag
 	s.hub.mu.Lock()
 	if old := s.hub.conns[nodeID]; old != nil {
 		old.ws.Close(websocket.StatusPolicyViolation, "replaced by new connection")

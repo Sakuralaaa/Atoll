@@ -6,13 +6,15 @@ import { Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, CardSkeleton, Select, Skeleton, TextInput, CodeBlock } from '../components/feedback'
 import { api, isDemo, type Range } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import { ago, day, flagFor, gb, projIcon, timeLabels, usagePct } from '../api/view'
+import { ago, day, gb, projIcon, timeLabels, usagePct } from '../api/view'
 import type { Project, Server } from '../api/types'
 import { NetBadge, ServerNetworkAction } from '../components/ServerNetwork'
 import { useT } from '../i18n'
 import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { statusText } from '../components/ui-utils'
 import { useProjects } from '../api/queries'
+import { providerOf, countryOf, regionOf } from '../api/providers'
+import { Flag } from '../components/Flag'
 import { useNetState } from '../components/net'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
@@ -72,12 +74,12 @@ function InfoTab({ s }: { s: Server }) {
           <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<span className="font-mono text-[13px]">{s.tailnet_ip || '—'}</span>} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
-          <KV k="区域" v={`${flagFor(s.region)} ${s.region || '—'}`} />
+          <KV k="区域" v={<span className="flex items-center gap-2"><Flag code={countryOf(s)} />{regionOf(s) || '—'}</span>} />
           <KV k="IPv4" v={<span className="font-mono text-[13px]">{s.public_ipv4 || '—'}</span>} />
         </Card>
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">规格信息</div>
-          <KV k="服务商" v={<span className="flex items-center gap-2">{s.provider && <Mini provider={s.provider} />}{s.provider || '—'}</span>} />
+          <KV k="服务商" v={<span className="flex items-center gap-2">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}{s.provider || (providerOf(s) !== '?' ? `${providerOf(s)}（按 IP 推测）` : '—')}</span>} />
           <KV k="CPU" v={`${s.cpu_cores} vCPU · ${s.arch}`} />
           <KV k="内存" v={gb(s.mem_mb)} />
           <KV k="硬盘" v={`${s.disk_gb} GB`} />
@@ -115,7 +117,7 @@ function ProjectsTab({ s }: { s: Server }) {
           <Link key={p.id} to={`/projects/${p.id}`} className="rounded-2xl surface surface-hover p-5">
             <div className="flex items-center gap-3 min-w-0"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold truncate min-w-0" title={p.name}>{p.name}</span></div>
             <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3.5 text-[13px]">
-              <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{s.provider && <Mini provider={s.provider} />}<span className="truncate" title={s.name}>{s.name}</span></span>
+              <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}<span className="truncate" title={s.name}>{s.name}</span></span>
               <span className="text-muted">服务</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} 运行中</span>
             </div>
           </Link>
@@ -196,8 +198,8 @@ function SettingsTab({ s }: { s: Server }) {
     <>
       <Section title="基本">
         <Row t="服务器名称"><TextInput className="w-full @4xl:w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
-        <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、Vultr"><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
-        <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US"><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
+        <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、RackNerd、VMISS；留空则按 IP 归属自动推测"><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
+        <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US；留空则按 IP 自动显示"><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
         <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]">{s.public_ipv4 || '—'}</div></Row>
         <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>取消</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>保存配置</Button></div>
       </Section>

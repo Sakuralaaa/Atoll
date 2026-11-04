@@ -49,7 +49,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /servers | []Server (with latest Usage) |
 | POST | /servers/join-token | → JoinToken (valid 1h, single use); `command` pins the hosted agent binaries with `--sha256-amd64/--sha256-arm64` and, on a release build, `--version <server version>` |
 | GET | /servers/agent-install-command | → InstallCommand `{command, version}`: the same one-liner without a token, for re-running the installer on a joined server (old agents that cannot upgrade themselves) |
-| GET/PATCH/DELETE | /servers/{id} | PATCH {name, provider, region} |
+| GET/PATCH/DELETE | /servers/{id} | PATCH {name, provider, region}. Server rows carry `geo` `{ip, country, city, asn, org, source, at}` when the control server looked up the public IP (settings `geoip`: `on` default / `off`; ipinfo.io, then ip-api.com; cached until the IP changes or 30 days; private, tailnet and documentation ranges are skipped). The panel shows the country flag and, when `provider` is empty, guesses the provider from `org`. |
 | GET | /servers/{id}/metrics?range=1h\|24h\|7d | []NodeMetrics |
 | GET | /servers/{id}/containers | []ContainerState |
 | POST | /servers/{id}/agent-upgrade | → 202 AgentUpgrade. Upgrades the agent to the version this control server hosts (`agent_latest`). 409 codes: `offline`, `up_to_date`, `busy`, `not_hosted`, `agent_too_old` (agents before v0.1.6: run install-agent.sh once; the message carries the command), `upgrade_failed` (the agent refused: checksum, version, no systemd) |

@@ -9,13 +9,13 @@ import (
 )
 
 const nodeCols = `id, name, role, status, public_ipv4, public_ipv6, tailnet_host, provider, region, os, arch,
-	cpu_cores, mem_mb, disk_gb, agent_version, last_seen_at, created_at, tailnet_ip, network`
+	cpu_cores, mem_mb, disk_gb, agent_version, last_seen_at, created_at, tailnet_ip, network, geo`
 
 func scanNode(row interface{ Scan(...any) error }) (*api.Server, error) {
 	var n api.Server
-	var last, c, netw string
+	var last, c, netw, geo string
 	err := row.Scan(&n.ID, &n.Name, &n.Role, &n.Status, &n.PublicIPv4, &n.PublicIPv6, &n.TailnetHost, &n.Provider, &n.Region,
-		&n.OS, &n.Arch, &n.CPUCores, &n.MemMB, &n.DiskGB, &n.AgentVersion, &last, &c, &n.TailnetIP, &netw)
+		&n.OS, &n.Arch, &n.CPUCores, &n.MemMB, &n.DiskGB, &n.AgentVersion, &last, &c, &n.TailnetIP, &netw, &geo)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -25,6 +25,12 @@ func scanNode(row interface{ Scan(...any) error }) (*api.Server, error) {
 			n.Network = &nn
 		}
 	}
+	if geo != "" {
+		var g api.NodeGeo
+		if json.Unmarshal([]byte(geo), &g) == nil {
+			n.Geo = &g
+		}
+	}
 	n.LastSeenAt = parseTS(last)
 	n.CreatedAt = parseTS(c)
 	return &n, nil
@@ -32,13 +38,16 @@ func scanNode(row interface{ Scan(...any) error }) (*api.Server, error) {
 
 // CreateNode inserts a node.
 func (s *Store) CreateNode(ctx context.Context, n api.Server) error {
-	netw := ""
+	netw, geo := "", ""
 	if n.Network != nil {
 		netw = mustJSON(n.Network)
 	}
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO nodes(`+nodeCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if n.Geo != nil {
+		geo = mustJSON(n.Geo)
+	}
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO nodes(`+nodeCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		n.ID, n.Name, n.Role, n.Status, n.PublicIPv4, n.PublicIPv6, n.TailnetHost, n.Provider, n.Region, n.OS, n.Arch,
-		n.CPUCores, n.MemMB, n.DiskGB, n.AgentVersion, TS(n.LastSeenAt), TS(n.CreatedAt), n.TailnetIP, netw)
+		n.CPUCores, n.MemMB, n.DiskGB, n.AgentVersion, TS(n.LastSeenAt), TS(n.CreatedAt), n.TailnetIP, netw, geo)
 	return mapErr(err)
 }
 
@@ -66,6 +75,16 @@ func (s *Store) ListNodes(ctx context.Context) ([]api.Server, error) {
 }
 
 // UpdateNodeMeta updates user-editable fields.
+// UpdateNodeGeo stores the GeoIP record of a node's public address (nil clears it).
+func (s *Store) UpdateNodeGeo(ctx context.Context, id string, g *api.NodeGeo) error {
+	v := ""
+	if g != nil {
+		v = mustJSON(g)
+	}
+	_, err := s.DB.ExecContext(ctx, `UPDATE nodes SET geo=? WHERE id=?`, v, id)
+	return err
+}
+
 func (s *Store) UpdateNodeMeta(ctx context.Context, id, name, provider, region string) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE nodes SET name=?, provider=?, region=? WHERE id=?`, name, provider, region, id)
 	return err

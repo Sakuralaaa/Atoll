@@ -13,6 +13,7 @@ import { ago, dateTime, deployStatusText, latestDeploy, shortDigests, triggerTex
 import type { Deployment, Project, Server, Service } from '../../api/types'
 import { DomainBadge } from '../../components/DomainStatus'
 import { cx, statusText } from '../../components/ui-utils'
+import { providerOf } from '../../api/providers'
 import { useT } from '../../i18n'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
@@ -49,7 +50,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">镜像来源</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><ImageRef s={s} /></span>
                 <span className="text-muted">镜像摘要</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
-              <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={srv.provider ?? '?'} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
+              <span className="text-muted">服务器</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
               <span className="text-muted">资源</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? `${s.cpu_limit} 核` : '不限'} · 内存 {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} · 进程数上限 4096 · 重启策略 unless-stopped</span>
             </div>
           </div>

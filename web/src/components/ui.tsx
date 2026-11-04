@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Copy, Info, Server as ServerGlyph } from 'lucide-react'
 import { colorFor, letterFor, type IconSpec } from '../api/view'
 import { cx, si } from './ui-utils'
+import { canonicalProvider } from '../api/providers'
 
 // "/A" mark: a slash parallel to the A's left leg. Drawn in currentColor so it follows the theme.
 export function LogoMark({ size = 26 }: { size?: number }) {
@@ -130,8 +131,27 @@ const PROVIDER: Record<string, { path?: string; hex: string; ring?: boolean; let
   DigitalOcean: { hex: '0080FF', path: si.siDigitalocean.path },
   Vultr: { hex: '007BFC', path: si.siVultr.path },
   RackNerd: { hex: '22C55E', letter: 'R' },
+  VMISS: { hex: 'F97316', letter: 'V' },
+  OVH: { hex: '123F6D', path: si.siOvh.path },
+  'Google Cloud': { hex: '4285F4', path: si.siGooglecloud.path },
+  'Alibaba Cloud': { hex: 'FF6A00', path: si.siAlibabacloud.path },
+  Scaleway: { hex: '4F0599', path: si.siScaleway.path },
+  Contabo: { hex: '00AAFF', path: si.siContabo.path },
+  Akamai: { hex: '0096D6', path: si.siAkamai.path },
+  UpCloud: { hex: '7B00FF', path: si.siUpcloud.path },
+  IONOS: { hex: '003D8F', path: si.siIonos.path },
+  Hostinger: { hex: '673DE6', path: si.siHostinger.path },
+  netcup: { hex: '056473', path: si.siNetcup.path },
+  Cloudflare: { hex: 'F38020', path: si.siCloudflare.path },
+  AWS: { hex: 'FF9900', letter: 'A' },
+  Azure: { hex: '0078D4', letter: 'A' },
+  'Tencent Cloud': { hex: '006EFF', letter: 'T' },
+  BandwagonHost: { hex: 'E11D48', letter: 'B' },
+  DMIT: { hex: '0EA5E9', letter: 'D' },
+  GreenCloud: { hex: '16A34A', letter: 'G' },
 }
-function ProviderGlyph({ provider, size }: { provider: string; size: number }) {
+function ProviderGlyph({ provider: raw, size }: { provider: string; size: number }) {
+  const provider = canonicalProvider(raw)
   // provider is optional on servers (pages pass '?' when unset): show a generic server glyph, not a stray "?"
   if (!PROVIDER[provider] && !/^[A-Za-z0-9]/.test(provider)) return <ServerGlyph size={size} strokeWidth={2.2} className="text-muted" />
   const p = PROVIDER[provider] ?? { hex: '888888', letter: provider[0].toUpperCase() }

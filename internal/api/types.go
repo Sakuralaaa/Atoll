@@ -7,6 +7,17 @@ import "time"
 
 // ---------- REST resources (JSON, /api/v1) ----------
 
+// NodeGeo is the GeoIP record of a server's public address.
+type NodeGeo struct {
+	IP      string    `json:"ip"`
+	Country string    `json:"country,omitempty"` // ISO 3166-1 alpha-2, e.g. "US"
+	City    string    `json:"city,omitempty"`
+	ASN     string    `json:"asn,omitempty"` // e.g. "AS31898"
+	Org     string    `json:"org,omitempty"` // network owner, e.g. "Oracle Corporation"
+	Source  string    `json:"source,omitempty"`
+	At      time.Time `json:"at"`
+}
+
 type Server struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -17,17 +28,21 @@ type Server struct {
 	TailnetHost string `json:"tailnet_host,omitempty"`
 	TailnetIP   string `json:"tailnet_ip,omitempty"` // 100.x address when the node is on the tailnet
 	// Network is the private-network state the agent last reported (provider, control URL in use).
-	Network      *NodeNetwork `json:"network,omitempty"`
-	Provider     string       `json:"provider,omitempty"` // free text, e.g. "Hetzner"
-	Region       string       `json:"region,omitempty"`
-	OS           string       `json:"os"`
-	Arch         string       `json:"arch"`
-	CPUCores     int          `json:"cpu_cores"`
-	MemMB        int          `json:"mem_mb"`
-	DiskGB       int          `json:"disk_gb"`
-	AgentVersion string       `json:"agent_version"`
-	LastSeenAt   time.Time    `json:"last_seen_at"`
-	CreatedAt    time.Time    `json:"created_at"`
+	Network  *NodeNetwork `json:"network,omitempty"`
+	Provider string       `json:"provider,omitempty"` // free text, e.g. "Hetzner"
+	Region   string       `json:"region,omitempty"`
+	// Geo is what a GeoIP lookup of the public address said (country, city, network owner).
+	// The panel shows the country's flag and guesses the provider icon from Org when
+	// Provider is empty. Nil until looked up or when lookups are off (settings.geoip).
+	Geo          *NodeGeo  `json:"geo,omitempty"`
+	OS           string    `json:"os"`
+	Arch         string    `json:"arch"`
+	CPUCores     int       `json:"cpu_cores"`
+	MemMB        int       `json:"mem_mb"`
+	DiskGB       int       `json:"disk_gb"`
+	AgentVersion string    `json:"agent_version"`
+	LastSeenAt   time.Time `json:"last_seen_at"`
+	CreatedAt    time.Time `json:"created_at"`
 	// latest sample, filled by server from metrics
 	Usage *NodeMetrics `json:"usage,omitempty"`
 	// AgentLatest is the agent version this control server hosts for the server's arch ("" =
@@ -369,6 +384,9 @@ type Settings struct {
 	BackupRepoPassword string `json:"backup_repo_password,omitempty"`
 	HasBackupPassword  bool   `json:"has_backup_password"`
 	BackupConfigured   bool   `json:"backup_configured"` // endpoint, bucket, credentials and password all set
+	// GeoIP is "on" (default: look up each server's public IP at ipinfo.io, ip-api.com as
+	// fallback, for the flag and provider icon) or "off". "" in a PUT keeps the stored value.
+	GeoIP string `json:"geoip,omitempty"`
 	// Backup verification (see docs/api.md "Backup verification"). Empty keeps the stored value;
 	// "auto" resets a schedule (or the subset) to its default; "off" turns a schedule off.
 	// GET returns the stored value ("" = auto).

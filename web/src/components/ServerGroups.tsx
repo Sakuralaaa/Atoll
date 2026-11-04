@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import { ChevronRight, Server as ServerIcon } from 'lucide-react'
 import { Dot, Mini } from './ui'
 import { useT } from '../i18n'
+import { providerOf, countryOf } from '../api/providers'
+import { Flag } from './Flag'
 import type { ServerGroup } from '../api/groups'
 
 /** One card per machine; clicking opens that machine's projects (?server=<id>). */
@@ -19,9 +21,9 @@ export function ServerGroupCards({ groups, total, listView }: { groups: ServerGr
         return (
           <Link key={g.id || '_'} to={`/?server=${encodeURIComponent(g.id || '_')}`} className="group rounded-2xl surface surface-hover overflow-hidden" data-testid="server-group">
             <div className="px-5 pt-5 pb-4 flex items-center gap-3">
-              <div className="h-[38px] w-[38px] rounded-xl field grid place-items-center shrink-0">{s?.provider ? <Mini provider={s.provider} size={20} /> : <ServerIcon size={18} className="text-muted" />}</div>
+              <div className="h-[38px] w-[38px] rounded-xl field grid place-items-center shrink-0">{s && providerOf(s) !== '?' ? <Mini provider={providerOf(s)} size={20} /> : <ServerIcon size={18} className="text-muted" />}</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[15px] font-semibold truncate">{s?.name ?? t('未知机器', 'Unknown machine')}</div>
+                <div className="text-[15px] font-semibold truncate flex items-center gap-2"><span className="truncate">{s?.name ?? t('未知机器', 'Unknown machine')}</span>{s && <Flag code={countryOf(s)} size={12} />}</div>
                 <div className="text-[12px] text-muted truncate mt-0.5 font-mono">{s ? (s.public_ipv4 || s.tailnet_ip || '—') : g.id || '—'}{s?.status === 'offline' && <span className="ml-2 font-sans text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span>}</div>
               </div>
               <ChevronRight size={18} className="text-dim group-hover:text-fg2 shrink-0" />

@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.19](docs/releases/v0.1.19.md)：项目页按机器分组；按 IP 自动显示国旗和推测服务商（可在设置里关闭）；国旗改用 SVG；更多服务商图标、名称不区分大小写。
 - [v0.1.18](docs/releases/v0.1.18.md)：Zeabur 接管迁移 PostgreSQL 时保留所有者、库级授权和设置（仅 agent）。
 - [v0.1.17](docs/releases/v0.1.17.md)：Zeabur 接管重跑 PostgreSQL 迁移时先删副本再恢复，修复分区表最终同步失败（仅 agent）。
 - [v0.1.16](docs/releases/v0.1.16.md)：Zeabur 接管修复：照搬容器用户（新 `user` 字段）、复制 PostgreSQL 角色和密码、支持 TimescaleDB、演练尊重固定的镜像 digest。

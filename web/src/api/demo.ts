@@ -28,6 +28,8 @@ const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s =>
   agent_version: 'v0.1.5', agent_latest: 'v0.1.6', agent_self_upgrade: s.id !== 'sin', last_seen_at: iso(s.status === 'online' ? 8e3 : 12 * 60e3), created_at: '2026-10-12T08:00:00Z',
   // demo private network: phx + fra joined the tailnet (fra still on the public channel), sin not yet
   ...(TAILNET[s.id] ? { tailnet_ip: TAILNET[s.id][0], network: { provider: 'tailscale', state: 'running', via_tailnet: TAILNET[s.id][1], control_url: TAILNET[s.id][1] ? 'http://100.64.0.4:7301' : 'https://panel.example.com', fallback_urls: TAILNET[s.id][1] ? ['https://panel.example.com'] : [] } } : { network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } }),
+  // demo GeoIP: RackNerd LA has no provider/region typed in, so the panel shows what the lookup found
+  ...(s.id === 'lax' ? { provider: '', region: '', geo: { ip: s.ip, country: 'US', city: 'Los Angeles', asn: 'AS36352', org: 'HostPapa', source: 'ipinfo.io', at: iso(2 * H) } } : {}),
   usage: { at: iso(8e3), cpu_pct: s.cpuUse, mem_used_mb: Math.round(s.memGB * 1024 * s.memUse / 100), mem_total_mb: s.memGB * 1024, disk_used_gb: +(s.diskGB * s.diskUse / 100).toFixed(1), disk_total_gb: s.diskGB, net_rx_bps: 120e3, net_tx_bps: 80e3, load1: s.cpuUse / 25 },
 }))
 
@@ -95,7 +97,7 @@ const confirmations: Confirmation[] = [
 ]
 if (stressEnabled()) addStressData({ now, servers, projects, services, domains, env, deployments, tokens, confirmations })
 const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true,
-  network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true, default_mem_limit_mb: 1024, default_cpu_limit: 0 }
+  network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true, default_mem_limit_mb: 1024, default_cpu_limit: 0, geoip: 'on' }
 const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
   ({ kind, name, image, description, ports: [{ name: kind, container_port: port, protocol: 'tcp' }], volumes: [{ name: 'data', mount_path: mount }], env: [] })
 const templates: Template[] = [
