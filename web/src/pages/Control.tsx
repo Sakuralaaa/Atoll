@@ -145,11 +145,18 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
           ))}
           <div className="text-[12.5px] text-dim tnum">负载 {s.load1.toFixed(2)} / {s.load5.toFixed(2)} / {s.load15.toFixed(2)}</div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-6 flex flex-col">
           <div className="text-[13px] font-semibold mb-3">数据</div>
           <KV k="数据库" v={<span className="tnum">{bytes(s.database_bytes)}<span className="text-dim"> · SQLite + WAL</span></span>} />
           <KV k="数据目录" v={<span className="tnum">{bytes(s.data_dir_bytes)}</span>} />
           <KV k="路径" v={<span className="font-mono text-[12.5px]">{s.data_dir}</span>} />
+          <KV k="所在硬盘可用" v={<span className="tnum">{Math.max(0, s.disk_total_gb - s.disk_used_gb).toFixed(1)} GB<span className="text-dim"> / {s.disk_total_gb} GB</span></span>} />
+          {/* fills the card to the row's height: what the data directory is made of */}
+          <div className="mt-auto pt-4">
+            <div className="flex justify-between gap-3 text-[12.5px] mb-2"><span className="text-muted">数据库占数据目录</span><span className="font-semibold tnum">{pct(s.database_bytes, s.data_dir_bytes)}%</span></div>
+            <Ticks value={pct(s.database_bytes, s.data_dir_bytes)} color="#fbbf24" n={64} />
+            <div className="mt-2 text-[12px] text-dim">其余主要是中控备份、迁移数据包和 agent 下载文件</div>
+          </div>
         </Card>
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">网络</div>
