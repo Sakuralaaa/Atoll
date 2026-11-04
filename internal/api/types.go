@@ -51,6 +51,17 @@ type Server struct {
 	AgentLatest      string        `json:"agent_latest,omitempty"`
 	AgentSelfUpgrade bool          `json:"agent_self_upgrade,omitempty"`
 	AgentUpgrade     *AgentUpgrade `json:"agent_upgrade,omitempty"`
+	// Latency is the round-trip time between the control server and the agent, measured
+	// with WebSocket pings on the agent connection. Nil while offline or not measured yet.
+	Latency *NodeLatency `json:"latency,omitempty"`
+}
+
+// NodeLatency is the control↔agent round-trip time in milliseconds (0.1 ms resolution).
+type NodeLatency struct {
+	LastMS     float64   `json:"last_ms"`
+	AvgMS      float64   `json:"avg_ms"` // rolling average of the last Samples pings (~15 s apart)
+	Samples    int       `json:"samples"`
+	MeasuredAt time.Time `json:"measured_at"`
 }
 
 type JoinToken struct {
@@ -546,4 +557,10 @@ type LogLine struct {
 	At        time.Time `json:"at"`
 	Stream    string    `json:"stream"` // "stdout" | "stderr"
 	Line      string    `json:"line"`
+}
+
+// ProjectPrefs are one account's favorite and pinned projects (GET/PUT /api/v1/me/project-prefs).
+type ProjectPrefs struct {
+	Favorites []string `json:"favorites"` // project ids
+	Pinned    []string `json:"pinned"`    // project ids, in the order they show at the top
 }
