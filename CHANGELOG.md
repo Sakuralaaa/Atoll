@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.18](docs/releases/v0.1.18.md)：Zeabur 接管迁移 PostgreSQL 时保留所有者、库级授权和设置（仅 agent）。
 - [v0.1.17](docs/releases/v0.1.17.md)：Zeabur 接管重跑 PostgreSQL 迁移时先删副本再恢复，修复分区表最终同步失败（仅 agent）。
 - [v0.1.16](docs/releases/v0.1.16.md)：Zeabur 接管修复：照搬容器用户（新 `user` 字段）、复制 PostgreSQL 角色和密码、支持 TimescaleDB、演练尊重固定的镜像 digest。
 - [v0.1.15](docs/releases/v0.1.15.md)：设置页保存按钮统一、删掉重复小字、手机上 Webhook 地址完整显示。

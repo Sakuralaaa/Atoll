@@ -286,7 +286,9 @@ func (t *Takeover) migratePostgres(ctx context.Context, src pod, target string, 
 	for _, db := range res.Databases {
 		q := shq(db)
 		ts, _ := t.srcOutput(ctx, src, pgEnv+`psql -U "$U" -d `+q+` -Atc "select 1 from pg_extension where extname='timescaledb'"`)
-		dump := pgEnv + `pg_dump -U "$U" -Fc --no-owner -d ` + q
+		// Owners and grants are kept (roles were copied above): apps often log in as a
+		// non-superuser role that owns its tables or holds grants on them and on the database.
+		dump := pgEnv + `pg_dump -U "$U" -Fc --create -d ` + q
 		var restore string
 		if strings.TrimSpace(ts) == "1" {
 			// TimescaleDB: restore into a fresh database between timescaledb_pre_restore() and
@@ -295,15 +297,17 @@ func (t *Takeover) migratePostgres(ctx context.Context, src pod, target string, 
 			// comments), so its exit code is not trusted; the row counts below verify the data.
 			restore = pgEnv + `dropdb -U "$U" --maintenance-db=template1 --if-exists --force ` + q + ` && createdb -U "$U" --maintenance-db=template1 ` + q +
 				` && psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()" >/dev/null` +
-				` && { pg_restore -U "$U" -d ` + q + ` --no-owner; psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "SELECT timescaledb_post_restore()" >/dev/null; }`
+				` && { pg_restore -U "$U" -d ` + q + `; psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "SELECT timescaledb_post_restore()" >/dev/null; }`
 			res.Warnings = append(res.Warnings, fmt.Sprintf("database %s uses TimescaleDB: restored with timescaledb_pre_restore/post_restore; the target image must carry the same TimescaleDB version (pin it to Zeabur's digest)", db))
 		} else {
 			// Restore into a freshly created database rather than pg_restore --clean over the
 			// previous copy: --clean cannot drop objects in dependency order for partitioned
 			// tables ("cannot drop inherited constraint"), so a rehearsal re-run or the final
 			// sync failed. Connections to the Atoll copy are closed (--force).
-			restore = pgEnv + `dropdb -U "$U" --maintenance-db=template1 --if-exists --force ` + q + ` && createdb -U "$U" --maintenance-db=template1 ` + q +
-				` && pg_restore -U "$U" -d ` + q + ` --no-owner`
+			// pg_restore --create recreates the database with its owner, ACL (CONNECT/CREATE
+			// grants to app roles) and settings, which a plain createdb loses.
+			restore = pgEnv + `dropdb -U "$U" --maintenance-db=template1 --if-exists --force ` + q +
+				` && pg_restore -U "$U" --create -d template1`
 		}
 		n, err := t.pipe(ctx, src, dump, target, restore)
 		res.Bytes += n
