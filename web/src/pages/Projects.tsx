@@ -7,7 +7,7 @@ import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import { primaryDomain, projIcon, svcIcon, svcName } from '../api/view'
+import { primaryDomain, projIcon, svcIcon, svcName, projName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from '../components/ImageUpdateCard'
 import { cx } from '../components/ui-utils'
@@ -82,12 +82,12 @@ export default function Projects() {
             const bad = ss.some(s => s.status === 'failed')
             const dom = ss.map(primaryDomain).find(Boolean)
             return (
-              <Link key={p.id} to={`/projects/${p.id}`} className="group rounded-2xl surface surface-hover overflow-hidden">
+              <Link key={p.id} to={`/projects/${p.id}`} className="group rounded-2xl surface surface-hover overflow-hidden flex flex-col">
                 <div className="px-5 pt-5">
                   <div className="flex items-center gap-3">
                     <ServiceIcon s={projIcon(p)} size={38} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold truncate">{p.name}</div>
+                      <div className="text-[15px] font-semibold truncate">{projName(p)}</div>
                       <div className="text-[12px] text-muted truncate mt-0.5">{dom ?? (ss.length ? '仅内网访问' : '空项目')}</div>
                     </div>
                   </div>
@@ -95,10 +95,10 @@ export default function Projects() {
                     {ss.map(s => <span key={s.id} title={svcName(s)}><ServiceIcon s={svcIcon(s)} size={22} /></span>)}
                   </div>
                 </div>
-                <div className="mt-5 px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
+                <div className="mt-auto pt-5"><div className="px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
                   {srv ? <><Mini provider={providerOf(srv)} size={13} /><span className="text-fg2 truncate min-w-0">{srv.name}</span></> : <span className="text-dim">—</span>}
                   <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length}</span>
-                </div>
+                </div></div>
               </Link>
             )
           })}

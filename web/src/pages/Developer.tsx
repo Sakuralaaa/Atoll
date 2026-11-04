@@ -5,7 +5,7 @@ import { Badge, Button, Card, Hint } from '../components/ui'
 import { CodeBlock, ConfirmDialog, CopyButton, Empty, ErrorState, Label, Modal, RowsSkeleton, TextInput, Toggle } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
-import { ago } from '../api/view'
+import { ago, projName } from '../api/view'
 import { ALL_PERMISSIONS, GLOBAL_PERMISSIONS, type APIToken, type Permission } from '../api/types'
 import { useT } from '../i18n'
 import { cx } from '../components/ui-utils'
@@ -200,7 +200,7 @@ function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onClose: (
               const on = pids.includes(p.id)
               return (
                 <button key={p.id} type="button" onClick={() => setPids(x => on ? x.filter(y => y !== p.id) : [...x, p.id])} className="w-full text-left px-3.5 h-10 flex items-center gap-3 hover:bg-ov/5 text-[13px]">
-                  <span className={box(on)}>{on && <Check size={12} strokeWidth={3.5} />}</span><span className="truncate min-w-0" title={p.name}>{p.name}</span><span className="font-mono text-[11.5px] text-dim truncate shrink-[2] min-w-0">{p.id}</span>
+                  <span className={box(on)}>{on && <Check size={12} strokeWidth={3.5} />}</span><span className="truncate min-w-0" title={p.name}>{projName(p)}</span><span className="font-mono text-[11.5px] text-dim truncate shrink-[2] min-w-0">{p.id}</span>
                 </button>
               )
             })}

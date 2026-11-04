@@ -5,7 +5,7 @@ import { Badge, Button, Card, CopyId } from './ui'
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle } from './feedback'
 import { api, isConfirmation } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
-import { ago, bytes, dateTime } from '../api/view'
+import { ago, bytes, dateTime, projName } from '../api/view'
 import { backupsApi, duration, shortSnap, useBackupPolicy, useBackups, useRestores, type BackupPolicyInput } from '../api/backups'
 import type { Backup, BackupPolicy, Project, RestoreJob, Server, Service } from '../api/types'
 import { cx } from './ui-utils'
@@ -226,7 +226,7 @@ function RestoreFlow({ p, s, list, initial, onClose }: { p: Project; s: Service;
     <ConfirmDialog title="还原备份" name={s.name} action="覆盖并还原" onClose={onClose} onConfirm={go}
       description={<>
         <b className="text-fg">{s.name}</b> 现在的数据会被 <b className="text-fg">{dateTime(b.started_at)}</b> 的备份<b className="text-fg">完全替换</b>，之后写入的数据会丢失。还原期间服务会停止。
-        {moving && <div className="mt-3 rounded-lg field px-3.5 py-3 text-[13px] flex gap-2.5"><AlertTriangle size={16} className="text-[#f59e0b] shrink-0 mt-0.5" /><span>整个项目「{p.name}」会迁到 <b className="text-fg">{tgt?.name}</b>：在那里按已保存的配置重建所有服务，再还原这份数据，并把域名 DNS 切过去。</span></div>}
+        {moving && <div className="mt-3 rounded-lg field px-3.5 py-3 text-[13px] flex gap-2.5"><AlertTriangle size={16} className="text-[#f59e0b] shrink-0 mt-0.5" /><span>整个项目「{projName(p)}」会迁到 <b className="text-fg">{tgt?.name}</b>：在那里按已保存的配置重建所有服务，再还原这份数据，并把域名 DNS 切过去。</span></div>}
       </>} />
   )
   return (

@@ -6,7 +6,7 @@ import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
 import { useQuery } from '../api/hooks'
-import { svcIcon, svcName } from '../api/view'
+import { svcIcon, svcName, projName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
@@ -171,10 +171,10 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const keep = f.active ? `?${FILTER_PARAM}=${f.active}` : ''
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
-    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{project.name}</span></>} side={<>
+    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{projName(project)}</span></>} side={<>
         <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
         <div className="px-2 mt-3">
-          <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{project.name}</h1></div>
+          <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{projName(project)}</h1></div>
           {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
             : <div className="mt-1.5 h-5 w-40 rounded bg-ov/[0.07] animate-pulse" />}
         </div>

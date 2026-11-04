@@ -93,7 +93,7 @@ export interface DeploymentLogs { deployment_id: string; status: string; lines: 
 export interface BuildLogEvent { deployment_id: string; service_id: string; lines: string[] }
 
 export interface Project {
-  id: string; name: string; description?: string; server_id: string; created_at: string; services?: Service[]
+  id: string; name: string; /** panel label only; '' = show name */ display_name?: string; description?: string; server_id: string; created_at: string; services?: Service[]
 }
 
 export interface EnvVar { key: string; value: string; secret: boolean; exposed: boolean; /** only in /env/references: exposing service name */ source?: string }

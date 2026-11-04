@@ -10,15 +10,15 @@ import (
 
 // CreateProject inserts a project.
 func (s *Store) CreateProject(ctx context.Context, p api.Project, ingressHold bool) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO projects(id, team_id, name, description, server_id, ingress_hold, created_at)
-		VALUES(?, (SELECT MIN(id) FROM teams), ?,?,?,?,?)`, p.ID, p.Name, p.Description, p.ServerID, b2i(ingressHold), TS(p.CreatedAt))
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO projects(id, team_id, name, display_name, description, server_id, ingress_hold, created_at)
+		VALUES(?, (SELECT MIN(id) FROM teams), ?,?,?,?,?,?)`, p.ID, p.Name, p.DisplayName, p.Description, p.ServerID, b2i(ingressHold), TS(p.CreatedAt))
 	return mapErr(err)
 }
 
 func scanProject(row interface{ Scan(...any) error }) (*api.Project, error) {
 	var p api.Project
 	var c string
-	if err := row.Scan(&p.ID, &p.Name, &p.Description, &p.ServerID, &c); err != nil {
+	if err := row.Scan(&p.ID, &p.Name, &p.DisplayName, &p.Description, &p.ServerID, &c); err != nil {
 		return nil, mapErr(err)
 	}
 	p.CreatedAt = parseTS(c)
@@ -27,12 +27,12 @@ func scanProject(row interface{ Scan(...any) error }) (*api.Project, error) {
 
 // GetProject returns a project without services.
 func (s *Store) GetProject(ctx context.Context, id string) (*api.Project, error) {
-	return scanProject(s.DB.QueryRowContext(ctx, `SELECT id, name, description, server_id, created_at FROM projects WHERE id=?`, id))
+	return scanProject(s.DB.QueryRowContext(ctx, `SELECT id, name, display_name, description, server_id, created_at FROM projects WHERE id=?`, id))
 }
 
 // ListProjects returns all projects, optionally only those on serverID.
 func (s *Store) ListProjects(ctx context.Context, serverID string) ([]api.Project, error) {
-	q := `SELECT id, name, description, server_id, created_at FROM projects`
+	q := `SELECT id, name, display_name, description, server_id, created_at FROM projects`
 	args := []any{}
 	if serverID != "" {
 		q += ` WHERE server_id=?`
@@ -54,9 +54,9 @@ func (s *Store) ListProjects(ctx context.Context, serverID string) ([]api.Projec
 	return out, rows.Err()
 }
 
-// UpdateProject updates name/description.
-func (s *Store) UpdateProject(ctx context.Context, id, name, desc string) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE projects SET name=?, description=? WHERE id=?`, name, desc, id)
+// UpdateProject updates name, display name and description.
+func (s *Store) UpdateProject(ctx context.Context, id, name, displayName, desc string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE projects SET name=?, display_name=?, description=? WHERE id=?`, name, displayName, desc, id)
 	return mapErr(err)
 }
 

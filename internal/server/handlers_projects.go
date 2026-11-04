@@ -54,15 +54,26 @@ func (s *Server) servicesWithDomains(ctx context.Context, projectID string) ([]a
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) error {
 	var req struct {
 		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
 		ServerID    string `json:"server_id"`
 		Description string `json:"description"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
 	}
+	dn, err := checkDisplayName(req.DisplayName)
+	if err != nil {
+		return err
+	}
 	p, err := s.createProject(r.Context(), req.Name, req.ServerID, req.Description, false)
 	if err != nil {
 		return err
+	}
+	if dn != "" {
+		p.DisplayName = dn
+		if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.DisplayName, p.Description); err != nil {
+			return err
+		}
 	}
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "project.create", p.ID, map[string]string{"name": p.Name})
 	writeJSON(w, 201, p)
@@ -117,6 +128,7 @@ func (s *Server) handlePatchProject(w http.ResponseWriter, r *http.Request) erro
 	}
 	var req struct {
 		Name        *string `json:"name"`
+		DisplayName *string `json:"display_name"`
 		Description *string `json:"description"`
 		ServerID    *string `json:"server_id"`
 	}
@@ -132,10 +144,18 @@ func (s *Server) handlePatchProject(w http.ResponseWriter, r *http.Request) erro
 			return badRequest("project name must be 1-100 chars")
 		}
 	}
+	if req.DisplayName != nil {
+		if p.DisplayName, err = checkDisplayName(*req.DisplayName); err != nil {
+			return err
+		}
+	}
 	if req.Description != nil {
 		p.Description = strings.TrimSpace(*req.Description)
 	}
-	if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.Description); err != nil {
+	if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.DisplayName, p.Description); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			return errf(409, "conflict", "a project named %q already exists", p.Name)
+		}
 		return err
 	}
 	s.publish("project", p)

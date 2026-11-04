@@ -6,7 +6,7 @@ import { Badge, Button, Card, Chart, CopyId, Dot, Mini, ServiceIcon, Tabs, Ticks
 import { ConfirmDialog, Empty, ErrorState, Modal, RowsSkeleton, CardSkeleton, Select, Skeleton, TextInput, CodeBlock } from '../components/feedback'
 import { api, isDemo, type Range } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import { ago, day, gb, projIcon, timeLabels, usagePct } from '../api/view'
+import { ago, day, gb, projIcon, timeLabels, usagePct, projName } from '../api/view'
 import type { Project, Server } from '../api/types'
 import { NetBadge, ServerNetworkAction } from '../components/ServerNetwork'
 import { useT } from '../i18n'
@@ -115,7 +115,7 @@ function ProjectsTab({ s }: { s: Server }) {
         const run = ss.filter(x => x.status === 'running').length
         return (
           <Link key={p.id} to={`/projects/${p.id}`} className="rounded-2xl surface surface-hover p-5">
-            <div className="flex items-center gap-3 min-w-0"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold truncate min-w-0" title={p.name}>{p.name}</span></div>
+            <div className="flex items-center gap-3 min-w-0"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold truncate min-w-0" title={p.name}>{projName(p)}</span></div>
             <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3.5 text-[13px]">
               <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}<span className="truncate" title={s.name}>{s.name}</span></span>
               <span className="text-muted">服务</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} 运行中</span>
@@ -162,7 +162,7 @@ function MetricsTab({ s }: { s: Server }) {
         <Chart title="硬盘空间使用率" icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-9 mb-3"><h3 className="text-[15px] font-semibold">项目分布</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2 min-w-0 max-w-full"><span className="h-3 w-3 rounded-full shrink-0" style={{ background: colors[i % 6] }} />{p.name}</span>)}</div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2 min-w-0 max-w-full"><span className="h-3 w-3 rounded-full shrink-0" style={{ background: colors[i % 6] }} />{projName(p)}</span>)}</div>
       <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
         <Chart title="CPU 使用率（容器合计）" icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="#a855f7" labels={timeLabels(aggAts)} />
         <Chart title="内存（容器合计）" icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="#eab308" unit=" MB" labels={timeLabels(aggAts)} />
@@ -251,7 +251,7 @@ function Evacuate({ s, ps, onClose }: { s: Server; ps: Project[]; onClose: () =>
   const target = t || targets[0]?.id || ''
   const tName = targets.find(x => x.id === target)?.name
   if (confirm) return <ConfirmDialog title="迁出全部项目" action="开始迁移" name={s.name} onClose={onClose}
-    description={<>将把 <b>{ps.length}</b> 个项目（{ps.map(p => p.name).join('、')}）迁移到 <b>{tName}</b>。迁移期间服务会短暂停机，完成后自动切换 DNS。</>}
+    description={<>将把 <b>{ps.length}</b> 个项目（{ps.map(projName).join('、')}）迁移到 <b>{tName}</b>。迁移期间服务会短暂停机，完成后自动切换 DNS。</>}
     onConfirm={async () => { for (const p of ps) await run(() => api.migrateProject(p.id, target)); run(async () => {}, { ok: '迁移任务已提交', invalidate: ['projects'] }) }} />
   return (
     <Modal title="迁出全部项目" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!target} onClick={() => setConfirm(true)}>下一步</Button></>}>
@@ -304,7 +304,7 @@ function StatusTab({ s }: { s: Server }) {
         const f = find(row.service_id)
         return (
           <div key={row.service_id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-12 items-center text-[13px] border-b border-line last:border-0">
-            <span className="font-mono text-[13px] truncate">{f ? <Link to={`/projects/${f.p.id}/services/${f.x.id}`} className="hover:underline">atoll-{f.x.name}</Link> : `atoll-${row.service_id}`}</span><span className="truncate" title={f?.p.name}>{f?.p.name ?? '—'}</span><span className="font-mono text-[12.5px] text-muted truncate">{f?.x.image ?? row.image_digest ?? '—'}</span>
+            <span className="font-mono text-[13px] truncate">{f ? <Link to={`/projects/${f.p.id}/services/${f.x.id}`} className="hover:underline">atoll-{f.x.name}</Link> : `atoll-${row.service_id}`}</span><span className="truncate" title={f?.p.name}>{f ? projName(f.p) : '—'}</span><span className="font-mono text-[12.5px] text-muted truncate">{f?.x.image ?? row.image_digest ?? '—'}</span>
             <span className="flex items-center gap-2"><Dot status={st(row.state)} />{row.state}{row.health ? ` · ${row.health}` : ''}</span><span className={row.restart_count ? 'text-[#f59e0b] font-semibold' : 'text-muted'}>{row.restart_count}</span>
           </div>
         )

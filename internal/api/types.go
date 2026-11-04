@@ -67,7 +67,8 @@ type InstallCommand struct {
 
 type Project struct {
 	ID          string    `json:"id"`
-	Name        string    `json:"name"`
+	Name        string    `json:"name"`                   // unique handle (CLI, tokens)
+	DisplayName string    `json:"display_name,omitempty"` // panel label only; "" = show Name
 	Description string    `json:"description,omitempty"`
 	ServerID    string    `json:"server_id"` // all services of a project run on one server
 	CreatedAt   time.Time `json:"created_at"`

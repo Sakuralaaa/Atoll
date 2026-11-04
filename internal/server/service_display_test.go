@@ -47,3 +47,37 @@ func TestServiceDisplayNameNoRedeploy(t *testing.T) {
 		t.Fatalf("long label: %d", code)
 	}
 }
+
+func TestProjectDisplayName(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	_, nodeID := startFakeAgent(t, e, api.ZeaburInventory{})
+	var a, b api.Project
+	e.mustDo("POST", "/api/v1/projects", map[string]string{"name": "shop-zeabur", "display_name": " 商城 ", "server_id": nodeID}, &a, 201)
+	if a.DisplayName != "商城" || a.Name != "shop-zeabur" {
+		t.Fatalf("create: %q / %q", a.DisplayName, a.Name)
+	}
+	// labels need not be unique; names still are
+	e.mustDo("POST", "/api/v1/projects", map[string]string{"name": "shop-old", "server_id": nodeID}, &b, 201)
+	e.mustDo("PATCH", "/api/v1/projects/"+b.ID, map[string]any{"display_name": "商城"}, &b, 200)
+	if b.DisplayName != "商城" || b.Name != "shop-old" {
+		t.Fatalf("patch: %q / %q", b.DisplayName, b.Name)
+	}
+	if code := e.do("PATCH", "/api/v1/projects/"+b.ID, map[string]any{"name": "shop-zeabur"}, nil); code != 409 {
+		t.Fatalf("rename onto taken name: %d", code)
+	}
+	var list []api.Project
+	e.mustDo("GET", "/api/v1/projects", nil, &list, 200)
+	n := 0
+	for _, p := range list {
+		if p.DisplayName == "商城" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("list labels: %+v", list)
+	}
+	if code := e.do("PATCH", "/api/v1/projects/"+b.ID, map[string]any{"display_name": strings.Repeat("长", 65)}, nil); code != 400 {
+		t.Fatalf("long label: %d", code)
+	}
+}

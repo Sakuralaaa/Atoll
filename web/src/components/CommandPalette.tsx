@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { svcName } from '../api/view'
+import { svcName, projName } from '../api/view'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Package, Server, Globe, ScrollText, RotateCw, CornerDownLeft, Box, ArrowRight } from 'lucide-react'
 import { api } from '../api/client'
@@ -45,7 +45,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     const out: Item[] = pages.map(([to, l]) => ({ id: `page:${to}`, group: '页面', label: l, icon: <ArrowRight size={15} />, to }))
     const svcPath = new Map<string, { path: string; name: string }>()
     for (const p of projects ?? []) {
-      out.push({ id: `p:${p.id}`, group: '项目', label: p.name, icon: <Package size={15} />, to: `/projects/${p.id}` })
+      out.push({ id: `p:${p.id}`, group: '项目', label: projName(p), icon: <Package size={15} />, to: `/projects/${p.id}` })
       for (const s of p.services ?? []) {
         const path = `/projects/${p.id}/services/${s.id}`
         svcPath.set(s.id, { path, name: s.name })
