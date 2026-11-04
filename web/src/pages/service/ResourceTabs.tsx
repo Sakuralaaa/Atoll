@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../../components/IP'
 import { Link, useParams } from 'react-router-dom'
 import { HardDrive, Globe, FolderOpen, ExternalLink, Trash2, Plus, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, ShieldCheck } from 'lucide-react'
 import { Button, Card, Chart, Dot } from '../../components/ui'
@@ -64,7 +65,7 @@ export function NetworkTab({ s, srv }: { s: Service; srv?: Server }) {
         {(s.domains ?? []).map(d => (
           <div key={d.id} className="mt-4 rounded-lg border border-line bg-bg/50 px-4 @2xl:px-5 py-3 min-h-14 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <Dot status={d.status} /><span className="font-semibold text-[15px] min-w-0 [overflow-wrap:anywhere]">{d.hostname}</span><DomainBadge d={d} />
-            <span className="text-[13px] text-muted @4xl:ml-3 [overflow-wrap:anywhere]">A {srv?.public_ipv4 ?? '—'} · {d.proxied ? '已代理 · Full (strict)' : '仅 DNS'} · 端口 {d.port_name}</span>
+            <span className="text-[13px] text-muted @4xl:ml-3 [overflow-wrap:anywhere]">A <IP v={srv?.public_ipv4} /> · {d.proxied ? '已代理 · Full (strict)' : '仅 DNS'} · 端口 {d.port_name}</span>
             <span className="ml-auto flex gap-3 text-muted"><a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="hover:text-fg"><ExternalLink size={15} /></a><button onClick={() => setDel(d)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></span>
           </div>
         ))}

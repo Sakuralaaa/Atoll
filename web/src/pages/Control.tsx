@@ -1,6 +1,7 @@
 // 中控 (Control): the atoll-server host itself. Workloads keep running while it restarts or is down;
 // the same machine may also run an agent (a worker), shown as 同机节点. Concepts: docs/control.md, docs/ui-guide.md.
 import { useEffect, useState } from 'react'
+import { IP } from '../components/IP'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Gauge, CircleArrowUp, Archive, ScrollText, ShieldCheck, Truck, Cpu, MemoryStick, HardDrive, ExternalLink, RefreshCw, Loader2,
@@ -153,7 +154,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">网络</div>
           <KV k="公网地址" v={s.public_url ? <a href={s.public_url} target="_blank" rel="noreferrer" className="font-mono text-[12.5px] hover:underline">{s.public_url}</a> : '—'} />
-          <KV k="Tailnet" v={t ? <span className="inline-flex flex-wrap items-center justify-end gap-2"><span className="font-mono text-[12.5px]">{t.ip || '—'}</span>{t.listen_error ? <Badge tone="red">监听失败</Badge> : t.listen ? <Badge tone="green">监听中</Badge> : null}</span> : <span className="text-dim">未启用</span>} />
+          <KV k="Tailnet" v={t ? <span className="inline-flex flex-wrap items-center justify-end gap-2"><IP className="font-mono text-[12.5px]" v={t.ip} />{t.listen_error ? <Badge tone="red">监听失败</Badge> : t.listen ? <Badge tone="green">监听中</Badge> : null}</span> : <span className="text-dim">未启用</span>} />
           {t?.control_url && <KV k="Agent 私网地址" v={<span className="font-mono text-[12.5px]">{t.control_url}</span>} />}
           {t?.listen_error && <div className="text-[12.5px] text-[#ef4444] font-semibold py-1 [overflow-wrap:anywhere]">{t.listen_error}</div>}
           <KV k="Agent 连接" v={<Link to="/servers" className="inline-flex items-center gap-2 hover:underline"><Dot status={s.agents_connected === s.agents_total ? 'online' : 'deploying'} />{s.agents_connected} / {s.agents_total} 台服务器在线</Link>} />

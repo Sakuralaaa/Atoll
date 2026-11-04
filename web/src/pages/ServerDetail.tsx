@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useMask } from '../api/privacy'
+import { IP } from '../components/IP'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Info, Code2, SquareTerminal, BarChart3, Cpu, Settings, Bell, MemoryStick, HardDrive, Minus, Plus, Server as ServerIcon, ChevronDown } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -72,10 +74,10 @@ function InfoTab({ s }: { s: Server }) {
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
           <KV k="Agent" v={<span className="flex flex-wrap items-center justify-end gap-2">{s.agent_version || '—'}<AgentUpgradeBadge s={s} /></span>} />
           <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
-          <KV k={t('内网 IP', 'Tailnet IP')} v={<span className="font-mono text-[13px]">{s.tailnet_ip || '—'}</span>} />
+          <KV k={t('内网 IP', 'Tailnet IP')} v={<IP className="font-mono text-[13px]" v={s.tailnet_ip} />} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
           <KV k="区域" v={<span className="flex items-center gap-2"><Flag code={countryOf(s)} />{regionOf(s) || '—'}</span>} />
-          <KV k="IPv4" v={<span className="font-mono text-[13px]">{s.public_ipv4 || '—'}</span>} />
+          <KV k="IPv4" v={<IP className="font-mono text-[13px]" v={s.public_ipv4} />} />
         </Card>
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">规格信息</div>
@@ -200,7 +202,7 @@ function SettingsTab({ s }: { s: Server }) {
         <Row t="服务器名称"><TextInput className="w-full @4xl:w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
         <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、RackNerd、VMISS；留空则按 IP 归属自动推测"><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
         <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US；留空则按 IP 自动显示"><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
-        <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]">{s.public_ipv4 || '—'}</div></Row>
+        <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]"><IP v={s.public_ipv4} /></div></Row>
         <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>取消</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>保存配置</Button></div>
       </Section>
       <NetworkSection s={s} />
@@ -231,10 +233,11 @@ function SettingsTab({ s }: { s: Server }) {
 function NetworkSection({ s }: { s: Server }) {
   const { t } = useT()
   const state = useNetState()
+  const mask = useMask()
   const n = s.network
   return (
     <Section title={<>{t('私有网络', 'Private network')}<NetBadge s={s} /></>}>
-      <Row t={t('Tailscale', 'Tailscale')} d={s.tailnet_ip ? `${s.tailnet_ip} · ${state(n?.state)}` : n ? state(n.state) : t('这台服务器还没有加入 tailnet', 'This server is not on the tailnet yet')}>
+      <Row t={t('Tailscale', 'Tailscale')} d={s.tailnet_ip ? `${mask(s.tailnet_ip)} · ${state(n?.state)}` : n ? state(n.state) : t('这台服务器还没有加入 tailnet', 'This server is not on the tailnet yet')}>
         <ServerNetworkAction s={s} />
       </Row>
       <Row t={t('管理通道', 'Agent channel')} d={n?.fallback_urls?.length ? `${t('备用', 'Fallback')}: ${n.fallback_urls.join(', ')}` : undefined}>

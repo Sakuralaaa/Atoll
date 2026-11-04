@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../components/IP'
 import { svcName } from '../api/view'
 import { Link } from 'react-router-dom'
 import { Cloud, Plus, ExternalLink, ShieldCheck, Globe, Trash2, Settings2, ArrowRight, Loader2 } from 'lucide-react'
@@ -53,7 +54,7 @@ export default function Domains() {
                   <div className="min-w-0 @max-4xl:flex-1"><div className="font-semibold truncate" title={d.hostname}>{d.hostname}</div><DomainNote d={d} /></div>
                   {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate @max-4xl:order-2 @max-4xl:basis-full" title={`${o.p.name} / ${svcName(o.s)}`}>{o.p.name} / {svcName(o.s)}</Link> : <span className="text-dim @max-4xl:order-2 @max-4xl:basis-full">—</span>}
                   <span className="flex items-center gap-2 text-fg2 min-w-0 @max-4xl:order-3 @max-4xl:max-w-full">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
-                  <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
+                  <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? <>A <IP v={srv.public_ipv4} /></> : '—'}{d.proxied ? '' : ' · 直连'}</span>
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">
                     <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title="打开" className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>

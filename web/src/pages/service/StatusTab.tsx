@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../../components/IP'
 import { Link } from 'react-router-dom'
 import { Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Plus, Cloud, Box, History, Undo2, GitCommitHorizontal } from 'lucide-react'
 import { Button, Card, Dot, Mini, Spark } from '../../components/ui'
@@ -90,7 +91,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
           <Globe size={18} className="text-accent shrink-0" />
           <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold flex items-center gap-1.5 hover:underline min-w-0 [overflow-wrap:anywhere]">{d.hostname}<ExternalLink size={13} className="shrink-0" /></a>
           <DomainBadge d={d} />
-          <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />Cloudflare 代理</> : '仅 DNS'} → {srv?.public_ipv4 ?? '—'}</span>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />Cloudflare 代理</> : '仅 DNS'} → <IP v={srv?.public_ipv4} /></span>
         </Card>
       ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex flex-wrap gap-3 items-center justify-between">此服务未公开访问，仅项目内网可达<Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />绑定域名</Button></Card>}
 

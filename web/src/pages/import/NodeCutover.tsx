@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useMask } from '../../api/privacy'
 import { Layers, Check, AlertTriangle } from 'lucide-react'
 import { Badge, Button, Card } from '../../components/ui'
 import { ConfirmDialog } from '../../components/feedback'
@@ -36,6 +37,7 @@ export function NodeCutoverCard({ job, srv }: { job: ImportJob; srv?: Server }) 
   const ready = useSiblings(job).filter(j => READY.includes(j.status))
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState(false)
+  const mask = useMask()
   if (!ready.length || !job.server_id) return null
   const ids = [job.id, ...ready.filter(j => picked[j.id] ?? true).map(j => j.id)]
   return (
@@ -59,8 +61,8 @@ export function NodeCutoverCard({ job, srv }: { job: ImportJob; srv?: Server }) 
       </div>
       <Button variant="danger" className="mt-5 w-full" disabled={ids.length < 2} onClick={() => setOpen(true)}><Layers size={15} />{t(`一起切换 ${ids.length} 个项目`, `Cut over ${ids.length} projects together`)}</Button>
       {open && <ConfirmDialog title={t('批量切换到 Atoll', 'Batch cutover to Atoll')} action={t('确认切换', 'Cut over')} name={srv?.name} onClose={() => setOpen(false)}
-        description={<>{t(`${ids.length} 个项目的 Zeabur 应用会缩容到 0，入口控制器停用一次，由 Atoll 接管 ${srv?.public_ipv4 ?? ''} 的 80/443。zeabur.app 地址将失效。之后可整体回滚。`,
-          `Zeabur apps of ${ids.length} projects scale to 0, the ingress is parked once and Atoll takes 80/443 on ${srv?.public_ipv4 ?? ''}. zeabur.app URLs stop working. You can roll back the whole server later.`)}</>}
+        description={<>{t(`${ids.length} 个项目的 Zeabur 应用会缩容到 0，入口控制器停用一次，由 Atoll 接管 ${mask(srv?.public_ipv4 ?? '')} 的 80/443。zeabur.app 地址将失效。之后可整体回滚。`,
+          `Zeabur apps of ${ids.length} projects scale to 0, the ingress is parked once and Atoll takes 80/443 on ${mask(srv?.public_ipv4 ?? '')}. zeabur.app URLs stop working. You can roll back the whole server later.`)}</>}
         onConfirm={() => run(() => api.zeaburNodeCutover(job.server_id!, { import_ids: ids }), { ok: t('正在批量切换', 'Batch cutover started'), invalidate: ['imports'] })} />}
     </Card>
   )

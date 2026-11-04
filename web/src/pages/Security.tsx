@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
 import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -346,7 +347,7 @@ function Sessions() {
             <div className="h-9 w-9 rounded-[4px] border-2 border-[var(--edge)] bg-sunk grid place-items-center shrink-0">{d.mobile ? <Smartphone size={16} /> : <Monitor size={16} />}</div>
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-semibold flex flex-wrap items-center gap-x-2 gap-y-1">{d.name}{s.current && <Badge tone="violet">{t('当前', 'This device')}</Badge>}</div>
-              <div className="text-[12px] text-muted mt-0.5 font-mono truncate">{s.ip || '—'} · {t('登录于', 'signed in')} {fmt(s.created_at)}</div>
+              <div className="text-[12px] text-muted mt-0.5 font-mono truncate"><IP v={s.ip} /> · {t('登录于', 'signed in')} {fmt(s.created_at)}</div>
             </div>
             {!s.current && <Button size="sm" disabled={busy} onClick={() => revoke(s)}>{t('退出', 'Sign out')}</Button>}
           </div>

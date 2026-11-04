@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMask } from '../api/privacy'
 import { svcName, projName } from '../api/view'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Package, Server, Globe, ScrollText, RotateCw, CornerDownLeft, Box, ArrowRight } from 'lucide-react'
@@ -37,6 +38,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const servers = useQuery('servers', api.servers).data
   const domains = useQuery('domains', api.domains).data
   const [q, setQ] = useState('')
+  const mask = useMask()
   const [sel, setSel] = useState(0)
   const [restart, setRestart] = useState<{ id: string; name: string }>()
   const list = useRef<HTMLDivElement>(null)
@@ -112,7 +114,7 @@ function Palette({ onClose }: { onClose: () => void }) {
                   className={cx('w-full flex items-center gap-3 h-10 px-3 rounded-lg text-left text-[13.5px]', i === sel ? 'bg-ov/[0.08]' : 'hover:bg-ov/[0.04]')}>
                   <span className="text-muted shrink-0">{x.icon}</span>
                   <span className="truncate font-medium">{x.label}</span>
-                  {x.hint && <span className="truncate text-[12.5px] text-dim">{x.hint}</span>}
+                  {x.hint && <span className="truncate text-[12.5px] text-dim">{mask(x.hint)}</span>}
                   {i === sel && <CornerDownLeft size={13} className="ml-auto shrink-0 text-dim" />}
                 </button>
               </div>

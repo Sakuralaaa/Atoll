@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../../components/IP'
 import { Server as ServerIcon, ScanSearch, ListChecks, Loader2, HardDrive, MemoryStick, Cpu, AlertTriangle, RotateCcw, Box, ArrowRight } from 'lucide-react'
 import { Button, Card, ProviderIcon, ServiceIcon } from '../../components/ui'
 import { CodeBlock, CopyButton, Empty, ErrorState, RowsSkeleton, Skeleton } from '../../components/feedback'
@@ -48,7 +49,7 @@ function ServerPick({ s, onPick }: { s: Server; onPick: () => void }) {
       <ProviderIcon provider={providerOf(s)} online={on} />
       <div className="flex-1 min-w-[min(100%,180px)]">
         <div className="text-[15px] font-semibold truncate">{s.name}</div>
-        <div className="text-[13px] text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5"><span className="font-mono">{s.public_ipv4}</span><span>{flagFor(s.region)} {s.region}</span><span>{s.cpu_cores} vCPU · {gb(s.mem_mb)} · {s.arch}</span></div>
+        <div className="text-[13px] text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5"><IP className="font-mono" v={s.public_ipv4} /><span>{flagFor(s.region)} {s.region}</span><span>{s.cpu_cores} vCPU · {gb(s.mem_mb)} · {s.arch}</span></div>
       </div>
       <div className="@3xl:text-right text-[12.5px] text-muted tnum @3xl:w-28 shrink-0">{on ? <>内存 {u.mem}% · 硬盘 {u.disk}%</> : '离线'}</div>
       <span className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px] shrink-0 ml-auto">扫描<ArrowRight size={14} /></span>

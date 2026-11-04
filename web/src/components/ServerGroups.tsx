@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { IP } from './IP'
 import { projName } from '../api/view'
 import { ChevronRight, Server as ServerIcon } from 'lucide-react'
 import { Dot, Mini } from './ui'
@@ -25,7 +26,7 @@ export function ServerGroupCards({ groups, total, listView }: { groups: ServerGr
               <div className="h-[38px] w-[38px] rounded-xl field grid place-items-center shrink-0">{s && providerOf(s) !== '?' ? <Mini provider={providerOf(s)} size={20} /> : <ServerIcon size={18} className="text-muted" />}</div>
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold truncate flex items-center gap-2"><span className="truncate">{s?.name ?? t('未知机器', 'Unknown machine')}</span>{s && <Flag code={countryOf(s)} size={12} />}</div>
-                <div className="text-[12px] text-muted truncate mt-0.5 font-mono">{s ? (s.public_ipv4 || s.tailnet_ip || '—') : g.id || '—'}{s?.status === 'offline' && <span className="ml-2 font-sans text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span>}</div>
+                <div className="text-[12px] text-muted truncate mt-0.5 font-mono">{s ? <IP v={s.public_ipv4 || s.tailnet_ip} /> : g.id || '—'}{s?.status === 'offline' && <span className="ml-2 font-sans text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span>}</div>
               </div>
               <ChevronRight size={18} className="text-dim group-hover:text-fg2 shrink-0" />
             </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useMask } from '../../api/privacy'
 import { Link } from 'react-router-dom'
 import { Pencil, Check, X, Loader2 } from 'lucide-react'
 import { Button, Card } from '../../components/ui'
@@ -70,6 +71,7 @@ function MigrateService({ p, s, onClose }: { p: Project; s: Service; onClose: ()
   const cur = s.server_id || p.server_id
   const targets = all.filter(x => x.id !== cur && x.role !== 'control')
   const [to, setTo] = useState('')
+  const mask = useMask()
   const target = to || targets.find(x => x.status === 'online')?.id || ''
   const tgt = all.find(x => x.id === target), from = all.find(x => x.id === cur), home = all.find(x => x.id === p.server_id)
   const crossServer = target !== p.server_id || p.services?.some(x => x.id !== s.id && (x.server_id || p.server_id) !== target)
@@ -86,7 +88,7 @@ function MigrateService({ p, s, onClose }: { p: Project; s: Service; onClose: ()
       <div className="text-[13.5px] text-fg2 leading-6 mb-4">{t(`把 ${p.name} / ${s.name} 从 ${from?.name ?? cur} 搬到：`, `Move ${p.name} / ${s.name} from ${from?.name ?? cur} to:`)}</div>
       {targets.length ? (
         <Select className="w-full" value={target} onChange={e => setTo(e.target.value)}>
-          {targets.map(x => <option key={x.id} value={x.id} disabled={x.status !== 'online'}>{x.name}{x.id === p.server_id ? t('（项目服务器）', ' (project server)') : ''}{x.tailnet_ip ? ` · ${x.tailnet_ip}` : ''}{x.status !== 'online' ? ` · ${t('离线', 'offline')}` : ''}</option>)}
+          {targets.map(x => <option key={x.id} value={x.id} disabled={x.status !== 'online'}>{x.name}{x.id === p.server_id ? t('（项目服务器）', ' (project server)') : ''}{x.tailnet_ip ? ` · ${mask(x.tailnet_ip)}` : ''}{x.status !== 'online' ? ` · ${t('离线', 'offline')}` : ''}</option>)}
         </Select>
       ) : <div className="text-[13px] text-muted">{t('没有其他服务器。', 'No other servers.')}</div>}
       {warn && <div className="mt-4 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">{warn}</div>}

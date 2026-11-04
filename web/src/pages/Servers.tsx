@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HideIPsButton, IP } from '../components/IP'
 import { Link } from 'react-router-dom'
 import { ArrowUpDown, LayoutGrid, List, AlertCircle, Server, Plus, Loader2, Clock, SearchX } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
@@ -37,6 +38,7 @@ export default function Servers() {
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-4 mb-5">
           <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('我的服务器', 'My servers')}</h1>
           <div className="flex items-center gap-3">
+            <HideIPsButton />
             <button onClick={() => setSort(v => !v)} title={t('按名称排序', 'Sort by name')} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
             <div className="flex rounded-lg field p-0.5">
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
@@ -60,7 +62,7 @@ export default function Servers() {
           {list.map(s => {
             const u = usagePct(s), on = s.status === 'online'
             return (
-              <Link key={s.id} to={`/servers/${s.id}`} className="rounded-2xl surface surface-hover overflow-hidden relative">
+              <Link key={s.id} to={`/servers/${s.id}`} className="rounded-2xl surface surface-hover overflow-hidden relative flex flex-col">
                 <div className="absolute -right-6 top-6 w-48 h-36 dotgrid pointer-events-none" style={{ maskImage: 'radial-gradient(ellipse at 60% 50%, black 20%, transparent 70%)' }} />
                 <div className="p-6 pb-5">
                   <div className="flex items-start gap-3">
@@ -72,18 +74,18 @@ export default function Servers() {
                         <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : t('离线', 'Offline')}</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5 empty:hidden">
-                    {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
-                    {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
-                    <AgentUpgradeBadge s={s} />
+                    <div className="relative flex flex-col items-end gap-1.5 shrink-0 empty:hidden">
+                      {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
+                      {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
+                      <AgentUpgradeBadge s={s} />
+                    </div>
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
-                    <div><div className="text-muted">{t('IP 地址', 'IP address')}</div><div className="font-mono text-[13px] mt-1.5 truncate" title={s.public_ipv4}>{s.public_ipv4 || '—'}</div></div>
+                    <div><div className="text-muted">{t('IP 地址', 'IP address')}</div><div className="font-mono text-[13px] mt-1.5 truncate"><IP v={s.public_ipv4} /></div></div>
                     <div><div className="text-muted">{t('区域', 'Region')}</div><div className="mt-1.5 flex items-start gap-2 [overflow-wrap:anywhere]"><Flag code={countryOf(s)} className="mt-[3px]" />{regionOf(s) || '—'}</div></div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
-                    <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5 truncate">{s.tailnet_ip || '—'}</div></div>
+                    <div><div className="text-muted">{t('内网 IP', 'Tailnet IP')}</div><div className="font-mono text-[13px] mt-1.5 truncate"><IP v={s.tailnet_ip} /></div></div>
                     <div><div className="text-muted">{t('管理通道', 'Agent channel')}</div><div className="mt-1.5"><NetBadge s={s} /></div></div>
                   </div>
                   <div className="mt-5 space-y-2.5 text-[13px]">
@@ -91,7 +93,7 @@ export default function Servers() {
                     <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">{t('内存使用率', 'Memory')}</span><Ticks value={on ? u.mem : 0} n={34} /></div>
                   </div>
                 </div>
-                <div className="border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
+                <div className="mt-auto border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
                   {`${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
                 </div>
               </Link>

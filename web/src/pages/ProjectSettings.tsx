@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../components/IP'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Loader2, ArrowRight } from 'lucide-react'
 import { ProjectShell } from '../components/Shell'
@@ -86,7 +87,7 @@ function Migrate({ p, servers, onClose }: { p: Project; servers: Server[]; onClo
       {!list.length ? <div className="text-[13px] text-muted">没有其他可用的服务器。</div> : <>
         <div className="text-[13px] font-semibold mb-1.5">目标服务器</div>
         <Select className="w-full" value={to} onChange={e => setTo(e.target.value)}>{list.map(s => <option key={s.id} value={s.id} disabled={s.status !== 'online'}>{s.name}{s.status !== 'online' ? '（离线）' : ''}</option>)}</Select>
-        <div className="mt-4 rounded-lg field px-4 py-3 text-[12.5px] text-fg2 leading-5">{p.name} 的 {p.services?.length ?? 0} 个服务会在迁移期间短暂停机；绑定的域名会自动改指向 {target?.public_ipv4 ?? '新服务器'}。</div>
+        <div className="mt-4 rounded-lg field px-4 py-3 text-[12.5px] text-fg2 leading-5">{p.name} 的 {p.services?.length ?? 0} 个服务会在迁移期间短暂停机；绑定的域名会自动改指向 {target?.public_ipv4 ? <IP v={target.public_ipv4} /> : '新服务器'}。</div>
       </>}
     </Modal>
   )

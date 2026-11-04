@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from '../../components/IP'
 import { Link } from 'react-router-dom'
 import { FlaskConical, Power, Trash2, Check, Loader2, Circle, X, Minus, Globe, AlertTriangle, ShieldCheck, Undo2, ArrowRight, PartyPopper } from 'lucide-react'
 import { Badge, Button, Card, Dot } from '../../components/ui'
@@ -168,7 +169,7 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
           </Card>
           <Card className="p-6 flex gap-5 items-center">
             <div className="tile h-12 w-12 rounded-lg bg-[#86efac] text-[#141414] grid place-items-center shrink-0"><Globe size={22} /></div>
-            <div className="flex-1"><div className="text-[14px] font-semibold">同一台机器，同一个 IP，DNS 不用动</div><div className="text-[13px] text-muted mt-1 leading-6">服务仍在 <span className="font-mono text-fg">{srv?.public_ipv4}</span> 上，只是从 Zeabur 的 k3s 换到了 Atoll 的 Docker。已有的 A 记录继续有效；只有 *.zeabur.app 地址会失效{hosts.length ? '，新地址会在切换时创建' : ''}。预计停机不到一分钟。</div></div>
+            <div className="flex-1"><div className="text-[14px] font-semibold">同一台机器，同一个 IP，DNS 不用动</div><div className="text-[13px] text-muted mt-1 leading-6">服务仍在 <span className="font-mono text-fg"><IP v={srv?.public_ipv4} /></span> 上，只是从 Zeabur 的 k3s 换到了 Atoll 的 Docker。已有的 A 记录继续有效；只有 *.zeabur.app 地址会失效{hosts.length ? '，新地址会在切换时创建' : ''}。预计停机不到一分钟。</div></div>
           </Card>
           {running && <Card className="p-5"><div className="text-[13px] font-semibold mb-2 flex items-center gap-2"><Loader2 size={14} className="animate-spin text-accent" />正在切换…</div><StepList job={job} from={6} /></Card>}
           {!running && <NodeWideNote />}
@@ -188,7 +189,7 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
         </div>
       </div>
       {confirm && <ConfirmDialog title="切换到 Atoll" action="确认切换" name={job.plan.project_name} onClose={() => setConfirm(false)}
-        description={<>Zeabur 上 <b>{job.plan.project_name}</b> 的应用会缩容到 0，入口控制器停用，由 Atoll 接管 {srv?.public_ipv4} 的 80/443。DNS 无需改动；zeabur.app 地址将失效。之后可一键回滚。</>}
+        description={<>Zeabur 上 <b>{job.plan.project_name}</b> 的应用会缩容到 0，入口控制器停用，由 Atoll 接管 <IP v={srv?.public_ipv4} empty="" /> 的 80/443。DNS 无需改动；zeabur.app 地址将失效。之后可一键回滚。</>}
         onConfirm={() => run(() => api.cutover(job.id), { ok: '正在切换', invalidate: ['imports'] })} />}
     </>
   )

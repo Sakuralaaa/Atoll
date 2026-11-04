@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IP } from './IP'
 import { Link } from 'react-router-dom'
 import { Globe, Loader2, Lock, Network } from 'lucide-react'
 import { Badge, Button } from './ui'
@@ -52,7 +53,7 @@ export function ServerNetworkAction({ s }: { s: Server }) {
       {res && <Modal title={<><Network size={17} />{res.switched ? t('已切换', 'Switched') : t('未切换', 'Not switched')}</>} onClose={() => setRes(undefined)} footer={<Button size="sm" variant="primary" onClick={() => setRes(undefined)}>{t('好', 'OK')}</Button>}>
         <div className="space-y-2 text-[13px]">
           <div className="flex justify-between"><span className="text-muted">{t('管理通道', 'Control URL')}</span><span className="font-mono">{res.control_url || '—'}</span></div>
-          <div className="flex justify-between"><span className="text-muted">Tailnet IP</span><span className="font-mono">{res.tailnet_ip || '—'}</span></div>
+          <div className="flex justify-between"><span className="text-muted">Tailnet IP</span><IP className="font-mono" v={res.tailnet_ip} /></div>
           <div className="flex justify-between"><span className="text-muted">{t('状态', 'State')}</span><span>{res.state || '—'}</span></div>
           {res.message && <div className="mt-3 rounded-lg border-2 border-dashed border-line2 px-3 py-2 text-fg2">{res.message}</div>}
         </div>

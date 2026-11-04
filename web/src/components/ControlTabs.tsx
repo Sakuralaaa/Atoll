@@ -1,5 +1,6 @@
 // 中控 → 日志 / 审计日志 / 迁移.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { IP } from './IP'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ChevronDown, ChevronRight, Loader2, RefreshCw, ScrollText, Search, ShieldCheck, X, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { Badge, Button, Card } from './ui'
@@ -119,7 +120,7 @@ export function AuditTab() {
                     <button onClick={() => filterBy('action', r.action)} className={cx('font-mono text-[12.5px] font-semibold truncate hover:underline min-w-0', /failed|denied/.test(r.action) && 'text-[#ef4444]')} title={`只看 ${r.action}`}>{r.action}</button>
                   </span>
                   <span className="truncate text-fg2 @max-4xl:col-span-2 @max-4xl:order-3 @max-4xl:pl-5" title={r.target}>{r.target || <span className="text-dim">—</span>}</span>
-                  <span className="font-mono text-[12px] text-muted truncate @max-4xl:order-4 @max-4xl:pl-5" title={r.ip}>{r.ip || '—'}</span>
+                  <span className="font-mono text-[12px] text-muted truncate @max-4xl:order-4 @max-4xl:pl-5" ><IP v={r.ip} /></span>
                   <span className="font-mono text-[12px] text-muted truncate @max-4xl:order-4 @max-4xl:text-right" title={ref}>{ref}</span>
                 </div>
                 {open === r.id && hasDetail && <pre className="mx-4 @2xl:mx-6 mb-3 rounded-lg field px-3 py-2 font-mono text-[12px] text-fg2 whitespace-pre-wrap [overflow-wrap:anywhere]">{JSON.stringify(r.detail, null, 2)}</pre>}
