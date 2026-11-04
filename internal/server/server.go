@@ -363,5 +363,15 @@ func (s *Server) dnsProvider(ctx context.Context) dns.Provider {
 	}
 	zone, _ := s.st.GetSetting(ctx, "cloudflare_zone_id")
 	base, _ := s.st.GetSetting(ctx, "base_domain")
-	return &dns.Cloudflare{Token: tok, ZoneID: zone, BaseDomain: base, BaseURL: s.cfg.CloudflareBaseURL}
+	cf := &dns.Cloudflare{Token: tok, ZoneID: zone, BaseDomain: base, BaseURL: s.cfg.CloudflareBaseURL}
+	if rs, err := s.st.ListRootDomains(ctx); err == nil {
+		for _, r := range rs {
+			id := r.ZoneID
+			if r.Name == base && zone != "" {
+				id = zone // the zone id in Settings keeps applying to the default root
+			}
+			cf.Roots = append(cf.Roots, dns.Root{Name: r.Name, ZoneID: id})
+		}
+	}
+	return cf
 }

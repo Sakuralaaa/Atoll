@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/dns"
 	"github.com/Sakuralaaa/Atoll/internal/server/envresolve"
 	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
@@ -412,6 +413,22 @@ func (s *Server) ingressFor(ctx context.Context, nodeID string) (api.IngressPayl
 			continue
 		}
 		out.Routes = append(out.Routes, api.IngressRoute{Hostname: r.Hostname, Upstream: fmt.Sprintf("%s:%d", containerName(r.ServiceID), port), ServiceID: r.ServiceID})
+	}
+	// Roots with their own certificate (rootdomains.go). None: the payload is unchanged.
+	if out.Domains = s.ingressDomains(ctx); len(out.Domains) > 0 && out.CloudflareOnly {
+		// a host served with an ACME certificate must be reachable by the CA directly
+		var acme []string
+		for _, d := range out.Domains {
+			if d.Mode == "acme" {
+				acme = append(acme, d.Name)
+			}
+		}
+		for _, r := range out.Routes {
+			if dns.RootFor(r.Hostname, acme) != "" {
+				out.CloudflareOnly = false
+				break
+			}
+		}
 	}
 	return out, nil
 }

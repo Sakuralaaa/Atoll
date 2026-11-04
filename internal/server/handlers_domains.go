@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -15,8 +16,10 @@ import (
 
 type domainRequest struct {
 	Hostname string `json:"hostname"`
-	PortName string `json:"port_name"`
-	Proxied  *bool  `json:"proxied"`
+	// RootDomain completes a bare Hostname ("blog") instead of the project's default root.
+	RootDomain string `json:"root_domain,omitempty"`
+	PortName   string `json:"port_name"`
+	Proxied    *bool  `json:"proxied"`
 }
 
 func (s *Server) handleListAllDomains(w http.ResponseWriter, r *http.Request) error {
@@ -76,8 +79,23 @@ func (s *Server) handleAddDomain(w http.ResponseWriter, r *http.Request) error {
 
 // prepareDomain validates a request without side effects.
 func (s *Server) prepareDomain(ctx context.Context, svc *api.Service, req domainRequest) (*api.Domain, error) {
-	base, _ := s.st.GetSetting(ctx, "base_domain")
-	host, err := normalizeHostname(req.Hostname, base)
+	base := s.projectRoot(ctx, svc.ProjectID) // rootdomains.go
+	h := req.Hostname
+	if req.RootDomain != "" {
+		root, err := s.checkProjectRoot(ctx, req.RootDomain)
+		if err != nil {
+			return nil, err
+		}
+		// With an explicit root the hostname is the part in front of it.
+		h = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(h)), ".")
+		if h == "" || h == "@" {
+			h = root
+		} else if h != root && !strings.HasSuffix(h, "."+root) {
+			h = h + "." + root
+		}
+		base = root
+	}
+	host, err := normalizeHostname(h, base)
 	if err != nil {
 		return nil, err
 	}

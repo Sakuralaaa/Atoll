@@ -57,11 +57,16 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) err
 		DisplayName string `json:"display_name"`
 		ServerID    string `json:"server_id"`
 		Description string `json:"description"`
+		RootDomain  string `json:"root_domain"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
 	}
 	dn, err := checkDisplayName(req.DisplayName)
+	if err != nil {
+		return err
+	}
+	root, err := s.checkProjectRoot(r.Context(), req.RootDomain) // rootdomains.go
 	if err != nil {
 		return err
 	}
@@ -72,6 +77,12 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) err
 	if dn != "" {
 		p.DisplayName = dn
 		if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.DisplayName, p.Description); err != nil {
+			return err
+		}
+	}
+	if root != "" {
+		p.RootDomain = root
+		if err := s.st.SetProjectRootDomain(r.Context(), p.ID, root); err != nil {
 			return err
 		}
 	}
@@ -131,6 +142,7 @@ func (s *Server) handlePatchProject(w http.ResponseWriter, r *http.Request) erro
 		DisplayName *string `json:"display_name"`
 		Description *string `json:"description"`
 		ServerID    *string `json:"server_id"`
+		RootDomain  *string `json:"root_domain"`
 	}
 	if err := decode(r, &req); err != nil {
 		return err
@@ -152,11 +164,21 @@ func (s *Server) handlePatchProject(w http.ResponseWriter, r *http.Request) erro
 	if req.Description != nil {
 		p.Description = strings.TrimSpace(*req.Description)
 	}
+	if req.RootDomain != nil {
+		if p.RootDomain, err = s.checkProjectRoot(r.Context(), *req.RootDomain); err != nil {
+			return err
+		}
+	}
 	if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.DisplayName, p.Description); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return errf(409, "conflict", "a project named %q already exists", p.Name)
 		}
 		return err
+	}
+	if req.RootDomain != nil {
+		if err := s.st.SetProjectRootDomain(r.Context(), p.ID, p.RootDomain); err != nil {
+			return err
+		}
 	}
 	s.publish("project", p)
 	writeJSON(w, 200, p)

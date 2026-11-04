@@ -119,6 +119,9 @@ type fakeCloudflare struct {
 	created []string
 	deleted []string
 	onEvent func(ev string) // optional: "cf:create host" / "cf:delete host", in order
+	reqs    []string        // every request, "METHOD /path?query"
+	// originCA, when set, answers POST /certificates (rootdomains_test.go)
+	originCA func(w http.ResponseWriter, r *http.Request)
 }
 
 func (f *fakeCloudflare) event(ev string) {
@@ -140,6 +143,11 @@ func (f *fakeCloudflare) resolve(_ context.Context, host string) ([]string, erro
 func (f *fakeCloudflare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.reqs = append(f.reqs, r.Method+" "+r.URL.RequestURI())
+	if r.URL.Path == "/certificates" && f.originCA != nil {
+		f.originCA(w, r)
+		return
+	}
 	reply := func(result any) {
 		raw, _ := json.Marshal(result)
 		json.NewEncoder(w).Encode(map[string]any{"success": true, "errors": []any{}, "result": json.RawMessage(raw)})

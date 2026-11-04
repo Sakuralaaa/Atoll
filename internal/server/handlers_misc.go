@@ -153,6 +153,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	if req.BaseDomain != "" && !hostnameRe.MatchString(req.BaseDomain) {
 		return badRequest("invalid base_domain %q", req.BaseDomain)
 	}
+	if err := s.checkLegacyBaseDomain(r.Context(), req.BaseDomain); err != nil { // rootdomains.go
+		return err
+	}
 	if req.TLSMode == "" {
 		req.TLSMode = "cloudflare-origin"
 	}
@@ -171,8 +174,8 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 	}
 	ctx := r.Context()
 	set := map[string]string{
-		"base_domain": req.BaseDomain, "cloudflare_zone_id": strings.TrimSpace(req.CloudflareZoneID),
-		"tls_mode": req.TLSMode, "public_url": req.PublicURL, "acme_email": strings.TrimSpace(req.ACMEEmail),
+		"cloudflare_zone_id": strings.TrimSpace(req.CloudflareZoneID),
+		"tls_mode":           req.TLSMode, "public_url": req.PublicURL, "acme_email": strings.TrimSpace(req.ACMEEmail),
 	}
 	if req.CloudflareToken != "" { // "" keeps the stored token
 		set["cloudflare_token"] = strings.TrimSpace(req.CloudflareToken)
@@ -213,6 +216,11 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) error
 		if err := s.st.SetSetting(ctx, k, v); err != nil {
 			return err
 		}
+	}
+	// base_domain is the default root domain of the list (rootdomains.go); after the token
+	// so a newly added root can find its zone.
+	if err := s.syncLegacyBaseDomain(ctx, req.BaseDomain); err != nil {
+		return err
 	}
 	s.st.Audit(ctx, principalFrom(ctx).actor(), "settings.update", "", nil)
 	if req.GeoIP == "on" {

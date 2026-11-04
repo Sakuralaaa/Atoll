@@ -121,6 +121,12 @@ func (s *Server) Handler() http.Handler {
 
 	// domains
 	a("GET "+v+"/domains", needReadList, s.handleListAllDomains)
+	// root domains (multi-domain, rootdomains.go)
+	a("GET "+v+"/root-domains", needReadGlobal, s.handleListRootDomains)
+	a("POST "+v+"/root-domains", needSettings, s.handleCreateRootDomain)
+	a("PATCH "+v+"/root-domains/{name}", needSettings, s.handlePatchRootDomain)
+	a("POST "+v+"/root-domains/{name}/refresh", needSettings, s.handleRefreshRootDomain)
+	a("DELETE "+v+"/root-domains/{name}", needSettings, s.handleDeleteRootDomain)
 	a("DELETE "+v+"/domains/{id}", needDomains, s.handleDeleteDomain)
 
 	// tokens
