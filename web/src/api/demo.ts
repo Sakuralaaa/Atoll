@@ -10,7 +10,7 @@ import { makeDemoProblems } from './demo-problems'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
+  LogLine, NodeMetrics, Project, RootDomain, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
 } from './types'
 import { series } from '../components/ui-utils'
 
@@ -95,6 +95,46 @@ const confirmations: Confirmation[] = [
   { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: '把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix', status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
   { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: '删除项目 old-blog（3 个服务）', status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
 ]
+// multi-domain demo: example.com follows the global HTTPS settings, example.net got its own
+// Origin CA certificate, example.org fell back to ACME (token without SSL permission)
+const rootDomains: RootDomain[] = [
+  { name: 'example.com', default: true, zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', zone_name: 'example.com', cert_mode: 'global', cert_status: 'global', created_at: iso(20 * D) },
+  { name: 'example.net', default: false, zone_id: '1b7e0c3d5a9f42e8b6c4d2a0f8e6c4b2', zone_name: 'example.net', cert_mode: 'auto', cert_status: 'origin', cert_expires_at: '2041-10-28T08:00:00Z', created_at: iso(3 * D) },
+  { name: 'apps.example.org', default: false, zone_id: '7c5a3e1f9d0b48a6c2e4f6a8b0d2c4e6', zone_name: 'example.org', cert_mode: 'auto', cert_status: 'acme', cert_error: 'the Cloudflare token cannot issue Origin CA certificates (add the zone permission SSL and Certificates: Edit)', created_at: iso(1 * D) },
+]
+// one project defaults to the second root, so the project dropdown has something to show
+if (projects[1]) projects[1].root_domain = 'example.net'
+const rootOf = (h: string) => rootDomains.map(r => r.name).filter(r => h === r || h.endsWith('.' + r)).sort((a, b) => b.length - a.length)[0]
+function rootRoute(method: string, seg: string[], body: any): unknown {
+  if (seg[0] !== 'root-domains') return undefined
+  const find = (n: string) => rootDomains.find(r => r.name === n) ?? fail(404, 'root domain not found')
+  const setDefault = (r: RootDomain) => { rootDomains.forEach(x => { x.default = x === r }); settings.base_domain = r.name; rootDomains.sort((a, b) => +b.default - +a.default || a.name.localeCompare(b.name)) }
+  const settle = (r: RootDomain) => {
+    r.cert_error = undefined; r.cert_expires_at = undefined
+    if (r.cert_mode === 'auto') { r.cert_status = 'origin'; r.cert_expires_at = new Date(now + 5475 * D).toISOString() } else r.cert_status = r.cert_mode
+  }
+  if (seg.length === 1 && method === 'GET') return rootDomains
+  if (seg.length === 1 && method === 'POST') {
+    const name = String(body.name ?? '').trim().toLowerCase().replace(/\.$/, '')
+    if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(name)) fail(400, `invalid root domain "${name}"`)
+    if (rootDomains.some(r => r.name === name)) fail(409, `root domain ${name} already exists`)
+    const r: RootDomain = { name, default: false, zone_id: Math.random().toString(16).slice(2).padEnd(32, '0'), zone_name: name.split('.').slice(-2).join('.'), cert_mode: body.cert_mode || (rootDomains.length ? 'auto' : 'global'), cert_status: '', created_at: new Date().toISOString() }
+    settle(r); rootDomains.push(r); if (body.default || rootDomains.length === 1) setDefault(r)
+    return r
+  }
+  const r = find(seg[1])
+  if (seg[2] === 'refresh') { settle(r); return r }
+  if (method === 'PATCH') { if (body.cert_mode && body.cert_mode !== r.cert_mode) { r.cert_mode = body.cert_mode; settle(r) } if (body.default) setDefault(r); return r }
+  if (method === 'DELETE') {
+    if (r.default && rootDomains.length > 1) fail(409, `${r.name} is the default root domain: make another one the default first`)
+    const n = domains.filter(d => rootOf(d.hostname) === r.name).length
+    if (n) fail(409, `${n} bound domain(s) still use ${r.name}: remove them first`)
+    rootDomains.splice(rootDomains.indexOf(r), 1); projects.forEach(p => { if (p.root_domain === r.name) delete p.root_domain })
+    if (!rootDomains.length) settings.base_domain = ''
+    return {}
+  }
+  return r
+}
 if (stressEnabled()) addStressData({ now, servers, projects, services, domains, env, deployments, tokens, confirmations })
 const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f2c4b7a1e0d43c58a6b2f1e7d3c9a05', has_cloudflare_token: true, tls_mode: 'cloudflare-origin', public_url: 'https://panel.example.com', has_origin_cert: true,
   network_provider: 'tailscale', has_tailscale_auth_key: true, tailnet_name: 'tail3c1a.ts.net', tailnet_control_url: 'http://100.64.0.4:7301', tailnet_listen: '100.64.0.4:7301', agent_public: true, default_mem_limit_mb: 1024, default_cpu_limit: 0, geoip: 'on' }
@@ -411,11 +451,13 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; services.filter(x => x.project_id === pr.id).forEach(x => { x.server_id = body.server_id }); return {} }
   if ((a = m('projects/*'))) {
     const pr = projects.find(x => x.id === a![0]) ?? fail(404, '项目不存在')
-    if (X) Object.assign(pr, body)
+    if (X && body.root_domain !== undefined && body.root_domain && !rootDomains.some(r => r.name === body.root_domain)) fail(400, `unknown root domain "${body.root_domain}"`)
+    if (X) { Object.assign(pr, body); if (body.root_domain === '') delete pr.root_domain }
     if (DEL) { projects.splice(projects.indexOf(pr), 1); return {} }
     return fullProject(pr)
   }
 
+  { const r = rootRoute(method, seg, body); if (r !== undefined) return r }
   { const r = demoControl(method, seg, body, q); if (r !== undefined) return r }
   { const r = demoGit.route(method, seg, body, q); if (r !== undefined) return r }
   { const r = demoUpdates(method, seg, body); if (r !== undefined) return r }
@@ -433,7 +475,14 @@ function route(method: string, path: string, body: any): unknown {
   }
   if ((a = m('services/*/domains'))) {
     if (G) return domains.filter(d => d.service_id === a![0])
-    const d: Domain = { id: nid('dom'), service_id: a[0], hostname: body.hostname, port_name: body.port_name, proxied: body.proxied, status: 'provisioning', created_at: new Date().toISOString() }
+    const s = svc(a[0]), pr = projects.find(x => x.id === s.project_id)
+    let host = String(body.hostname ?? '').trim().toLowerCase()
+    const root = body.root_domain || (rootDomains.some(r => r.name === pr?.root_domain) ? pr?.root_domain : settings.base_domain)
+    if (body.root_domain && !rootDomains.some(r => r.name === body.root_domain)) fail(400, `unknown root domain "${body.root_domain}"`)
+    if (body.root_domain) host = !host || host === '@' ? root : host === root || host.endsWith('.' + root) ? host : `${host}.${root}`
+    else if (!host.includes('.') && root) host = `${host}.${root}`
+    if (domains.some(d => d.hostname === host)) fail(409, `hostname ${host} is already bound`)
+    const d: Domain = { id: nid('dom'), service_id: a[0], hostname: host, port_name: body.port_name, proxied: body.proxied, status: 'provisioning', created_at: new Date().toISOString() }
     domains.push(d); setTimeout(() => { d.status = 'active' }, 8000); return d
   }
   if ((a = m('services/*/deployments'))) return deployments[a[0]] ?? []

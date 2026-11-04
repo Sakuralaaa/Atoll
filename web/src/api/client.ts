@@ -1,5 +1,5 @@
 import type {
-  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
+  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
 } from './types'
 
@@ -110,7 +110,7 @@ export const api = {
   projects: () => get<Project[]>('/projects'),
   project: (id: string) => get<Project>(`/projects/${e(id)}`),
   createProject: (b: { name: string; server_id: string; description?: string }) => post<Project>('/projects', b),
-  updateProject: (id: string, b: Partial<Pick<Project, 'name' | 'display_name' | 'description'>>) => patch<Project>(`/projects/${e(id)}`, b),
+  updateProject: (id: string, b: Partial<Pick<Project, 'name' | 'display_name' | 'description' | 'root_domain'>>) => patch<Project>(`/projects/${e(id)}`, b),
   deleteProject: (id: string) => del<Confirmation | void>(`/projects/${e(id)}`),
   migrateProject: (id: string, server_id: string) => post<MigrationJob | Confirmation>(`/projects/${e(id)}/migrate`, { server_id }),
   /** /projects may omit services; fill them from /projects/{id} when missing. */
@@ -129,9 +129,15 @@ export const api = {
   putEnv: (id: string, vars: EnvVar[], redeploy = true) => put<EnvVar[]>(`/services/${e(id)}/env${redeploy ? '' : '?redeploy=0'}`, vars),
   envRefs: (id: string) => get<EnvReference[]>(`/services/${e(id)}/env/references`),
   serviceDomains: (id: string) => get<Domain[]>(`/services/${e(id)}/domains`),
-  addDomain: (id: string, b: { hostname: string; port_name: string; proxied: boolean }) => post<Domain | Confirmation>(`/services/${e(id)}/domains`, b),
+  addDomain: (id: string, b: { hostname: string; port_name: string; proxied: boolean; root_domain?: string }) => post<Domain | Confirmation>(`/services/${e(id)}/domains`, b),
   deleteDomain: (id: string) => del<Confirmation | void>(`/domains/${e(id)}`),
   domains: () => get<Domain[]>('/domains'),
+  // root domains (multi-domain)
+  rootDomains: () => get<RootDomain[]>('/root-domains'),
+  addRootDomain: (b: { name: string; cert_mode?: string; default?: boolean }) => post<RootDomain>('/root-domains', b),
+  updateRootDomain: (name: string, b: { cert_mode?: string; default?: boolean }) => patch<RootDomain>(`/root-domains/${e(name)}`, b),
+  refreshRootDomain: (name: string) => post<RootDomain>(`/root-domains/${e(name)}/refresh`),
+  deleteRootDomain: (name: string) => del<void>(`/root-domains/${e(name)}`),
   deployments: (id: string) => get<Deployment[]>(`/services/${e(id)}/deployments`),
   serviceMetrics: (id: string, range: Range = '24h') => get<ContainerMetrics[]>(`/services/${e(id)}/metrics?range=${range}`),
   /** move one service (container + volumes) to another server; siblings reach it over the tailnet mesh */

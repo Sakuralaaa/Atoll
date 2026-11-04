@@ -38,11 +38,13 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
   const [name, setName] = useState(p.name)
   const [label, setLabel] = useState(p.display_name ?? '')
   const [desc, setDesc] = useState(p.description ?? '')
+  const roots = useQuery('root-domains', api.rootDomains).data ?? []
+  const [root, setRoot] = useState(p.root_domain ?? '')
   const [busy, wrap] = useBusy()
   const [migrate, setMigrate] = useState(false)
   const [del, setDel] = useState(false)
-  const changed = name.trim() !== p.name || label.trim() !== (p.display_name ?? '') || desc !== (p.description ?? '')
-  const save = () => wrap(() => run(() => api.updateProject(p.id, { name: name.trim(), display_name: label.trim(), description: desc }), { ok: '已保存', invalidate: [`project:${p.id}`, 'projects'] }))
+  const changed = name.trim() !== p.name || label.trim() !== (p.display_name ?? '') || desc !== (p.description ?? '') || root !== (p.root_domain ?? '')
+  const save = () => wrap(() => run(() => api.updateProject(p.id, { name: name.trim(), display_name: label.trim(), description: desc, ...(root !== (p.root_domain ?? '') ? { root_domain: root } : {}) }), { ok: '已保存', invalidate: [`project:${p.id}`, 'projects'] }))
   const n = p.services?.length ?? 0
   return (
     <>
@@ -51,6 +53,13 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
         <Row t="显示名称" d="只改面板里显示的名字，可以重复；留空则显示项目名称"><TextInput className="w-[420px]" value={label} maxLength={64} onChange={e => setLabel(e.target.value)} placeholder={name.trim() || p.name} /></Row>
         <Row t="项目名称" d="全局唯一，CLI 和 API 令牌按它指定项目"><TextInput className="w-[420px]" value={name} onChange={e => setName(e.target.value)} /></Row>
         <Row t="描述"><TextInput className="w-[420px]" value={desc} onChange={e => setDesc(e.target.value)} placeholder="可选" /></Row>
+        {roots.length > 0 && <Row t="默认根域名" d="这个项目新绑定的域名默认建在它下面；已有域名不变">
+          <Select className="w-[420px] font-mono" value={root} onChange={e => setRoot(e.target.value)}>
+            <option value="">跟随全局默认（{roots.find(r => r.default)?.name ?? '—'}）</option>
+            {roots.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+            {root && !roots.some(r => r.name === root) && <option value={root}>{root}（已移除）</option>}
+          </Select>
+        </Row>}
         <div className="px-6 py-4 flex justify-end"><Button variant="primary" size="sm" disabled={!changed || !name.trim() || busy} onClick={save}>{busy && <Loader2 size={13} className="animate-spin" />}保存</Button></div>
       </Card>
       <div className="text-[13px] font-semibold mb-3">服务器与迁移</div>

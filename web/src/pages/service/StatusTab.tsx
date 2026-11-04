@@ -3,7 +3,7 @@ import { IP } from '../../components/IP'
 import { Link } from 'react-router-dom'
 import { Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Plus, Cloud, Box, History, Undo2, GitCommitHorizontal } from 'lucide-react'
 import { Button, Card, Dot, Mini, Spark } from '../../components/ui'
-import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton, TextInput, Toggle } from '../../components/feedback'
+import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton, Toggle } from '../../components/feedback'
 import ImageUpdateCard from '../../components/ImageUpdateCard'
 import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
 import { BuildLogModal, CommitLink, GithubIcon, SourceCard } from '../../components/GitSource'
@@ -16,6 +16,8 @@ import { DomainBadge } from '../../components/DomainStatus'
 import { cx, statusText } from '../../components/ui-utils'
 import { providerOf } from '../../api/providers'
 import { useT } from '../../i18n'
+import { useProject } from '../../api/queries'
+import { HostnameInput, useHostnameInput } from '../../components/HostnameInput'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
   const base = `/projects/${p.id}/services/${s.id}`
@@ -166,16 +168,16 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
 }
 
 export function BindDomain({ s, onClose }: { s: Service; onClose: () => void }) {
-  const settings = useQuery('settings', api.settings).data
+  const project = useProject(s.project_id).data
+  const h = useHostnameInput(project?.root_domain)
   const httpPorts = (s.ports ?? []).filter(p => p.protocol === 'http')
-  const [host, setHost] = useState(''); const [port, setPort] = useState(httpPorts[0]?.name ?? ''); const [proxied, setProxied] = useState(true)
+  const [port, setPort] = useState(httpPorts[0]?.name ?? ''); const [proxied, setProxied] = useState(true)
   const [busy, wrap] = useBusy()
-  const hostname = host.includes('.') ? host : host && settings?.base_domain ? `${host}.${settings.base_domain}` : host
-  const submit = () => wrap(async () => { const r = await run(() => api.addDomain(s.id, { hostname, port_name: port, proxied }), { ok: '域名已添加，正在配置 DNS 与证书', invalidate: [`project:${s.project_id}`, 'domains'] }); if (r) onClose() })
+  const submit = () => wrap(async () => { const r = await run(() => api.addDomain(s.id, { hostname: h.v.hostname, root_domain: h.v.root_domain, port_name: port, proxied }), { ok: '域名已添加，正在配置 DNS 与证书', invalidate: [`project:${s.project_id}`, 'domains'] }); if (r) onClose() })
   return (
-    <Modal title="绑定域名" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!hostname || !port || busy} onClick={submit}>绑定</Button></>}>
-      <Label t="域名" d={settings?.base_domain ? `只填前缀则使用 *.${settings.base_domain}；完整域名需由同一 Cloudflare 账号托管` : '尚未设置主域名，请填写完整域名'}>
-        <div className="flex items-center gap-2 min-w-0"><TextInput autoFocus mono className="flex-1 min-w-0" value={host} onChange={e => setHost(e.target.value.trim())} placeholder={settings?.base_domain ? 'app' : 'app.example.com'} />{settings?.base_domain && !host.includes('.') && <span className="font-mono text-[13px] text-muted truncate max-w-[50%]">.{settings.base_domain}</span>}</div>
+    <Modal title="绑定域名" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!h.v.ok || !port || busy} onClick={submit}>绑定</Button></>}>
+      <Label t="域名" d={h.names.length ? `填前缀并选择根域名；其他域名选「完整域名」，需由同一 Cloudflare 账号托管${h.v.ok && h.v.full ? ` · 将绑定 ${h.v.full}` : ''}` : '尚未设置根域名，请填写完整域名'}>
+        <HostnameInput h={h} autoFocus onEnter={submit} />
       </Label>
       <Label t="端口">{httpPorts.length ? <Select className="w-full" value={port} onChange={e => setPort(e.target.value)}>{httpPorts.map(p => <option key={p.name} value={p.name}>{p.name} · {p.container_port}</option>)}</Select> : <div className="text-[13px] text-muted">没有 HTTP 端口，请先在「网络」里添加。</div>}</Label>
       <div className="flex items-center justify-between gap-4"><div><div className="text-[13px] font-semibold">Cloudflare 代理</div><div className="text-[12px] text-dim mt-0.5">橙色云朵：隐藏源站 IP，80/443 只放行 Cloudflare</div></div><Toggle on={proxied} onChange={setProxied} /></div>

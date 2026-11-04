@@ -13,6 +13,7 @@ import NetworkSettings from '../components/NetworkSettings'
 import GeoIPSettings from '../components/GeoIPSettings'
 import PrivacySettings from '../components/PrivacySettings'
 import NotificationSettings from '../components/NotificationSettings'
+import RootDomainsSettings from '../components/RootDomainsSettings'
 import { SettingsTabs } from './Security'
 import { cx } from '../components/ui-utils'
 
@@ -26,6 +27,7 @@ export default function Settings() {
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
         {q.data && <Form key={JSON.stringify(q.data)} s={q.data} />}
+        {q.data && <RootDomainsSettings />}
         {q.data && <NotificationSettings />}
         {q.data && <ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} />}
         {q.data && <GeoIPSettings s={q.data} />}
@@ -57,7 +59,7 @@ function Field({ t, d, children, right }: { t: string; d?: React.ReactNode; chil
 const Saved = ({ on }: { on: boolean }) => on ? <Badge tone="green"><Check size={11} strokeWidth={3} />已保存</Badge> : <Badge tone="zinc">未设置</Badge>
 
 function Form({ s }: { s: S }) {
-  const [v, setV] = useState({ base_domain: s.base_domain, cloudflare_zone_id: s.cloudflare_zone_id, tls_mode: s.tls_mode || 'cloudflare-origin', public_url: s.public_url, acme_email: s.acme_email ?? '' })
+  const [v, setV] = useState({ cloudflare_zone_id: s.cloudflare_zone_id, tls_mode: s.tls_mode || 'cloudflare-origin', public_url: s.public_url, acme_email: s.acme_email ?? '' })
   const [token, setToken] = useState(''); const [cert, setCert] = useState(''); const [key, setKey] = useState('')
   const [busy, wrap] = useBusy()
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setV(x => ({ ...x, [k]: e.target.value }))
@@ -65,7 +67,8 @@ function Form({ s }: { s: S }) {
   const certLooksOk = (!cert || cert.includes('BEGIN CERTIFICATE')) && (!key || key.includes('PRIVATE KEY'))
   const changed = token || cert || key || (Object.keys(v) as (keyof typeof v)[]).some(k => v[k] !== ((s as unknown as Record<string, string>)[k] ?? ''))
   const save = () => wrap(async () => {
-    const body: Partial<S> = { ...v, base_domain: v.base_domain.trim().toLowerCase(), public_url: v.public_url.trim().replace(/\/$/, '') }
+    // base_domain is the default root domain, managed in the root domain list below
+    const body: Partial<S> = { ...v, base_domain: s.base_domain, public_url: v.public_url.trim().replace(/\/$/, '') }
     if (token.trim()) body.cloudflare_token = token.trim()
     if (cert.trim() && key.trim()) { body.origin_cert_pem = cert.trim() + '\n'; body.origin_key_pem = key.trim() + '\n' }
     const r = await run(() => api.putSettings(body), { ok: '设置已保存', invalidate: ['settings', 'domains'] })
@@ -79,18 +82,15 @@ function Form({ s }: { s: S }) {
           <TextInput mono className="w-full" value={v.public_url} onChange={set('public_url')} placeholder="https://panel.example.com" />
         </Field>
       </Section>
-      <Section icon={<Globe size={17} />} t="域名与 Cloudflare" d="服务绑定主域名的子域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限。">
-        <Field t="主域名" d="服务的子域名都建在它下面">
-          <TextInput mono className="w-full" value={v.base_domain} onChange={set('base_domain')} placeholder="example.com" />
-        </Field>
-        <Field t="Zone ID" d="Cloudflare 域名概览页右下角">
+      <Section icon={<Globe size={17} />} t="Cloudflare" d="服务绑定根域名下的域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限；要给根域名自动签 Origin 证书，再加 SSL and Certificates 编辑权限。">
+        <Field t="Zone ID" d="可选：默认根域名的 Zone，留空则按域名自动查找">
           <TextInput mono className="w-full" value={v.cloudflare_zone_id} onChange={set('cloudflare_zone_id')} placeholder="32 位十六进制" />
         </Field>
         <Field t="API 令牌" right={<Saved on={s.has_cloudflare_token} />}>
           <TextInput mono type="password" autoComplete="off" className="w-full" value={token} onChange={e => setToken(e.target.value)} placeholder={s.has_cloudflare_token ? '已设置，留空保持不变' : '粘贴 Cloudflare API 令牌'} />
         </Field>
       </Section>
-      <Section icon={<ShieldCheck size={17} />} t="HTTPS 证书" d="Cloudflare 代理模式推荐用 Origin CA 证书（15 年有效，推送到每台服务器的 atoll-caddy）；不走代理时用 ACME 自动签发。">
+      <Section icon={<ShieldCheck size={17} />} t="HTTPS 证书" d="全局证书设置：证书模式为「跟随全局」的根域名和不在任何根域名下的域名用它。Cloudflare 代理模式推荐用 Origin CA 证书（15 年有效，推送到每台服务器的 atoll-caddy）；不走代理时用 ACME 自动签发。">
         <Field t="证书模式">
           <Select className="w-full" value={v.tls_mode} onChange={set('tls_mode')}>
             <option value="cloudflare-origin">Cloudflare Origin CA</option>

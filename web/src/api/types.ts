@@ -94,6 +94,16 @@ export interface BuildLogEvent { deployment_id: string; service_id: string; line
 
 export interface Project {
   id: string; name: string; /** panel label only; '' = show name */ display_name?: string; description?: string; server_id: string; created_at: string; services?: Service[]
+  /** root domain new domains default to; absent = the default root domain */ root_domain?: string
+}
+
+/** One root domain of Settings → 根域名 (GET /root-domains). */
+export interface RootDomain {
+  name: string; default: boolean; zone_id?: string; zone_name?: string
+  /** global = follow the global HTTPS settings; auto = Cloudflare Origin CA, ACME if that fails; acme = always ACME */
+  cert_mode: 'global' | 'auto' | 'acme' | string
+  /** what the servers actually serve */ cert_status: 'global' | 'origin' | 'acme' | '' | string
+  cert_error?: string; cert_expires_at?: string; created_at: string
 }
 
 export interface EnvVar { key: string; value: string; secret: boolean; exposed: boolean; /** only in /env/references: exposing service name */ source?: string }
