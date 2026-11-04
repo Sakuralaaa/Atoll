@@ -7,7 +7,7 @@ import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import { primaryDomain, projIcon, svcIcon } from '../api/view'
+import { primaryDomain, projIcon, svcIcon, svcName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from '../components/ImageUpdateCard'
 import { cx } from '../components/ui-utils'
@@ -92,7 +92,7 @@ export default function Projects() {
                     </div>
                   </div>
                   <div className="mt-5 flex items-center gap-1.5 h-[22px] overflow-hidden">
-                    {ss.map(s => <span key={s.id} title={s.name}><ServiceIcon s={svcIcon(s)} size={22} /></span>)}
+                    {ss.map(s => <span key={s.id} title={svcName(s)}><ServiceIcon s={svcIcon(s)} size={22} /></span>)}
                   </div>
                 </div>
                 <div className="mt-5 px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">

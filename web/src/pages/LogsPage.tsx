@@ -7,7 +7,7 @@ import { ConfirmDialog, RowsSkeleton } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { useLogStream } from '../api/ws'
-import { dateTime, deployStatusText, shortDigests, triggerText } from '../api/view'
+import { svcName, dateTime, deployStatusText, shortDigests, triggerText } from '../api/view'
 import type { Deployment, LogLine, Service } from '../api/types'
 import { BuildLogModal, CommitLink } from '../components/GitSource'
 import { hasBuildLog } from '../api/git'
@@ -48,7 +48,7 @@ export default function LogsPage() {
       <div className="px-4 md:px-10 pt-6 md:pt-8 pb-5 flex flex-wrap items-end justify-between gap-3 border-b border-line">
         <div>
           <Link to={`/projects/${pid}/services/${sid}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2"><ArrowLeft size={15} />返回</Link>
-          <div className="text-[13px] text-muted mt-3">{s?.name ?? '…'} · 服务 ID</div>
+          <div className="text-[13px] text-muted mt-3">{s ? svcName(s) : '…'} · 服务 ID</div>
           <div className="mt-1"><CopyId v={sid ?? ''} /></div>
           <div className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg field p-0.5 gap-1">
             {[['logs', '运行日志'], ['deploys', '部署记录'], ['exec', '命令']].map(([k, l]) => (

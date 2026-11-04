@@ -98,9 +98,12 @@ type HealthCheck struct {
 }
 
 type Service struct {
-	ID             string       `json:"id"`
-	ProjectID      string       `json:"project_id"`
-	Name           string       `json:"name"`  // DNS name inside the project network
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"` // DNS name inside the project network
+	// DisplayName is the label the panel shows instead of Name ("" = Name). Only a label:
+	// changing it redeploys nothing and the hostname stays Name.
+	DisplayName    string       `json:"display_name,omitempty"`
 	Kind           string       `json:"kind"`  // "image" | "postgres" | "mysql" | "redis" | "mongo" ...
 	Image          string       `json:"image"` // full ref incl. tag, e.g. ghcr.io/me/app:v1
 	Command        []string     `json:"command,omitempty"`

@@ -17,21 +17,23 @@ export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) =
 export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
   const upd = useImageUpdate(s.id).data
   const pinnedHint = splitImage(s.image ?? '').digest ? `已固定到 ${imageVersionLabel(s.image, upd?.current_version)}；改回 :latest 即跟随最新` : undefined
-  const [f, setF] = useState({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
+  const [f, setF] = useState({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
   const [del, setDel] = useState(false); const [move, setMove] = useState(false); const [gitEdit, setGitEdit] = useState(false)
   const { t } = useT()
   const git = isGit(s)
   const [busy, wrap] = useBusy()
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
-  const dirty = f.name !== s.name || f.image !== s.image || f.command !== (s.command ?? []).join(' ') || f.health !== (s.health?.http_path ?? '') || f.cpu !== (s.cpu_limit ? String(s.cpu_limit) : '') || f.mem !== (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
-  const save = () => wrap(() => run(() => api.updateService(s.id, {
-    name: f.name, ...(git ? {} : { image: f.image }), command: f.command.trim() ? f.command.trim().split(/\s+/) : [],
+  const onlyLabel = f.display.trim() !== (s.display_name ?? '') && f.name === s.name && f.image === s.image && f.command === (s.command ?? []).join(' ') && f.health === (s.health?.http_path ?? '') && f.cpu === (s.cpu_limit ? String(s.cpu_limit) : '') && f.mem === (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
+  const dirty = f.display.trim() !== (s.display_name ?? '') || f.name !== s.name || f.image !== s.image || f.command !== (s.command ?? []).join(' ') || f.health !== (s.health?.http_path ?? '') || f.cpu !== (s.cpu_limit ? String(s.cpu_limit) : '') || f.mem !== (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
+  const save = () => wrap(() => run(() => onlyLabel ? api.updateService(s.id, { display_name: f.display.trim() }) : api.updateService(s.id, {
+    display_name: f.display.trim(), name: f.name, ...(git ? {} : { image: f.image }), command: f.command.trim() ? f.command.trim().split(/\s+/) : [],
     health: f.health ? { ...s.health, http_path: f.health } : undefined, cpu_limit: +f.cpu || 0, mem_limit_mb: +f.mem || 0,
-  }), { ok: '已保存，正在重新部署', invalidate: [`project:${p.id}`, 'projects'] }))
+  }), { ok: onlyLabel ? '显示名称已保存' : '已保存，正在重新部署', invalidate: [`project:${p.id}`, 'projects'] }))
   return (
     <>
       <Sec t="基本">
-        <Row t="服务名称" d="也是项目内网的主机名"><TextInput className="w-full @4xl:w-[420px]" value={f.name} onChange={set('name')} /></Row>
+        <Row t="显示名称" d="只改面板里显示的名字，不影响内网主机名，也不会重新部署；留空则显示服务名称"><TextInput className="w-full @4xl:w-[420px]" value={f.display} maxLength={64} placeholder={s.name} onChange={set('display')} /></Row>
+        <Row t="服务名称" d="也是项目内网的主机名；改了以后其他服务里引用它的地址要一起改"><TextInput className="w-full @4xl:w-[420px]" value={f.name} onChange={set('name')} /></Row>
         {git && s.git
           ? <Row t={t('源码', 'Source')} d={t(`从 GitHub 构建：${repoPath(s.git.repo)}@${s.git.branch || 'main'}`, `Built from GitHub: ${repoPath(s.git.repo)}@${s.git.branch || 'main'}`)}><Button size="sm" onClick={() => setGitEdit(true)}><Pencil size={13} />{t('编辑源码设置', 'Edit git settings')}</Button></Row>
           : <Row t="镜像" d={pinnedHint ?? 'Docker Hub、GHCR 或私有仓库'}><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
@@ -44,7 +46,7 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
         <Row t="CPU" d="核，留空不限"><TextInput className="w-full @4xl:w-[420px]" value={f.cpu} onChange={set('cpu')} placeholder="不限" /></Row>
         <Row t="内存" d="MB，超出后容器会被 OOM 重启。建议填写：不限时一个服务泄漏内存可能拖垮整台机器"><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder="不限" /></Row>
       </Sec>
-      {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">有未保存的修改，保存后会重新部署</span><Button size="sm" onClick={() => setF({ name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />放弃</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}保存并部署</Button></div>}
+      {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">{onlyLabel ? '有未保存的修改' : '有未保存的修改，保存后会重新部署'}</span><Button size="sm" onClick={() => setF({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />放弃</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}{onlyLabel ? '保存' : '保存并部署'}</Button></div>}
       <Sec t="危险区域">
         <Row t={t('迁移到其他服务器', 'Move to another server')} d={t('只搬这个服务（容器与卷），项目其他服务经 tailnet 用同一个服务名访问它；迁移期间服务会停止。', 'Moves only this service (container and volumes); the rest of the project reaches it over the tailnet under the same name. It stops during the copy.')}>
           <Link to={`/projects/${p.id}/settings`}><Button variant="ghost" size="sm">{t('迁移整个项目', 'Move whole project')}</Button></Link>

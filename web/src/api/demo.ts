@@ -425,7 +425,7 @@ function route(method: string, path: string, body: any): unknown {
   if ((a = m('services/*/exec'))) return exec(body.cmd)
   if ((a = m('services/*'))) {
     const s = svc(a[0])
-    if (X) { Object.assign(s, body); s.status = 'deploying' }
+    if (X) { const onlyLabel = Object.keys(body).every(k => k === 'display_name'); Object.assign(s, body); if (!onlyLabel) s.status = 'deploying' }
     if (DEL) { services.splice(services.indexOf(s), 1); return {} }
     return withSvc(s)
   }

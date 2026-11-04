@@ -15,6 +15,8 @@ export function colorFor(name: string) {
 export const letterFor = (name: string) => (name.match(/[A-Za-z0-9]/)?.[0] ?? name[0] ?? '?').toUpperCase()
 
 export interface IconSpec { kind: string; letter?: string; color?: string }
+/** The name the panel shows for a service: its display name, else its hostname. */
+export const svcName = (s: Pick<Service, 'name' | 'display_name'>) => s.display_name || s.name
 export const svcIcon = (s: Pick<Service, 'kind' | 'name'>): IconSpec => ({ kind: s.kind, letter: letterFor(s.name), color: colorFor(s.name) })
 export const projIcon = (p: Project): IconSpec => p.services?.[0] ? svcIcon(p.services[0]) : { kind: 'image', letter: letterFor(p.name), color: colorFor(p.name) }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 )
@@ -80,6 +81,9 @@ func (s *Server) handleCreateImport(w http.ResponseWriter, r *http.Request) erro
 	specs := make([]api.Service, len(plan.Services))
 	for i, is := range plan.Services {
 		v := api.Service{Name: sanitizeName(is.Name), Kind: is.Kind, Image: is.Image, Command: is.Command, Args: is.Args, User: is.User, Ports: is.Ports, Volumes: is.Volumes, Configs: is.Configs}
+		if dn := strings.TrimSpace(is.Name); dn != v.Name && utf8.RuneCountInString(dn) <= 64 {
+			v.DisplayName = dn // the hostname had to change: keep the original as the panel label
+		}
 		if v.Kind == "" {
 			v.Kind = "image"
 		}

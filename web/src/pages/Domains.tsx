@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { svcName } from '../api/view'
 import { Link } from 'react-router-dom'
 import { Cloud, Plus, ExternalLink, ShieldCheck, Globe, Trash2, Settings2, ArrowRight, Loader2 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -50,7 +51,7 @@ export default function Domains() {
               return (
                 <div key={d.id} className="flex flex-wrap @4xl:grid @4xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-x-4 gap-y-1.5 px-4 @2xl:px-6 min-h-14 py-3 @4xl:py-2 items-center text-[13px] border-b border-line last:border-0">
                   <div className="min-w-0 @max-4xl:flex-1"><div className="font-semibold truncate" title={d.hostname}>{d.hostname}</div><DomainNote d={d} /></div>
-                  {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate @max-4xl:order-2 @max-4xl:basis-full" title={`${o.p.name} / ${o.s.name}`}>{o.p.name} / {o.s.name}</Link> : <span className="text-dim @max-4xl:order-2 @max-4xl:basis-full">—</span>}
+                  {o ? <Link to={`/projects/${o.p.id}/services/${o.s.id}?tab=network`} className="text-fg2 hover:text-fg truncate @max-4xl:order-2 @max-4xl:basis-full" title={`${o.p.name} / ${svcName(o.s)}`}>{o.p.name} / {svcName(o.s)}</Link> : <span className="text-dim @max-4xl:order-2 @max-4xl:basis-full">—</span>}
                   <span className="flex items-center gap-2 text-fg2 min-w-0 @max-4xl:order-3 @max-4xl:max-w-full">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span></> : <span className="text-dim">—</span>}</span>
                   <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? `A ${srv.public_ipv4}` : '—'}{d.proxied ? '' : ' · 直连'}</span>
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
@@ -91,7 +92,7 @@ export function AddDomain({ projects, base, onClose, fixed }: { projects: Projec
   return (
     <Modal title="绑定域名" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!ok || busy} onClick={submit}>{busy && <Loader2 size={13} className="animate-spin" />}绑定</Button></>}>
       {!opts.length ? <div className="text-[13px] text-muted">还没有带 HTTP 端口的服务。</div> : <>
-        {!fixed && <Label t="服务"><Select className="w-full" value={sid} onChange={e => { setSid(e.target.value); setPort('') }}>{opts.map(o => <option key={o.s.id} value={o.s.id}>{o.p?.name} / {o.s.name}</option>)}</Select></Label>}
+        {!fixed && <Label t="服务"><Select className="w-full" value={sid} onChange={e => { setSid(e.target.value); setPort('') }}>{opts.map(o => <option key={o.s.id} value={o.s.id}>{o.p?.name} / {svcName(o.s)}</option>)}</Select></Label>}
         <Label t="域名" d={base ? `${base} 的子域名会自动在 Cloudflare 建记录；其他域名请手动把 A 记录指向服务器 IP。` : '请把域名的 A 记录指向服务器 IP。'}>
           <TextInput autoFocus mono className="w-full" value={host} onChange={e => setHost(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder={base ? `app.${base}` : 'app.example.com'} />
         </Label>

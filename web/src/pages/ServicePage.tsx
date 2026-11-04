@@ -9,7 +9,7 @@ import BackupPanel from '../components/BackupPanel'
 import { isGit } from '../api/git'
 import { api } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
-import { day, svcIcon } from '../api/view'
+import { day, svcIcon, svcName } from '../api/view'
 import type { Service } from '../api/types'
 import { useT } from '../i18n'
 import { cx, statusText } from '../components/ui-utils'
@@ -83,7 +83,7 @@ function Header({ s, onChange, onTab }: { s: Service; onChange: () => void; onTa
     <div className="flex flex-wrap items-start gap-4">
       <ServiceIcon s={svcIcon(s)} size={52} />
       <div className="flex-1 min-w-[min(100%,220px)]">
-        <div className="flex flex-wrap items-center gap-3"><h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s.name}</h1><Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
+        <div className="flex flex-wrap items-center gap-3"><h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{svcName(s)}</h1>{s.display_name && <span className="font-mono text-[13px] text-muted" title="内网主机名">{s.name}</span>}<Badge tone={tone(s.status)}>{statusText[s.status] ?? s.status}</Badge></div>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted"><CopyId v={s.id} /><span>创建于 {day(s.created_at)}</span></div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -99,9 +99,9 @@ function Header({ s, onChange, onTab }: { s: Service; onChange: () => void; onTa
         ]} disabled={busy} />
       </div>
       {confirm === 'restart' && <ConfirmDialog title="重新启动服务" action="重新启动" danger={false} onClose={() => setConfirm(undefined)}
-        description={<>重启 {s.name} 的容器，期间会短暂不可访问。</>} onConfirm={() => act('restart')} />}
+        description={<>重启 {svcName(s)} 的容器，期间会短暂不可访问。</>} onConfirm={() => act('restart')} />}
       {confirm === 'stop' && <ConfirmDialog title="停止服务" action="停止" onClose={() => setConfirm(undefined)}
-        description={<>停止 {s.name} 的容器，服务将不可访问，直到再次启动。数据卷不受影响。</>} onConfirm={() => act('stop')} />}
+        description={<>停止 {svcName(s)} 的容器，服务将不可访问，直到再次启动。数据卷不受影响。</>} onConfirm={() => act('stop')} />}
     </div>
   )
 }

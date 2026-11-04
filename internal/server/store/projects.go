@@ -87,7 +87,7 @@ func (s *Store) DeleteProject(ctx context.Context, id string) error {
 // ---------- services ----------
 
 const svcCols = `id, project_id, name, kind, image, command, args, ports, volumes, configs, health,
-	cpu_limit, mem_limit_mb, registry_cred_id, status, replicas, created_at, run_as`
+	cpu_limit, mem_limit_mb, registry_cred_id, status, replicas, created_at, run_as, display_name`
 
 // svcNode is a service's effective server: its own placement, else the project's server.
 const svcNode = `COALESCE(NULLIF(services.server_id, ''), (SELECT p.server_id FROM projects p WHERE p.id = services.project_id), '')`
@@ -120,7 +120,7 @@ func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error
 	var cmd, args, ports, vols, cfgs, health, c string
 	var stopped int
 	err := row.Scan(&v.ID, &v.ProjectID, &v.Name, &v.Kind, &v.Image, &cmd, &args, &ports, &vols, &cfgs, &health,
-		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &v.User, &stopped, &v.ServerID)
+		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &v.User, &v.DisplayName, &stopped, &v.ServerID)
 	if err != nil {
 		return nil, false, mapErr(err)
 	}
@@ -142,9 +142,9 @@ func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error
 
 // CreateService inserts a service.
 func (s *Store) CreateService(ctx context.Context, v api.Service) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO services(`+svcCols+`, desired_stopped) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO services(`+svcCols+`, desired_stopped) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 		v.ID, v.ProjectID, v.Name, v.Kind, v.Image, mustJSON(v.Command), mustJSON(v.Args), mustJSON(nz(v.Ports)), mustJSON(nzv(v.Volumes)),
-		mustJSON(v.Configs), mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.Status, v.Replicas, TS(v.CreatedAt), v.User)
+		mustJSON(v.Configs), mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.Status, v.Replicas, TS(v.CreatedAt), v.User, v.DisplayName)
 	return mapErr(err)
 }
 
@@ -168,6 +168,12 @@ func (s *Store) UpdateServiceSpec(ctx context.Context, v api.Service) error {
 		v.Name, v.Image, mustJSON(v.Command), mustJSON(v.Args), mustJSON(nz(v.Ports)), mustJSON(nzv(v.Volumes)), mustJSON(v.Configs),
 		mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.User, v.ID)
 	return mapErr(err)
+}
+
+// SetServiceDisplayName sets the panel label of a service ("" = show its name).
+func (s *Store) SetServiceDisplayName(ctx context.Context, id, name string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE services SET display_name=? WHERE id=?`, name, id)
+	return err
 }
 
 // SetServiceStatus updates status and replicas ("" leaves replicas unchanged).

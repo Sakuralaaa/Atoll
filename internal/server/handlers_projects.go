@@ -322,6 +322,11 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 // ports, volumes and env from the template). It does not deploy.
 func (s *Server) createService(ctx context.Context, p *api.Project, v api.Service, env []api.EnvVar, applyTemplate bool) (*api.Service, error) {
 	v.Name = strings.ToLower(strings.TrimSpace(v.Name))
+	dn, err := checkDisplayName(v.DisplayName) // service_display.go
+	if err != nil {
+		return nil, err
+	}
+	v.DisplayName = dn
 	if v.Kind == "" {
 		v.Kind = "image"
 	}
@@ -436,6 +441,9 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 	}
 	for _, f := range []string{"id", "project_id", "kind", "status", "replicas", "created_at", "domains", "server_id", "source", "webhook"} {
 		delete(raw, f)
+	}
+	if done, err := s.patchDisplayName(w, r, raw, svc); done || err != nil { // service_display.go
+		return err
 	}
 	gitRaw, gitInPatch := raw["git"]
 	if svc.Git != nil && !gitInPatch {

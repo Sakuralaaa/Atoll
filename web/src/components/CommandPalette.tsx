@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { svcName } from '../api/view'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Package, Server, Globe, ScrollText, RotateCw, CornerDownLeft, Box, ArrowRight } from 'lucide-react'
 import { api } from '../api/client'
@@ -48,9 +49,9 @@ function Palette({ onClose }: { onClose: () => void }) {
       for (const s of p.services ?? []) {
         const path = `/projects/${p.id}/services/${s.id}`
         svcPath.set(s.id, { path, name: s.name })
-        out.push({ id: `s:${s.id}`, group: '服务', label: s.name, hint: p.name, icon: <Box size={15} />, to: path })
-        out.push({ id: `l:${s.id}`, group: '操作', label: `查看日志 ${s.name}`, hint: p.name, icon: <ScrollText size={15} />, to: `${path}/logs` })
-        out.push({ id: `r:${s.id}`, group: '操作', label: `重新启动 ${s.name}`, hint: p.name, icon: <RotateCw size={15} />, restart: { id: s.id, name: s.name } })
+        out.push({ id: `s:${s.id}`, group: '服务', label: svcName(s), hint: s.display_name ? `${p.name} · ${s.name}` : p.name, icon: <Box size={15} />, to: path })
+        out.push({ id: `l:${s.id}`, group: '操作', label: `查看日志 ${svcName(s)}`, hint: p.name, icon: <ScrollText size={15} />, to: `${path}/logs` })
+        out.push({ id: `r:${s.id}`, group: '操作', label: `重新启动 ${svcName(s)}`, hint: p.name, icon: <RotateCw size={15} />, restart: { id: s.id, name: svcName(s) } })
       }
     }
     for (const s of servers ?? []) if (s.role !== 'control') out.push({ id: `srv:${s.id}`, group: '服务器', label: s.name, hint: s.public_ipv4, icon: <Server size={15} />, to: `/servers/${s.id}` })

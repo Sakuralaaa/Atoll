@@ -59,6 +59,7 @@ export interface Domain {
 
 export interface Service {
   id: string; project_id: string; name: string
+  /** panel label ("" = name); not a hostname, changing it redeploys nothing */ display_name?: string
   kind: 'image' | 'postgres' | 'mysql' | 'redis' | 'mongo' | string
   image: string; command?: string[]; args?: string[]
   ports: Port[]; volumes: Volume[]; configs?: ConfigFile[]; health?: HealthCheck

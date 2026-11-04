@@ -6,7 +6,7 @@ import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
 import { useQuery } from '../api/hooks'
-import { svcIcon } from '../api/view'
+import { svcIcon, svcName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
@@ -190,7 +190,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
           {!!services.length && !f.list.length && f.def && <div className="px-2 py-1 text-[12.5px] text-dim">{t(`没有「${f.def.zh}」的服务`, `No services match “${f.def.en}”`)} · <button onClick={() => f.set('')} className="text-accent hover:underline">{t('显示全部', 'Show all')}</button></div>}
           {f.list.map(s => (
             <Link key={s.id} to={`/projects/${project.id}/services/${s.id}${keep}`} className={cx('flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
-              <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{s.name}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
+              <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{svcName(s)}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
             </Link>
           ))}
         </div>
