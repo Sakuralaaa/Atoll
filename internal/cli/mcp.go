@@ -21,7 +21,7 @@ func mcpInstructions(me client.Me) string {
 		"Only the tools this API token is permitted to use are listed; an operation outside its permissions fails with PERMISSION DENIED " +
 		"(tell the user which permission to grant; do not try to work around it). "
 	if me.RequireApproval() {
-		return s + "This token requires approval: destructive tools (delete, migrate, domains, restore, zeabur steps) return " +
+		return s + "This token requires approval: destructive tools (delete, migrate, domains, restore, zeabur and docker steps) return " +
 			`"PENDING CONFIRMATION ..." and nothing happens until the user approves it in the Atoll panel. ` +
 			"Never retry to get around a pending confirmation; tell the user what to approve."
 	}
@@ -78,6 +78,11 @@ var mcpToolPerm = map[string]string{
 	"project_migrate":       api.PermMigrate,
 	"service_migrate":       api.PermMigrate,
 	"zeabur_node_cutover":   api.PermMigrate,
+	"docker_scan":           api.PermRead,
+	"docker_adopt":          api.PermDeploy,
+	"docker_rehearse":       api.PermDeploy,
+	"docker_cutover":        api.PermMigrate,
+	"docker_rollback":       api.PermMigrate,
 	"backup_restore":        api.PermRestore,
 	"service_delete":        api.PermDelete,
 	"project_delete":        api.PermDelete,
@@ -751,6 +756,67 @@ func mcpTools(app *App) []server.ServerTool {
 					return nil, fmt.Errorf("import %s is not an in-place Zeabur takeover", ids[0])
 				}
 				return c.ZeaburNodeCutover(ctx, j.ServerID, api.ZeaburNodeCutoverRequest{ImportIDs: ids, Force: r.GetBool("force", false)})
+			}),
+		t(tool("docker_scan", "List the containers on one of the user's servers that Atoll does not manage (started with docker run or docker compose), grouped by compose project (standalone containers form their own group, key container:NAME). Each container has risk auto (can be adopted) or manual (risk_reasons say why: host network, privileged, Docker socket, devices, cap_add...; never adopted automatically). Env values are masked.", true, false,
+			mcp.WithString("server", mcp.Required(), mcp.Description("server name or id"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				ref, err := reqStr(r, "server")
+				if err != nil {
+					return nil, err
+				}
+				s, err := c.ResolveServer(ctx, ref)
+				if err != nil {
+					return nil, err
+				}
+				return c.DockerScan(ctx, s.ID)
+			}),
+		t(tool("docker_adopt", "Create the Atoll project for one container group from docker_scan (an import job imp_...). Nothing starts and the user's containers keep running. Next: docker_rehearse, then docker_cutover.", false, false,
+			mcp.WithString("server", mcp.Required(), mcp.Description("server name or id")),
+			mcp.WithString("group", mcp.Required(), mcp.Description("group key from docker_scan, e.g. compose:blog or container:redis")),
+			mcp.WithArray("containers", mcp.Description("only these container names (default: every auto one)"), mcp.WithStringItems()),
+			mcp.WithString("project_name", mcp.Description("Atoll project name (default: the group name)"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				ref, err := reqStr(r, "server")
+				if err != nil {
+					return nil, err
+				}
+				g, err := reqStr(r, "group")
+				if err != nil {
+					return nil, err
+				}
+				s, err := c.ResolveServer(ctx, ref)
+				if err != nil {
+					return nil, err
+				}
+				return c.DockerAdopt(ctx, api.DockerAdoptRequest{ServerID: s.ID, Group: g, Containers: r.GetStringSlice("containers", nil), ProjectName: r.GetString("project_name", "")})
+			}),
+		t(tool("docker_rehearse", "Rehearse a Docker adoption (imp_...): Atoll copies start next to the user's containers without published ports and with scratch data dirs, are checked for health and stopped again. The user's containers keep serving. Follow it with zeabur_import_status (status rehearsed or failed). Refused with insufficient_memory unless ignore_memory.", false, false,
+			mcp.WithString("import_id", mcp.Required(), mcp.Description("imp_... id")),
+			mcp.WithBoolean("ignore_memory", mcp.Description("skip the free-memory check (default false)"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				id, err := reqStr(r, "import_id")
+				if err != nil {
+					return nil, err
+				}
+				return c.RehearseImportWith(ctx, id, api.ZeaburRehearseRequest{IgnoreMemory: r.GetBool("ignore_memory", false)})
+			}),
+		t(tool("docker_cutover", "Cut over a rehearsed Docker adoption (imp_...): the user's containers are stopped (kept, restart policy set to no) and the Atoll services start on the same host ports with the same bind mounts and volumes in place. Short downtime; a failure rolls back by itself. Follow it with zeabur_import_status (live, or rolled_back)."+fmt.Sprintf(imm, api.PermMigrate)+" If it returns PENDING CONFIRMATION, never retry to bypass it.", false, true,
+			mcp.WithString("import_id", mcp.Required(), mcp.Description("imp_... id"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				id, err := reqStr(r, "import_id")
+				if err != nil {
+					return nil, err
+				}
+				return c.CutoverImport(ctx, id)
+			}),
+		t(tool("docker_rollback", "Roll back a Docker adoption (imp_...): stop its Atoll services and start the user's old containers again with their original restart policy."+fmt.Sprintf(imm, api.PermMigrate), false, true,
+			mcp.WithString("import_id", mcp.Required(), mcp.Description("imp_... id"))),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				id, err := reqStr(r, "import_id")
+				if err != nil {
+					return nil, err
+				}
+				return c.RollbackImport(ctx, id)
 			}),
 		t(tool("update_list", "List image updates: services whose tag now points to a newer digest than what runs, or that have a newer semver tag (same major; major bumps in major_tag). Apply one with `atoll updates --apply SERVICE` or the panel.", true, false,
 			mcp.WithBoolean("available_only", mcp.Description("only services with an update (default true)")),

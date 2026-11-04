@@ -857,3 +857,18 @@ func (c *Client) Problems(ctx context.Context, withResolved bool) ([]api.Problem
 	}
 	return v, c.do(ctx, http.MethodGet, p, nil, &v)
 }
+
+// ---------- Docker adoption (containers the user started with docker run / compose) ----------
+
+// DockerScan returns the containers the agent on serverID found outside Atoll, grouped by
+// compose project (env masked).
+func (c *Client) DockerScan(ctx context.Context, serverID string) (*api.DockerInventory, error) {
+	var v api.DockerInventory
+	return &v, c.do(ctx, http.MethodGet, "/servers/"+esc(serverID)+"/docker", nil, &v)
+}
+
+// DockerAdopt creates the Atoll project + services for one container group (nothing starts).
+func (c *Client) DockerAdopt(ctx context.Context, req api.DockerAdoptRequest) (*api.ImportJob, error) {
+	var v api.ImportJob
+	return &v, c.do(ctx, http.MethodPost, "/imports/docker", req, &v)
+}
