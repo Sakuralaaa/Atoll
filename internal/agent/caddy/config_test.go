@@ -22,12 +22,40 @@ var routes = []api.IngressRoute{
 	{Hostname: "api.example.com", Upstream: "atoll-svc_dup:1", ServiceID: "svc_dup"}, // dup ignored
 }
 
+var multiRoutes = append(append([]api.IngressRoute{}, routes...),
+	api.IngressRoute{Hostname: "shop.example.net", Upstream: "atoll-svc_shop:80", ServiceID: "svc_shop"},
+	api.IngressRoute{Hostname: "example.net", Upstream: "atoll-svc_apex:80", ServiceID: "svc_apex"},
+	api.IngressRoute{Hostname: "docs.example.org", Upstream: "atoll-svc_docs:80", ServiceID: "svc_docs"},
+)
+
+// Without per-domain certificates the config must not change at all (the pre-multi-domain
+// goldens above are untouched); an explicitly empty Domains list is the same.
+func TestBuildNoDomainsUnchanged(t *testing.T) {
+	for _, in := range []Input{
+		{Routes: routes, TLSMode: "cloudflare-origin", HaveOriginCert: true},
+		{Routes: routes, TLSMode: "acme", ACMEEmail: "ops@example.com"},
+	} {
+		a, _ := Build(in)
+		in.Domains = []Domain{}
+		b, _ := Build(in)
+		if string(a) != string(b) {
+			t.Fatal("empty Domains changed the config")
+		}
+	}
+}
+
 func TestBuildGolden(t *testing.T) {
 	cases := map[string]Input{
 		"origin":         {Routes: routes, TLSMode: "cloudflare-origin", HaveOriginCert: true},
 		"origin_no_cert": {Routes: routes, TLSMode: "cloudflare-origin"},
 		"acme":           {Routes: routes, TLSMode: "acme", ACMEEmail: "ops@example.com"},
 		"empty":          {TLSMode: "acme"},
+		// multi-domain: example.com follows the global origin cert, example.net has its own
+		// origin cert, example.org uses ACME.
+		"multi": {Routes: multiRoutes, TLSMode: "cloudflare-origin", HaveOriginCert: true, ACMEEmail: "ops@example.com",
+			Domains: []Domain{{Name: "example.net", Mode: "origin", HaveCert: true}, {Name: "example.org", Mode: "acme"}}},
+		"multi_http": {Routes: multiRoutes, TLSMode: "cloudflare-origin",
+			Domains: []Domain{{Name: "example.net", Mode: "origin", HaveCert: true}, {Name: "example.org", Mode: "origin"}}},
 	}
 	for name, in := range cases {
 		t.Run(name, func(t *testing.T) {

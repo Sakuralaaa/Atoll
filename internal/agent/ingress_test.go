@@ -352,3 +352,51 @@ func TestIngressFreshCaddyGetsAdminGrace(t *testing.T) {
 		t.Fatalf("restarted after %v, before the grace ran out", d)
 	}
 }
+
+func TestIngressPerDomainCertificates(t *testing.T) {
+	in, _, _, _, p := newIngress(t)
+	ctx := context.Background()
+	pl := payload("app.example.com", "shop.example.net")
+	pl.TLSMode = "cloudflare-origin"
+	pl.Domains = []api.IngressDomain{
+		{Name: "example.net", Mode: "origin", CertPEM: "CERT-NET", KeyPEM: "KEY-NET"},
+		{Name: "../evil", Mode: "origin", CertPEM: "x", KeyPEM: "y"},
+	}
+	if err := in.Apply(ctx, pl); err != nil {
+		t.Fatal(err)
+	}
+	crt := filepath.Join(p.TLSDir(), "domains", "example.net.crt")
+	if b, err := os.ReadFile(crt); err != nil || string(b) != "CERT-NET" {
+		t.Fatalf("cert file: %v %q", err, b)
+	}
+	if _, err := os.Stat(filepath.Join(p.Root, "evil.crt")); err == nil {
+		t.Fatal("unsafe root name written")
+	}
+	stored, _ := os.ReadFile(p.IngressFile())
+	if strings.Contains(string(stored), "KEY-NET") || !strings.Contains(string(stored), "example.net") {
+		t.Fatalf("persisted payload must keep the root but not the key: %s", stored)
+	}
+	readCfg := func() string {
+		b, _ := os.ReadFile(filepath.Join(p.CaddyDir(), "etc", "caddy.json"))
+		return string(b)
+	}
+	cfg := readCfg()
+	if !strings.Contains(cfg, "atoll-origin-example.net") || !strings.Contains(cfg, "/etc/atoll/tls/domains/example.net.crt") {
+		t.Fatalf("config: %s", cfg)
+	}
+	// Restore from disk renders the same config (keys come from the TLS dir).
+	if err := in.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := readCfg(); got != cfg {
+		t.Fatalf("restore differs:\n%s\n---\n%s", got, cfg)
+	}
+	// Dropping the root removes its certificate files.
+	pl.Domains = nil
+	if err := in.Apply(ctx, pl); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(crt); err == nil {
+		t.Fatal("stale certificate kept")
+	}
+}

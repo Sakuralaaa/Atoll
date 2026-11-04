@@ -10,15 +10,15 @@ import (
 
 // CreateProject inserts a project.
 func (s *Store) CreateProject(ctx context.Context, p api.Project, ingressHold bool) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO projects(id, team_id, name, display_name, description, server_id, ingress_hold, created_at)
-		VALUES(?, (SELECT MIN(id) FROM teams), ?,?,?,?,?,?)`, p.ID, p.Name, p.DisplayName, p.Description, p.ServerID, b2i(ingressHold), TS(p.CreatedAt))
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO projects(id, team_id, name, display_name, description, server_id, ingress_hold, created_at, root_domain)
+		VALUES(?, (SELECT MIN(id) FROM teams), ?,?,?,?,?,?,?)`, p.ID, p.Name, p.DisplayName, p.Description, p.ServerID, b2i(ingressHold), TS(p.CreatedAt), p.RootDomain)
 	return mapErr(err)
 }
 
 func scanProject(row interface{ Scan(...any) error }) (*api.Project, error) {
 	var p api.Project
 	var c string
-	if err := row.Scan(&p.ID, &p.Name, &p.DisplayName, &p.Description, &p.ServerID, &c); err != nil {
+	if err := row.Scan(&p.ID, &p.Name, &p.DisplayName, &p.Description, &p.ServerID, &c, &p.RootDomain); err != nil {
 		return nil, mapErr(err)
 	}
 	p.CreatedAt = parseTS(c)
@@ -27,12 +27,12 @@ func scanProject(row interface{ Scan(...any) error }) (*api.Project, error) {
 
 // GetProject returns a project without services.
 func (s *Store) GetProject(ctx context.Context, id string) (*api.Project, error) {
-	return scanProject(s.DB.QueryRowContext(ctx, `SELECT id, name, display_name, description, server_id, created_at FROM projects WHERE id=?`, id))
+	return scanProject(s.DB.QueryRowContext(ctx, `SELECT id, name, display_name, description, server_id, created_at, root_domain FROM projects WHERE id=?`, id))
 }
 
 // ListProjects returns all projects, optionally only those on serverID.
 func (s *Store) ListProjects(ctx context.Context, serverID string) ([]api.Project, error) {
-	q := `SELECT id, name, display_name, description, server_id, created_at FROM projects`
+	q := `SELECT id, name, display_name, description, server_id, created_at, root_domain FROM projects`
 	args := []any{}
 	if serverID != "" {
 		q += ` WHERE server_id=?`
@@ -58,6 +58,12 @@ func (s *Store) ListProjects(ctx context.Context, serverID string) ([]api.Projec
 func (s *Store) UpdateProject(ctx context.Context, id, name, displayName, desc string) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE projects SET name=?, display_name=?, description=? WHERE id=?`, name, displayName, desc, id)
 	return mapErr(err)
+}
+
+// SetProjectRootDomain sets the root domain new domains of a project default to ("" = global default).
+func (s *Store) SetProjectRootDomain(ctx context.Context, id, root string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE projects SET root_domain=? WHERE id=?`, root, id)
+	return err
 }
 
 // SetProjectServer moves a project to another node (data only).

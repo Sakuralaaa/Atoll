@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,7 +110,17 @@ func (in *Ingress) SaveTLS(ctx context.Context, t api.TLSPayload) error {
 
 // Apply persists the payload and makes Caddy + firewall match it.
 func (in *Ingress) Apply(ctx context.Context, p api.IngressPayload) error {
-	b, err := json.MarshalIndent(p, "", "  ")
+	if err := in.saveDomainCerts(&p); err != nil {
+		return err
+	}
+	// The key material lives in the TLS dir only; the persisted payload keeps the rest.
+	stored := p
+	stored.Domains = nil
+	for _, d := range p.Domains {
+		d.CertPEM, d.KeyPEM = "", ""
+		stored.Domains = append(stored.Domains, d)
+	}
+	b, err := json.MarshalIndent(stored, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -145,9 +156,70 @@ func (in *Ingress) Render(p api.IngressPayload) ([]byte, error) {
 	cert, key := in.tlsPaths()
 	_, e1 := os.Stat(cert)
 	_, e2 := os.Stat(key)
-	return caddy.Build(caddy.Input{
+	ci := caddy.Input{
 		Routes: p.Routes, TLSMode: p.TLSMode, ACMEEmail: p.ACMEEmail, HaveOriginCert: e1 == nil && e2 == nil,
-	})
+	}
+	for _, d := range p.Domains {
+		c, k := in.domainCertPaths(d.Name)
+		ci.Domains = append(ci.Domains, caddy.Domain{Name: d.Name, Mode: d.Mode, HaveCert: !fileMissing(c) && !fileMissing(k)})
+	}
+	return caddy.Build(ci)
+}
+
+// domainCertPaths are the host paths of a root domain's own certificate (mounted into
+// atoll-caddy at caddy.DomainCertPaths).
+func (in *Ingress) domainCertPaths(name string) (cert, key string) {
+	d := filepath.Join(in.paths.TLSDir(), "domains")
+	return filepath.Join(d, name+".crt"), filepath.Join(d, name+".key")
+}
+
+// validRootName keeps a root domain name safe to use as a file name.
+func validRootName(n string) bool {
+	if n == "" || len(n) > 253 || strings.HasPrefix(n, ".") || strings.Contains(n, "..") {
+		return false
+	}
+	for _, r := range n {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+// saveDomainCerts writes the per-root-domain certificates of p and removes the files of
+// roots that no longer carry one.
+func (in *Ingress) saveDomainCerts(p *api.IngressPayload) error {
+	keep := map[string]bool{}
+	out := p.Domains[:0]
+	for _, d := range p.Domains {
+		if !validRootName(d.Name) {
+			in.log.Warn("ingress: ignoring root domain with an unusable name", "name", d.Name)
+			continue
+		}
+		out = append(out, d)
+		if d.Mode != "origin" || d.CertPEM == "" || d.KeyPEM == "" {
+			continue
+		}
+		c, k := in.domainCertPaths(d.Name)
+		if err := os.MkdirAll(filepath.Dir(c), 0o700); err != nil {
+			return err
+		}
+		if err := writeFileAtomic(c, []byte(d.CertPEM), 0o600); err != nil {
+			return err
+		}
+		if err := writeFileAtomic(k, []byte(d.KeyPEM), 0o600); err != nil {
+			return err
+		}
+		keep[d.Name+".crt"], keep[d.Name+".key"] = true, true
+	}
+	p.Domains = out
+	ents, _ := os.ReadDir(filepath.Join(in.paths.TLSDir(), "domains"))
+	for _, e := range ents {
+		if !keep[e.Name()] {
+			os.Remove(filepath.Join(in.paths.TLSDir(), "domains", e.Name()))
+		}
+	}
+	return nil
 }
 
 func (in *Ingress) apply(ctx context.Context, p api.IngressPayload) error {

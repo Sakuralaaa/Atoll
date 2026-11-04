@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -34,6 +35,23 @@ type Input struct {
 	// HaveOriginCert reports whether the origin cert/key files exist. In cloudflare-origin
 	// mode without a cert Caddy serves plain HTTP only, so the container can still start.
 	HaveOriginCert bool
+	// Domains are root domains with their own certificate mode (multi-domain). Empty keeps
+	// the single-certificate config above byte for byte.
+	Domains []Domain
+}
+
+// Domain is a root domain with its own certificate: Mode "origin" serves the certificate
+// files DomainCertPaths(Name) (HaveCert reports they exist), "acme" lets Caddy issue one.
+type Domain struct {
+	Name     string
+	Mode     string
+	HaveCert bool
+}
+
+// DomainCertPaths returns the in-container certificate and key paths of a root domain.
+func DomainCertPaths(name string) (cert, key string) {
+	d := filepath.Dir(TLSCertPath) + "/domains/"
+	return d + name + ".crt", d + name + ".key"
 }
 
 type obj = map[string]any
@@ -58,18 +76,11 @@ func Build(in Input) ([]byte, error) {
 		hosts = append(hosts, h)
 	}
 	sort.Strings(hosts)
-
-	routes := []any{}
-	for _, h := range hosts {
-		routes = append(routes, obj{
-			"match": []any{obj{"host": []string{h}}},
-			"handle": []any{obj{
-				"handler":   "reverse_proxy",
-				"upstreams": []any{obj{"dial": byHost[h]}},
-			}},
-			"terminal": true,
-		})
+	if len(in.Domains) > 0 {
+		return buildMulti(in, hosts, byHost)
 	}
+
+	routes := routeList(hosts, byHost)
 
 	server := obj{"routes": routes}
 	apps := obj{}
@@ -100,7 +111,147 @@ func Build(in Input) ([]byte, error) {
 		return nil, fmt.Errorf("unknown tls mode %q", in.TLSMode)
 	}
 	apps["http"] = obj{"servers": obj{"atoll": server}}
+	return render(apps)
+}
 
+func routeList(hosts []string, byHost map[string]string) []any {
+	routes := []any{}
+	for _, h := range hosts {
+		routes = append(routes, obj{
+			"match": []any{obj{"host": []string{h}}},
+			"handle": []any{obj{
+				"handler":   "reverse_proxy",
+				"upstreams": []any{obj{"dial": byHost[h]}},
+			}},
+			"terminal": true,
+		})
+	}
+	return routes
+}
+
+// buildMulti is the config when some root domains carry their own certificate mode. One
+// HTTPS server holds every TLS route; Caddy picks the certificate by SNI: hosts under an
+// origin root match a connection policy that selects that root's tagged certificate (and
+// are skipped by ACME), the rest fall through to the default policy and Caddy's automatic
+// HTTPS. Hosts that follow a certificate-less cloudflare-origin global mode stay on plain
+// HTTP in a separate :80 server, as they were before.
+func buildMulti(in Input, hosts []string, byHost map[string]string) ([]byte, error) {
+	names := make([]string, 0, len(in.Domains))
+	byName := map[string]Domain{}
+	for _, d := range in.Domains {
+		n := strings.ToLower(strings.Trim(d.Name, "."))
+		if n == "" {
+			continue
+		}
+		if d.Mode != "origin" && d.Mode != "acme" {
+			return nil, fmt.Errorf("root domain %s: unknown certificate mode %q", n, d.Mode)
+		}
+		if d.Mode == "origin" && !d.HaveCert {
+			d.Mode = "acme" // the certificate never arrived: better a public one than none
+		}
+		d.Name = n
+		byName[n] = d
+		names = append(names, n)
+	}
+	switch in.TLSMode {
+	case "acme", "cloudflare-origin", "":
+	default:
+		return nil, fmt.Errorf("unknown tls mode %q", in.TLSMode)
+	}
+	const globalTag = originCertTag
+	tagHosts := map[string][]string{} // certificate tag -> hosts it serves
+	var tlsHosts, httpHosts, skip []string
+	for _, h := range hosts {
+		mode, tag := "", ""
+		if root := longestRoot(h, names); root != "" {
+			d := byName[root]
+			mode = d.Mode
+			tag = originCertTag + "-" + root
+		} else if in.TLSMode == "acme" {
+			mode = "acme"
+		} else if in.HaveOriginCert {
+			mode, tag = "origin", globalTag
+		} else {
+			mode = "http"
+		}
+		switch mode {
+		case "origin":
+			tagHosts[tag] = append(tagHosts[tag], h)
+			skip = append(skip, h)
+			tlsHosts = append(tlsHosts, h)
+		case "acme":
+			tlsHosts = append(tlsHosts, h)
+		default:
+			httpHosts = append(httpHosts, h)
+		}
+	}
+
+	server := obj{"listen": []string{":443"}, "routes": routeList(tlsHosts, byHost)}
+	if len(skip) > 0 {
+		server["automatic_https"] = obj{"skip_certificates": skip}
+	}
+	tags := make([]string, 0, len(tagHosts))
+	for t := range tagHosts {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	policies := []any{}
+	for _, t := range tags {
+		policies = append(policies, obj{
+			"match":                 obj{"sni": tagHosts[t]},
+			"certificate_selection": obj{"any_tag": []string{t}},
+		})
+	}
+	policies = append(policies, obj{}) // everything else: Caddy's own certificates
+	server["tls_connection_policies"] = policies
+	servers := obj{"atoll": server}
+	if len(httpHosts) > 0 {
+		servers["atoll_http"] = obj{
+			"listen":          []string{":80"},
+			"routes":          routeList(httpHosts, byHost),
+			"automatic_https": obj{"disable": true},
+		}
+	}
+
+	tlsApp := obj{}
+	var files []any
+	if len(tagHosts[globalTag]) > 0 {
+		files = append(files, obj{"certificate": TLSCertPath, "key": TLSKeyPath, "tags": []string{globalTag}})
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		if d := byName[n]; d.Mode == "origin" {
+			c, k := DomainCertPaths(n)
+			files = append(files, obj{"certificate": c, "key": k, "tags": []string{originCertTag + "-" + n}})
+		}
+	}
+	if len(files) > 0 {
+		tlsApp["certificates"] = obj{"load_files": files}
+	}
+	if in.ACMEEmail != "" {
+		tlsApp["automation"] = obj{"policies": []any{obj{
+			"issuers": []any{obj{"module": "acme", "email": in.ACMEEmail}},
+		}}}
+	}
+	apps := obj{"http": obj{"servers": servers}}
+	if len(tlsApp) > 0 {
+		apps["tls"] = tlsApp
+	}
+	return render(apps)
+}
+
+// longestRoot returns the longest root that host equals or is under ("" = none).
+func longestRoot(host string, roots []string) string {
+	best := ""
+	for _, r := range roots {
+		if (host == r || strings.HasSuffix(host, "."+r)) && len(r) > len(best) {
+			best = r
+		}
+	}
+	return best
+}
+
+func render(apps obj) ([]byte, error) {
 	cfg := obj{
 		"admin": obj{
 			"listen": "unix/" + AdminSocket,

@@ -1,0 +1,173 @@
+{
+  "admin": {
+    "config": {
+      "persist": false
+    },
+    "listen": "unix//run/caddy/admin.sock"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "atoll": {
+          "automatic_https": {
+            "skip_certificates": [
+              "example.net",
+              "shop.example.net"
+            ]
+          },
+          "listen": [
+            ":443"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "atoll-svc_docs:80"
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "docs.example.org"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "atoll-svc_apex:80"
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "example.net"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "atoll-svc_shop:80"
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "shop.example.net"
+                  ]
+                }
+              ],
+              "terminal": true
+            }
+          ],
+          "tls_connection_policies": [
+            {
+              "certificate_selection": {
+                "any_tag": [
+                  "atoll-origin-example.net"
+                ]
+              },
+              "match": {
+                "sni": [
+                  "example.net",
+                  "shop.example.net"
+                ]
+              }
+            },
+            {}
+          ]
+        },
+        "atoll_http": {
+          "automatic_https": {
+            "disable": true
+          },
+          "listen": [
+            ":80"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "atoll-svc_api:8080"
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "api.example.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "atoll-svc_web:3000"
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "web.example.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            }
+          ]
+        }
+      }
+    },
+    "tls": {
+      "certificates": {
+        "load_files": [
+          {
+            "certificate": "/etc/atoll/tls/domains/example.net.crt",
+            "key": "/etc/atoll/tls/domains/example.net.key",
+            "tags": [
+              "atoll-origin-example.net"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "logging": {
+    "logs": {
+      "default": {
+        "level": "WARN"
+      }
+    }
+  }
+}

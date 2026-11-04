@@ -66,13 +66,16 @@ type InstallCommand struct {
 }
 
 type Project struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`                   // unique handle (CLI, tokens)
-	DisplayName string    `json:"display_name,omitempty"` // panel label only; "" = show Name
-	Description string    `json:"description,omitempty"`
-	ServerID    string    `json:"server_id"` // all services of a project run on one server
-	CreatedAt   time.Time `json:"created_at"`
-	Services    []Service `json:"services,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`                   // unique handle (CLI, tokens)
+	DisplayName string `json:"display_name,omitempty"` // panel label only; "" = show Name
+	Description string `json:"description,omitempty"`
+	ServerID    string `json:"server_id"` // all services of a project run on one server
+	// RootDomain is the root domain new domains of this project default to ("" = the
+	// default root domain in Settings). Must be one of GET /root-domains.
+	RootDomain string    `json:"root_domain,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	Services   []Service `json:"services,omitempty"`
 }
 
 type Port struct {
@@ -202,6 +205,33 @@ type Domain struct {
 	Status    string    `json:"status"`  // "pending" | "active" | "error"
 	Error     string    `json:"error,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// RootDomain is one entry of the root domain list (Settings → Domains). A bare hostname
+// ("blog") is completed with a root domain: the one named in the request, else the
+// project's default, else the default root domain.
+type RootDomain struct {
+	Name     string `json:"name"`    // e.g. example.com
+	Default  bool   `json:"default"` // settings.base_domain mirrors the default's name
+	ZoneID   string `json:"zone_id,omitempty"`
+	ZoneName string `json:"zone_name,omitempty"` // Cloudflare zone, longest suffix match
+	// CertMode: "global" follows the global TLS settings (tls_mode + uploaded origin
+	// certificate, the pre-v0.1.24 behaviour); "auto" issues a Cloudflare Origin CA
+	// certificate for name and *.name and falls back to ACME when that fails; "acme" always
+	// uses Caddy's ACME issuance.
+	CertMode string `json:"cert_mode"`
+	// CertStatus is what the agents actually serve: "global" | "origin" | "acme".
+	CertStatus    string     `json:"cert_status"`
+	CertError     string     `json:"cert_error,omitempty"` // why Origin CA issuance failed (auto mode)
+	CertExpiresAt *time.Time `json:"cert_expires_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+// RootDomainRequest is the body of POST /root-domains and PATCH /root-domains/{name}.
+type RootDomainRequest struct {
+	Name     string `json:"name,omitempty"`      // POST only
+	CertMode string `json:"cert_mode,omitempty"` // "" = "auto" (POST; "global" for the first domain) / unchanged (PATCH)
+	Default  *bool  `json:"default,omitempty"`   // true makes it the default; false is ignored
 }
 
 type Deployment struct {

@@ -23,8 +23,98 @@ type Cloudflare struct {
 	BaseDomain string
 	BaseURL    string // defaults to DefaultCloudflareBase
 	HTTP       *http.Client
+	// Roots are the configured root domains (multi-domain). A hostname under one of them
+	// (longest name wins) is managed in that root's zone; any other hostname uses
+	// ZoneID/BaseDomain as before.
+	Roots []Root
 
-	mu sync.Mutex
+	mu    sync.Mutex
+	zones map[string]string // root name -> discovered zone id
+}
+
+// Root is a root domain and its Cloudflare zone id ("" = discover by suffix).
+type Root struct {
+	Name   string
+	ZoneID string
+}
+
+// RootFor returns the longest root domain in roots that host equals or is under ("" = none).
+func RootFor(host string, roots []string) string {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	best := ""
+	for _, r := range roots {
+		if (host == r || strings.HasSuffix(host, "."+r)) && len(r) > len(best) {
+			best = r
+		}
+	}
+	return best
+}
+
+// zoneFor returns the zone hostname's records live in.
+func (c *Cloudflare) zoneFor(ctx context.Context, hostname string) (string, error) {
+	names := make([]string, len(c.Roots))
+	for i, r := range c.Roots {
+		names[i] = r.Name
+	}
+	root := RootFor(hostname, names)
+	if root == "" {
+		return c.zone(ctx)
+	}
+	for _, r := range c.Roots {
+		if r.Name != root {
+			continue
+		}
+		if r.ZoneID != "" {
+			return r.ZoneID, nil
+		}
+		if root == c.BaseDomain {
+			return c.zone(ctx) // the pre-multi-domain lookup, unchanged
+		}
+	}
+	c.mu.Lock()
+	id := c.zones[root]
+	c.mu.Unlock()
+	if id != "" {
+		return id, nil
+	}
+	id, _, err := c.FindZone(ctx, root)
+	if err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	if c.zones == nil {
+		c.zones = map[string]string{}
+	}
+	c.zones[root] = id
+	c.mu.Unlock()
+	return id, nil
+}
+
+// FindZone returns the zone this token can see whose name is the longest suffix of domain
+// (domain itself, then each parent): apps.example.com lives in example.com unless the
+// account also has a zone apps.example.com.
+func (c *Cloudflare) FindZone(ctx context.Context, domain string) (id, name string, err error) {
+	if c.Token == "" {
+		return "", "", ErrNotConfigured
+	}
+	domain = strings.ToLower(strings.Trim(domain, "."))
+	labels := strings.Split(domain, ".")
+	for i := 0; i < len(labels)-1; i++ {
+		cand := strings.Join(labels[i:], ".")
+		var zones []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/zones?name="+url.QueryEscape(cand), nil, &zones); err != nil {
+			return "", "", err
+		}
+		for _, z := range zones {
+			if strings.EqualFold(z.Name, cand) {
+				return z.ID, cand, nil
+			}
+		}
+	}
+	return "", "", fmt.Errorf("cloudflare: no zone for %q is visible to this token", domain)
 }
 
 type cfEnvelope struct {
@@ -137,7 +227,7 @@ func (c *Cloudflare) UpsertA(ctx context.Context, hostname, ipv4 string, proxied
 	if ipv4 == "" {
 		return "", fmt.Errorf("server has no public IPv4 to point %s at", hostname)
 	}
-	zone, err := c.zone(ctx)
+	zone, err := c.zoneFor(ctx, hostname)
 	if err != nil {
 		return "", err
 	}
@@ -160,7 +250,7 @@ func (c *Cloudflare) Delete(ctx context.Context, hostname, id string) error {
 	if c.Token == "" {
 		return ErrNotConfigured
 	}
-	zone, err := c.zone(ctx)
+	zone, err := c.zoneFor(ctx, hostname)
 	if err != nil {
 		return err
 	}
@@ -190,7 +280,7 @@ func (c *Cloudflare) FindA(ctx context.Context, hostname string) ([]Record, erro
 	if c.Token == "" {
 		return nil, ErrNotConfigured
 	}
-	zone, err := c.zone(ctx)
+	zone, err := c.zoneFor(ctx, hostname)
 	if err != nil {
 		return nil, err
 	}

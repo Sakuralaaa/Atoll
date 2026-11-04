@@ -128,6 +128,19 @@ type IngressPayload struct {
 	TLSMode        string         `json:"tls_mode"` // "cloudflare-origin" | "acme"
 	ACMEEmail      string         `json:"acme_email,omitempty"`
 	CloudflareOnly bool           `json:"cloudflare_only"` // firewall: allow 80/443 only from CF ranges
+	// Domains carries per-root-domain certificate choices (multi-domain, v0.1.24). Caddy
+	// picks the certificate by SNI: a host under an "origin" root gets that root's
+	// certificate, under an "acme" root Caddy's ACME issuance, and any other host follows
+	// TLSMode as before. Empty (every root follows the global settings) = the old config.
+	Domains []IngressDomain `json:"domains,omitempty"`
+}
+
+// IngressDomain is one root domain with its own certificate mode.
+type IngressDomain struct {
+	Name    string `json:"name"`               // root domain, e.g. example.net
+	Mode    string `json:"mode"`               // "origin" | "acme"
+	CertPEM string `json:"cert_pem,omitempty"` // origin mode
+	KeyPEM  string `json:"key_pem,omitempty"`  // origin mode
 }
 type TLSPayload struct {
 	CertPEM string `json:"cert_pem"`
