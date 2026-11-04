@@ -345,6 +345,12 @@ func (s *Store) SetDomainStatus(ctx context.Context, id, status, errMsg, recordI
 	return err
 }
 
+// SetDomainProxied records whether the domain's DNS record is Cloudflare proxied.
+func (s *Store) SetDomainProxied(ctx context.Context, id string, proxied bool) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE domains SET proxied=? WHERE id=?`, b2i(proxied), id)
+	return err
+}
+
 // ClearDomainRecord sets a domain's status and forgets its DNS record ID (the record was deleted).
 func (s *Store) ClearDomainRecord(ctx context.Context, id, status, errMsg string) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE domains SET status=?, error=?, cf_record_id='' WHERE id=?`, status, errMsg, id)

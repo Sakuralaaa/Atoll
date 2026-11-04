@@ -214,6 +214,30 @@ type Domain struct {
 	Status    string    `json:"status"`  // "pending" | "active" | "error"
 	Error     string    `json:"error,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	// Cert is the certificate the servers present for the hostname, filled in by the
+	// domain lists: "origin" (Cloudflare Origin CA), "acme" (Let's Encrypt via Caddy) or
+	// "http" (no certificate on the server: Cloudflare-only HTTP). Empty when unknown.
+	Cert string `json:"cert,omitempty"`
+}
+
+// DomainPatchRequest is the body of PATCH /domains/{id}.
+type DomainPatchRequest struct {
+	Proxied *bool `json:"proxied"` // Cloudflare orange cloud on/off; updates the DNS record
+}
+
+// CloudflareTokenCheck is GET /cloudflare/token-check: what the stored API token can do,
+// probed with requests Cloudflare rejects before they change anything.
+type CloudflareTokenCheck struct {
+	Configured bool `json:"configured"` // a token is stored
+	// DNS is "ok" | "missing" | "unknown" for Zone.DNS: Edit on the default root's zone.
+	DNS      string `json:"dns"`
+	DNSError string `json:"dns_error,omitempty"`
+	// SSL is Zone.SSL and Certificates: Edit, needed to issue Origin CA certificates for
+	// the roots in SSLRoots (cert mode auto). "" when no root needs it.
+	SSL       string    `json:"ssl,omitempty"`
+	SSLError  string    `json:"ssl_error,omitempty"`
+	SSLRoots  []string  `json:"ssl_roots,omitempty"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 // RootDomain is one entry of the root domain list (Settings → Domains). A bare hostname
@@ -390,7 +414,7 @@ type SessionInfo struct {
 // return 202 + Confirmation; a human approves it in the panel.
 type Confirmation struct {
 	ID        string    `json:"id"`
-	Action    string    `json:"action"` // "service.delete" | "project.delete" | "service.migrate" | "domain.add" | "domain.delete" | "server.delete"
+	Action    string    `json:"action"` // "service.delete" | "project.delete" | "service.migrate" | "domain.add" | "domain.delete" | "domain.proxy" | "server.delete"
 	Target    string    `json:"target"`
 	Summary   string    `json:"summary"`
 	Status    string    `json:"status"` // "pending" | "approved" | "rejected" | "expired"

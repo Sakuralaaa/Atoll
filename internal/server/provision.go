@@ -82,6 +82,26 @@ func (s *Server) provisionDomain(ctx context.Context, d api.Domain, nodeID, want
 	s.confirmHTTPS(ctx, d)
 }
 
+// reprovisionDomain follows a proxy switch (PATCH /domains/{id}): the route stays in the
+// table the whole time; once the changed record is visible the route table is pushed
+// again (a grey-cloud host under an Origin CA root now gets ACME, an orange one the Origin
+// certificate back) and HTTPS is confirmed as for a new domain.
+func (s *Server) reprovisionDomain(ctx context.Context, d api.Domain, nodeID, wantIP string) {
+	if err := s.waitResolves(ctx, d.Hostname, d.Proxied, wantIP); err != nil {
+		s.log.Warn("domain: changed DNS not visible in time, pushing the route anyway", "host", d.Hostname, "err", err)
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	if _, err := s.st.GetDomain(ctx, d.ID); err != nil {
+		return
+	}
+	if err := s.pushIngressSync(ctx, nodeID); err != nil {
+		s.log.Warn("domain: ingress push failed (the agent gets it on reconnect)", "host", d.Hostname, "node", nodeID, "err", err)
+	}
+	s.confirmHTTPS(ctx, d)
+}
+
 // confirmHTTPS is step 4 for a domain whose route has been pushed: it probes HTTPS (when a
 // probe can tell) and moves the domain from "provisioning" to "active", with a note when the
 // certificate was not confirmed in time. Caddy keeps retrying the certificate on its own.

@@ -111,6 +111,9 @@ type Server struct {
 	holdMu sync.Mutex
 	held   map[string]int // hostnames kept out of pushed route tables (provision.go)
 
+	cfCheckMu sync.Mutex
+	cfCheck   cfCheckCache // last GET /cloudflare/token-check (cfcheck.go)
+
 	deliveries deliverySet   // GitHub webhook X-GitHub-Delivery ids already handled (git.go)
 	agentSums  agentSumCache // SHA-256 of hosted agent binaries for the join command (routes.go)
 	agentUpg   agentUpgrades // panel-started agent upgrades (agent_upgrade.go)

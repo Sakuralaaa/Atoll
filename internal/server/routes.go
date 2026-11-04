@@ -127,7 +127,9 @@ func (s *Server) Handler() http.Handler {
 	a("PATCH "+v+"/root-domains/{name}", needSettings, s.handlePatchRootDomain)
 	a("POST "+v+"/root-domains/{name}/refresh", needSettings, s.handleRefreshRootDomain)
 	a("DELETE "+v+"/root-domains/{name}", needSettings, s.handleDeleteRootDomain)
+	a("PATCH "+v+"/domains/{id}", needDomains, s.handlePatchDomain)
 	a("DELETE "+v+"/domains/{id}", needDomains, s.handleDeleteDomain)
+	a("GET "+v+"/cloudflare/token-check", needReadGlobal, s.handleCloudflareTokenCheck)
 
 	// tokens
 	a("GET "+v+"/tokens", needTokens, s.handleListTokens)

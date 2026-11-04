@@ -78,6 +78,14 @@ func (s *Server) execConfirmed(ctx context.Context, r *http.Request, c *api.Conf
 		return err
 	case "domain.delete":
 		return s.execDeleteDomain(ctx, c.Target, actor)
+	case "domain.proxy":
+		var req api.DomainPatchRequest
+		json.Unmarshal(payload, &req)
+		if req.Proxied == nil {
+			return badRequest("confirmation has no proxied value")
+		}
+		_, err := s.execSetDomainProxied(ctx, c.Target, *req.Proxied, actor)
+		return err
 	case "project.migrate":
 		var req struct {
 			ServerID string `json:"server_id"`
