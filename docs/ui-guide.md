@@ -15,6 +15,20 @@ Control server operations: [control.md](control.md).
   tailnet IP or public IP.
 - The control server has a display name (中控 → pencil icon, or `PATCH /api/v1/control`
   `{"name": "..."}`). Empty means the hostname is shown.
+- **我的项目**: one card per project (services count, status, first domain). The server icon
+  next to the sort button groups the cards by machine instead (remembered per browser);
+  `?server=ID` shows one machine's projects.
+- **服务器** cards show the full name (wrapping), the online state and the OS on their own
+  lines; 需要处理 and agent upgrade badges sit in the footer next to the hardware.
+- **异常**: the sidebar's 异常 entry counts every firing problem. A page shows a red banner
+  only for its own kind: 服务器 for offline servers and full disks, 我的项目 for services,
+  deploys, backups and domains. 收起 / 展开 folds the banner; each page remembers it in the
+  browser.
+- **中控**: 最近一次中控备份 → 位置 shows 本机磁盘 (the copy in the control server's data
+  directory) and/or 异地存储桶 (uploaded to the backup bucket); hover for the meaning.
+- **新建服务** → 从已有 Docker 容器接管 opens `/import/docker` on the project's server (or the
+  server picked in the dialog). Adoption creates its own Atoll project; it is not merged into
+  the project the dialog was opened from.
 
 ## Adopting Docker containers (接管 Docker 容器)
 
@@ -61,9 +75,23 @@ Control server operations: [control.md](control.md).
   uses it and it is not the default (unless it is the last one). Set a new root's Cloudflare
   SSL/TLS mode to Full (strict); Flexible causes redirect loops.
 - **绑定域名**: type a prefix (`blog`, `api.v2`, empty = the root itself) and pick the root
-  domain; 完整域名… takes any other hostname.
+  domain; 完整域名… takes any other hostname. 接入方式 is two cards: **Cloudflare 代理**
+  (orange cloud, recommended: hides the server IP, CDN and protection; costs a 100-second
+  request timeout and only HTTP(S) is proxied) and **直连** (grey cloud: no timeout, any
+  protocol, for long requests; exposes the server IP).
+- **域名 page**: each row carries 橙云 (100 秒超时) or 灰云 (会暴露源站 IP) and the certificate
+  the servers present: Origin CA, ACME or HTTP (none). With the Cloudflare token set, clicking
+  the cloud tag switches the proxy after a confirmation (`PATCH /domains/{id}`); switching to
+  grey under an Origin CA root moves that host to an ACME certificate (a minute or two). A
+  yellow Origin CA tag on a grey host means browsers will reject it (the host follows the
+  global Origin CA certificate): set its root to 自动 or ACME. The project and service column
+  shows one name when both are the same.
 - **Cloudflare**: when a service binds a domain under one of the root domains, Atoll creates and
-  deletes the DNS records with this token (needs Zone.DNS edit).
+  deletes the DNS records with this token (needs Zone.DNS edit). The 域名 page header shows
+  whether the token holds Zone.DNS 编辑 and, when a root uses Origin CA (自动), SSL 证书编辑
+  (Zone.SSL and Certificates: Edit); a missing one turns yellow, since without it issuing the
+  Origin CA certificate fails with 1016 and the root falls back to ACME. The server probes this
+  without changing anything (`GET /cloudflare/token-check`, cached 10 min).
 - **HTTPS 证书** (global): used by roots set to 跟随全局 and by hostnames under no root. With Cloudflare proxying, a Cloudflare Origin CA certificate (15 years) is pushed
   to every server's atoll-caddy; DNS-only (grey cloud) hosts get ACME certificates automatically.
 - **通知**: sent when a server is offline > 2 min, a disk reaches 90%, a service is unhealthy for

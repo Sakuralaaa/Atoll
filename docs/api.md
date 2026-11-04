@@ -65,8 +65,10 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /services/{id}/env/references | []EnvVar exposed by other services in project |
 | GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied, root_domain?}. A bare `hostname` (`blog`) is completed with `root_domain`, else the project's `root_domain`, else the default root domain; with `root_domain` set, `hostname` is the part in front of it (`api.v2`, or `@`/empty for the root itself) unless it already ends with it. Status: with a Cloudflare token the record is created first and the domain is `provisioning` (route held back from Caddy until the name resolves publicly, ≤90s; then `active` once HTTPS answers, ≤3 min, with a note in `error` if it never did); without a token `active` when the name already resolves to the server, else `pending` with the record to create; `error` when the DNS API failed |
 | DELETE | /services/{id}, /projects/{id} | routes withdrawn (agent ack) → containers removed → DNS records deleted |
+| PATCH | /domains/{id} | `domains` permission. DomainPatchRequest {proxied} → Domain. Switches the Cloudflare proxy (orange cloud `true`, grey cloud / DNS only `false`): the DNS record is rewritten first (400 when Atoll does not manage it: no Cloudflare token; 502 on a DNS API error), then the domain is `provisioning` while the route table is pushed again once the new record resolves and HTTPS is confirmed. The route keeps serving throughout. A grey-cloud host under an Origin CA root gets an ACME certificate (and an orange one the Origin certificate back), see "Root domains". A token with `require_approval` gets `202 Confirmation` (action `domain.proxy`) |
 | DELETE | /domains/{id} | removes the route from Caddy first, then the DNS record (on a DNS error the route is restored and the domain stays bound) |
-| GET | /domains | all domains |
+| GET | /domains | all domains. GET /domains and GET /services/{id}/domains fill `cert`: the certificate the servers present for the host, `origin` (Cloudflare Origin CA), `acme` (Let's Encrypt) or `http` (none: Cloudflare-only HTTP), worked out like the ingress payload |
+| GET | /cloudflare/token-check | CloudflareTokenCheck {configured, dns, dns_error?, ssl?, ssl_error?, ssl_roots?, checked_at}: which permissions the stored Cloudflare token holds, each `ok`, `missing` or `unknown`. `dns` is Zone.DNS: Edit on the default root's zone; `ssl` (only when some root has `cert_mode` `auto`, listed in `ssl_roots`) is Zone.SSL and Certificates: Edit, without which Origin CA issuance fails with 1016 and the root falls back to ACME. Probed with write requests Cloudflare must reject (an A record with invalid content, an Origin CA request without a CSR): an authentication error (HTTP 401/403, codes 10000, 1016, 9109) means missing, a validation error means the permission is there; nothing is created. Cached 10 minutes per token and root list; `?refresh=1` probes again |
 | GET | /root-domains | []RootDomain, default first (see "Root domains") |
 | POST | /root-domains | `settings` permission. RootDomainRequest {name, cert_mode?, default?} → 201 RootDomain. Finds the Cloudflare zone, settles the certificate and pushes the ingress to every server. `cert_mode` defaults to `auto` (`global` for the first root). 409 if it exists |
 | PATCH | /root-domains/{name} | `settings` permission. {cert_mode?, default?: true} → RootDomain. Names cannot be changed |
@@ -201,6 +203,9 @@ is the default and `settings.base_domain` mirrors its name.
   redirects to HTTPS, and the browser ends in a redirect loop.
 - Projects pick a default root (`root_domain`); POST /services/{id}/domains takes
   `root_domain` to choose the suffix per domain.
+- **Grey cloud**: a domain that is not proxied (`proxied: false`) under an Origin CA root is
+  served with an ACME certificate, since browsers reach it directly and reject Origin CA
+  certificates (v0.1.26). PATCH /domains/{id} switches a bound domain between the two.
 
 ## Conventions
 - IDs: 12-char lowercase base32 with prefix: `srv_`, `prj_`, `svc_`, `dep_`, `dom_`, `tok_`, `cfm_`, `imp_`, `bak_`, `rst_`, `bvf_` (backup verification).
