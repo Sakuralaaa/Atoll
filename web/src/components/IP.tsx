@@ -11,10 +11,13 @@ export function IP({ v, className, empty = '—' }: { v?: string | null; classNa
   const masked = maskIPs(v)
   if (!hide || masked === v) return <span className={className} title={v}>{v}</span>
   const toggle = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }
+  // The whole address is the toggle (not just the eye): cards are links, so a click anywhere on it must not open the card.
   return (
-    <span className={cx('inline-flex items-center gap-1.5 min-w-0 max-w-full', className)}>
-      <span className="truncate" title={open ? v : undefined}>{open ? v : masked}</span>
-      <button type="button" onClick={toggle} title={open ? '隐藏' : '显示完整地址'} aria-label={open ? '隐藏 IP' : '显示 IP'} className="shrink-0 text-dim hover:text-fg2"><span className="sr-only">{open ? '隐藏' : '显示'}</span>{open ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+    <span role="button" tabIndex={0} onClick={toggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') toggle(e as unknown as MouseEvent) }}
+      title={open ? '点击隐藏' : '点击显示完整地址'} aria-label={open ? '隐藏 IP' : '显示 IP'} aria-pressed={open}
+      className={cx('inline-flex items-center gap-1.5 min-w-0 max-w-full cursor-pointer rounded hover:text-fg', className)}>
+      <span className="truncate">{open ? v : masked}</span>
+      <span className="shrink-0 text-dim -m-1 p-1">{open ? <EyeOff size={13} /> : <Eye size={13} />}</span>
     </span>
   )
 }
