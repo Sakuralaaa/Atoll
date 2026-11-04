@@ -17,6 +17,7 @@ const ACTION: Record<string, [string, LucideIcon]> = {
   'project.migrate': ['迁移', ArrowRightLeft],
   'domain.add': ['绑定域名', Globe],
   'domain.delete': ['解绑域名', Globe],
+  'domain.proxy': ['切换域名代理', Globe],
 }
 const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: ['已批准', 'green'], rejected: ['已拒绝', 'red'], expired: ['已过期', 'zinc'], pending: ['待确认', 'amber'] }
 const danger = (a: string) => a.endsWith('.delete')
