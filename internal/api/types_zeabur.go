@@ -42,10 +42,13 @@ type ImportJob struct {
 	CreatedAt time.Time    `json:"created_at"`
 	// In-place Zeabur takeover additions (zeabur-local status values: rehearsing | rehearsed |
 	// cutting_over | live | rolling_back | rolled_back | cleaning | cleaned, plus failed).
-	Mode      string         `json:"mode,omitempty"`      // "plan" | "zeabur-local"
+	Mode      string         `json:"mode,omitempty"`      // "plan" | "zeabur-local" | "docker"
 	ServerID  string         `json:"server_id,omitempty"` // host being taken over (zeabur-local)
 	Namespace string         `json:"namespace,omitempty"` // zeabur environment-<id> namespace
 	Verify    []ImportVerify `json:"verify,omitempty"`    // row counts from zeabur.db results
+	// Docker adoption (mode "docker", types_docker.go): the DockerGroup.Key taken over. Its
+	// statuses are those of zeabur-local without cleaning/cleaned.
+	Group string `json:"group,omitempty"`
 }
 
 // ImportVerify is one table/keyspace row count compared after a zeabur.db dump/restore.

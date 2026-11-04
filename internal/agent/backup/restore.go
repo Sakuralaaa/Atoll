@@ -60,6 +60,9 @@ func (m *Manager) Restore(ctx context.Context, p api.BackupRestorePayload) (api.
 		if err != nil {
 			return fmt.Errorf("service %s is not deployed on this server", t.ServiceID)
 		}
+		if agent.HasHostPath(spec) {
+			return agent.ErrHostPathVolumes(t.ServiceID)
+		}
 		name := agent.ContainerName(t.ServiceID)
 		if err := m.RT.StopContainer(ctx, name, m.StopTimeout); err != nil && !errors.Is(err, agent.ErrNotFound) {
 			return fmt.Errorf("stop: %w", err)

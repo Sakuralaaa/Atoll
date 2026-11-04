@@ -22,6 +22,7 @@ import (
 
 	"github.com/Sakuralaaa/Atoll/internal/agent"
 	"github.com/Sakuralaaa/Atoll/internal/agent/backup"
+	"github.com/Sakuralaaa/Atoll/internal/agent/dockeradopt"
 	"github.com/Sakuralaaa/Atoll/internal/agent/firewall"
 	"github.com/Sakuralaaa/Atoll/internal/agent/mesh"
 	"github.com/Sakuralaaa/Atoll/internal/agent/tailnet"
@@ -169,6 +170,14 @@ func run(cfgPath string, log *slog.Logger) error {
 	tk.Recover = a.Recover
 	a.Ext = append(a.Ext, tk)
 	a.Ingress.AddGuard(tk.IngressGuard)
+
+	// Docker adoption: take over containers the user started with docker run / compose.
+	if de, err := dockeradopt.NewDockerEngine(); err == nil {
+		defer de.Close()
+		a.Ext = append(a.Ext, dockeradopt.New(de, paths, log))
+	} else {
+		log.Warn("docker adoption unavailable", "err", err)
+	}
 
 	// Scheduled backups: restic in a container, straight to the S3 bucket; the schedule runs
 	// locally so it does not depend on the control server.

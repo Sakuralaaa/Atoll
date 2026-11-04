@@ -107,7 +107,7 @@ func BuildContainerSpec(p Paths, s api.ResolvedSpec) (ContainerSpec, error) {
 	for _, port := range s.Ports {
 		switch port.Protocol {
 		case "tcp", "udp":
-			pb := PortBinding{ContainerPort: port.ContainerPort, HostPort: port.PublicPort, Protocol: port.Protocol}
+			pb := PortBinding{ContainerPort: port.ContainerPort, HostPort: port.PublicPort, Protocol: port.Protocol, HostIP: port.HostIP}
 			if port.PublicPort > 0 {
 				cs.Ports = append(cs.Ports, pb)
 			} else {
@@ -122,7 +122,14 @@ func BuildContainerSpec(p Paths, s api.ResolvedSpec) (ContainerSpec, error) {
 		if err := validVolumeName(v.Name); err != nil {
 			return cs, err
 		}
-		cs.Mounts = append(cs.Mounts, Mount{Source: p.VolumeDir(s.ServiceID, v.Name), Target: v.MountPath})
+		src := p.VolumeDir(s.ServiceID, v.Name)
+		if v.HostPath != "" { // adopted bind mount / named volume, mounted in place
+			if err := CheckHostPath(p, v.HostPath, v.ReadOnly); err != nil {
+				return cs, err
+			}
+			src = v.HostPath
+		}
+		cs.Mounts = append(cs.Mounts, Mount{Source: src, Target: v.MountPath, ReadOnly: v.ReadOnly})
 	}
 	for _, c := range s.Configs {
 		hp, err := configHostPath(p, s.ServiceID, c.Path)

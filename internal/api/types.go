@@ -83,11 +83,20 @@ type Port struct {
 	ContainerPort int    `json:"container_port"`
 	Protocol      string `json:"protocol"`              // "http" | "tcp" | "udp"
 	PublicPort    int    `json:"public_port,omitempty"` // tcp/udp only, 0 = internal only
+	// HostIP restricts a published port to one host address ("" = all interfaces), e.g.
+	// "127.0.0.1" for a port an adopted container only published on loopback.
+	HostIP string `json:"host_ip,omitempty"`
 }
 
 type Volume struct {
 	Name      string `json:"name"`       // unique within service
 	MountPath string `json:"mount_path"` // in container
+	// HostPath mounts this existing host directory or file in place instead of the
+	// service's own volume dir (/var/lib/atoll/volumes/<service_id>/<name>). Only Docker
+	// adoption sets it (docs/adopt-docker.md); the API refuses new or changed host paths.
+	// Atoll never deletes, backs up or migrates a host path.
+	HostPath string `json:"host_path,omitempty"`
+	ReadOnly bool   `json:"read_only,omitempty"` // mount read-only (e.g. an adopted ":ro" bind)
 }
 
 type ConfigFile struct {

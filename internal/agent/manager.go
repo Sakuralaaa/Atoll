@@ -146,6 +146,13 @@ func (m *Manager) prepareHost(ctx context.Context, spec api.ResolvedSpec) error 
 		}
 	}
 	for _, v := range spec.Volumes {
+		if v.HostPath != "" {
+			// mounted in place: it must exist already, Atoll never creates it
+			if _, err := os.Stat(v.HostPath); err != nil {
+				return fmt.Errorf("volume %s: host path: %w", v.Name, err)
+			}
+			continue
+		}
 		if err := os.MkdirAll(m.paths.VolumeDir(spec.ServiceID, v.Name), 0o755); err != nil {
 			return err
 		}

@@ -399,8 +399,12 @@ func (m *Manager) backup(ctx context.Context, id string, t api.BackupTarget, rep
 	if repo.Endpoint == "" || repo.Bucket == "" || repo.Password == "" {
 		return nil, nil, nil, errors.New("no backup repository configured")
 	}
-	if _, err := agent.NewStateStore(m.Paths).Load(t.ServiceID); err != nil {
+	spec, err := agent.NewStateStore(m.Paths).Load(t.ServiceID)
+	if err != nil {
 		return nil, nil, nil, fmt.Errorf("service %s is not deployed on this server", t.ServiceID)
+	}
+	if agent.HasHostPath(spec) && (t.IncludeVolumes || !DBKinds[t.Kind]) {
+		return nil, nil, nil, agent.ErrHostPathVolumes(t.ServiceID)
 	}
 	if err := m.ensureRepo(ctx, repo); err != nil {
 		return nil, nil, nil, err

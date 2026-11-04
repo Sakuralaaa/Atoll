@@ -59,6 +59,13 @@ func (v *VolumeTransfer) volumeDir(serviceID, volume string) (string, error) {
 	if err := validVolumeName(volume); err != nil {
 		return "", err
 	}
+	if spec, err := NewStateStore(v.paths).Load(serviceID); err == nil {
+		for _, vol := range spec.Volumes {
+			if vol.Name == volume && vol.HostPath != "" {
+				return "", ErrHostPathVolumes(serviceID)
+			}
+		}
+	}
 	return v.paths.VolumeDir(serviceID, volume), nil
 }
 
