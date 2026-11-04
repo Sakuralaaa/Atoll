@@ -27,6 +27,7 @@
 - [安全](#安全)
 - [校验下载的文件](#校验下载的文件)
 - [日常运维](#日常运维)
+- [Android 客户端](#android-客户端)
 - [开发](#开发)
 - [文档索引](#文档索引)
 
@@ -154,6 +155,12 @@ gh attestation verify atoll-server-linux-amd64 --repo Sakuralaaa/Atoll
 | 中控备份和迁移 | 见 [docs/control.md](docs/control.md) |
 | 看日志 | `journalctl -u atoll-server -f`、`journalctl -u atoll-agent -f`，或在面板「中控」页查看 |
 | 清理磁盘 | 构建镜像每个服务保留最近 3 个；全局清理用 `docker system prune` |
+
+## Android 客户端
+
+[`android/`](android/) 是一个原生 Android 壳应用（Kotlin + Jetpack Compose，Android 8.0+）：原生登录（支持两步验证和恢复码，密码用 Android Keystore 加密保存）、全屏打开面板、会话过期自动重新登录、多个面板快速切换、文件上传下载。
+
+APK 随每个版本附在 [GitHub Release](https://github.com/Sakuralaaa/Atoll/releases) 上（`atoll-android-<版本>.apk`，附 `.sha256`）；`main` 上的开发版在 Actions 的 [android 工作流](https://github.com/Sakuralaaa/Atoll/actions/workflows/android.yml) 里作为 artifact 下载。说明见 [android/README.md](android/README.md)。
 
 ## 开发
 

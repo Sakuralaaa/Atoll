@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.31](docs/releases/v0.1.31.md)：新增原生 Android 客户端（`android/`，Android 8.0+）：原生登录（两步验证 / 恢复码、Keystore 加密保存密码、可选指纹解锁）、全屏面板 WebView（下拉刷新、文件上传下载、外部链接用浏览器打开、离线重试页、状态栏跟随面板配色）、会话过期自动重新登录、多面板快速切换；APK 附在 Release 上（`atoll-android-<版本>.apk`）。中控和节点无需升级。
 - [v0.1.30](docs/releases/v0.1.30.md)：修复 v0.1.29 中控与节点连接反复断开（延迟全部「—」、部署报 agent disconnected），连接处理恢复 v0.1.28 写法，保留「超时」显示和界面修正；项目里的服务可拖动排序（触屏可用，新接口 `PUT /projects/{id}/service-order`，迁移 0021）。只需升级中控。
 - [v0.1.29](docs/releases/v0.1.29.md)：延迟测量失败时记录原因并显示红色「超时」（悬停看错误）；中控读循环不再被慢的帧处理拖住 pong，超时放宽到 20 秒；ping 不通时改用所有版本 Agent 都会应答的消息测往返，旧 Agent 也能显示延迟；设置页宽度、Docker 接管页中文、管理通道标签、域名页令牌权限、分组卡片长名称换行、日志页与 Zeabur 迁移页等界面修正。只需升级中控。
 - [v0.1.28](docs/releases/v0.1.28.md)：项目收藏与置顶（按账号同步，新接口 `GET/PUT /me/project-prefs`，迁移 0020）；服务器卡片和详情显示中控 ↔ Agent 延迟（任何版本的 Agent 均可）；按服务器分组的卡片等高、标签最多两行加「+N」等界面修正。只需升级中控。

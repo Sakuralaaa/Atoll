@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="atoll_bg_dark">#FF1F1E26</color>
+    <color name="atoll_bg_light">#FFF3EFE6</color>
+    <color name="atoll_fg_light">#FFF3EFE6</color>
+    <color name="atoll_brand">#FF8B5CF6</color>
+    <color name="ic_launcher_background">#FF1F1E26</color>
+    <color name="window_bg">#FFF3EFE6</color>
+</resources>
