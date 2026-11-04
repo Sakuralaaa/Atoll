@@ -122,6 +122,9 @@ type IngressRoute struct {
 	Hostname  string `json:"hostname"`
 	Upstream  string `json:"upstream"` // "<container_name>:<port>" on docker network atoll-ingress
 	ServiceID string `json:"service_id"`
+	// Direct: the DNS record is not proxied by Cloudflare (grey cloud), so browsers see
+	// the node's certificate: never serve it a Cloudflare Origin CA certificate.
+	Direct bool `json:"direct,omitempty"`
 }
 type IngressPayload struct {
 	Routes         []IngressRoute `json:"routes"`

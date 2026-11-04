@@ -60,6 +60,7 @@ type obj = map[string]any
 func Build(in Input) ([]byte, error) {
 	// One route per hostname; first upstream wins for duplicates. Sorted for stable output.
 	byHost := map[string]string{}
+	direct := map[string]bool{}
 	var hosts []string
 	for _, r := range in.Routes {
 		h := strings.ToLower(strings.TrimSpace(r.Hostname))
@@ -73,11 +74,12 @@ func Build(in Input) ([]byte, error) {
 			continue
 		}
 		byHost[h] = r.Upstream
+		direct[h] = r.Direct
 		hosts = append(hosts, h)
 	}
 	sort.Strings(hosts)
 	if len(in.Domains) > 0 {
-		return buildMulti(in, hosts, byHost)
+		return buildMulti(in, hosts, byHost, direct)
 	}
 
 	routes := routeList(hosts, byHost)
@@ -135,7 +137,7 @@ func routeList(hosts []string, byHost map[string]string) []any {
 // are skipped by ACME), the rest fall through to the default policy and Caddy's automatic
 // HTTPS. Hosts that follow a certificate-less cloudflare-origin global mode stay on plain
 // HTTP in a separate :80 server, as they were before.
-func buildMulti(in Input, hosts []string, byHost map[string]string) ([]byte, error) {
+func buildMulti(in Input, hosts []string, byHost map[string]string, direct map[string]bool) ([]byte, error) {
 	names := make([]string, 0, len(in.Domains))
 	byName := map[string]Domain{}
 	for _, d := range in.Domains {
@@ -167,6 +169,9 @@ func buildMulti(in Input, hosts []string, byHost map[string]string) ([]byte, err
 			d := byName[root]
 			mode = d.Mode
 			tag = originCertTag + "-" + root
+			if mode == "origin" && direct[h] {
+				mode = "acme" // grey cloud: browsers reject an Origin CA certificate
+			}
 		} else if in.TLSMode == "acme" {
 			mode = "acme"
 		} else if in.HaveOriginCert {

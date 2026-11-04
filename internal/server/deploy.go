@@ -412,19 +412,21 @@ func (s *Server) ingressFor(ctx context.Context, nodeID string) (api.IngressPayl
 		if port == 0 {
 			continue
 		}
-		out.Routes = append(out.Routes, api.IngressRoute{Hostname: r.Hostname, Upstream: fmt.Sprintf("%s:%d", containerName(r.ServiceID), port), ServiceID: r.ServiceID})
+		out.Routes = append(out.Routes, api.IngressRoute{Hostname: r.Hostname, Upstream: fmt.Sprintf("%s:%d", containerName(r.ServiceID), port), ServiceID: r.ServiceID, Direct: !r.Proxied})
 	}
 	// Roots with their own certificate (rootdomains.go). None: the payload is unchanged.
 	if out.Domains = s.ingressDomains(ctx); len(out.Domains) > 0 && out.CloudflareOnly {
 		// a host served with an ACME certificate must be reachable by the CA directly
-		var acme []string
+		var acme, all []string
 		for _, d := range out.Domains {
+			all = append(all, d.Name)
 			if d.Mode == "acme" {
 				acme = append(acme, d.Name)
 			}
 		}
 		for _, r := range out.Routes {
-			if dns.RootFor(r.Hostname, acme) != "" {
+			// grey-cloud hosts under an Origin CA root get ACME too (caddy.buildMulti)
+			if dns.RootFor(r.Hostname, acme) != "" || (r.Direct && dns.RootFor(r.Hostname, all) != "") {
 				out.CloudflareOnly = false
 				break
 			}

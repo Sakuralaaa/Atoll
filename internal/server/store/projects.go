@@ -397,11 +397,12 @@ type RouteRow struct {
 	ServiceID string
 	PortName  string
 	Ports     []api.Port
+	Proxied   bool
 }
 
 // RoutesForNode lists domains of services on nodeID whose project is not on ingress hold.
 func (s *Store) RoutesForNode(ctx context.Context, nodeID string) ([]RouteRow, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT d.hostname, d.service_id, d.port_name, s.ports FROM domains d
+	rows, err := s.DB.QueryContext(ctx, `SELECT d.hostname, d.service_id, d.port_name, s.ports, d.proxied FROM domains d
 		JOIN services s ON s.id=d.service_id JOIN projects p ON p.id=s.project_id
 		WHERE `+EffNode+`=? AND p.ingress_hold=0 AND s.desired_stopped=0 ORDER BY d.hostname`, nodeID)
 	if err != nil {
@@ -412,9 +413,11 @@ func (s *Store) RoutesForNode(ctx context.Context, nodeID string) ([]RouteRow, e
 	for rows.Next() {
 		var r RouteRow
 		var ports string
-		if err := rows.Scan(&r.Hostname, &r.ServiceID, &r.PortName, &ports); err != nil {
+		var prox int
+		if err := rows.Scan(&r.Hostname, &r.ServiceID, &r.PortName, &ports, &prox); err != nil {
 			return nil, err
 		}
+		r.Proxied = prox == 1
 		json.Unmarshal([]byte(ports), &r.Ports)
 		out = append(out, r)
 	}

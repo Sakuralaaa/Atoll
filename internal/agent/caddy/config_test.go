@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -115,5 +116,45 @@ func TestAdminLoadOverUnixSocket(t *testing.T) {
 	}
 	if gotBody != `{"apps":{}}` || gotHost != "127.0.0.1" {
 		t.Fatalf("body=%q host=%q", gotBody, gotHost)
+	}
+}
+
+// A grey-cloud (Direct) host under an Origin CA root is served by ACME: browsers reach the
+// node directly and reject Cloudflare Origin CA certificates.
+func TestBuildDirectHostUnderOriginRootUsesACME(t *testing.T) {
+	rs := []api.IngressRoute{
+		{Hostname: "shop.example.net", Upstream: "atoll-svc_shop:80", ServiceID: "svc_shop"},
+		{Hostname: "grey.example.net", Upstream: "atoll-svc_grey:80", ServiceID: "svc_grey", Direct: true},
+	}
+	b, err := Build(Input{Routes: rs, TLSMode: "acme", ACMEEmail: "ops@example.com",
+		Domains: []Domain{{Name: "example.net", Mode: "origin", HaveCert: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Apps struct {
+			HTTP struct {
+				Servers map[string]struct {
+					AutomaticHTTPS struct {
+						Skip []string `json:"skip_certificates"`
+					} `json:"automatic_https"`
+					Policies []struct {
+						Match struct {
+							SNI []string `json:"sni"`
+						} `json:"match"`
+					} `json:"tls_connection_policies"`
+				} `json:"servers"`
+			} `json:"http"`
+		} `json:"apps"`
+	}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.Apps.HTTP.Servers["atoll"]
+	if strings.Join(s.AutomaticHTTPS.Skip, ",") != "shop.example.net" {
+		t.Fatalf("skip %v", s.AutomaticHTTPS.Skip)
+	}
+	if len(s.Policies) != 2 || strings.Join(s.Policies[0].Match.SNI, ",") != "shop.example.net" {
+		t.Fatalf("policies %+v", s.Policies)
 	}
 }
