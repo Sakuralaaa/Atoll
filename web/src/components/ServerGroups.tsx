@@ -16,7 +16,7 @@ import { Pin, Star } from 'lucide-react'
 export function ServerGroupCards({ groups, total, listView, prefs }: { groups: ServerGroup[]; total: Map<string, number>; listView: boolean; prefs: ReturnType<typeof useProjectPrefs> }) {
   const { t } = useT()
   return (
-    <div className={listView ? 'grid gap-4 grid-cols-1' : 'grid gap-4 grid-cols-1 auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3'}>
+    <div className={listView ? 'grid gap-4 grid-cols-1' : 'grid gap-4 grid-cols-1 @2xl:auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3'}>
       {groups.map(g => {
         const s = g.server
         const ss = g.projects.flatMap(p => p.services ?? [])
@@ -36,7 +36,7 @@ export function ServerGroupCards({ groups, total, listView, prefs }: { groups: S
             </div>
             {/* project names clamped to two lines with one "+N" chip, so every card is the same height */}
             <div className="px-5 pb-4 flex-1">
-              <ClampedTags rows={listView ? 1 : 2} className={listView ? 'h-[26px]' : 'h-[58px]'} items={pinnedFirst(g.projects, prefs.prefs.pinned).map(p => ({
+              <ClampedTags rows={listView ? 1 : 2} className={listView ? 'h-[30px]' : 'max-h-[64px] @2xl:h-[64px]'} items={pinnedFirst(g.projects, prefs.prefs.pinned).map(p => ({
                 key: p.id, title: projName(p),
                 node: <span className="inline-flex items-center gap-1 max-w-full">{prefs.isPinned(p.id) && <Pin size={10} className="text-accent shrink-0" fill="currentColor" />}{prefs.isFav(p.id) && <Star size={10} className="text-[#eab308] shrink-0" fill="currentColor" />}<span className="truncate">{projName(p)}</span></span>,
               }))} />

@@ -59,7 +59,7 @@ export default function Servers() {
             action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
           {q.data && !all.length && <Empty icon={<Server size={22} />} title={t('还没有服务器', 'No servers yet')} desc={t('在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。', 'Run one install command on any VPS; the agent connects back to the control server, no extra ports to open.')} action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{t('添加服务器', 'Add server')}</Button>} />}
         </div>
-        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
+        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(s => {
             const u = usagePct(s), on = s.status === 'online'
             return (

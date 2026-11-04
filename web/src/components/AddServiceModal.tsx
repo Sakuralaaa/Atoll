@@ -53,7 +53,7 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
         <div className="flex items-center gap-3 px-5 h-16 border-b border-line">
           {step === 'pick' ? <Search size={18} className="text-muted" /> : <button onClick={() => setStep('pick')} className="text-muted hover:text-fg"><ArrowLeft size={18} /></button>}
           {step === 'pick'
-            ? <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} placeholder="要部署什么服务？" className="text-[16px] flex-1 bg-transparent outline-none placeholder:text-dim text-fg" />
+            ? <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} placeholder="要部署什么服务？" className="text-[16px] flex-1 bg-transparent outline-none focus-visible:outline-none placeholder:text-dim text-fg" />
             : <span className="text-[16px] font-semibold flex-1">{step === 'image' ? '部署服务' : '数据库'}</span>}
           <button onClick={onClose} className="text-muted"><X size={18} /></button>
         </div>

@@ -18,6 +18,9 @@ export function addStressData(d: {
     ...base, id: 'longsrv', name: 'Hetzner Cloud CCX63 Nuremberg 主力生产节点 (dedicated vCPU, 48 cores)', provider: 'Hetzner', region: 'Nuremberg, Bavaria, Germany (eu-central)',
     public_ipv4: '203.0.113.99', public_ipv6: '2001:db8:85a3:0000:0000:8a2e:0370:7334', tailnet_host: 'hetzner-ccx63-nuremberg-production-primary.tail3c1a.ts.net', tailnet_ip: undefined, network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' },
   })
+  // many small projects on the long-named machine: its 按服务器分组 card clamps the names to two lines with "+N"
+  for (const [i, n] of ['billing', 'auth-service', 'analytics-dashboard', 'image-resizer', 'docs', 'status-page', 'internal-tools-admin', 'newsletter', 'feature-flags'].entries())
+    d.projects.push({ id: `stressp${i}`, name: n, server_id: 'longsrv', created_at: iso((i + 4) * 864e5) })
   const pid = 'stress'
   d.projects.push({ id: pid, name: 'enterprise-customer-portal-production-environment-eu-central', description: '长名称压力测试项目：用于检查所有页面在极长的项目名、服务名、域名与镜像摘要下的布局是否正常', server_id: 'longsrv', created_at: iso(3 * 864e5) })
   const mk = (i: number, name: string, image: string, status: string, kind = 'image'): Service => ({

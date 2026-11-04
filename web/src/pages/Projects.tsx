@@ -104,7 +104,7 @@ type CardProps = { servers?: Server[]; updates: Record<string, ImageUpdate | und
 function ProjectGrid({ list, listView, className, ...cp }: CardProps & { list: Project[]; listView: boolean; className?: string }) {
   const [drag, setDrag] = useState<string>()
   return (
-    <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3', className)}>
+    <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3', className)}>
       {list.map(p => <ProjectCard key={p.id} p={p} {...cp}
         drag={cp.prefs.isPinned(p.id) ? {
           active: drag === p.id,

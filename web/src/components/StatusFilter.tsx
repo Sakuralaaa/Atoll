@@ -24,7 +24,8 @@ export function FilterChips<T>({ f, defs, compact, className }: {
   return (
     <div role="group" aria-label={t('筛选', 'Filter')} className={cx('flex flex-wrap items-center gap-1.5', className)}>
       {chip('', t('全部', 'All'), f.total)}
-      {defs.map(d => chip(d.id, t(d.zh, d.en), f.counts[d.id] ?? 0, d.alert))}
+      {/* the sidebar (compact) leaves out empty chips so they fit on one or two lines */}
+      {defs.filter(d => !compact || f.active === d.id || (f.counts[d.id] ?? 0) > 0).map(d => chip(d.id, t(d.zh, d.en), f.counts[d.id] ?? 0, d.alert))}
     </div>
   )
 }
