@@ -15,6 +15,14 @@ export function problemHref(p: Problem) {
   return p.project_id ? `/projects/${p.project_id}/services/${p.subject_id}` : '/'
 }
 
+/** Which page a problem belongs to: servers (offline, disk), projects (anything about a
+ *  service, a deploy or a domain), or neither (the backup repository check: Settings). */
+export function problemScope(p: Problem): 'servers' | 'projects' | '' {
+  if (p.kind === 'node_offline' || p.kind === 'disk_high') return 'servers'
+  if (p.kind === 'domain_error' || p.project_id) return 'projects'
+  return ''
+}
+
 /** Firing problems, optionally only some kinds. */
 export function useFiringProblems(only?: string[]) {
   return (useProblems().data ?? []).filter(p => !p.resolved_at && (!only || only.includes(p.kind)))

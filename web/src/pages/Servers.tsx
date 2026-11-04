@@ -47,7 +47,7 @@ export default function Servers() {
             <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>{t('添加服务器', 'Add server')}</Button>
           </div>
         </div>
-        <ProblemsBanner only={['node_offline', 'disk_high']} />
+        <ProblemsBanner scope="servers" />
         <ControlCard />
         <AgentUpgradeAll servers={all} />
         <div className="mt-6">
@@ -68,16 +68,10 @@ export default function Servers() {
                   <div className="flex items-start gap-3">
                     <ProviderIcon provider={providerOf(s)} online={on} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold truncate min-w-0" title={s.name}>{s.name}</div>
-                      <div className="mt-1 flex items-center gap-3 text-[13.5px] text-fg2 whitespace-nowrap">
-                        <span className="truncate">{s.os || '—'}</span>
-                        <span className="flex items-center gap-1.5"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? 'Docker' : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : t('离线', 'Offline')}</span>
-                      </div>
-                    </div>
-                    <div className="relative flex flex-col items-end gap-1.5 shrink-0 empty:hidden">
-                      {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
-                      {s.status === 'pending' && <Badge tone="zinc">{t('等待连接', 'Waiting')}</Badge>}
-                      <AgentUpgradeBadge s={s} />
+                      {/* full name, wrapping; badges live in the footer so nothing squeezes it */}
+                      <div className="text-[15px] font-semibold leading-snug [overflow-wrap:anywhere]">{s.name}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-fg2"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? t('在线 · Docker', 'Online · Docker') : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : s.status === 'pending' ? t('等待连接', 'Waiting') : t('离线', 'Offline')}</div>
+                      <div className="mt-0.5 text-[12.5px] text-muted [overflow-wrap:anywhere]" title={t('系统版本', 'OS')}>{s.os || '—'}</div>
                     </div>
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-x-4 text-[13px] [&>div]:min-w-0">
@@ -93,8 +87,12 @@ export default function Servers() {
                     <div className="flex items-center gap-4"><span className="text-muted w-20 shrink-0 whitespace-nowrap">{t('内存使用率', 'Memory')}</span><Ticks value={on ? u.mem : 0} n={34} /></div>
                   </div>
                 </div>
-                <div className="mt-auto border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex items-center text-[13.5px] text-muted">
-                  {`${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}
+                <div className="mt-auto border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13.5px] text-muted">
+                  <span className="min-w-0">{`${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}</span>
+                  <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 empty:hidden">
+                    {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
+                    <AgentUpgradeBadge s={s} />
+                  </span>
                 </div>
               </Link>
             )

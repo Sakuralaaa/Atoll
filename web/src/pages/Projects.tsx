@@ -20,7 +20,7 @@ import { groupByServer } from '../api/groups'
 import { providerOf } from '../api/providers'
 import type { Project } from '../api/types'
 
-const GROUP_KEY = 'atoll.projects.byServer'
+const GROUP_KEY = 'atoll.projects.groupByServer'
 
 export default function Projects() {
   const q = useProjects()
@@ -35,7 +35,8 @@ export default function Projects() {
   const defs = projectFilters<Project>(problems)
   const [sp, setSp] = useSearchParams()
   const sel = sp.get('server') // '_' = projects whose machine is unknown
-  const [grouped, setGroupedState] = useState(() => localStorage.getItem(GROUP_KEY) !== '0')
+  // one card per project by default; grouping by machine is opt-in (v0.1.27)
+  const [grouped, setGroupedState] = useState(() => localStorage.getItem(GROUP_KEY) === '1')
   const setGrouped = (v: boolean) => { localStorage.setItem(GROUP_KEY, v ? '1' : '0'); setGroupedState(v) }
   const machines = new Set(all.map(p => p.server_id ?? '')).size
   const inServer = (p: Project) => (p.server_id || '_') === sel
@@ -65,7 +66,7 @@ export default function Projects() {
             <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>创建项目</Button>
           </div>
         </div>
-        <ProblemsBanner />
+        <ProblemsBanner scope="projects" />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <CardSkeleton n={6} h={120} />}
         {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
@@ -88,16 +89,17 @@ export default function Projects() {
                     <ServiceIcon s={projIcon(p)} size={38} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[15px] font-semibold truncate">{projName(p)}</div>
-                      <div className="text-[12px] text-muted truncate mt-0.5">{dom ?? (ss.length ? '仅内网访问' : '空项目')}</div>
+                      <div className="text-[12px] text-muted truncate mt-0.5" title={dom}>{dom ?? (ss.length ? t('仅内网访问', 'Internal only') : t('空项目', 'Empty project'))}</div>
                     </div>
                   </div>
                   <div className="mt-5 flex items-center gap-1.5 h-[22px] overflow-hidden">
                     {ss.map(s => <span key={s.id} title={svcName(s)}><ServiceIcon s={svcIcon(s)} size={22} /></span>)}
+                    <span className="ml-auto shrink-0 text-[12px] text-muted tnum">{t(`${ss.length} 个服务`, `${ss.length} service${ss.length === 1 ? '' : 's'}`)}</span>
                   </div>
                 </div>
                 <div className="mt-auto pt-5"><div className="px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
                   {srv ? <><Mini provider={providerOf(srv)} size={13} /><span className="text-fg2 truncate min-w-0">{srv.name}</span></> : <span className="text-dim">—</span>}
-                  <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length}</span>
+                  <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} /><span className={bad ? 'text-[#ef4444] font-semibold' : ''}>{!ss.length ? t('无服务', 'No services') : bad ? t('有异常', 'Failing') : run === ss.length ? t('运行中', 'Running') : t('部分运行', 'Partly running')}</span>{run}/{ss.length}</span>
                 </div></div>
               </Link>
             )
