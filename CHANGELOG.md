@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.26](docs/releases/v0.1.26.md)：修复根域名用 Origin CA 时灰云（仅 DNS）域名证书不受信任，灰云域名改用 ACME；默认根域名不再误报「未找到 Cloudflare Zone」。中控和节点都要升级。
 - [v0.1.25](docs/releases/v0.1.25.md)：接管自己用 docker run / compose 启动的容器（同端口、数据原地挂载、旧容器保留可回滚；尚未在真实 Docker 主机上验证，接管后勿把 agent 降级）；默认关闭 MPTCP 监听以缓解 CVE-2026-98432。
 - [v0.1.24](docs/releases/v0.1.24.md)：多个根域名（设置里管理列表、自动匹配 Cloudflare Zone、自动签 Origin 证书失败则用 ACME），项目可选默认根域名，绑定域名时选后缀。中控和节点都要升级；新根域名的 Cloudflare SSL 请用 Full (strict)。
 - [v0.1.23](docs/releases/v0.1.23.md)：修复卡片上点隐藏的 IP 会进入详情页，现在点地址即可显示。
