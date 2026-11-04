@@ -43,6 +43,8 @@ type agentConn struct {
 	lastSeen atomic.Int64
 	// selfUpgrade: the agent said in its hello that it handles MsgUpgrade.
 	selfUpgrade bool
+	// latency: round-trip times of control→agent pings (latency.go).
+	latency latencyRing
 }
 
 func newHub(s *Server) *Hub { return &Hub{s: s, conns: map[string]*agentConn{}} }
@@ -266,6 +268,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	s.onAgentHello(nodeID, hello)
 	s.publishServer(ctx, nodeID)
 	s.forgetMesh(nodeID)
+	go s.pingLoop(c)
 	s.goBG(func(bg context.Context) {
 		s.pushNodeState(bg, nodeID)
 		s.reconcileNetwork(bg, nodeID, hello) // network.go: move to the tailnet control URL

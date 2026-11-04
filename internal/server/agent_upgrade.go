@@ -97,6 +97,7 @@ func (s *Server) withAgentInfo(n *api.Server) {
 	}
 	if c := s.hub.get(n.ID); c != nil {
 		n.AgentSelfUpgrade = c.selfUpgrade
+		n.Latency = c.latency.view()
 	}
 	n.AgentUpgrade = s.agentUpg.get(n.ID)
 }
