@@ -26,6 +26,9 @@ export default function ImportDocker() {
   const { t } = useT()
   const [sp, setSp] = useSearchParams()
   const jobId = sp.get('job'), server = sp.get('server')
+  // ?project=ID: opened from a project's 新建服务; adoption still creates its own project
+  const fromProject = sp.get('project')
+  const keep = (o: Record<string, string>) => setSp(fromProject ? { ...o, project: fromProject } : o)
   const job = useQuery(jobId ? `imports:${jobId}` : null, () => api.importJob(jobId!), { interval: 2000 })
   const st = job.data?.status
   const step = jobId ? (st === 'live' || st === 'cutting_over' || (st === 'rolled_back' && job.data?.steps.some(s => s.name.startsWith('Stop old') && s.status !== 'pending')) ? 4 : 3) : server ? 2 : 1
@@ -38,7 +41,8 @@ export default function ImportDocker() {
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <Link to="/import" className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{t('迁移', 'Import')}</Link>
+        {fromProject ? <Link to={`/projects/${fromProject}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{t('返回项目', 'Back to project')}</Link>
+          : <Link to="/import" className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{t('迁移', 'Import')}</Link>}
         <div className="flex flex-wrap items-end justify-between gap-3 mt-2 mb-2">
           <div className="min-w-0">
             <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{t('接管 Docker 容器', 'Adopt Docker containers')}<Badge tone="violet">{t('原地接管', 'In place')}</Badge></h1>
@@ -46,7 +50,7 @@ export default function ImportDocker() {
               '把你自己用 docker run 或 docker compose 启动的容器交给 Atoll 管理：同样的端口，同样的绑定目录和数据卷原地挂载，不复制数据。旧容器、镜像和卷永远保留，随时可以回滚。',
               'Hand the containers you started with docker run or docker compose to Atoll: same host ports, the same bind mounts and volumes mounted in place, no data copy. Your old containers, images and volumes are always kept, so you can roll back any time.')}</p>
           </div>
-          {(jobId || server) && <Button onClick={() => setSp({})}><X size={14} />{t('重新开始', 'Start over')}</Button>}
+          {(jobId || server) && <Button onClick={() => keep({})}><X size={14} />{t('重新开始', 'Start over')}</Button>}
         </div>
         <div className="mt-7 flex items-center gap-2 flex-wrap">
           {steps.map((s, i) => {
@@ -63,8 +67,9 @@ export default function ImportDocker() {
           })}
         </div>
         <div className="mt-7">
-          {!jobId && !server && <PickServer onPick={id => setSp({ server: id })} />}
-          {!jobId && server && <Scan serverId={server} onCreated={id => setSp({ job: id })} />}
+          {fromProject && !jobId && <div className="mb-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">{t('接管会为每组容器新建一个 Atoll 项目（compose 项目名），不会并入当前项目；接管完成后可以在项目页继续管理。', 'Adoption creates a new Atoll project per container group (the compose project name); it is not merged into the current project.')}</div>}
+          {!jobId && !server && <PickServer onPick={id => keep({ server: id })} />}
+          {!jobId && server && <Scan serverId={server} onCreated={id => keep({ job: id })} />}
           {jobId && <Load q={job} skeleton={<RowsSkeleton n={6} />}>{j => <Job job={j} />}</Load>}
         </div>
       </div>

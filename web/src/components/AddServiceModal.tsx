@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Search, Box, Database, ChevronRight, X, ArrowLeft, Loader2, Webhook } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Search, Box, Boxes, Database, ChevronRight, X, ArrowLeft, Loader2, Webhook } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import type { GitSource, Service } from '../api/types'
@@ -11,9 +12,11 @@ import { useT } from '../i18n'
 import { cx } from './ui-utils'
 
 type Step = 'pick' | 'image' | 'db'
-const items: { k: Step; i: React.ReactNode; t: string; d: string }[] = [
+const items: { k: Step | 'docker'; i: React.ReactNode; t: string; d: string }[] = [
   { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: 'Docker 容器镜像 / GitHub 仓库', d: '从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建' },
   { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: '数据库', d: 'PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量' },
+  // not a step here: opens the adoption wizard (/import/docker) on the project's server
+  { k: 'docker', i: <Boxes size={20} className="text-[#a78bfa]" />, t: '从已有 Docker 容器接管', d: '服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据' },
 ]
 
 export default function AddServiceModal({ projectId, onClose, onCreated }: { projectId: string; onClose: () => void; onCreated?: (s: Service) => void }) {
@@ -21,18 +24,27 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
   const [sel, setSel] = useState(0)
   const [q, setQ] = useState('')
   const list = items.filter(x => !q || (x.t + x.d).toLowerCase().includes(q.toLowerCase()))
+  const nav = useNavigate()
+  const proj = useQuery(`project:${projectId}`, () => api.project(projectId)).data
+  const [serverId, setServerId] = useState('')
+  const home = proj?.server_id
+  const pick = useCallback((k: Step | 'docker') => {
+    if (k !== 'docker') return setStep(k)
+    const srv = serverId || home
+    onClose()
+    nav(`/import/docker?${new URLSearchParams({ ...(srv ? { server: srv } : {}), project: projectId })}`)
+  }, [serverId, home, onClose, nav, projectId])
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
       if (step !== 'pick') return
       if (e.key === 'ArrowDown') setSel(v => Math.min(list.length - 1, v + 1))
       if (e.key === 'ArrowUp') setSel(v => Math.max(0, v - 1))
-      if (e.key === 'Enter' && list[sel]) setStep(list[sel].k)
+      if (e.key === 'Enter' && list[sel]) pick(list[sel].k)
     }
     addEventListener('keydown', k); return () => removeEventListener('keydown', k)
-  }, [step, sel, list, onClose])
+  }, [step, sel, list, onClose, pick])
   const done = (s?: Service) => { if (s) { onCreated?.(s); onClose() } }
-  const [serverId, setServerId] = useState('')
   const [showWebhook, setShowWebhook] = useState(false)
 
   return (
@@ -48,7 +60,7 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
         {step === 'pick' && <>
           <div className="p-2">
             {list.map((x, idx) => (
-              <button key={x.t} onMouseEnter={() => setSel(idx)} onClick={() => setStep(x.k)} className={cx('w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl', idx === sel ? 'bg-ov/[0.06]' : 'hover:bg-ov/[0.04]')}>
+              <button key={x.t} onMouseEnter={() => setSel(idx)} onClick={() => pick(x.k)} className={cx('w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl', idx === sel ? 'bg-ov/[0.06]' : 'hover:bg-ov/[0.04]')}>
                 <div className="h-10 w-10 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center">{x.i}</div>
                 <div className="flex-1"><div className="text-[14px] font-semibold flex items-center gap-2">{x.t}</div><div className="text-[13px] text-muted mt-0.5">{x.d}</div></div>
                 <ChevronRight size={17} className="text-dim" />
