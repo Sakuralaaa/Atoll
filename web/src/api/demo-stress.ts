@@ -17,6 +17,8 @@ export function addStressData(d: {
   d.servers.push({
     ...base, id: 'longsrv', name: 'Hetzner Cloud CCX63 Nuremberg 主力生产节点 (dedicated vCPU, 48 cores)', provider: 'Hetzner', region: 'Nuremberg, Bavaria, Germany (eu-central)',
     public_ipv4: '203.0.113.99', public_ipv6: '2001:db8:85a3:0000:0000:8a2e:0370:7334', tailnet_host: 'hetzner-ccx63-nuremberg-production-primary.tail3c1a.ts.net', tailnet_ip: undefined, network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' },
+    // pings and the fallback both time out: the panel shows 「超时」 with the error in the tooltip
+    latency: { last_ms: 0, avg_ms: 0, samples: 0, measured_at: '', failures: 3, failures_total: 3, last_attempt: iso(9e3), last_error: 'WebSocket ping: no pong within 20s; fallback: no answer within 20s' },
   })
   // many small projects on the long-named machine: its 按服务器分组 card clamps the names to two lines with "+N"
   for (const [i, n] of ['billing', 'auth-service', 'analytics-dashboard', 'image-resizer', 'docs', 'status-page', 'internal-tools-admin', 'newsletter', 'feature-flags'].entries())

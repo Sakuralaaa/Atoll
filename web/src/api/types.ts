@@ -25,7 +25,12 @@ export interface Server {
 }
 
 /** Round-trip time between the control server and an agent, in milliseconds. */
-export interface NodeLatency { last_ms: number; avg_ms: number; samples: number; measured_at: string }
+export interface NodeLatency {
+  last_ms: number; avg_ms: number; samples: number; measured_at: string
+  /** latest sample's method: WebSocket ping, or an application message (fallback when pings fail) */ method?: 'ping' | 'message' | string
+  /** consecutive failed measurements (ping and fallback both failed); 0 after a success */ failures?: number
+  failures_total?: number; last_error?: string; last_attempt?: string
+}
 
 /** One account's favorite and pinned projects (GET/PUT /me/project-prefs). */
 export interface ProjectPrefs { favorites: string[]; pinned: string[] }

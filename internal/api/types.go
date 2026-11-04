@@ -62,6 +62,15 @@ type NodeLatency struct {
 	AvgMS      float64   `json:"avg_ms"` // rolling average of the last Samples pings (~15 s apart)
 	Samples    int       `json:"samples"`
 	MeasuredAt time.Time `json:"measured_at"`
+	// Method of the latest sample: "ping" (WebSocket ping frame) or "message" (an
+	// application-level round trip, the fallback when pings keep failing).
+	Method string `json:"method,omitempty"`
+	// Failures counts consecutive failed measurements (WebSocket ping and fallback both
+	// failed); it resets on the next success. LastError is the latest failure's error.
+	Failures      int        `json:"failures,omitempty"`
+	FailuresTotal int        `json:"failures_total,omitempty"` // failed measurements since the agent connected
+	LastError     string     `json:"last_error,omitempty"`
+	LastAttempt   *time.Time `json:"last_attempt,omitempty"`
 }
 
 type JoinToken struct {
