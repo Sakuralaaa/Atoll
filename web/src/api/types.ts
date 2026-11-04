@@ -47,8 +47,8 @@ export interface NodeNetwork {
 export interface JoinToken { token: string; command: string; expires_at: string }
 export interface InstallCommand { command: string; version: string }
 
-export interface Port { name: string; container_port: number; protocol: 'http' | 'tcp' | 'udp' | string; public_port?: number }
-export interface Volume { name: string; mount_path: string }
+export interface Port { name: string; container_port: number; protocol: 'http' | 'tcp' | 'udp' | string; public_port?: number; /** published on this host address only ("" = all) */ host_ip?: string }
+export interface Volume { name: string; mount_path: string; /** adopted from Docker: existing host dir/file mounted in place (read-only in the API) */ host_path?: string; read_only?: boolean }
 export interface ConfigFile { path: string; content: string }
 export interface HealthCheck { cmd?: string[]; http_path?: string; interval_sec?: number }
 
@@ -188,9 +188,11 @@ export interface ImportJob {
   status: string
   steps: ImportStep[]; created_at: string
   // ---- assumed additions for in-place takeover (not yet in types.go) ----
-  mode?: 'plan' | 'zeabur-local'
+  mode?: 'plan' | 'zeabur-local' | 'docker'
   server_id?: string
   namespace?: string
+  /** Docker adoption: the DockerGroup.key taken over */
+  group?: string
   /** row counts from zeabur.db results, one row per table/keyspace */
   verify?: ImportVerify[]
 }
@@ -385,3 +387,17 @@ export interface NotificationSettings {
   channels: NotificationChannel[]; notify_resolved: boolean
   quiet_start?: string; quiet_end?: string; timezone?: string
 }
+
+// ---------- Docker adoption (types_docker.go) ----------
+export interface DockerPort { container_port: number; host_port?: number; protocol: string; host_ip?: string }
+export interface DockerMount { type: 'bind' | 'volume' | 'tmpfs' | string; name?: string; source: string; destination: string; read_only?: boolean; is_file?: boolean; driver?: string }
+export interface DockerContainer {
+  id: string; name: string; service?: string; image: string; image_id: string; pinned_image?: string
+  state: string; env: EnvVar[]; command?: string[]; args?: string[]; user?: string
+  ports: DockerPort[]; mounts: DockerMount[]; restart_policy: string; networks?: string[]; network_mode?: string
+  mem_limit_mb?: number; cpu_limit?: number; mem_usage_mb?: number
+  risk: 'auto' | 'manual'; risk_reasons?: string[]; warnings?: string[]
+}
+export interface DockerGroup { key: string; kind: 'compose' | 'standalone'; name: string; working_dir?: string; config_files?: string; containers: DockerContainer[]; adoptable: boolean; warnings?: string[] }
+export interface DockerInventory { docker_version?: string; groups: DockerGroup[]; disk_free_gb: number; mem_free_mb: number; scanned_at: string }
+export interface DockerAdoptRequest { server_id: string; group: string; containers?: string[]; project_name?: string }

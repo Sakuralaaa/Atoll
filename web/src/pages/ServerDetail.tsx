@@ -190,6 +190,7 @@ function Stepper({ l, v, max }: { l: string; v: number; max: string }) {
 }
 
 function SettingsTab({ s }: { s: Server }) {
+  const { t } = useT()
   const nav = useNavigate()
   const [name, setName] = useState(s.name); const [provider, setProvider] = useState(s.provider ?? ''); const [region, setRegion] = useState(s.region ?? '')
   const [del, setDel] = useState(false); const [evac, setEvac] = useState(false)
@@ -218,6 +219,9 @@ function SettingsTab({ s }: { s: Server }) {
           <div className="flex justify-end gap-2 mt-5"><Button variant="primary" size="sm">保存</Button><Button size="sm">取消</Button></div>
         </div>
       </Section>}
+      <Section title={t('接管容器', 'Adopt containers')}>
+        <Row t={t('接管 Docker 容器', 'Adopt Docker containers')} d={t('把这台服务器上你自己用 docker run / compose 启动的容器交给 Atoll：同样端口，数据原地挂载，旧容器保留可回滚。', 'Hand the containers you started here with docker run / compose to Atoll: same ports, data mounted in place, old containers kept for rollback.')}><Link to={`/import/docker?server=${s.id}`} className="btn-secondary h-8 px-3 inline-flex items-center gap-1.5 text-[12.5px]">{t('扫描容器', 'Scan containers')}</Link></Row>
+      </Section>
       <Section title="危险区域">
         <Row t="迁出全部项目" d="把这台服务器上的项目迁到其他服务器，完成后自动切换 DNS。"><Button variant="danger-outline" size="sm" disabled={!ps.length} onClick={() => setEvac(true)}>迁出项目</Button></Row>
         <Row t="删除服务器" d="移除 Agent 并删除与它关联的所有数据。"><Button variant="danger" size="sm" onClick={() => setDel(true)}>删除服务器</Button></Row>

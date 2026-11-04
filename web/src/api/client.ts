@@ -1,6 +1,6 @@
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
+  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
 } from './types'
 
 export const API = '/api/v1'
@@ -169,6 +169,10 @@ export const api = {
   /** roll back every cut-over import of the server, restoring Zeabur's ingress once */
   zeaburNodeRollback: (serverId: string) => post<ZeaburNodeOp>(`/servers/${e(serverId)}/zeabur/rollback`),
   cleanupImport: (id: string, b: ZeaburCleanupRequest) => post<ImportJob>(`/imports/${e(id)}/cleanup`, b),
+  // Docker adoption (containers the user started with docker run / compose); rehearse, cutover
+  // and rollbackImport above work for these jobs too
+  dockerScan: (serverId: string) => get<DockerInventory>(`/servers/${e(serverId)}/docker`),
+  dockerAdopt: (b: DockerAdoptRequest) => post<ImportJob>('/imports/docker', b),
 }
 
 /** A PAT-style 202 Confirmation can come back from destructive calls; the panel session normally executes directly. */

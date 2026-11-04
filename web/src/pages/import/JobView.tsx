@@ -53,6 +53,7 @@ function VerifyTable({ job }: { job: ImportJob }) {
 
 export function JobView({ job, step, set, openConfirm }: { job: ImportJob; step: number; set: (q: Record<string, string>) => void; openConfirm: boolean }) {
   const srv = useQuery('servers', api.servers).data?.find(s => s.id === job.server_id)
+  if (job.mode === 'docker') return <Card className="p-6 text-[13px]">Docker 接管任务 · <Link className="underline font-semibold" to={`/import/docker?job=${job.id}`}>打开</Link></Card>
   if (job.mode !== 'zeabur-local' && !job.namespace) return <PlanJob job={job} />
   const name = job.plan.project_name
   const hosts = job.plan.services.flatMap(s => s.domains)

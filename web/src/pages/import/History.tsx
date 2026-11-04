@@ -27,9 +27,9 @@ export function History({ current }: { current: string | null }) {
           const [t, tone] = JOB_TEXT[j.status] ?? [j.status, 'zinc']
           const done = j.steps.filter(s => s.status === 'done').length
           return (
-            <button key={j.id} onClick={() => nav(`/import?job=${j.id}`)} className={cx('w-full text-left px-4 @2xl:px-6 py-3 @3xl:py-0 @3xl:h-14 grid grid-cols-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,100px)_110px_20px] items-center gap-x-4 gap-y-1 text-[13px] hover:bg-ov/[0.02]', current === j.id && 'bg-ov/[0.04]')}>
+            <button key={j.id} onClick={() => nav(j.mode === 'docker' ? `/import/docker?job=${j.id}` : `/import?job=${j.id}`)} className={cx('w-full text-left px-4 @2xl:px-6 py-3 @3xl:py-0 @3xl:h-14 grid grid-cols-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,100px)_110px_20px] items-center gap-x-4 gap-y-1 text-[13px] hover:bg-ov/[0.02]', current === j.id && 'bg-ov/[0.04]')}>
               <span className="font-semibold truncate">{j.plan.project_name}</span>
-              <span className="text-muted truncate @max-3xl:col-span-2 @max-3xl:text-[12px]">{j.mode === 'zeabur-local' ? '原地接管' : 'CLI 计划'} · {j.plan.services.length} 个服务</span>
+              <span className="text-muted truncate @max-3xl:col-span-2 @max-3xl:text-[12px]">{j.mode === 'zeabur-local' ? '原地接管' : j.mode === 'docker' ? 'Docker 接管' : 'CLI 计划'} · {j.plan.services.length} 个服务</span>
               <span className="text-muted tnum @max-3xl:hidden">{done}/{j.steps.length} 步</span>
               <span className="text-muted truncate @max-3xl:hidden">{ago(j.created_at)}</span>
               <span className="@max-3xl:row-start-1 @max-3xl:col-start-2"><Badge tone={tone}>{t}</Badge></span>

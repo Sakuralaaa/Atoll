@@ -10,7 +10,7 @@ import { makeDemoProblems } from './demo-problems'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, ImportStep, ImportVerify,
+  LogLine, NodeMetrics, Project, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
 } from './types'
 import { series } from '../components/ui-utils'
 
@@ -126,6 +126,23 @@ const imports: ImportJob[] = [
 // ---------- in-place Zeabur takeover (wizard demo) ----------
 const zv = (pvc: string, mount_path: string, bytes: number, ns: string) => ({ pvc, mount_path, host_dir: `/var/lib/rancher/k3s/storage/pvc-${pvc}_${ns}_${pvc}`, bytes })
 const NS1 = 'environment-a1b2c3d4e5f6', NS2 = 'environment-e5f6a7b8c9d0'
+const dockerInv: DockerInventory = {
+  docker_version: '28.5.1', mem_free_mb: 1830, disk_free_gb: 41.2, scanned_at: '',
+  groups: [
+    { key: 'compose:blog', kind: 'compose', name: 'blog', working_dir: '/srv/blog', adoptable: true, warnings: ['blog-watchtower-1 needs manual handling and stays as it is: mounts the container runtime socket /var/run/docker.sock: it controls the host\'s Docker'],
+      containers: [
+        { id: 'c1', name: 'blog-db-1', service: 'db', image: 'postgres:16', image_id: 'sha256:9a07e3c1b4d8', pinned_image: 'postgres@sha256:3f1c', state: 'running', env: [], ports: [{ container_port: 5432, protocol: 'tcp' }],
+          mounts: [{ type: 'volume', name: 'blog_pg', source: '/var/lib/docker/volumes/blog_pg/_data', destination: '/var/lib/postgresql/data' }], restart_policy: 'always', mem_usage_mb: 64, risk: 'auto' },
+        { id: 'c2', name: 'blog-web-1', service: 'web', image: 'ghost:5', image_id: 'sha256:1b2c3d4e5f60', pinned_image: 'ghost@sha256:77aa', state: 'running', env: [], ports: [{ container_port: 2368, host_port: 8080, protocol: 'tcp' }],
+          mounts: [{ type: 'bind', source: '/srv/blog/content', destination: '/var/lib/ghost/content' }], restart_policy: 'unless-stopped', mem_usage_mb: 142, risk: 'auto' },
+        { id: 'c3', name: 'blog-watchtower-1', service: 'watchtower', image: 'containrrr/watchtower', image_id: 'sha256:aa11', state: 'running', env: [], ports: [],
+          mounts: [], restart_policy: 'always', risk: 'manual', risk_reasons: ['mounts the container runtime socket /var/run/docker.sock: it controls the host\'s Docker'] },
+      ] },
+    { key: 'container:uptime', kind: 'standalone', name: 'uptime', adoptable: true,
+      containers: [{ id: 'c4', name: 'uptime', image: 'louislam/uptime-kuma:1', image_id: 'sha256:cc22', state: 'running', env: [], ports: [{ container_port: 3001, host_port: 3001, protocol: 'tcp', host_ip: '127.0.0.1' }],
+        mounts: [{ type: 'volume', name: 'uptime-data', source: '/var/lib/docker/volumes/uptime-data/_data', destination: '/app/data' }], restart_policy: 'unless-stopped', mem_usage_mb: 88, risk: 'auto', warnings: ['image louislam/uptime-kuma:1 has no registry digest (built or loaded locally): Atoll runs the same local image under an atoll-adopt/ tag, so this service cannot move to another server'] }] },
+  ],
+}
 const zeabur: ZeaburInventory = {
   k3s: true, k3s_version: 'v1.30.4+k3s1', ingress_running: true, disk_free_gb: 112.4, mem_free_mb: 9830, k3s_mem_mb: 1460, scanned_at: iso(20e3),
   projects: [
@@ -177,6 +194,14 @@ const started: Record<string, number> = {}
 function tickLocal(j: ImportJob) {
   const t0 = started[j.id]; if (t0 === undefined) return
   const k = Math.floor((Date.now() - t0) / 1800)
+  if (j.mode === 'docker') { // 4 rehearsal steps, then 3 cutover steps
+    const [from, to, end] = j.status === 'rehearsing' ? [0, 4, 'rehearsed'] : j.status === 'cutting_over' ? [4, 7, 'live'] : j.status === 'rolling_back' ? [7, 7, 'rolled_back'] : [0, 0, '']
+    if (!end) return
+    const done = Math.min(to, from + k)
+    j.steps = j.steps.map((s, i) => i < from ? s : { ...s, status: i < done ? 'done' : i === done && done < to ? 'running' : i < to ? 'pending' : s.status })
+    if (done >= to) j.status = end
+    return
+  }
   if (j.status === 'rehearsing') {
     const done = Math.min(6, k); j.steps = localSteps(done, done < 6 ? done : -1)
     j.verify = done >= 5 ? VERIFY : done >= 3 ? VERIFY.map((v, i) => ({ ...v, target_rows: i === 1 ? Math.round(v.source_rows * 0.6) : v.target_rows })) : []
@@ -359,6 +384,7 @@ function route(method: string, path: string, body: any): unknown {
     else { s.tailnet_ip = s.tailnet_ip || `100.64.0.${30 + servers.indexOf(s)}`; s.network = { provider: 'tailscale', state: 'running', via_tailnet: true, control_url: cu, fallback_urls: [pub] } }
     return { switched: true, control_url: s.network.control_url, tailnet_ip: s.tailnet_ip, state: 'running', message: body.action === 'join' ? '(demo) Tailscale 已安装并加入 tailnet' : undefined }
   }
+  if ((a = m('servers/*/docker'))) return { ...dockerInv, scanned_at: new Date().toISOString() }
   if ((a = m('servers/*/zeabur'))) { if (a[0] !== 'phx') fail(404, '这台服务器上没有检测到 Zeabur（k3s 未安装）'); return { ...zeabur, scanned_at: new Date().toISOString() } }
   if ((a = m('servers/*/containers'))) {
     const pids = projects.filter(p => p.server_id === a![0]).map(p => p.id)
@@ -458,6 +484,17 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('templates')) return templates
   if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }
+  if (P && m('imports/docker')) {
+    const g = dockerInv.groups.find(x => x.key === body.group) ?? fail(404, '找不到这一组容器')
+    const cs = g.containers.filter(c => c.risk === 'auto' && (!body.containers?.length || body.containers.includes(c.name)))
+    const j: ImportJob = { id: nid('imp'), mode: 'docker', group: g.key, server_id: body.server_id, status: 'planned', created_at: new Date().toISOString(),
+      steps: ['Check containers and resources', 'Prepare images', 'Start Atoll copies (no ports, scratch data)', 'Verify', 'Stop old containers', 'Start Atoll services on the old ports and data', 'Verify after cutover'].map(name => ({ name, status: 'pending' })),
+      plan: { source: 'docker', source_project: g.key, project_name: body.project_name || g.name, target_server_id: body.server_id, warnings: g.warnings ?? [],
+        services: cs.map(c => ({ source_service_id: c.id, name: c.service || c.name, kind: 'image', image: c.pinned_image || c.image, image_needs_push: false,
+          ports: c.ports.filter(p => p.host_port).map(p => ({ name: `p${p.host_port}`, container_port: p.container_port, protocol: p.protocol, public_port: p.host_port, host_ip: p.host_ip })),
+          volumes: c.mounts.map((m, i) => ({ name: `v${i}`, mount_path: m.destination, host_path: m.source, read_only: m.read_only })), env: [], domains: [], data_bytes: 0 })) } }
+    imports.unshift(j); return j
+  }
   if (P && m('imports/zeabur-local')) {
     const zp = zeabur.projects.find(x => x.namespace === body.namespace) ?? fail(404, '找不到 Zeabur 项目')
     const pick = zp.services.filter(z => !body.service_ids?.length || body.service_ids.includes(z.service_id))

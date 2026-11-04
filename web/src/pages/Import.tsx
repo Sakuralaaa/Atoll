@@ -1,5 +1,5 @@
-import { useSearchParams } from 'react-router-dom'
-import { Server as ServerIcon, ScanSearch, ListChecks, FlaskConical, Power, Trash2, Check, X, ChevronRight } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Server as ServerIcon, ScanSearch, ListChecks, FlaskConical, Power, Trash2, Check, X, ChevronRight, Boxes } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button } from '../components/ui'
 import { Load, RowsSkeleton } from '../components/feedback'
@@ -11,6 +11,7 @@ import { StepScan, StepServer } from './import/StepScan'
 import { StepSelect } from './import/SelectForm'
 import { JobView } from './import/JobView'
 import { AdvancedCli, History } from './import/History'
+import { useT } from '../i18n'
 
 const STEPS = [
   { n: 1, l: '选择服务器', i: <ServerIcon size={15} /> },
@@ -46,6 +47,7 @@ export default function Import() {
           </div>
           {(jobId || server) && <Button onClick={() => setSp({})}><X size={14} />重新开始</Button>}
         </div>
+        {!jobId && !server && <DockerEntry />}
         <Stepper step={step} completed={completed} />
         <div className="mt-7">
           {step === 1 && <StepServer onPick={id => go({ server: id })} />}
@@ -57,6 +59,17 @@ export default function Import() {
         <AdvancedCli />
       </div>
     </MainShell>
+  )
+}
+
+function DockerEntry() {
+  const { t } = useT()
+  return (
+    <Link to="/import/docker" className="mt-5 rounded-2xl surface surface-hover px-4 @2xl:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <Boxes size={22} className="text-accent shrink-0" />
+      <div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[14px] font-semibold">{t('接管自己用 docker run / compose 启动的容器', 'Adopt containers you started with docker run / compose')}</div><div className="text-[12.5px] text-muted mt-0.5">{t('同样的端口，数据原地挂载，旧容器保留，可随时回滚。', 'Same ports, data mounted in place, old containers kept, rollback any time.')}</div></div>
+      <span className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px] shrink-0">{t('开始', 'Start')}<ChevronRight size={14} /></span>
+    </Link>
   )
 }
 
