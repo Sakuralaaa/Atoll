@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 | 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量可跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署（先起新容器，健康后再切流量）；新服务默认内存上限 1024 MB（可在设置里改） |
 | 模板 | PostgreSQL / MySQL / Redis / MongoDB |
 | 流量 | 每台机器自己的 Caddy 入口，中控离线不影响业务；绑定子域名时自动在 Cloudflare 建 proxied 记录 |
-| 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；[从 Zeabur 原地接管](docs/migrate-from-zeabur.md)（扫描 → 导入 → 演练 → 切换 → 可回滚 → 卸载 k3s） |
+| 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；[从 Zeabur 原地接管](docs/migrate-from-zeabur.md)（扫描 → 导入 → 演练 → 切换 → 可回滚 → 卸载 k3s）；[接管自己用 docker run / compose 启动的容器](docs/adopt-docker.md)（同端口、数据原地挂载、旧容器保留可回滚） |
 | 备份 | restic 直传任意 S3 兼容存储（R2 / B2 / S3 / MinIO），数据库逻辑导出 + 卷快照；各节点本地调度，中控离线也照常备份；可恢复到另一台机器 |
 | 更新 | 镜像更新检测（digest 和新的 semver tag），可只提醒或在时间窗内自动更新；中控从 GitHub Release 一键自更新，失败自动回滚 |
 | 中控 | 自身状态、日志、审计；每日加密备份；[一条命令迁移中控](docs/control.md)，业务不停 |
@@ -189,6 +189,7 @@ git tag v0.1.0 && git push --tags
 - [docs/api.md](docs/api.md)：REST API、agent 协议、权限、备份、构建
 - [docs/control.md](docs/control.md)：中控的备份、自更新、迁移、灾难恢复
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md)：从 Zeabur 迁移
+- [docs/adopt-docker.md](docs/adopt-docker.md)：接管自己用 Docker 启动的容器
 - [notes/finish-agent.md](notes/finish-agent.md)：开发交接记录
 
 ## License

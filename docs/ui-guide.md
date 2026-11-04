@@ -16,6 +16,19 @@ Control server operations: [control.md](control.md).
 - The control server has a display name (中控 → pencil icon, or `PATCH /api/v1/control`
   `{"name": "..."}`). Empty means the hostname is shown.
 
+## Adopting Docker containers (接管 Docker 容器)
+
+- Entry: 迁移 page (card at the top) or server → 设置 → 接管 Docker 容器; page `/import/docker`.
+- The scan lists containers Atoll does not manage, grouped by compose project. **可自动接管**
+  (auto) containers can be ticked; **需手动处理** (manual) ones show in red why not (host
+  network, privileged, Docker socket, devices, cap_add…) and keep running untouched.
+- 演练 (rehearse) starts Atoll copies next to yours with no published ports and empty scratch
+  data dirs, checks health and stops them again. 切换 (cut over) stops your containers (kept,
+  restart policy set to no) and starts Atoll's on the same ports with your data mounted in
+  place; a failure rolls back by itself. 回滚 (roll back) starts your containers again.
+- Mounts shown as `host path → container path` are used in place: Atoll never deletes, backs
+  up or moves them. Guide: [adopt-docker.md](adopt-docker.md).
+
 ## Image updates (镜像更新)
 
 - The control server periodically asks the registry for the digest of each service's tag
