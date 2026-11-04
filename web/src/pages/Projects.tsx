@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowUpDown, LayoutGrid, List, Package, Plus, SearchX } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowUpDown, LayoutGrid, List, Package, Plus, SearchX, Server as ServerIcon } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
@@ -15,7 +15,11 @@ import { useProblems, useProjects } from '../api/queries'
 import { FilterChips } from '../components/StatusFilter'
 import { projectFilters, useStatusFilter } from '../api/filters'
 import { useT } from '../i18n'
+import { ServerGroupCards } from '../components/ServerGroups'
+import { groupByServer } from '../api/groups'
 import type { Project } from '../api/types'
+
+const GROUP_KEY = 'atoll.projects.byServer'
 
 export default function Projects() {
   const q = useProjects()
@@ -28,14 +32,30 @@ export default function Projects() {
   const all = (q.data ?? []).slice().sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   const problems = (useProblems().data ?? []).filter(p => !p.resolved_at)
   const defs = projectFilters<Project>(problems)
-  const f = useStatusFilter(all, defs)
+  const [sp, setSp] = useSearchParams()
+  const sel = sp.get('server') // '_' = projects whose machine is unknown
+  const [grouped, setGroupedState] = useState(() => localStorage.getItem(GROUP_KEY) !== '0')
+  const setGrouped = (v: boolean) => { localStorage.setItem(GROUP_KEY, v ? '1' : '0'); setGroupedState(v) }
+  const machines = new Set(all.map(p => p.server_id ?? '')).size
+  const inServer = (p: Project) => (p.server_id || '_') === sel
+  const f = useStatusFilter(sel ? all.filter(inServer) : all, defs)
   const list = f.list
+  const showGroups = grouped && !sel && machines > 1
+  const groups = groupByServer(list, servers)
+  const totals = new Map(groupByServer(all, servers).map(g => [g.id, g.projects.length]))
+  const selServer = sel ? servers?.find(s => s.id === sel) : undefined
+  const back = () => { const n = new URLSearchParams(sp); n.delete('server'); setSp(n) }
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-4 mb-8">
-          <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的项目</h1>
+          {sel ? <div className="flex items-center gap-2 min-w-0">
+            <button onClick={back} title={t('全部机器', 'All machines')} className="h-11 w-11 -ml-2 grid place-items-center text-fg2 shrink-0"><ArrowLeft size={18} /></button>
+            <div className="min-w-0"><div className="text-[12px] text-muted">{t('我的项目', 'My projects')}</div>
+              <h1 className="text-[22px] font-extrabold italic tracking-[-0.03em] truncate">{selServer?.name ?? t('未知机器', 'Unknown machine')}</h1></div>
+          </div> : <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的项目</h1>}
           <div className="flex items-center gap-3">
+            {!sel && machines > 1 && <button onClick={() => setGrouped(!grouped)} title={t('按机器分组', 'Group by machine')} className={cx('h-11 w-11 grid place-items-center', grouped ? 'text-accent' : 'text-fg2')}><ServerIcon size={18} /></button>}
             <button onClick={() => setSort(v => !v)} title="按名称排序" className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
             <div className="flex rounded-lg field p-0.5">
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
@@ -52,7 +72,8 @@ export default function Projects() {
           desc={t('项目里任一服务符合条件即会列出。', 'A project is listed when any of its services matches.')} action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
         {q.data && !all.length && <Empty icon={<Package size={22} />} title="还没有项目" desc="项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。"
           action={<div className="flex gap-2"><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />创建项目</Button><Link to="/import"><Button>从 Zeabur 迁移</Button></Link></div>} />}
-        <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
+        {showGroups && <ServerGroupCards groups={groups} total={totals} listView={listView} />}
+        {!showGroups && <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(p => {
             const srv = servers?.find(s => s.id === p.server_id)
             const ss = p.services ?? []
@@ -80,19 +101,20 @@ export default function Projects() {
               </Link>
             )
           })}
-        </div>
+        </div>}
+        {sel && q.data && !all.some(inServer) && <Empty icon={<Package size={22} />} title={t('这台机器上还没有项目', 'No projects on this machine')} desc="" action={<Button onClick={back}>{t('返回全部机器', 'All machines')}</Button>} />}
       </div>
-      {create && <CreateProject onClose={() => setCreate(false)} />}
+      {create && <CreateProject defaultServer={selServer?.id} onClose={() => setCreate(false)} />}
     </MainShell>
   )
 }
 
-function CreateProject({ onClose }: { onClose: () => void }) {
+function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaultServer?: string }) {
   const nav = useNavigate()
   const servers = (useQuery('servers', api.servers).data ?? []).filter(s => s.role !== 'control')
   const [name, setName] = useState(''); const [desc, setDesc] = useState(''); const [sid, setSid] = useState('')
   const [busy, setBusy] = useState(false)
-  const server = sid || servers.find(s => s.status === 'online')?.id || servers[0]?.id || ''
+  const server = sid || (defaultServer && servers.some(s => s.id === defaultServer) ? defaultServer : '') || servers.find(s => s.status === 'online')?.id || servers[0]?.id || ''
   const submit = async () => {
     if (!name.trim() || !server) return
     setBusy(true)
