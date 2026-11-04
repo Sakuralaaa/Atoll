@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpCircle, Loader2 } from 'lucide-react'
+import { ArrowUpCircle, Loader2, Save } from 'lucide-react'
 import { Button, Card, Hint } from './ui'
 import { TextInput } from './feedback'
 import { api } from '../api/client'
@@ -25,7 +25,7 @@ export default function ImageCheckSettings({ s }: { s: Settings }) {
           <TextInput mono type="number" min={1} max={168} className="w-[120px]" value={v} onChange={e => setV(e.target.value)} />
           <span className="text-[13px] text-muted">小时</span>
           {!ok && <span className="text-[12px] text-[#ef4444]">请输入 1 到 168 之间的整数</span>}
-          <Button className="ml-auto" size="sm" variant="primary" disabled={!ok || n === cur || busy} onClick={save}>{busy && <Loader2 size={14} className="animate-spin" />}保存</Button>
+          <Button className="ml-auto" size="sm" variant="primary" disabled={!ok || n === cur || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存</Button>
         </div>
       </Card>
     </div>

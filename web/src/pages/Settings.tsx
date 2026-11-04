@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Globe, Cloud, ShieldCheck, Link2, Check, KeyRound } from 'lucide-react'
+import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
@@ -71,18 +71,18 @@ function Form({ s }: { s: S }) {
   return (
     <>
       <Section icon={<Link2 size={17} />} t="面板">
-        <Field t="面板地址" d="Agent 和 CLI 用它连回中控；安装命令里也会用到。">
+        <Field t="面板地址" d="Agent 和 CLI 用它连回中控">
           <TextInput mono className="w-full" value={v.public_url} onChange={set('public_url')} placeholder="https://panel.example.com" />
         </Field>
       </Section>
       <Section icon={<Globe size={17} />} t="域名与 Cloudflare" d="服务绑定主域名的子域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限。">
-        <Field t="主域名" d="例如 example.com；从 Zeabur 迁移时，*.zeabur.app 会映射到它的子域名。">
+        <Field t="主域名" d="服务的子域名都建在它下面">
           <TextInput mono className="w-full" value={v.base_domain} onChange={set('base_domain')} placeholder="example.com" />
         </Field>
         <Field t="Zone ID" d="Cloudflare 域名概览页右下角">
           <TextInput mono className="w-full" value={v.cloudflare_zone_id} onChange={set('cloudflare_zone_id')} placeholder="32 位十六进制" />
         </Field>
-        <Field t="API 令牌" right={<Saved on={s.has_cloudflare_token} />} d="只写：保存后不再显示">
+        <Field t="API 令牌" right={<Saved on={s.has_cloudflare_token} />}>
           <TextInput mono type="password" autoComplete="off" className="w-full" value={token} onChange={e => setToken(e.target.value)} placeholder={s.has_cloudflare_token ? '已设置，留空保持不变' : '粘贴 Cloudflare API 令牌'} />
         </Field>
       </Section>
@@ -101,7 +101,7 @@ function Form({ s }: { s: S }) {
           <Field t="Origin 证书" right={<Saved on={s.has_origin_cert} />} d="PEM 格式，Cloudflare → SSL/TLS → 源服务器 → 创建证书">
             <textarea rows={4} className={area} value={cert} onChange={e => setCert(e.target.value)} placeholder={s.has_origin_cert ? '已设置，留空保持不变' : '-----BEGIN CERTIFICATE-----'} spellCheck={false} />
           </Field>
-          <Field t="私钥" right={<KeyRound size={13} className="text-muted" />} d="与证书一起保存；只写">
+          <Field t="私钥" right={<KeyRound size={13} className="text-muted" />}>
             <textarea rows={4} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? '已设置，留空保持不变' : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
             {!certPair && <div className="text-[12px] text-[#ef4444] mt-1.5">证书和私钥需要一起填写</div>}
             {certPair && !certLooksOk && <div className="text-[12px] text-[#ef4444] mt-1.5">看起来不是 PEM 格式</div>}
@@ -110,7 +110,7 @@ function Form({ s }: { s: S }) {
       </Section>
       <div className={cx('flex flex-wrap items-center justify-end gap-3', changed && 'sticky bottom-6')}>
         {changed && <span className="text-[12.5px] text-muted">有未保存的修改</span>}
-        <Button variant="primary" size="lg" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Cloud size={15} />}保存设置</Button>
+        <Button variant="primary" size="sm" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存</Button>
       </div>
     </>
   )

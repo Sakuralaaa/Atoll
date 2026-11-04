@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Cpu, Loader2 } from 'lucide-react'
+import { Cpu, Loader2, Save } from 'lucide-react'
 import { Button, Card, Hint } from './ui'
 import { TextInput } from './feedback'
 import { api } from '../api/client'
@@ -42,7 +42,7 @@ export default function ResourceDefaultsSettings({ s }: { s: Settings }) {
             <TextInput mono type="number" min={0} step="0.25" className="w-[140px]" value={cpu} onChange={e => setCpu(e.target.value)} placeholder={t('不限', 'none')} />
             <span className="text-[13px] text-muted">{t('核', 'cores')}</span>
             {!cpuOk && <span className="text-[12px] text-[#ef4444]">{t('填 0（不限）到 1024 之间的数', 'Enter a number from 0 (no limit) to 1024')}</span>}
-            <Button className="ml-auto" size="sm" variant="primary" disabled={!memOk || !cpuOk || !dirty || busy} onClick={save}>{busy && <Loader2 size={14} className="animate-spin" />}{t('保存', 'Save')}</Button>
+            <Button className="ml-auto" size="sm" variant="primary" disabled={!memOk || !cpuOk || !dirty || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{t('保存', 'Save')}</Button>
           </div>
         </div>
       </Card>

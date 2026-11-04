@@ -98,10 +98,10 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
         <Row t="区域" d="R2 填 auto；B2 例如 us-west-004；可留空">
           <TextInput mono className="w-full" value={v.backup_region} onChange={set('backup_region')} placeholder="auto" />
         </Row>
-        <Row t="Access Key" right={<Saved on={s.has_backup_credentials} />} d="只写：保存后不再显示">
+        <Row t="Access Key" right={<Saved on={s.has_backup_credentials} />}>
           <TextInput mono type="password" autoComplete="off" className="w-full" value={ak} onChange={e => { setAk(e.target.value); setTest(undefined) }} placeholder={s.has_backup_credentials ? '已设置，留空保持不变' : 'Access Key ID'} />
         </Row>
-        <Row t="Secret Key" right={<Saved on={s.has_backup_credentials} />} d="只写；需要对存储桶有读写和删除权限">
+        <Row t="Secret Key" right={<Saved on={s.has_backup_credentials} />} d="需要对存储桶有读写和删除权限">
           <TextInput mono type="password" autoComplete="off" className="w-full" value={sk} onChange={e => { setSk(e.target.value); setTest(undefined) }} placeholder={s.has_backup_credentials ? '已设置，留空保持不变' : 'Secret Access Key'} />
           {pairBad && <div className="text-[12px] text-[#ef4444] mt-1.5">Access Key 和 Secret Key 需要一起填写</div>}
         </Row>
@@ -126,8 +126,8 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
         {(s.backup_bucket || s.has_backup_credentials) && <Button variant="danger-outline" size="sm" disabled={busy} onClick={() => setClear(true)}><Trash2 size={14} />清除存储配置</Button>}
         <span className="flex-1" />
         {dirty && <span className="text-[12.5px] text-muted">有未保存的修改</span>}
-        <Button disabled={testing || !complete || pairBad || bucketBad || endpointBad} onClick={runTest} title={!complete ? '先填写 Endpoint、存储桶和密钥' : undefined}>{testing ? <Loader2 size={15} className="animate-spin" /> : <PlugZap size={15} />}测试连接</Button>
-        <Button variant="primary" disabled={!dirty || busy || pairBad || bucketBad || endpointBad || pwBad} onClick={save}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}保存备份存储</Button>
+        <Button size="sm" disabled={testing || !complete || pairBad || bucketBad || endpointBad} onClick={runTest} title={!complete ? '先填写 Endpoint、存储桶和密钥' : undefined}>{testing ? <Loader2 size={14} className="animate-spin" /> : <PlugZap size={14} />}测试连接</Button>
+        <Button variant="primary" size="sm" disabled={!dirty || busy || pairBad || bucketBad || endpointBad || pwBad} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存</Button>
       </div>
       {!s.has_backup_password && <div className="text-[12px] text-dim mt-2 text-right">还没有仓库密码时，测试连接需要先保存一次（会生成密码）。</div>}
       {clear && <ConfirmDialog title="清除备份存储配置" name={s.backup_bucket || 'clear'} action="清除" onClose={() => setClear(false)}

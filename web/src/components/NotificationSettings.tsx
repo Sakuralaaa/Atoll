@@ -1,6 +1,6 @@
 import { cx } from './ui-utils'
 import { useState } from 'react'
-import { Bell, Loader2, Pencil, Plus, Send, Trash2, Webhook, Mail, MessageCircle } from 'lucide-react'
+import { Bell, Loader2, Pencil, Plus, Send, Trash2, Webhook, Mail, MessageCircle, Save } from 'lucide-react'
 import { Badge, Button, Card, Hint } from './ui'
 import { ConfirmDialog, Label, Modal, Select, TextInput, Toggle } from './feedback'
 import { api } from '../api/client'
@@ -40,7 +40,7 @@ export default function NotificationSettings() {
           <div key={c.id} className="px-4 @2xl:px-6 py-3.5 flex flex-wrap items-center gap-3 text-[13px]">
             <span className="text-muted">{typeOf(c.type).i}</span>
             <span className="font-semibold">{c.name || typeOf(c.type).l}</span>
-            <span className="text-dim truncate min-w-0 flex-1">{target(c)}</span>
+            <span title={target(c)} className="text-dim truncate min-w-0 flex-1 font-mono text-[12px] @max-2xl:basis-full @max-2xl:order-last @max-2xl:whitespace-normal @max-2xl:break-all">{target(c)}</span>
             {!c.enabled && <Badge tone="zinc">已停用</Badge>}
             <TestButton c={c} />
             <button title="编辑" onClick={() => setEdit({ i, c })} className="text-muted hover:text-fg"><Pencil size={15} /></button>
@@ -92,7 +92,7 @@ function Quiet({ n, busy, onSave }: { n: NS; busy: boolean; onSave: (v: Partial<
         </>}
         <Button className="ml-auto" size="sm" variant="primary" disabled={!changed || busy || (on && !(HHMM.test(start) && HHMM.test(end)))}
           onClick={() => onSave({ notify_resolved: resolved, quiet_start: on ? start : '', quiet_end: on ? end : '', timezone: on ? tz : '' })}>
-          {busy && <Loader2 size={14} className="animate-spin" />}保存
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存
         </Button>
       </div>
       {on && <div className="text-[12px] text-dim">静默时段内只发送服务器离线；其他仍未恢复的问题在静默结束后发送。</div>}

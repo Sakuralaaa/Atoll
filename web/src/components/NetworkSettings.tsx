@@ -109,7 +109,7 @@ function Form({ s }: { s: Settings }) {
       </Row>
       <div className="px-6 py-4 flex items-center justify-end gap-3">
         {dirty && <span className="text-[12.5px] text-muted">{t('有未保存的修改', 'Unsaved changes')}</span>}
-        <Button variant="primary" size="sm" disabled={!dirty || keyBad || urlBad || needKey || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{t('保存私有网络', 'Save private network')}</Button>
+        <Button variant="primary" size="sm" disabled={!dirty || keyBad || urlBad || needKey || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{t('保存', 'Save')}</Button>
       </div>
     </Card>
   )

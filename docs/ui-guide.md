@@ -38,6 +38,7 @@ Control server operations: [control.md](control.md).
 - Secrets (Cloudflare token, origin key, backup keys) are write-only: once saved they are never
   shown again; leaving the field empty keeps the stored value.
 - **面板地址**: the URL agents and the CLI use to reach the control server; install commands use it.
+- **主域名**: services' subdomains are created under it; Zeabur imports map `*.zeabur.app` names to subdomains of it.
 - **域名与 Cloudflare**: when a service binds a subdomain of the base domain, Atoll creates and
   deletes the DNS records with this token (needs Zone.DNS edit).
 - **HTTPS 证书**: with Cloudflare proxying, a Cloudflare Origin CA certificate (15 years) is pushed
