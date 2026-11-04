@@ -54,8 +54,8 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /servers/{id}/containers | []ContainerState |
 | POST | /servers/{id}/agent-upgrade | → 202 AgentUpgrade. Upgrades the agent to the version this control server hosts (`agent_latest`). 409 codes: `offline`, `up_to_date`, `busy`, `not_hosted`, `agent_too_old` (agents before v0.1.6: run install-agent.sh once; the message carries the command), `upgrade_failed` (the agent refused: checksum, version, no systemd) |
 | POST | /servers/agent-upgrade | {ids} (empty = every online server on another version) → [{id, upgrade?, code?, error?}]; three at a time |
-| GET/POST | /projects | POST {name, server_id, description} |
-| GET/PATCH/DELETE | /projects/{id} | GET includes services. `name` is unique across the control plane (409 on clash) and is what the CLI and tokens refer to; `display_name` (≤64 chars, may repeat, `""` = show `name`) is only the panel label and can also be given on POST /projects |
+| GET/POST | /projects | POST {name, server_id, description, display_name?, root_domain?} |
+| GET/PATCH/DELETE | /projects/{id} | GET includes services. `name` is unique across the control plane (409 on clash) and is what the CLI and tokens refer to; `display_name` (≤64 chars, may repeat, `""` = show `name`) is only the panel label and can also be given on POST /projects. `root_domain` (one of GET /root-domains, `""` = the default root domain; left out of the JSON when unset) is where new domains of the project go when the request names no root (see "Root domains") |
 | GET/POST | /projects/{id}/services | POST Service (kind+image or template kind). `mem_limit_mb` / `cpu_limit` left out (0) take the defaults from Settings (`default_mem_limit_mb`, default 1024; `default_cpu_limit`, default 0 = no limit); `-1` asks for no limit explicitly. Applies to every way a service is created (image, template, git build, imports) |
 | GET/PATCH/DELETE | /services/{id} | PATCH partial Service → triggers redeploy. `display_name` (≤64 chars, `""` = show `name`) is only the panel label: a PATCH that changes nothing else (fields equal to their current values are ignored) saves it without redeploying, and `name` stays the hostname. Imports whose name had to be sanitized keep the original as `display_name`. `user` overrides the image's USER like `docker run --user` (`uid`, `uid:gid` or a name; `""` = the image's own); Zeabur imports set it from the pod's `runAsUser` |
 | POST | /services/{id}/actions | {action: start\|stop\|restart\|redeploy} (redeploy → Deployment) |
@@ -63,10 +63,15 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /projects/{id}/migrate | {server_id}: stop → volume export/import via server relay → start on target → DNS switch (waits until names resolve to the target) → ingress update (target first, then source withdrawn) → remove from source; HTTPS confirmed in background (`provisioning` → `active`) |
 | GET/PUT | /services/{id}/env | []EnvVar (PUT replaces all; secret values "" keep old) ; `?reveal=1` shows secrets (panel session, or an API token with `exec` and without `require_approval`: else `403 missing_permission` / `approval_required`; audited as `env.reveal`); PUT redeploys a deployed service, `?redeploy=0` only saves |
 | GET | /services/{id}/env/references | []EnvVar exposed by other services in project |
-| GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied}. Status: with a Cloudflare token the record is created first and the domain is `provisioning` (route held back from Caddy until the name resolves publicly, ≤90s; then `active` once HTTPS answers, ≤3 min, with a note in `error` if it never did); without a token `active` when the name already resolves to the server, else `pending` with the record to create; `error` when the DNS API failed |
+| GET/POST | /services/{id}/domains | POST {hostname, port_name, proxied, root_domain?}. A bare `hostname` (`blog`) is completed with `root_domain`, else the project's `root_domain`, else the default root domain; with `root_domain` set, `hostname` is the part in front of it (`api.v2`, or `@`/empty for the root itself) unless it already ends with it. Status: with a Cloudflare token the record is created first and the domain is `provisioning` (route held back from Caddy until the name resolves publicly, ≤90s; then `active` once HTTPS answers, ≤3 min, with a note in `error` if it never did); without a token `active` when the name already resolves to the server, else `pending` with the record to create; `error` when the DNS API failed |
 | DELETE | /services/{id}, /projects/{id} | routes withdrawn (agent ack) → containers removed → DNS records deleted |
 | DELETE | /domains/{id} | removes the route from Caddy first, then the DNS record (on a DNS error the route is restored and the domain stays bound) |
 | GET | /domains | all domains |
+| GET | /root-domains | []RootDomain, default first (see "Root domains") |
+| POST | /root-domains | `settings` permission. RootDomainRequest {name, cert_mode?, default?} → 201 RootDomain. Finds the Cloudflare zone, settles the certificate and pushes the ingress to every server. `cert_mode` defaults to `auto` (`global` for the first root). 409 if it exists |
+| PATCH | /root-domains/{name} | `settings` permission. {cert_mode?, default?: true} → RootDomain. Names cannot be changed |
+| POST | /root-domains/{name}/refresh | `settings` permission. Match the zone again and retry the certificate → RootDomain |
+| DELETE | /root-domains/{name} | `settings` permission. 409 `is_default` while it is the default and other roots exist, 409 `in_use` while bound domains are under it. Revokes the Origin CA certificate Atoll issued for it; projects that picked it fall back to the default |
 | GET | /services/{id}/deployments | []Deployment |
 | GET | /services/{id}/deployments/{dep}?wait=DURATION | Deployment. With `wait` (at most 90s) it long-polls: answers once the deployment is `running`, `failed` or `superseded`, or with its current state when the wait runs out. Loop on it to wait for a deploy |
 | GET | /services/{id}/deployments/{dep}/logs?after=SEQ | DeploymentLogs: build output of a deployment (see "Builds from source") |
@@ -101,7 +106,7 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET/POST/DELETE | /tokens, /tokens/{id} | APIToken |
 | GET | /confirmations?status=pending | |
 | POST | /confirmations/{id}/approve, /reject | session only |
-| GET/PUT | /settings | Settings. `default_mem_limit_mb` (0 = no limit, else 6–1048576) and `default_cpu_limit` (cores, 0 = no limit, ≤ 1024) are the limits new services get when created without their own; GET always returns both, a PUT leaving one out (or null) keeps it. Changing them never touches existing services |
+| GET/PUT | /settings | Settings. `base_domain` is the name of the default root domain: a PUT with the same name changes nothing; another root's name makes that one the default; with no roots it adds the first one; with a single `global`-mode root a new name renames it (the pre-v0.1.24 edit); otherwise an unknown name is a 400 (manage the list with /root-domains). `""` removes the only root, and is ignored when there are several. `default_mem_limit_mb` (0 = no limit, else 6–1048576) and `default_cpu_limit` (cores, 0 = no limit, ≤ 1024) are the limits new services get when created without their own; GET always returns both, a PUT leaving one out (or null) keeps it. Changing them never touches existing services |
 | GET/POST | /imports | POST ImportPlan → ImportJob (creates project+services, not started) |
 | GET | /imports/{id} | ImportJob |
 | PUT | /imports/{id}/volumes/{service_name}/{volume} | raw tar.gz body, streamed to target agent via volume.import |
@@ -163,6 +168,37 @@ Flags: `--tailscale-authkey KEY` (use this key instead of the server's), `--tail
 respond @agent 404
 ```
 Nodes that are not on the tailnet then cannot connect, so move every node first.
+
+## Root domains
+
+Settings hold a list of root domains (`example.com`, `example.net`, `apps.example.org`); one
+is the default and `settings.base_domain` mirrors its name.
+
+- **Zone**: found with the stored Cloudflare token by suffix match, longest first
+  (`apps.example.org` uses a zone `apps.example.org` if the account has one, else
+  `example.org`). DNS records of a hostname are managed in the zone of the longest root it is
+  under; hostnames under no root use `cloudflare_zone_id` / the default root's zone as before.
+  For the default root, a `cloudflare_zone_id` in Settings wins over the discovered zone.
+- **Certificate** (`cert_mode`):
+  - `global`: follow the global settings (`tls_mode` + the uploaded origin certificate). An
+    install upgraded from v0.1.23 gets its base domain as a `global` root, so nothing changes.
+  - `auto`: issue a Cloudflare Origin CA certificate for `name` and `*.name` (15 years, ECDSA,
+    the key is generated on the control server and stored encrypted). The token needs the zone
+    permission **SSL and Certificates: Edit**; when issuance fails the root uses ACME and
+    `cert_error` says why. A still-valid older certificate is kept rather than dropped.
+  - `acme`: Caddy's normal ACME issuance.
+  - `cert_status` is what the servers serve: `global`, `origin` or `acme`.
+- **Agents**: only roots that are not `global` are sent (`IngressPayload.domains`). Caddy picks
+  the certificate by SNI: hosts under an `origin` root get that root's certificate (and are
+  skipped by ACME), hosts under an `acme` root get one from Let's Encrypt, other hosts follow
+  `tls_mode` as before. When any route is under an `acme` root the Cloudflare-only firewall
+  on 80/443 is lifted so the CA can reach the server. An agent older than v0.1.24 ignores the
+  list and serves the global certificate for every host: upgrade agents too.
+- **Cloudflare SSL/TLS mode**: set every proxied root's zone to **Full (strict)** (Origin CA
+  certificates validate there). **Flexible** makes Cloudflare talk HTTP to the server, Caddy
+  redirects to HTTPS, and the browser ends in a redirect loop.
+- Projects pick a default root (`root_domain`); POST /services/{id}/domains takes
+  `root_domain` to choose the suffix per domain.
 
 ## Conventions
 - IDs: 12-char lowercase base32 with prefix: `srv_`, `prj_`, `svc_`, `dep_`, `dom_`, `tok_`, `cfm_`, `imp_`, `bak_`, `rst_`, `bvf_` (backup verification).

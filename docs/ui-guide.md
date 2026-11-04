@@ -38,10 +38,20 @@ Control server operations: [control.md](control.md).
 - Secrets (Cloudflare token, origin key, backup keys) are write-only: once saved they are never
   shown again; leaving the field empty keeps the stored value.
 - **面板地址**: the URL agents and the CLI use to reach the control server; install commands use it.
-- **主域名**: services' subdomains are created under it; Zeabur imports map `*.zeabur.app` names to subdomains of it.
-- **域名与 Cloudflare**: when a service binds a subdomain of the base domain, Atoll creates and
+- **根域名**: the list of root domains services' domains are created under. The default one
+  (★) is used by projects that do not pick their own (项目设置 → 默认根域名) and by Zeabur
+  imports for `*.zeabur.app` names. Each row shows its Cloudflare zone (matched by suffix,
+  longest first) and its certificate: 跟随全局证书 (the HTTPS 证书 section below), Origin CA
+  (issued automatically with the API token; needs SSL and Certificates edit permission), or
+  ACME (also the fallback when Origin CA issuance fails; the reason is shown under the row).
+  ↻ matches the zone and retries the certificate. A root can only be removed when no domain
+  uses it and it is not the default (unless it is the last one). Set a new root's Cloudflare
+  SSL/TLS mode to Full (strict); Flexible causes redirect loops.
+- **绑定域名**: type a prefix (`blog`, `api.v2`, empty = the root itself) and pick the root
+  domain; 完整域名… takes any other hostname.
+- **Cloudflare**: when a service binds a domain under one of the root domains, Atoll creates and
   deletes the DNS records with this token (needs Zone.DNS edit).
-- **HTTPS 证书**: with Cloudflare proxying, a Cloudflare Origin CA certificate (15 years) is pushed
+- **HTTPS 证书** (global): used by roots set to 跟随全局 and by hostnames under no root. With Cloudflare proxying, a Cloudflare Origin CA certificate (15 years) is pushed
   to every server's atoll-caddy; DNS-only (grey cloud) hosts get ACME certificates automatically.
 - **通知**: sent when a server is offline > 2 min, a disk reaches 90%, a service is unhealthy for
   3 min, a deploy, backup or backup verification fails, or a domain fails to configure; one more
