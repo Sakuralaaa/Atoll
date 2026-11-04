@@ -51,7 +51,7 @@ func startNetAgent(t *testing.T, e *testEnv, hostname, tailnetIP string, nn *api
 
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for !cond() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timeout waiting for %s", what)

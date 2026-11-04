@@ -374,11 +374,18 @@ func Group(cs []api.DockerContainer, raw map[string]Container) []api.DockerGroup
 		g := groups[key]
 		if g == nil {
 			g = &api.DockerGroup{Key: key, Kind: kind, Name: name}
-			if kind == "compose" {
-				g.WorkingDir, g.ConfigFiles = rc.Labels[labelComposeDir], rc.Labels[labelComposeFiles]
-			}
 			groups[key] = g
 			order = append(order, key)
+		}
+		// take the compose labels from whichever container carries them:
+		// scan order is not stable, and not every container has them
+		if kind == "compose" {
+			if g.WorkingDir == "" {
+				g.WorkingDir = rc.Labels[labelComposeDir]
+			}
+			if g.ConfigFiles == "" {
+				g.ConfigFiles = rc.Labels[labelComposeFiles]
+			}
 		}
 		g.Containers = append(g.Containers, d)
 	}
