@@ -40,7 +40,6 @@ type agentConn struct {
 	pmu      sync.Mutex
 	pending  map[string]chan api.ResultPayload
 	streams  map[string]chan api.LogLine
-	probes   map[string]chan time.Time // latency.go: application-level RTT probes by request id
 	lastSeen atomic.Int64
 	// selfUpgrade: the agent said in its hello that it handles MsgUpgrade.
 	selfUpgrade bool
@@ -214,7 +213,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	ws.SetReadLimit(64 << 20)
 	ctx, cancel := context.WithCancel(s.bg)
 	c := &agentConn{nodeID: nodeID, ws: ws, ctx: ctx, cancel: cancel,
-		pending: map[string]chan api.ResultPayload{}, streams: map[string]chan api.LogLine{}, probes: map[string]chan time.Time{}}
+		pending: map[string]chan api.ResultPayload{}, streams: map[string]chan api.LogLine{}}
 	c.lastSeen.Store(time.Now().UnixNano())
 	defer func() {
 		cancel()
@@ -275,69 +274,14 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 		s.reconcileNetwork(bg, nodeID, hello) // network.go: move to the tailnet control URL
 	})
 
-	// The read loop only reads: coder/websocket answers and registers pongs inside Read, so
-	// handling frames inline (big status/metrics frames, a slow database) would delay pongs
-	// past the ping timeout. Frames go to one worker per connection, in order.
-	fw := startFrameWorker(agentFrameQueue, func(env inEnvelope) { s.handleAgentFrame(ctx, c, env) })
-	// runs before the cleanup above, so no frame handler touches its closed channels; the
-	// cancel makes handlers still queued give up quickly
-	defer func() { cancel(); fw.stop() }()
 	for {
 		env, err := readEnvelope(ctx, ws)
 		if err != nil {
 			return
 		}
-		now := time.Now()
-		c.lastSeen.Store(now.UnixNano())
-		if c.takeProbe(env, now) {
-			continue
-		}
-		if !fw.push(ctx, env) {
-			return
-		}
+		c.lastSeen.Store(time.Now().UnixNano())
+		s.handleAgentFrame(ctx, c, env)
 	}
-}
-
-// agentFrameQueue is how many agent frames may wait for the frame worker before the read
-// loop blocks (and with it pong handling).
-const agentFrameQueue = 512
-
-// frameWorker handles a connection's frames on one goroutine, in arrival order.
-type frameWorker struct {
-	ch   chan inEnvelope
-	done chan struct{}
-}
-
-func startFrameWorker(size int, handle func(inEnvelope)) *frameWorker {
-	w := &frameWorker{ch: make(chan inEnvelope, size), done: make(chan struct{})}
-	go func() {
-		defer close(w.done)
-		for env := range w.ch {
-			handle(env)
-		}
-	}()
-	return w
-}
-
-// push queues a frame; it blocks while the queue is full and fails once ctx is done.
-func (w *frameWorker) push(ctx context.Context, env inEnvelope) bool {
-	select {
-	case w.ch <- env:
-		return true
-	default:
-	}
-	select {
-	case w.ch <- env:
-		return true
-	case <-ctx.Done():
-		return false
-	}
-}
-
-// stop lets the worker finish the queued frames and waits for it.
-func (w *frameWorker) stop() {
-	close(w.ch)
-	<-w.done
 }
 
 func readEnvelope(ctx context.Context, ws *websocket.Conn) (inEnvelope, error) {

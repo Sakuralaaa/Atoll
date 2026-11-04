@@ -207,9 +207,9 @@ func (s *Store) GetService(ctx context.Context, id string) (*api.Service, bool, 
 	return v, stopped, s.attachGit(ctx, v)
 }
 
-// ListServices returns services of a project ordered by name.
+// ListServices returns services of a project in their saved order (position), then by name.
 func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Service, error) {
-	rows, err := s.r.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE project_id=? ORDER BY name`, projectID)
+	rows, err := s.r.QueryContext(ctx, `SELECT `+svcCols+`, desired_stopped, `+svcNode+` FROM services WHERE project_id=? ORDER BY position=0, position, name`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -428,4 +428,23 @@ func (s *Store) RoutesForNode(ctx context.Context, nodeID string) ([]RouteRow, e
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// SetServiceOrder saves the manual order of a project's services: ids lists them first to
+// last (1..n); services not listed keep position 0 and sort after them by name.
+func (s *Store) SetServiceOrder(ctx context.Context, projectID string, ids []string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE services SET position=0 WHERE project_id=?`, projectID); err != nil {
+		return err
+	}
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE services SET position=? WHERE id=? AND project_id=?`, i+1, id, projectID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

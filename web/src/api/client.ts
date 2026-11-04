@@ -114,6 +114,7 @@ export const api = {
   project: (id: string) => get<Project>(`/projects/${e(id)}`),
   createProject: (b: { name: string; server_id: string; description?: string }) => post<Project>('/projects', b),
   updateProject: (id: string, b: Partial<Pick<Project, 'name' | 'display_name' | 'description' | 'root_domain'>>) => patch<Project>(`/projects/${e(id)}`, b),
+  setServiceOrder: (id: string, services: string[]) => put<Project>(`/projects/${e(id)}/service-order`, { services }),
   deleteProject: (id: string) => del<Confirmation | void>(`/projects/${e(id)}`),
   migrateProject: (id: string, server_id: string) => post<MigrationJob | Confirmation>(`/projects/${e(id)}/migrate`, { server_id }),
   /** /projects may omit services; fill them from /projects/{id} when missing. */

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
+import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog, GripVertical } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
-import { useQuery } from '../api/hooks'
+import { run, useQuery } from '../api/hooks'
 import { projIcon, svcIcon, svcName, projName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
@@ -218,11 +218,11 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         <div className="flex flex-col gap-1 overflow-auto">
           {!services.length && <div className="px-2 text-[12.5px] text-dim">还没有服务</div>}
           {!!services.length && !f.list.length && f.def && <div className="px-2 py-1 text-[12.5px] text-dim">{t(`没有「${f.def.zh}」的服务`, `No services match “${f.def.en}”`)} · <button onClick={() => f.set('')} className="text-accent hover:underline">{t('显示全部', 'Show all')}</button></div>}
-          {f.list.map(s => (
-            <Link key={s.id} to={`/projects/${project.id}/services/${s.id}${keep}`} className={cx('flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
-              <ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{svcName(s)}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
+          <SortableServices project={project} list={f.list} sortable={!f.active && services.length > 1} render={(s, grip) => (
+            <Link to={`/projects/${project.id}/services/${s.id}${keep}`} className={cx('group flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
+              {grip}<ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{svcName(s)}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
             </Link>
-          ))}
+          )} />
         </div>
         <div className="flex-1" />
         <div className="h-px bg-line mb-3" />
@@ -230,4 +230,56 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg max-w-full"><span className="truncate">{project.id}</span><Copy size={11} className="shrink-0" /></button></div><div className="ml-auto"><ThemeToggle /></div></div>
     </>}>{children}</Frame>
   )
+}
+
+type Svc = NonNullable<Project['services']>[number]
+
+/** The project sidebar's services, reorderable by dragging the grip (mouse, pen or touch: pointer
+ *  events, so it works on tablets where HTML drag-and-drop does not). The order is saved for the
+ *  project (PUT /projects/{id}/service-order). Off while a status filter narrows the list. */
+function SortableServices({ project, list, sortable, render }: { project: Project; list: Svc[]; sortable: boolean; render: (s: Svc, grip: React.ReactNode) => React.ReactNode }) {
+  const { t } = useT()
+  const ids = list.map(s => s.id).join(',')
+  // a local order only lives until the server's list changes (saved, or another device reordered)
+  const [local, setLocal] = useState<{ base: string; ids: string[] } | null>(null)
+  const order = local && local.base === ids ? local.ids : null
+  const setOrder = (o: string[] | null) => setLocal(o ? { base: ids, ids: o } : null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const rows = useRef(new Map<string, HTMLDivElement>())
+  const start = useRef<string>('')
+  const byId = new Map(list.map(s => [s.id, s]))
+  const shown = order ? order.map(id => byId.get(id)).filter((s): s is Svc => !!s) : list
+  const move = (y: number) => {
+    if (!dragId) return
+    const cur = shown.map(s => s.id)
+    let to = cur.length - 1
+    for (let i = 0; i < cur.length; i++) {
+      const r = rows.current.get(cur[i])?.getBoundingClientRect()
+      if (r && y < r.top + r.height / 2) { to = i; break }
+    }
+    const from = cur.indexOf(dragId)
+    if (from < 0) return
+    if (to > from) to--
+    if (to === from) return
+    cur.splice(from, 1); cur.splice(to, 0, dragId)
+    setOrder(cur)
+  }
+  const end = () => {
+    if (!dragId) return
+    setDragId(null)
+    const next = shown.map(s => s.id)
+    if (next.join(',') === start.current) return
+    void run(() => api.setServiceOrder(project.id, next), { invalidate: ['project'] }).then(r => { if (!r) setOrder(null) })
+  }
+  return <>{shown.map(s => {
+    const grip = sortable ? (
+      <span role="button" aria-label={t('拖动排序', 'Drag to reorder')} title={t('拖动排序', 'Drag to reorder')}
+        className={cx('-ml-1 -mr-2 shrink-0 cursor-grab touch-none select-none text-dim transition-opacity', dragId === s.id ? 'opacity-100 cursor-grabbing' : 'opacity-40 md:opacity-0 md:group-hover:opacity-60')}
+        onClick={e => { e.preventDefault(); e.stopPropagation() }}
+        onPointerDown={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); start.current = shown.map(x => x.id).join(','); setDragId(s.id) }}
+        onPointerMove={e => { if (dragId === s.id) move(e.clientY) }}
+        onPointerUp={end} onPointerCancel={end}><GripVertical size={14} /></span>
+    ) : null
+    return <div key={s.id} ref={el => { if (el) rows.current.set(s.id, el); else rows.current.delete(s.id) }} className={cx(dragId === s.id && 'opacity-70 ring-1 ring-accent/50 rounded-lg')}>{render(s, grip)}</div>
+  })}</>
 }

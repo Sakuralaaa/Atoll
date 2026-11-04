@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	a("DELETE "+v+"/projects/{id}", needDelete, s.handleDeleteProject)
 	a("GET "+v+"/projects/{id}/services", lvlRead, s.handleListServices)
 	a("POST "+v+"/projects/{id}/services", lvlDeploy, s.handleCreateService)
+	a("PUT "+v+"/projects/{id}/service-order", lvlDeploy, s.handleServiceOrder)
 	a("POST "+v+"/projects/{id}/migrate", needMigrate, s.handleMigrate)
 	a("GET "+v+"/migrations", lvlRead, s.handleListMigrations)
 	a("GET "+v+"/migrations/{id}", lvlRead, s.handleGetMigration)

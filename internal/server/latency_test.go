@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -46,107 +45,41 @@ func TestLatencyRingFailures(t *testing.T) {
 	}
 }
 
-// A blocked frame handler must not stop the read loop from queueing (and so from
-// processing pongs); frames still run in order.
-func TestFrameWorkerDoesNotBlockReader(t *testing.T) {
-	release := make(chan struct{})
-	var mu sync.Mutex
-	var got []string
-	w := startFrameWorker(8, func(env inEnvelope) {
-		<-release
-		mu.Lock()
-		got = append(got, env.ID)
-		mu.Unlock()
-	})
-	done := make(chan struct{})
-	go func() {
-		for _, id := range []string{"a", "b", "c", "d"} {
-			w.push(context.Background(), inEnvelope{ID: id})
-		}
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("push blocked behind a slow handler")
-	}
-	close(release)
-	w.stop()
-	if strings.Join(got, "") != "abcd" {
-		t.Fatalf("order: %v", got)
-	}
-	// a full queue gives up once the connection context ends
-	block := make(chan struct{})
-	w2 := startFrameWorker(1, func(inEnvelope) { <-block })
-	w2.push(context.Background(), inEnvelope{}) // taken by the worker
-	w2.push(context.Background(), inEnvelope{}) // fills the queue
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	if w2.push(ctx, inEnvelope{}) {
-		t.Fatal("push into a full queue should fail when ctx ends")
-	}
-	close(block)
-	w2.stop()
-}
-
-// When WebSocket pings fail, the latency comes from the logs.close round trip that every
-// agent version answers; when that fails too, the failure is recorded with its error.
-func TestLatencyFallbackAndFailures(t *testing.T) {
+// A ping that gets no pong is recorded as a failure (the panel shows 超时) and the API exposes
+// it; the connection stays up and the next good ping clears the failure.
+func TestLatencyFailuresRecorded(t *testing.T) {
 	e := newTestEnv(t)
 	e.setup()
-	a, nodeID := startFakeAgent(t, e, api.ZeaburInventory{})
+	_, nodeID := startFakeAgent(t, e, api.ZeaburInventory{})
 	c := e.srv.hub.get(nodeID)
 	if c == nil {
 		t.Fatal("no connection")
 	}
 	old := latencyTimeout
-	latencyTimeout = 300 * time.Millisecond
+	latencyTimeout = 200 * time.Millisecond
 	t.Cleanup(func() { latencyTimeout = old })
 	for deadline := time.Now().Add(5 * time.Second); c.latency.view() == nil; time.Sleep(20 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("no sample at connect")
 		}
 	}
-	c.latency.reset() // drop the sample taken at connect
 	badPing := func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
-
 	var p latencyProbe
 	e.srv.measureLatency(c, &p, badPing)
 	v := c.latency.view()
-	if v == nil || v.Samples != 1 || v.Method != latencyByMessage || v.Failures != 0 {
-		t.Fatalf("fallback sample: %+v", v)
-	}
-	if len(a.received(api.MsgLogsClose)) == 0 {
-		t.Fatal("fallback did not send logs.close")
-	}
-
-	// the agent stops answering the fallback too
-	a.mu.Lock()
-	a.hook = func(env inEnvelope) (api.ResultPayload, bool) {
-		if env.Type == api.MsgLogsClose {
-			time.Sleep(time.Second)
-		}
-		return api.ResultPayload{}, false
-	}
-	a.mu.Unlock()
-	e.srv.measureLatency(c, &p, badPing)
-	v = c.latency.view()
-	if v.Failures != 1 || !strings.Contains(v.LastError, "no pong") || !strings.Contains(v.LastError, "fallback") || v.Samples != 1 {
+	if v == nil || v.Failures != 1 || !strings.Contains(v.LastError, "no pong") || v.Samples != 1 {
 		t.Fatalf("failure view: %+v", v)
 	}
-	// pings are given up on after repeated failures: the next tick skips the ping
-	if p.pingFails < latencyPingFailMax {
-		t.Fatalf("ping failures not counted: %+v", p)
+	if e.srv.hub.get(nodeID) != c || c.ctx.Err() != nil {
+		t.Fatal("a failed ping must not drop the connection")
 	}
-	e.srv.measureLatency(c, &p, func(context.Context) error { t.Fatal("ping should be skipped"); return nil })
-	if v = c.latency.view(); v.Failures != 2 || !strings.Contains(v.LastError, "skipped") {
-		t.Fatalf("skip view: %+v", v)
-	}
-
-	// the API exposes the failures
 	var srv api.Server
 	e.mustDo("GET", "/api/v1/servers/"+nodeID, nil, &srv, 200)
-	if srv.Latency == nil || srv.Latency.Failures != 2 || srv.Latency.LastError == "" {
+	if srv.Latency == nil || srv.Latency.Failures != 1 || srv.Latency.LastError == "" {
 		t.Fatalf("server view latency: %+v", srv.Latency)
+	}
+	e.srv.measureLatency(c, &p, func(context.Context) error { return nil })
+	if v = c.latency.view(); v.Failures != 0 || v.Samples != 2 || v.Method != latencyByPing {
+		t.Fatalf("after recovery: %+v", v)
 	}
 }

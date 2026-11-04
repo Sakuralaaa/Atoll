@@ -472,6 +472,15 @@ function route(method: string, path: string, body: any): unknown {
     if (body.git) return { ...withSvc(s), ...demoGit.create(s, body.git) }
     return withSvc(s)
   }
+  if (U && (a = m('projects/*/service-order'))) {
+    const pid = a[0], ids: string[] = Array.isArray(body?.services) ? body.services.map(String) : []
+    const mine = services.filter(s => s.project_id === pid)
+    if (ids.some(id => !mine.some(s => s.id === id)) || new Set(ids).size !== ids.length) fail(400, 'unknown or duplicate service id')
+    const sorted = [...ids.map(id => mine.find(s => s.id === id)!), ...mine.filter(s => !ids.includes(s.id))]
+    const slots = services.map((s, i) => s.project_id === pid ? i : -1).filter(i => i >= 0)
+    slots.forEach((slot, k) => { services[slot] = sorted[k] })
+    return fullProject(projects.find(x => x.id === pid) ?? fail(404, '项目不存在'))
+  }
   if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; services.filter(x => x.project_id === pr.id).forEach(x => { x.server_id = body.server_id }); return {} }
   if ((a = m('projects/*'))) {
     const pr = projects.find(x => x.id === a![0]) ?? fail(404, '项目不存在')

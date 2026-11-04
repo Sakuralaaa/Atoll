@@ -24,13 +24,9 @@ import (
 const (
 	latencyEvery  = 15 * time.Second
 	latencyWindow = 8 // samples in the rolling average (~2 minutes)
-	// after this many consecutive failed WebSocket pings the loop measures with the
-	// fallback message only, retrying a ping every latencyPingRetry ticks
-	latencyPingFailMax = 2
-	latencyPingRetry   = 8
 )
 
-// latencyTimeout bounds one ping and one fallback round trip (a var for tests).
+// latencyTimeout bounds one ping (a var for tests).
 var latencyTimeout = 20 * time.Second
 
 const (
@@ -106,14 +102,13 @@ func (l *latencyRing) view() *api.NodeLatency {
 	return v
 }
 
-// latencyProbe is the per-connection state of the ping loop.
 type latencyProbe struct {
-	pingFails int  // consecutive failed WebSocket pings
-	ticks     int  // measurements since pings were given up on
-	warned    bool // the first failure of this connection was logged at warn
+	warned bool // the first failure of this connection was logged at warn
 }
 
-// pingLoop measures the connection's RTT until it closes.
+// pingLoop measures the control-plane round trip with a WebSocket ping every latencyEvery,
+// while the connection lives. A failed ping is recorded (the panel shows 超时) but never
+// closes the connection: the agent's own keepalive and the heartbeat reaper decide that.
 func (s *Server) pingLoop(c *agentConn) {
 	var p latencyProbe
 	ping := func(ctx context.Context) error { return c.ws.Ping(ctx) }
@@ -130,64 +125,34 @@ func (s *Server) pingLoop(c *agentConn) {
 	}
 }
 
-// measureLatency takes one sample: a WebSocket ping, or the fallback message when pings
-// failed (now or repeatedly before). Both failing records a failure on the ring.
 func (s *Server) measureLatency(c *agentConn, p *latencyProbe, ping func(context.Context) error) {
 	if c.ctx.Err() != nil {
 		return
 	}
 	first := c.latency.view() == nil
-	var pingErr error
-	if p.pingFails >= latencyPingFailMax {
-		p.ticks++
-	}
-	tryPing := p.pingFails < latencyPingFailMax || p.ticks%latencyPingRetry == 0
-	if tryPing {
-		ctx, cancel := context.WithTimeout(c.ctx, latencyTimeout)
-		start := time.Now()
-		pingErr = ping(ctx)
-		d := time.Since(start)
-		cancel()
-		if pingErr == nil {
-			if p.pingFails >= latencyPingFailMax {
-				s.log.Info("agent answers WebSocket pings again", "node", c.nodeID)
-			}
-			p.pingFails, p.ticks = 0, 0
-			c.latency.addBy(d, time.Now(), latencyByPing)
-			s.latencyChanged(c, first)
-			return
-		}
-		if c.ctx.Err() != nil {
-			return // connection closed while pinging
-		}
-		p.pingFails++
-		if errors.Is(pingErr, context.DeadlineExceeded) {
-			pingErr = fmt.Errorf("WebSocket ping: no pong within %s", latencyTimeout)
-		} else {
-			pingErr = fmt.Errorf("WebSocket ping: %w", pingErr)
-		}
-	} else {
-		pingErr = errors.New("WebSocket ping skipped after repeated failures")
-	}
-	d, err := s.probeRTT(c)
+	ctx, cancel := context.WithTimeout(c.ctx, latencyTimeout)
+	start := time.Now()
+	err := ping(ctx)
+	d := time.Since(start)
+	cancel()
 	if err == nil {
-		if tryPing {
-			s.logLatency(c, p, slog.LevelWarn, "agent did not answer a WebSocket ping; measuring latency with a message instead", pingErr)
-		}
-		c.latency.addBy(d, time.Now(), latencyByMessage)
+		c.latency.addBy(d, time.Now(), latencyByPing)
 		s.latencyChanged(c, first)
 		return
 	}
 	if c.ctx.Err() != nil {
-		return
+		return // connection closed while pinging
 	}
-	err = fmt.Errorf("%v; fallback: %v", pingErr, err)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = fmt.Errorf("WebSocket ping: no pong within %s", latencyTimeout)
+	} else {
+		err = fmt.Errorf("WebSocket ping: %w", err)
+	}
 	c.latency.fail(err, time.Now())
 	s.logLatency(c, p, slog.LevelWarn, "agent latency could not be measured", err)
 	s.latencyChanged(c, first || c.latency.view().Failures == 1)
 }
 
-// logLatency logs at warn the first time per connection, at debug afterwards.
 func (s *Server) logLatency(c *agentConn, p *latencyProbe, lvl slog.Level, msg string, err error) {
 	if p.warned {
 		lvl = slog.LevelDebug
@@ -202,52 +167,4 @@ func (s *Server) latencyChanged(c *agentConn, changed bool) {
 	if changed {
 		s.publishServer(c.ctx, c.nodeID)
 	}
-}
-
-// probeRTT times an application-level round trip: logs.close for a stream id that does
-// not exist, which every agent version handles as a no-op and answers at once. The answer
-// is timestamped by the connection's read loop, so a busy frame worker does not inflate it.
-func (s *Server) probeRTT(c *agentConn) (time.Duration, error) {
-	id := "rtt-" + randString(16, idAlphabet)
-	ch := make(chan time.Time, 1)
-	c.pmu.Lock()
-	c.probes[id] = ch
-	c.pmu.Unlock()
-	defer func() {
-		c.pmu.Lock()
-		delete(c.probes, id)
-		c.pmu.Unlock()
-	}()
-	ctx, cancel := context.WithTimeout(c.ctx, latencyTimeout)
-	defer cancel()
-	start := time.Now()
-	if err := c.send(ctx, api.Envelope{Type: api.MsgLogsClose, ID: id, Payload: api.LogsOpenPayload{StreamID: id}}); err != nil {
-		return 0, fmt.Errorf("send: %w", err)
-	}
-	select {
-	case at := <-ch:
-		return at.Sub(start), nil
-	case <-ctx.Done():
-		if c.ctx.Err() != nil {
-			return 0, errors.New("agent disconnected")
-		}
-		return 0, fmt.Errorf("no answer within %s", latencyTimeout)
-	}
-}
-
-// takeProbe hands a result frame to a waiting probeRTT; false when it is not a probe.
-func (c *agentConn) takeProbe(env inEnvelope, at time.Time) bool {
-	if env.Type != api.MsgResult || env.ID == "" {
-		return false
-	}
-	c.pmu.Lock()
-	ch, ok := c.probes[env.ID]
-	c.pmu.Unlock()
-	if ok {
-		select {
-		case ch <- at:
-		default:
-		}
-	}
-	return ok
 }

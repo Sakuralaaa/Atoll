@@ -733,3 +733,45 @@ func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) er
 	writeJSON(w, 200, ms)
 	return nil
 }
+
+// handleServiceOrder saves the order of a project's services (PUT /projects/{id}/service-order
+// {"services": [ids first to last]}); ids that are not services of the project are refused.
+func (s *Server) handleServiceOrder(w http.ResponseWriter, r *http.Request) error {
+	p, err := s.st.GetProject(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Services []string `json:"services"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	svcs, err := s.st.ListServices(r.Context(), p.ID)
+	if err != nil {
+		return err
+	}
+	own := map[string]bool{}
+	for _, v := range svcs {
+		own[v.ID] = true
+	}
+	seen := map[string]bool{}
+	for _, id := range req.Services {
+		if !own[id] {
+			return badRequest("service %q is not in project %s", id, p.ID)
+		}
+		if seen[id] {
+			return badRequest("service %q is listed twice", id)
+		}
+		seen[id] = true
+	}
+	if err := s.st.SetServiceOrder(r.Context(), p.ID, req.Services); err != nil {
+		return err
+	}
+	if p.Services, err = s.servicesWithDomains(r.Context(), p.ID); err != nil {
+		return err
+	}
+	s.publish("project", p)
+	writeJSON(w, 200, p)
+	return nil
+}
