@@ -29,8 +29,14 @@ Control server operations: [control.md](control.md).
 - Cards in a grid are the same height. Machine cards show the project names on at most two
   lines; what does not fit becomes one `+N` chip (hover lists the rest).
 - **延迟**: server cards, machine cards and the server detail show the control↔agent round trip
-  of the latest WebSocket ping (green under 100 ms, amber under 300 ms, red from 300 ms; `—`
-  while offline or not measured yet). The detail page adds the average of the last 8 pings.
+  of the latest measurement (green under 100 ms, amber under 300 ms, red from 300 ms). While
+  measurements fail it shows a red `超时` whose tooltip carries the error; `—` only while offline
+  or before the first attempt. The detail page adds the average of the last 8 samples.
+- Machine cards (按服务器分组) wrap long server names to two lines (full name in the tooltip)
+  like the server cards; the name block always reserves two lines so cards stay the same height.
+- Texts that come from the agent or server in English (Docker adoption and Zeabur scan warnings,
+  risk reasons, step names and details, container states) are translated in the UI by pattern
+  (`web/src/api/backendText.ts`), so older agents translate too; unknown texts show as they came.
 - **服务器** cards show the full name (wrapping), the online state and the OS on their own
   lines; 需要处理 and agent upgrade badges sit in the footer next to the hardware.
 - **异常**: the sidebar's 异常 entry counts every firing problem. A page shows a red banner
