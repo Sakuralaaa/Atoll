@@ -3,7 +3,7 @@ import { IP } from '../../components/IP'
 import { Link } from 'react-router-dom'
 import { Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLink, Plus, Cloud, Box, History, Undo2, GitCommitHorizontal } from 'lucide-react'
 import { Button, Card, Dot, Mini, Spark } from '../../components/ui'
-import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton, Toggle } from '../../components/feedback'
+import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton } from '../../components/feedback'
 import ImageUpdateCard from '../../components/ImageUpdateCard'
 import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
 import { BuildLogModal, CommitLink, GithubIcon, SourceCard } from '../../components/GitSource'
@@ -18,6 +18,7 @@ import { providerOf } from '../../api/providers'
 import { useT } from '../../i18n'
 import { useProject } from '../../api/queries'
 import { HostnameInput, useHostnameInput } from '../../components/HostnameInput'
+import { ProxyChoice } from '../../components/ProxyChoice'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
   const base = `/projects/${p.id}/services/${s.id}`
@@ -180,7 +181,7 @@ export function BindDomain({ s, onClose }: { s: Service; onClose: () => void }) 
         <HostnameInput h={h} autoFocus onEnter={submit} />
       </Label>
       <Label t="端口">{httpPorts.length ? <Select className="w-full" value={port} onChange={e => setPort(e.target.value)}>{httpPorts.map(p => <option key={p.name} value={p.name}>{p.name} · {p.container_port}</option>)}</Select> : <div className="text-[13px] text-muted">没有 HTTP 端口，请先在「网络」里添加。</div>}</Label>
-      <div className="flex items-center justify-between gap-4"><div><div className="text-[13px] font-semibold">Cloudflare 代理</div><div className="text-[12px] text-dim mt-0.5">橙色云朵：隐藏源站 IP，80/443 只放行 Cloudflare</div></div><Toggle on={proxied} onChange={setProxied} /></div>
+      <ProxyChoice proxied={proxied} onChange={setProxied} />
     </Modal>
   )
 }

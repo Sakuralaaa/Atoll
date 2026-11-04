@@ -55,6 +55,16 @@ export interface HealthCheck { cmd?: string[]; http_path?: string; interval_sec?
 export interface Domain {
   id: string; service_id: string; hostname: string; port_name: string; proxied: boolean
   status: 'provisioning' | 'pending' | 'active' | 'error' | string; error?: string; created_at: string
+  /** certificate the servers present: origin = Cloudflare Origin CA, acme = Let's Encrypt, http = none (Cloudflare-only HTTP) */
+  cert?: 'origin' | 'acme' | 'http' | string
+}
+
+/** GET /cloudflare/token-check: what the stored Cloudflare token may do (probed, cached 10 min). */
+export interface CloudflareTokenCheck {
+  configured: boolean
+  /** Zone.DNS: Edit */ dns: 'ok' | 'missing' | 'unknown' | string; dns_error?: string
+  /** Zone.SSL and Certificates: Edit, needed by the roots in ssl_roots (cert mode auto); absent when none needs it */
+  ssl?: 'ok' | 'missing' | 'unknown' | string; ssl_error?: string; ssl_roots?: string[]; checked_at: string
 }
 
 export interface Service {

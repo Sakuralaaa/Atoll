@@ -1,5 +1,5 @@
 import type {
-  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, RootDomain, EnvReference, EnvVar,
+  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
 } from './types'
 
@@ -131,6 +131,9 @@ export const api = {
   serviceDomains: (id: string) => get<Domain[]>(`/services/${e(id)}/domains`),
   addDomain: (id: string, b: { hostname: string; port_name: string; proxied: boolean; root_domain?: string }) => post<Domain | Confirmation>(`/services/${e(id)}/domains`, b),
   deleteDomain: (id: string) => del<Confirmation | void>(`/domains/${e(id)}`),
+  /** orange (true) / grey (false) cloud: rewrites the Cloudflare record */
+  setDomainProxied: (id: string, proxied: boolean) => patch<Domain | Confirmation>(`/domains/${e(id)}`, { proxied }),
+  cloudflareTokenCheck: (refresh = false) => get<CloudflareTokenCheck>(`/cloudflare/token-check${refresh ? '?refresh=1' : ''}`),
   domains: () => get<Domain[]>('/domains'),
   // root domains (multi-domain)
   rootDomains: () => get<RootDomain[]>('/root-domains'),

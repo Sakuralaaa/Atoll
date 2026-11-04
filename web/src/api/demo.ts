@@ -104,6 +104,14 @@ const rootDomains: RootDomain[] = [
 ]
 // one project defaults to the second root, so the project dropdown has something to show
 if (projects[1]) projects[1].root_domain = 'example.net'
+// which certificate a host gets (server: domainsWithCert)
+const withCert = (d: Domain): Domain => {
+  const r = rootDomains.find(x => x.name === rootOf(d.hostname) && x.cert_mode !== 'global')
+  const cert = r ? (r.cert_status === 'origin' && d.proxied ? 'origin' : 'acme') : settings.tls_mode === 'acme' ? 'acme' : settings.has_origin_cert ? 'origin' : 'http'
+  return { ...d, cert }
+}
+// one host under the Origin CA root, one grey-cloud host (WebSocket-heavy chat)
+for (const d of domains) { if (d.hostname === 'pan.example.com') d.hostname = 'pan.example.net'; if (d.hostname === 'chat.example.com') d.proxied = false }
 const rootOf = (h: string) => rootDomains.map(r => r.name).filter(r => h === r || h.endsWith('.' + r)).sort((a, b) => b.length - a.length)[0]
 function rootRoute(method: string, seg: string[], body: any): unknown {
   if (seg[0] !== 'root-domains') return undefined
@@ -317,7 +325,7 @@ const demoGit = makeDemoGit(services, deployments, nid)
 const demoUpdates = makeDemoUpdates(services, deployments)
 const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p => p.id === pid)?.server_id ?? '', settings)
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
-const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id) })
+const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
 const demoUser = { name: 'demo' }
@@ -474,7 +482,7 @@ function route(method: string, path: string, body: any): unknown {
     return env[a[0]].map(v => v.secret && q.get('reveal') !== '1' ? { ...v, value: '' } : v)
   }
   if ((a = m('services/*/domains'))) {
-    if (G) return domains.filter(d => d.service_id === a![0])
+    if (G) return domains.filter(d => d.service_id === a![0]).map(withCert)
     const s = svc(a[0]), pr = projects.find(x => x.id === s.project_id)
     let host = String(body.hostname ?? '').trim().toLowerCase()
     const root = body.root_domain || (rootDomains.some(r => r.name === pr?.root_domain) ? pr?.root_domain : settings.base_domain)
@@ -504,7 +512,13 @@ function route(method: string, path: string, body: any): unknown {
     if (DEL) { services.splice(services.indexOf(s), 1); return {} }
     return withSvc(s)
   }
-  if (G && m('domains')) return domains
+  if (G && m('domains')) return domains.map(withCert)
+  if (G && m('cloudflare/token-check')) {
+    const ssl_roots = rootDomains.filter(r => r.cert_mode === 'auto').map(r => r.name)
+    return { configured: settings.has_cloudflare_token, dns: settings.has_cloudflare_token ? 'ok' : 'missing', checked_at: new Date().toISOString(),
+      ...(ssl_roots.length ? { ssl_roots, ssl: 'missing', ssl_error: 'apps.example.org: cloudflare: POST /certificates: HTTP 403: 1016 User does not have permission' } : {}) }
+  }
+  if (X && (a = m('domains/*'))) { const d = domains.find(x => x.id === a![0]) ?? fail(404, 'domain not found'); d.proxied = !!body.proxied; d.status = 'provisioning'; setTimeout(() => { d.status = 'active' }, 6000); return withCert(d) }
   if ((a = m('domains/*'))) { const i = domains.findIndex(d => d.id === a![0]); if (i >= 0) domains.splice(i, 1); return {} }
 
   if (G && m('tokens')) return tokens
