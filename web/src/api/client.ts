@@ -1,6 +1,6 @@
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel,
+  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
 } from './types'
 
 export const API = '/api/v1'
@@ -91,6 +91,9 @@ export const api = {
   revokeOtherSessions: () => post<{ revoked: number }>('/auth/sessions/revoke-others'),
   setup: (username: string, password: string) => request<Me>('POST', '/auth/setup', { username, password }, { noRedirect: true }),
   logout: () => request<void>('POST', '/auth/logout', {}, { noRedirect: true }),
+  // per-account project favorites and pins
+  projectPrefs: () => get<ProjectPrefs>('/me/project-prefs'),
+  setProjectPrefs: (b: Partial<ProjectPrefs>) => put<ProjectPrefs>('/me/project-prefs', b),
   // servers
   servers: () => get<Server[]>('/servers'),
   server: (id: string) => get<Server>(`/servers/${e(id)}`),

@@ -7,12 +7,16 @@ import { useT } from '../i18n'
 import { providerOf, countryOf } from '../api/providers'
 import { Flag } from './Flag'
 import type { ServerGroup } from '../api/groups'
+import { ClampedTags } from './ClampedTags'
+import { Latency } from './Latency'
+import { pinnedFirst, type useProjectPrefs } from '../api/prefs'
+import { Pin, Star } from 'lucide-react'
 
 /** One card per machine; clicking opens that machine's projects (?server=<id>). */
-export function ServerGroupCards({ groups, total, listView }: { groups: ServerGroup[]; total: Map<string, number>; listView: boolean }) {
+export function ServerGroupCards({ groups, total, listView, prefs }: { groups: ServerGroup[]; total: Map<string, number>; listView: boolean; prefs: ReturnType<typeof useProjectPrefs> }) {
   const { t } = useT()
   return (
-    <div className={listView ? 'grid gap-4 grid-cols-1' : 'grid gap-4 grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3'}>
+    <div className={listView ? 'grid gap-4 grid-cols-1' : 'grid gap-4 grid-cols-1 auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3'}>
       {groups.map(g => {
         const s = g.server
         const ss = g.projects.flatMap(p => p.services ?? [])
@@ -30,13 +34,17 @@ export function ServerGroupCards({ groups, total, listView }: { groups: ServerGr
               </div>
               <ChevronRight size={18} className="text-dim group-hover:text-fg2 shrink-0" />
             </div>
-            <div className="px-5 pb-4 flex-1 flex flex-wrap content-start items-center gap-1.5 min-h-[26px]">
-              {g.projects.slice(0, 6).map(p => <span key={p.id} className="text-[12px] px-2 py-0.5 rounded-md field text-fg2 max-w-[160px] truncate">{projName(p)}</span>)}
-              {g.projects.length > 6 && <span className="text-[12px] px-2 py-0.5 text-muted">+{g.projects.length - 6}</span>}
+            {/* project names clamped to two lines with one "+N" chip, so every card is the same height */}
+            <div className="px-5 pb-4 flex-1">
+              <ClampedTags rows={listView ? 1 : 2} className={listView ? 'h-[26px]' : 'h-[58px]'} items={pinnedFirst(g.projects, prefs.prefs.pinned).map(p => ({
+                key: p.id, title: projName(p),
+                node: <span className="inline-flex items-center gap-1 max-w-full">{prefs.isPinned(p.id) && <Pin size={10} className="text-accent shrink-0" fill="currentColor" />}{prefs.isFav(p.id) && <Star size={10} className="text-[#eab308] shrink-0" fill="currentColor" />}<span className="truncate">{projName(p)}</span></span>,
+              }))} />
             </div>
             <div className="mt-auto px-5 h-11 shrink-0 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px] text-muted tnum">
               <span>{g.projects.length === all ? t(`${all} 个项目`, `${all} projects`) : t(`${g.projects.length} / ${all} 个项目`, `${g.projects.length} of ${all} projects`)}</span>
               {bad > 0 && <span className="text-[#ef4444] font-semibold">{t(`${bad} 个失败`, `${bad} failed`)}</span>}
+              {s && s.status === 'online' && <Latency s={s} label={false} className="text-[12.5px]" />}
               <span className="ml-auto flex items-center gap-2"><Dot status={status} />{run}/{ss.length}</span>
             </div>
           </Link>

@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
+import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
 import { useQuery } from '../api/hooks'
-import { svcIcon, svcName, projName } from '../api/view'
+import { projIcon, svcIcon, svcName, projName } from '../api/view'
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 import { cx } from './ui-utils'
-import { usePending, useProblems } from '../api/queries'
+import { usePending, useProblems, useProjects } from '../api/queries'
+import { useProjectPrefs } from '../api/prefs'
+import { StarButton } from './ProjectPrefs'
 import { FilterChips } from './StatusFilter'
 import { FILTER_PARAM, serviceFilters, useStatusFilter } from '../api/filters'
 import { useFiringProblems } from '../api/problems'
@@ -121,6 +123,32 @@ function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; t
   )
 }
 
+/** Sidebar quick access to the account's favorite projects (收藏). */
+function Favorites() {
+  const { t } = useT()
+  const prefs = useProjectPrefs()
+  const projects = useProjects().data ?? []
+  const loc = useLocation()
+  const favs = projects.filter(p => prefs.isFav(p.id))
+  if (!favs.length) return null
+  const max = 8
+  return (
+    <div className="mt-4">
+      <div className="h-px bg-line mb-4" />
+      <Link to="/?filter=fav" className="px-3 mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-dim tracking-wider hover:text-fg2"><Star size={12} />{t('收藏', 'Favorites')}<span className="ml-auto font-mono tnum">{favs.length}</span></Link>
+      <div className="flex flex-col gap-0.5">
+        {favs.slice(0, max).map(p => {
+          const on = loc.pathname.startsWith(`/projects/${p.id}`)
+          return <Link key={p.id} to={`/projects/${p.id}`} className={cx('flex items-center gap-2.5 h-9 px-2 rounded-lg text-[13px]', on ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}>
+            <ServiceIcon s={projIcon(p)} size={22} /><span className="truncate flex-1 font-medium">{projName(p)}</span>
+          </Link>
+        })}
+        {favs.length > max && <Link to="/?filter=fav" className="h-8 px-3 flex items-center text-[12.5px] text-accent hover:underline">{t(`查看全部 ${favs.length} 个`, `All ${favs.length}`)}</Link>}
+      </div>
+    </div>
+  )
+}
+
 export function MainShell({ children }: { children: React.ReactNode }) {
   const servers = useServers().data
   const pending = usePending().data?.length ?? 0
@@ -149,6 +177,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
           {item('/import', <ArrowRightLeft size={16} />, '从 Zeabur 迁移')}
           {item('/settings', <SlidersHorizontal size={16} />, '设置')}
         </nav>
+        <Favorites />
         <div className="flex-1" />
         {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2.5 mb-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} />{problems} 个异常需要处理</Link>}
         <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</Link>
@@ -163,6 +192,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const loc = useLocation()
   const srv = useServers().data?.find(s => s.id === project.server_id)
   const { t } = useT()
+  const prefs = useProjectPrefs()
   const services = project.services ?? []
   const updates = useUpdatesByService()
   const defs = serviceFilters((useProblems().data ?? []).filter(p => !p.resolved_at))
@@ -171,10 +201,10 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const keep = f.active ? `?${FILTER_PARAM}=${f.active}` : ''
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
-    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate">{projName(project)}</span></>} side={<>
+    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</span>{project.created_at && <StarButton id={project.id} prefs={prefs} />}</>} side={<>
         <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
         <div className="px-2 mt-3">
-          <div className="flex items-center gap-2"><h1 className="text-[17px] font-semibold tracking-tight truncate">{projName(project)}</h1></div>
+          <div className="flex items-center gap-1"><h1 className="text-[17px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</h1>{project.created_at && <StarButton id={project.id} prefs={prefs} className="-mr-1.5" />}</div>
           {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
             : <div className="mt-1.5 h-5 w-40 rounded bg-ov/[0.07] animate-pulse" />}
         </div>

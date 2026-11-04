@@ -10,7 +10,7 @@ import { makeDemoProblems } from './demo-problems'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, RootDomain, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
+  LogLine, NodeMetrics, Project, ProjectPrefs, RootDomain, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
 } from './types'
 import { series } from '../components/ui-utils'
 
@@ -30,8 +30,12 @@ const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s =>
   ...(TAILNET[s.id] ? { tailnet_ip: TAILNET[s.id][0], network: { provider: 'tailscale', state: 'running', via_tailnet: TAILNET[s.id][1], control_url: TAILNET[s.id][1] ? 'http://100.64.0.4:7301' : 'https://panel.example.com', fallback_urls: TAILNET[s.id][1] ? ['https://panel.example.com'] : [] } } : { network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } }),
   // demo GeoIP: RackNerd LA has no provider/region typed in, so the panel shows what the lookup found
   ...(s.id === 'lax' ? { provider: '', region: '', geo: { ip: s.ip, country: 'US', city: 'Los Angeles', asn: 'AS36352', org: 'HostPapa', source: 'ipinfo.io', at: iso(2 * H) } } : {}),
+  ...(s.status === 'online' ? { latency: { last_ms: s.latency, avg_ms: +(s.latency * 1.06).toFixed(1), samples: 8, measured_at: iso(6e3) } } : {}),
   usage: { at: iso(8e3), cpu_pct: s.cpuUse, mem_used_mb: Math.round(s.memGB * 1024 * s.memUse / 100), mem_total_mb: s.memGB * 1024, disk_used_gb: +(s.diskGB * s.diskUse / 100).toFixed(1), disk_total_gb: s.diskGB, net_rx_bps: 120e3, net_tx_bps: 80e3, load1: s.cpuUse / 25 },
 }))
+
+// demo favorites / pins (synced per account on a real install)
+const projectPrefs: ProjectPrefs = { favorites: ['acme', 'qabot'], pinned: ['linkproxy'] }
 
 const VOLS: Record<string, [string, string][]> = {
   postgres: [['data', '/var/lib/postgresql/data']], mysql: [['data', '/var/lib/mysql']], redis: [['data', '/data']], mongo: [['data', '/data/db']],
@@ -411,6 +415,14 @@ function route(method: string, path: string, body: any): unknown {
 
   { const r = demoProblems.route(method, m, body); if (r !== undefined) return r }
   if (G && m('servers')) return servers
+  if (G && m('me/project-prefs')) return projectPrefs
+  if (U && m('me/project-prefs')) {
+    const known = (ids: unknown) => Array.isArray(ids) ? [...new Set(ids.map(String))].filter(id => projects.some(p => p.id === id)) : undefined
+    const f = known(body?.favorites), pin = known(body?.pinned)
+    if (f) projectPrefs.favorites = f
+    if (pin) projectPrefs.pinned = pin
+    return projectPrefs
+  }
   if (G && m('servers/agent-install-command')) return { command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --sha256-amd64 3f9a…c21e --sha256-arm64 8b04…77d0 --version ${servers[0]?.agent_latest ?? 'v0.1.7'}`, version: servers[0]?.agent_latest ?? 'v0.1.7' }
   if (P && m('servers/agent-upgrade')) {
     const ids: string[] = body?.ids?.length ? body.ids : servers.filter(s => s.status === 'online' && s.agent_version !== s.agent_latest).map(s => s.id)

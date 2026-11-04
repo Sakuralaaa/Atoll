@@ -21,7 +21,14 @@ export interface Server {
   /** the agent can upgrade itself from the panel (v0.1.6+) */ agent_self_upgrade?: boolean
   /** last panel-started agent upgrade (kept until the control server restarts) */ agent_upgrade?: AgentUpgrade
   /** GeoIP record of the public address (flag, provider guess) */ geo?: NodeGeo
+  /** control↔agent round-trip time (WebSocket ping); missing while offline or not measured yet */ latency?: NodeLatency
 }
+
+/** Round-trip time between the control server and an agent, in milliseconds. */
+export interface NodeLatency { last_ms: number; avg_ms: number; samples: number; measured_at: string }
+
+/** One account's favorite and pinned projects (GET/PUT /me/project-prefs). */
+export interface ProjectPrefs { favorites: string[]; pinned: string[] }
 
 export interface NodeGeo { ip: string; country?: string; city?: string; asn?: string; org?: string; source?: string; at: string }
 

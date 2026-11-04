@@ -11,6 +11,7 @@ import { run, useQuery } from '../api/hooks'
 import { ago, day, gb, projIcon, timeLabels, usagePct, projName } from '../api/view'
 import type { Project, Server } from '../api/types'
 import { NetBadge, ServerNetworkAction } from '../components/ServerNetwork'
+import { Latency } from '../components/Latency'
 import { useT } from '../i18n'
 import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { statusText } from '../components/ui-utils'
@@ -72,6 +73,7 @@ function InfoTab({ s }: { s: Server }) {
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-3">运行信息</div>
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
+          <KV k={t('延迟', 'Latency')} v={<Latency s={s} label={false} avg />} />
           <KV k="Agent" v={<span className="flex flex-wrap items-center justify-end gap-2">{s.agent_version || '—'}<AgentUpgradeBadge s={s} /></span>} />
           <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<IP className="font-mono text-[13px]" v={s.tailnet_ip} />} />

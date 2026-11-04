@@ -19,6 +19,7 @@ import { FilterChips } from '../components/StatusFilter'
 import { serverFilters, useStatusFilter } from '../api/filters'
 import { providerOf, countryOf, regionOf } from '../api/providers'
 import { Flag } from '../components/Flag'
+import { Latency } from '../components/Latency'
 import { useProblems } from '../api/queries'
 
 export default function Servers() {
@@ -89,6 +90,7 @@ export default function Servers() {
                 </div>
                 <div className="mt-auto border-t border-line bg-sunk/60 px-6 min-h-11 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13.5px] text-muted">
                   <span className="min-w-0">{`${s.cpu_cores} vCPU · ${gb(s.mem_mb)} · ${s.disk_gb} GB · ${s.arch}`}</span>
+                  <Latency s={s} className="text-[13px]" />
                   <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 empty:hidden">
                     {needsAttention(s) && <Badge><AlertCircle size={12} />{t('需要处理', 'Needs attention')}</Badge>}
                     <AgentUpgradeBadge s={s} />
