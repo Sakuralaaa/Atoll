@@ -42,8 +42,11 @@
   --color-brand: #7c3aed;
 }
 @theme {
-  --font-sans: "Inter Variable", "Noto Sans SC Variable", "PingFang SC", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+  --font-sans: "Inter Variable", "Noto Sans SC Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+  /* buttons, badges and versions use the mono stack and often carry Chinese: JetBrains Mono
+     has no CJK glyphs, so the bundled Noto Sans SC (the body's CJK font, same weights) and
+     the system CJK fonts come before the generic family, never a box */
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, "Noto Sans SC Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", monospace, sans-serif;
 }
 html, body, #root { height: 100%; }
 body {
