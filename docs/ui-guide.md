@@ -18,6 +18,19 @@ Control server operations: [control.md](control.md).
 - **我的项目**: one card per project (services count, status, first domain). The server icon
   next to the sort button groups the cards by machine instead (remembered per browser);
   `?server=ID` shows one machine's projects.
+- **收藏 / 置顶**: the star on a project card, list row or the project's header (sidebar, and the
+  top bar on phones) favorites it; the pin keeps it at the top of 我的项目, above everything
+  else. With several pins, ↑ / ↓ on a pinned card (or dragging one pinned card onto another)
+  sets their order. In the grouped view the pinned projects get their own 置顶 row above the
+  machine cards, and pinned / favorite names in a machine card carry a small pin / star.
+  The 收藏 chip (`?filter=fav`) lists favorites, and the sidebar shows up to 8 of them under
+  the navigation. Both are stored per account on the control server (`/api/v1/me/project-prefs`),
+  so they are the same on every device.
+- Cards in a grid are the same height. Machine cards show the project names on at most two
+  lines; what does not fit becomes one `+N` chip (hover lists the rest).
+- **延迟**: server cards, machine cards and the server detail show the control↔agent round trip
+  of the latest WebSocket ping (green under 100 ms, amber under 300 ms, red from 300 ms; `—`
+  while offline or not measured yet). The detail page adds the average of the last 8 pings.
 - **服务器** cards show the full name (wrapping), the online state and the OS on their own
   lines; 需要处理 and agent upgrade badges sit in the footer next to the hardware.
 - **异常**: the sidebar's 异常 entry counts every firing problem. A page shows a red banner

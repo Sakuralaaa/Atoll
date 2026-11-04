@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.28](docs/releases/v0.1.28.md)：项目收藏与置顶（按账号同步，新接口 `GET/PUT /me/project-prefs`，迁移 0020）；服务器卡片和详情显示中控 ↔ Agent 延迟（任何版本的 Agent 均可）；按服务器分组的卡片等高、标签最多两行加「+N」等界面修正。只需升级中控。
 - [v0.1.27](docs/releases/v0.1.27.md)：域名页每行显示橙云 / 灰云和证书类型，点标签即可切换代理（新接口 `PATCH /domains/{id}`）；绑定域名的代理选项改为两张卡片；令牌权限检查增加「SSL 证书编辑」；异常提示只在相关页面显示且可收起；「我的项目」默认按项目；服务器卡片、中控页、等宽字体中文回退等界面修正；新建服务可直接接管已有 Docker 容器。只需升级中控。
 - [v0.1.26](docs/releases/v0.1.26.md)：修复根域名用 Origin CA 时灰云（仅 DNS）域名证书不受信任，灰云域名改用 ACME；默认根域名不再误报「未找到 Cloudflare Zone」。中控和节点都要升级。
 - [v0.1.25](docs/releases/v0.1.25.md)：接管自己用 docker run / compose 启动的容器（同端口、数据原地挂载、旧容器保留可回滚；尚未在真实 Docker 主机上验证，接管后勿把 agent 降级）；默认关闭 MPTCP 监听以缓解 CVE-2026-98432。
