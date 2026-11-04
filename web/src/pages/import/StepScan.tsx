@@ -5,12 +5,14 @@ import { Button, Card, ProviderIcon, ServiceIcon } from '../../components/ui'
 import { CodeBlock, CopyButton, Empty, ErrorState, RowsSkeleton, Skeleton } from '../../components/feedback'
 import { api } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
-import { bytes, colorFor, flagFor, gb, letterFor, usagePct } from '../../api/view'
+import { bytes, colorFor, gb, letterFor, usagePct } from '../../api/view'
+import { Flag } from '../../components/Flag'
 import type { JoinToken, Server, ZeaburInventory } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { ZRow } from './zeabur'
-import { providerOf } from '../../api/providers'
+import { countryOf, providerOf, regionOf } from '../../api/providers'
 import { projBytes, useScan } from './model'
+import { useBackendText } from '../../api/backendText'
 
 // ---------------- step 1 ----------------
 export function StepServer({ onPick }: { onPick: (id: string) => void }) {
@@ -49,9 +51,9 @@ function ServerPick({ s, onPick }: { s: Server; onPick: () => void }) {
       <ProviderIcon provider={providerOf(s)} online={on} />
       <div className="flex-1 min-w-[min(100%,180px)]">
         <div className="text-[15px] font-semibold truncate">{s.name}</div>
-        <div className="text-[13px] text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5"><IP className="font-mono" v={s.public_ipv4} /><span>{flagFor(s.region)} {s.region}</span><span>{s.cpu_cores} vCPU · {gb(s.mem_mb)} · {s.arch}</span></div>
+        <div className="text-[13px] text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5"><IP className="font-mono" v={s.public_ipv4} />{regionOf(s) && <span className="inline-flex items-center gap-1.5"><Flag code={countryOf(s)} size={12} />{regionOf(s)}</span>}<span>{s.cpu_cores} vCPU · {gb(s.mem_mb)} · {s.arch}</span></div>
       </div>
-      <div className="@3xl:text-right text-[12.5px] text-muted tnum @3xl:w-28 shrink-0">{on ? <>内存 {u.mem}% · 硬盘 {u.disk}%</> : '离线'}</div>
+      <div className="@3xl:text-right text-[12.5px] text-muted tnum shrink-0 flex @3xl:flex-col gap-x-3 gap-y-0.5 whitespace-nowrap">{on ? <><span>内存 {u.mem}%</span><span>硬盘 {u.disk}%</span></> : '离线'}</div>
       <span className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px] shrink-0 ml-auto">扫描<ArrowRight size={14} /></span>
     </button>
   )
@@ -81,6 +83,7 @@ function Stat({ i, l, v, sub, warn }: { i: React.ReactNode; l: string; v: React.
   return <Card className={cx('px-5 py-4', warn && '!bg-[#fcd34d] text-[#141414]')}><div className={cx('flex items-center gap-1.5 text-[12.5px]', warn ? '' : 'text-muted')}>{i}{l}</div><div className="text-[20px] font-extrabold italic tracking-[-0.02em] mt-1 tnum [overflow-wrap:anywhere]">{v}</div>{sub && <div className={cx('text-[12px] mt-0.5', warn ? '' : 'text-dim')}>{sub}</div>}</Card>
 }
 function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string) => void }) {
+  const { bt } = useBackendText()
   const total = inv.projects.reduce((a, p) => a + projBytes(p), 0)
   if (!inv.k3s) return <Empty icon={<ScanSearch size={22} />} title="这台服务器上没有 Zeabur" desc="没有检测到 k3s。确认选择的是 Zeabur 托管的那台 VPS，或者用下方「高级：用 CLI 导入」。" />
   return (
@@ -102,7 +105,7 @@ function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string
             </div>
             {!!p.warnings?.length && (
               <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-[#fcd34d]/20 space-y-1">
-                {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
+                {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
               </div>
             )}
             <div className="divide-y divide-line">{p.services.map(s => <ZRow key={s.service_id} s={s} names={Object.fromEntries(p.services.map(x => [x.service_id, x.name]))} />)}</div>

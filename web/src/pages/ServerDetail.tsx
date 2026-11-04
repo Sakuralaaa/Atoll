@@ -75,7 +75,7 @@ function InfoTab({ s }: { s: Server }) {
           <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
           <KV k={t('延迟', 'Latency')} v={<Latency s={s} label={false} avg />} />
           <KV k="Agent" v={<span className="flex flex-wrap items-center justify-end gap-2">{s.agent_version || '—'}<AgentUpgradeBadge s={s} /></span>} />
-          <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">{s.tailnet_host && <span className="font-mono text-[12.5px] min-w-0 [overflow-wrap:anywhere]">{s.tailnet_host}</span>}<NetBadge s={s} /></span>} />
+          <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-col items-end gap-1.5"><span className="whitespace-nowrap"><NetBadge s={s} /></span>{s.tailnet_host && <span className="font-mono text-[12.5px] max-w-full [overflow-wrap:anywhere]" title={s.tailnet_host}>{s.tailnet_host}</span>}</span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<IP className="font-mono text-[13px]" v={s.tailnet_ip} />} />
           <KV k="最近心跳" v={ago(s.last_seen_at)} />
           <KV k="区域" v={<span className="flex items-center gap-2"><Flag code={countryOf(s)} />{regionOf(s) || '—'}</span>} />

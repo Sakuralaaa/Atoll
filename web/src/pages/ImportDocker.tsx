@@ -11,6 +11,7 @@ import { gb } from '../api/view'
 import type { DockerContainer, DockerGroup, DockerInventory, DockerPort, ImportJob } from '../api/types'
 import { cx } from '../components/ui-utils'
 import { useT } from '../i18n'
+import { useBackendText } from '../api/backendText'
 
 // Docker adoption (docs/adopt-docker.md): take over containers the user started with
 // `docker run` or docker compose, in place. /import/docker?server=ID → scan; ?job=ID → steps.
@@ -134,6 +135,7 @@ function Inventory({ inv, serverId, onCreated }: { inv: DockerInventory; serverI
 
 function GroupCard({ g, serverId, onCreated }: { g: DockerGroup; serverId: string; onCreated: (id: string) => void }) {
   const { t } = useT()
+  const { bt } = useBackendText()
   const auto = g.containers.filter(c => c.risk === 'auto').map(c => c.name)
   const [picked, setPicked] = useState<string[]>(auto)
   const [busy, wrap] = useBusy()
@@ -152,7 +154,7 @@ function GroupCard({ g, serverId, onCreated }: { g: DockerGroup; serverId: strin
         <Button variant="primary" disabled={!g.adoptable || !picked.length || busy} onClick={adopt}>{busy && <Loader2 size={14} className="animate-spin" />}{t('接管这一组', 'Adopt this group')}<ArrowRight size={14} /></Button>
       </div>
       {!!g.warnings?.length && <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-[#fcd34d]/20 space-y-1">
-        {g.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px]"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
+        {g.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px]"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>}
       <div className="divide-y divide-line">
         {g.containers.map(c => <ContainerRow key={c.id} c={c} checked={picked.includes(c.name)} onToggle={() => setPicked(p => p.includes(c.name) ? p.filter(x => x !== c.name) : [...p, c.name])} />)}
@@ -163,6 +165,7 @@ function GroupCard({ g, serverId, onCreated }: { g: DockerGroup; serverId: strin
 
 function ContainerRow({ c, checked, onToggle }: { c: DockerContainer; checked: boolean; onToggle: () => void }) {
   const { t } = useT()
+  const { bt, state } = useBackendText()
   const manual = c.risk === 'manual'
   return (
     <div className="px-4 @2xl:px-6 py-4 grid grid-cols-1 @3xl:grid-cols-[230px_minmax(0,1fr)] gap-x-6 gap-y-3 text-[13px] [&>*]:min-w-0">
@@ -172,7 +175,7 @@ function ContainerRow({ c, checked, onToggle }: { c: DockerContainer; checked: b
           <div className="font-semibold truncate">{c.name}</div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {manual ? <Badge tone="red"><ShieldAlert size={11} />{t('需手动处理', 'Manual')}</Badge> : <Badge tone="green"><ShieldCheck size={11} />{t('可自动接管', 'Auto')}</Badge>}
-            <span className="text-[12px] text-muted flex items-center gap-1.5"><Dot status={c.state === 'running' ? 'running' : 'stopped'} />{c.state}</span>
+            <span className="text-[12px] text-muted flex items-center gap-1.5"><Dot status={c.state === 'running' ? 'running' : 'stopped'} />{state(c.state)}</span>
           </div>
           {c.service && <div className="mt-1 text-[12px] text-muted">compose: {c.service}</div>}
         </div>
@@ -181,14 +184,15 @@ function ContainerRow({ c, checked, onToggle }: { c: DockerContainer; checked: b
         <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full">{c.image}</span><Badge tone="zinc">{c.pinned_image ? t('固定摘要', 'pinned digest') : t('本地镜像', 'local image')}</Badge>{!!c.mem_usage_mb && <span className="text-[12px] text-muted">{c.mem_usage_mb} MB</span>}</div>
         <div className="flex flex-wrap gap-x-4 gap-y-1">{c.ports.map((p, i) => <span key={i} className={cx('font-mono text-[12px]', p.host_port ? 'text-fg' : 'text-dim')}>{portText(p)}</span>)}</div>
         {c.mounts.map((m, i) => <div key={i} className="flex items-center gap-2 min-w-0 text-[12px]"><HardDrive size={13} className="text-accent shrink-0" /><span className="font-mono truncate" title={m.source}>{m.name || m.source}</span><ArrowRight size={11} className="text-dim shrink-0" /><span className="font-mono truncate">{m.destination}</span>{m.read_only && <Badge tone="zinc">ro</Badge>}</div>)}
-        {c.risk_reasons?.map(r => <div key={r} className="flex items-start gap-1.5 text-[12.5px] text-[#ef4444]"><ShieldAlert size={13} className="mt-0.5 shrink-0" /><span className="min-w-0 break-words">{r}</span></div>)}
-        {c.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
+        {c.risk_reasons?.map(r => <div key={r} className="flex items-start gap-1.5 text-[12.5px] text-[#ef4444]"><ShieldAlert size={13} className="mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(r)}</span></div>)}
+        {c.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>
     </div>
   )
 }
 
 function Steps({ job }: { job: ImportJob }) {
+  const { bt } = useBackendText()
   return (
     <div className="space-y-1">
       {job.steps.map((s, i) => (
@@ -197,7 +201,7 @@ function Steps({ job }: { job: ImportJob }) {
             s.status === 'done' && 'bg-[#86efac] text-[#141414]', s.status === 'running' && 'bg-[#fcd34d] text-[#141414]', s.status === 'failed' && 'bg-[#fca5a5] text-[#141414]', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
             {s.status === 'done' ? <Check size={13} strokeWidth={3} /> : s.status === 'running' ? <Loader2 size={13} className="animate-spin" /> : s.status === 'failed' ? <X size={13} strokeWidth={3} /> : s.status === 'skipped' ? <Minus size={13} /> : <Circle size={7} fill="currentColor" />}
           </span>
-          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{s.name}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 font-mono break-words">{s.detail}</div>}</div>
+          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{bt(s.name)}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 break-words">{bt(s.detail)}</div>}</div>
         </div>
       ))}
     </div>
@@ -206,6 +210,7 @@ function Steps({ job }: { job: ImportJob }) {
 
 function Job({ job }: { job: ImportJob }) {
   const { t } = useT()
+  const { bt } = useBackendText()
   const [busy, wrap] = useBusy()
   const [mem, setMem] = useState<string | null>(null)
   const [dlg, setDlg] = useState<'cutover' | 'rollback' | null>(null)
@@ -248,7 +253,7 @@ function Job({ job }: { job: ImportJob }) {
               </div>
             ))}
           </Card>
-          {!!job.plan.warnings?.length && <Card className="p-5 space-y-1.5">{job.plan.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}</Card>}
+          {!!job.plan.warnings?.length && <Card className="p-5 space-y-1.5">{job.plan.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}</Card>}
         </div>
       </div>
       {mem && <ConfirmDialog title={t('内存可能不足', 'Memory may be insufficient')} action={t('仍然演练', 'Rehearse anyway')} danger={false} onClose={() => setMem(null)}

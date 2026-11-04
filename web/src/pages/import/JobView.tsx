@@ -12,9 +12,11 @@ import { cx } from '../../components/ui-utils'
 import { LIVE, projBytes } from './model'
 import { NodeCutoverCard, NodeWideNote, useNodeLive } from './NodeCutover'
 import { useT } from '../../i18n'
+import { useBackendText } from '../../api/backendText'
 
 // ---------------- steps 4-6 ----------------
 function StepList({ job, from = 0, to }: { job: ImportJob; from?: number; to?: number }) {
+  const { bt } = useBackendText()
   return (
     <div className="space-y-1">
       {job.steps.slice(from, to).map((s, i) => (
@@ -23,7 +25,7 @@ function StepList({ job, from = 0, to }: { job: ImportJob; from?: number; to?: n
             s.status === 'done' && 'bg-[#86efac] text-[#141414]', s.status === 'running' && 'bg-[#fcd34d] text-[#141414]', s.status === 'failed' && 'bg-[#fca5a5] text-[#141414]', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
             {s.status === 'done' ? <Check size={13} strokeWidth={3} /> : s.status === 'running' ? <Loader2 size={13} className="animate-spin" /> : s.status === 'failed' ? <X size={13} strokeWidth={3} /> : s.status === 'skipped' ? <Minus size={13} /> : <Circle size={7} fill="currentColor" />}
           </span>
-          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{s.name}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 font-mono break-words">{s.detail}</div>}</div>
+          <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{bt(s.name)}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 break-words">{bt(s.detail)}</div>}</div>
         </div>
       ))}
     </div>

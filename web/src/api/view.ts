@@ -24,13 +24,6 @@ export const projIcon = (p: Project): IconSpec => p.services?.[0] ? svcIcon(p.se
 export const primaryDomain = (s: Service) => s.domains?.find(d => d.status !== 'error')?.hostname ?? s.domains?.[0]?.hostname
 export const primaryPort = (s: Service) => s.ports?.[0]
 
-/** "Phoenix, US" -> 🇺🇸 (last 2-letter token). */
-export function flagFor(region?: string) {
-  const m = region?.match(/\b([A-Z]{2})\s*$/)
-  if (!m) return ''
-  return String.fromCodePoint(...[...m[1]].map(c => 0x1f1e6 + c.charCodeAt(0) - 65))
-}
-
 export function usagePct(s: Server) {
   const u = s.usage
   if (!u) return { cpu: 0, mem: 0, disk: 0 }

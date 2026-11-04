@@ -21,7 +21,7 @@ export default function Settings() {
   const q = useQuery('settings', api.settings)
   return (
     <MainShell>
-      <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
+      <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
         <SettingsTabs />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}

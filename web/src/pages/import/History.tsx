@@ -8,6 +8,7 @@ import { run, useBusy, useQuery } from '../../api/hooks'
 import { ago, bytes } from '../../api/view'
 import type { ImportPlan } from '../../api/types'
 import { cx } from '../../components/ui-utils'
+import { useBackendText } from '../../api/backendText'
 
 // ---------------- history & advanced ----------------
 const JOB_TEXT: Record<string, [string, 'green' | 'amber' | 'red' | 'zinc' | 'violet']> = {
@@ -43,6 +44,7 @@ export function History({ current }: { current: string | null }) {
 }
 
 export function AdvancedCli() {
+  const { bt } = useBackendText()
   const [open, setOpen] = useState(false)
   const [plan, setPlan] = useState<ImportPlan>(); const [err, setErr] = useState<string>(); const [target, setTarget] = useState('')
   const servers = (useQuery(open ? 'servers' : null, api.servers).data ?? []).filter(s => s.role !== 'control')
@@ -87,7 +89,7 @@ atoll import zeabur cutover plan.json`}</CodeBlock>
               <div>
                 <div className="flex items-center gap-2 text-[13.5px] font-semibold">{plan.project_name}<span className="text-muted font-normal text-[12.5px]">· {plan.services.length} 个服务 · {bytes(dataBytes)}</span><button onClick={() => setPlan(undefined)} className="ml-auto text-muted hover:text-fg"><X size={15} /></button></div>
                 <div className="mt-2 flex flex-wrap gap-1.5">{plan.services.map(s => <span key={s.name} className="chip px-2 h-6 inline-flex items-center bg-card text-[12px] font-mono">{s.name}</span>)}</div>
-                {plan.warnings?.map(w => <div key={w} className="mt-2 flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" />{w}</div>)}
+                {plan.warnings?.map(w => <div key={w} className="mt-2 flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
                 <div className="mt-4 flex gap-2"><Select className="flex-1" value={tgt} onChange={e => setTarget(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select><Button variant="primary" disabled={busy || !tgt} onClick={submit}>创建并开始</Button></div>
               </div>
             )}

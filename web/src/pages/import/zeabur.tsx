@@ -4,6 +4,7 @@ import { bytes, colorFor, letterFor } from '../../api/view'
 import type { ZeaburReference, ZeaburService } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { ROLE, STORE, VIA, ZSTATUS, isZeaburApp, zStatus } from './model'
+import { useBackendText } from '../../api/backendText'
 
 export function StatusBadge({ s }: { s: ZeaburService }) {
   const [l, t] = ZSTATUS[zStatus(s)] ?? [zStatus(s), 'zinc']
@@ -30,6 +31,7 @@ export function ImageBadge({ s }: { s: ZeaburService }) {
 }
 export function ZRow({ s, names }: { s: ZeaburService; names: Record<string, string> }) {
   const [rl, rt] = ROLE[s.role] ?? ROLE.other
+  const { bt } = useBackendText()
   return (
     <div className="px-4 @2xl:px-6 py-4 grid grid-cols-1 @3xl:grid-cols-[200px_minmax(0,1fr)] @5xl:grid-cols-[230px_minmax(0,1fr)_240px] gap-x-6 gap-y-3 text-[13px] [&>*]:min-w-0">
       <div className="flex items-start gap-3 min-w-0">
@@ -49,7 +51,7 @@ export function ZRow({ s, names }: { s: ZeaburService; names: Record<string, str
           {s.domains.map(d => <span key={d} className="flex items-center gap-1.5 min-w-0"><Globe size={13} className="shrink-0" /><span className={cx('font-medium truncate', isZeaburApp(d) ? 'text-[#ef4444] line-through decoration-2' : 'text-fg')}>{d}</span>{isZeaburApp(d) && <Badge tone="red">迁移后失效</Badge>}</span>)}
         </div>
         {!!s.references?.length && <Refs refs={s.references} names={names} />}
-        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{w}</span></div>)}
+        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>
       <div className="space-y-1.5 min-w-0">
         {!s.volumes.length && <span className="text-dim">无数据卷</span>}

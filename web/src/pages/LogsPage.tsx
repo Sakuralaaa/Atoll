@@ -14,6 +14,7 @@ import { hasBuildLog } from '../api/git'
 import { cx } from '../components/ui-utils'
 import { useProject } from '../api/queries'
 import { useNow } from '../api/useNow'
+import { useT } from '../i18n'
 
 const level = (l: LogLine) => /\b(ERROR|FATAL|CRITICAL|panic)\b/i.test(l.line) ? 'ERROR' : /\bWARN(ING)?\b/i.test(l.line) ? 'WARN' : 'INFO'
 const fmt = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
@@ -38,6 +39,7 @@ const WINDOWS = [{ k: 0, l: '全部时间' }, { k: 15, l: '最近 15 分钟' }, 
 
 export default function LogsPage() {
   const { pid, sid } = useParams()
+  const { t } = useT()
   const [sp, setSp] = useSearchParams()
   const p = useProject(pid).data
   const s = p?.services?.find(x => x.id === sid)
@@ -48,8 +50,9 @@ export default function LogsPage() {
       <div className="px-4 md:px-10 pt-6 md:pt-8 pb-5 flex flex-wrap items-end justify-between gap-3 border-b border-line">
         <div>
           <Link to={`/projects/${pid}/services/${sid}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2"><ArrowLeft size={15} />返回</Link>
-          <div className="text-[13px] text-muted mt-3">{s ? svcName(s) : '…'} · 服务 ID</div>
-          <div className="mt-1"><CopyId v={sid ?? ''} /></div>
+          {/* the service name as the page title (it used to be a small grey label) */}
+          <h1 className="mt-3 text-[22px] md:text-[24px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s ? svcName(s) : '…'}</h1>
+          <div className="mt-1 flex items-center gap-2 text-[12.5px] text-muted">{t('服务 ID', 'Service ID')}<CopyId v={sid ?? ''} /></div>
           <div className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg field p-0.5 gap-1">
             {[['logs', '运行日志'], ['deploys', '部署记录'], ['exec', '命令']].map(([k, l]) => (
               <button key={k} onClick={() => setSp(k === 'logs' ? {} : { view: k })} className={cx('h-9 px-3 md:px-4 rounded-md inline-flex items-center whitespace-nowrap text-[13.5px]', view === k ? 'nav-active font-semibold' : 'text-muted hover:text-fg')}>{l}</button>
@@ -66,6 +69,7 @@ export default function LogsPage() {
 }
 
 function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HTMLElement | null }) {
+  const { t } = useT()
   const { lines: live$, live } = useLogStream(sid)
   const [frozen, setFrozen] = useState<LogLine[]>()
   const lines = frozen ?? live$
@@ -124,7 +128,7 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">SEVERITY</span><span className="max-md:hidden">TIME</span><span>SUMMARY</span></div>
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 h-10 items-center text-[11.5px] font-semibold tracking-wider text-muted border-b border-line bg-sunk"><span className="pl-6">{t('级别', 'SEVERITY')}</span><span className="max-md:hidden">{t('时间', 'TIME')}</span><span>{t('内容', 'SUMMARY')}</span></div>
       <div ref={box} onScroll={e => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40) }} className="flex-1 overflow-auto font-mono text-[13px] relative">
         {!lines.length && !live && <div className="p-4"><RowsSkeleton n={6} /></div>}
         {!shown.length && (live || frozen) && <div className="h-24 grid place-items-center text-[13px] text-muted font-sans">{!lines.length ? '还没有日志输出' : query || lvl ? '没有匹配的日志' : '这个时间段没有日志'}</div>}
@@ -138,7 +142,7 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
             </div>
           )
         })}
-        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans">{frozen ? <><span className="h-2 w-2 rounded-full bg-amber-400" />已暂停，{Math.max(0, live$.length - frozen.length)} 条新日志未显示</> : <><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? 'Streaming logs' : '连接中…'}</>}</div>
+        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans">{frozen ? <><span className="h-2 w-2 rounded-full bg-amber-400" />已暂停，{Math.max(0, live$.length - frozen.length)} 条新日志未显示</> : <><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? t('正在实时接收日志', 'Streaming logs') : t('连接中…', 'Connecting…')}</>}</div>
         {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="sticky float-right right-6 bottom-4 mr-6 h-10 w-10 rounded-full bg-card2 ring-1 ring-line2 grid place-items-center"><ArrowDown size={17} /></button>}
       </div>
     </>

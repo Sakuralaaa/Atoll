@@ -32,7 +32,7 @@ export default function Security() {
   const q = useQuery('auth:2fa', api.twoFactor)
   return (
     <MainShell>
-      <div className="max-w-[1000px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
+      <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
         <UsernameCard twoFactor={q.data?.enabled} />

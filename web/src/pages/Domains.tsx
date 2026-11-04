@@ -37,14 +37,17 @@ export default function Domains() {
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">域名</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />绑定域名</Button></div>
         {!settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
-          <Card className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5 mb-8">
-            <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
-            <div className="flex-1 min-w-[min(100%,240px)]">
-              <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || '未设置根域名'}{(roots?.length ?? 0) > 1 && <span className="text-[13px] font-normal text-muted">+{roots!.length - 1} 个根域名</span>}{cfOk ? <Badge tone="green">已连接</Badge> : <Badge tone="amber">未连接</Badge>}</div>
-              <div className="text-[13px] text-muted mt-1">{cfOk ? `Cloudflare · ${settings.tls_mode === 'acme' ? 'ACME 证书' : 'Origin CA 证书'} · 绑定根域名下的域名时自动创建 DNS 记录` : '在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。'}</div>
+          <Card className="mb-8 overflow-hidden">
+            <div className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5">
+              <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
+              <div className="flex-1 min-w-[min(100%,240px)]">
+                <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || '未设置根域名'}{(roots?.length ?? 0) > 1 && <span className="text-[13px] font-normal text-muted">+{roots!.length - 1} 个根域名</span>}{cfOk ? <Badge tone="green">已连接</Badge> : <Badge tone="amber">未连接</Badge>}</div>
+                <div className="text-[13px] text-muted mt-1">{cfOk ? `Cloudflare · ${settings.tls_mode === 'acme' ? 'ACME 证书' : 'Origin CA 证书'} · 绑定根域名下的域名时自动创建 DNS 记录` : '在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。'}</div>
+              </div>
+              {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 tnum @max-3xl:w-full @max-3xl:pl-[68px]">{q.data?.length ?? '—'} 条记录由 Atoll 管理</div>
+                : <Link to="/settings"><Button><Settings2 size={14} />去设置<ArrowRight size={14} /></Button></Link>}
             </div>
-            {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 @max-3xl:w-full @max-3xl:pl-[68px]"><div className="tnum">{q.data?.length ?? '—'} 条记录由 Atoll 管理</div><TokenPerms c={perms} /></div>
-              : <Link to="/settings"><Button><Settings2 size={14} />去设置<ArrowRight size={14} /></Button></Link>}
+            {cfOk && <TokenPerms c={perms} />}
           </Card>
         )}
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -115,23 +118,35 @@ function CertTag({ d }: { d: Domain }) {
   return null
 }
 
-/** Domains page header: the token permissions Atoll needs, as probed by the server. */
+/** Domains page header: the token permissions Atoll needs, as probed by the server — a strip of
+ *  chips under the Cloudflare card, with the consequence of a missing permission spelled out below. */
 function TokenPerms({ c }: { c?: CloudflareTokenCheck }) {
   const { t } = useT()
-  const line = (state: string | undefined, label: string, warn: string, err?: string) => {
+  const chip = (state: string | undefined, label: string, warn: string, err?: string) => {
     const ok = state === 'ok', missing = state === 'missing'
     return (
-      <div className={`mt-1 flex items-center gap-1 @3xl:justify-end ${missing ? 'text-[#d97706]' : 'text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
+      <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] whitespace-nowrap ${missing ? 'border-[#d97706]/50 bg-[#fcd34d]/20 text-[#b45309] dark:text-[#fbbf24]' : 'border-line bg-sunk text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
         {!c ? <Loader2 size={13} className="animate-spin text-muted" /> : ok ? <ShieldCheck size={13} className="text-emerald-500" /> : <ShieldAlert size={13} className={missing ? '' : 'text-muted'} />}
-        {t('令牌权限：', 'Token: ')}{label}{c && !ok && <span className="font-semibold">{missing ? t(' · 缺失', ' · missing') : t(' · 未知', ' · unknown')}</span>}
-      </div>
+        {label}{c && !ok && <span className="font-semibold">{missing ? t(' · 缺失', ' · missing') : t(' · 未知', ' · unknown')}</span>}
+      </span>
     )
   }
-  return <>
-    {line(c?.dns, t('Zone.DNS 编辑', 'Zone.DNS Edit'), t('缺少 Zone.DNS 编辑权限：绑定域名时无法自动建 DNS 记录', 'Missing Zone.DNS Edit: DNS records cannot be created when binding a domain'), c?.dns_error)}
-    {c?.ssl && line(c.ssl, t('SSL 证书编辑', 'SSL and Certificates Edit'), t(`缺少 Zone.SSL and Certificates 编辑权限：${c.ssl_roots?.join('、')} 签 Origin CA 证书会报 1016，只能退回 ACME`, `Missing Zone.SSL and Certificates Edit: issuing Origin CA certificates for ${c.ssl_roots?.join(', ')} fails with 1016 and falls back to ACME`), c.ssl_error)}
-    {c?.ssl === 'missing' && <div className="mt-1 text-[12px] text-[#d97706] @3xl:text-right max-w-[360px] @3xl:ml-auto">{t('根域名用 Origin CA 时令牌还需要「SSL and Certificates：编辑」，否则签证书会报 1016', 'Origin CA roots also need "SSL and Certificates: Edit", otherwise issuing fails with 1016')}</div>}
-  </>
+  return (
+    <div className="px-5 @2xl:px-6 py-3.5 border-t border-line bg-card2 flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12.5px] text-muted mr-1">{t('令牌权限', 'Token permissions')}</span>
+        {chip(c?.dns, t('Zone.DNS 编辑', 'Zone.DNS Edit'), t('缺少 Zone.DNS 编辑权限：绑定域名时无法自动建 DNS 记录', 'Missing Zone.DNS Edit: DNS records cannot be created when binding a domain'), c?.dns_error)}
+        {c?.ssl && chip(c.ssl, t('SSL 证书编辑', 'SSL and Certificates Edit'), t(`缺少 Zone.SSL and Certificates 编辑权限：${c.ssl_roots?.join('、')} 签 Origin CA 证书会报 1016，只能退回 ACME`, `Missing Zone.SSL and Certificates Edit: issuing Origin CA certificates for ${c.ssl_roots?.join(', ')} fails with 1016 and falls back to ACME`), c.ssl_error)}
+      </div>
+      {(c?.dns === 'missing' || c?.ssl === 'missing') && <div className="flex items-start gap-2 text-[12.5px] leading-5 text-[#b45309] dark:text-[#fbbf24]">
+        <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+        <div className="min-w-0 space-y-0.5">
+          {c.dns === 'missing' && <div>{t('缺少 Zone.DNS 编辑权限：绑定域名时无法自动建 DNS 记录，需要在 Cloudflare 给令牌补上。', 'Missing Zone.DNS Edit: DNS records cannot be created when binding a domain; add it to the token in Cloudflare.')}</div>}
+          {c.ssl === 'missing' && <div>{t(`根域名用 Origin CA 时令牌还需要「SSL and Certificates：编辑」，否则${c.ssl_roots?.length ? ` ${c.ssl_roots.join('、')} ` : ''}签证书会报 1016，只能退回 ACME。`, `Origin CA roots${c.ssl_roots?.length ? ` (${c.ssl_roots.join(', ')})` : ''} also need "SSL and Certificates: Edit", otherwise issuing fails with 1016 and falls back to ACME.`)}</div>}
+        </div>
+      </div>}
+    </div>
+  )
 }
 
 /** Confirm a proxy switch; says what happens to the certificate (grey cloud under an Origin CA root gets ACME). */

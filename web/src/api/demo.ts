@@ -30,7 +30,7 @@ const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s =>
   ...(TAILNET[s.id] ? { tailnet_ip: TAILNET[s.id][0], network: { provider: 'tailscale', state: 'running', via_tailnet: TAILNET[s.id][1], control_url: TAILNET[s.id][1] ? 'http://100.64.0.4:7301' : 'https://panel.example.com', fallback_urls: TAILNET[s.id][1] ? ['https://panel.example.com'] : [] } } : { network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } }),
   // demo GeoIP: RackNerd LA has no provider/region typed in, so the panel shows what the lookup found
   ...(s.id === 'lax' ? { provider: '', region: '', geo: { ip: s.ip, country: 'US', city: 'Los Angeles', asn: 'AS36352', org: 'HostPapa', source: 'ipinfo.io', at: iso(2 * H) } } : {}),
-  ...(s.status === 'online' ? { latency: { last_ms: s.latency, avg_ms: +(s.latency * 1.06).toFixed(1), samples: 8, measured_at: iso(6e3) } } : {}),
+  ...(s.status === 'online' ? { latency: { last_ms: s.latency, avg_ms: +(s.latency * 1.06).toFixed(1), samples: 8, measured_at: iso(6e3), method: s.id === 'fra' ? 'message' : 'ping' } } : {}),
   usage: { at: iso(8e3), cpu_pct: s.cpuUse, mem_used_mb: Math.round(s.memGB * 1024 * s.memUse / 100), mem_total_mb: s.memGB * 1024, disk_used_gb: +(s.diskGB * s.diskUse / 100).toFixed(1), disk_total_gb: s.diskGB, net_rx_bps: 120e3, net_tx_bps: 80e3, load1: s.cpuUse / 25 },
 }))
 
@@ -237,6 +237,10 @@ const VERIFY: ImportVerify[] = [
   { service: 'redis', table: 'db0 (keys)', source_rows: 412, target_rows: 412 },
 ]
 const DETAIL: Record<number, string> = { 0: '1 个镜像 · registry.zeabur.cloud/…/acme-api → atoll-import/acme-api:4be1c09a7d2f', 1: 'postgres:16-alpine@sha256:9a07e3…, redis:7.2-alpine@sha256:1fd3a8…', 2: '3 个卷 · 226 MB', 3: 'pg_dump 16.4 → pg_restore · 4 张表', 4: '3/3 运行中 · 仅项目内网' }
+// step details as the server writes them (English; the UI translates them, api/backendText.ts)
+const DOCKER_DETAIL: Record<number, string> = { 0: '2 container(s) found; 41.2 GB disk free, 1830 MB memory free', 1: '2 image(s) pinned to their registry digest, 0 kept as local image(s)',
+  2: '2 Atoll copy(ies) started without published ports; writable data dirs are scratch copies, the old containers keep serving', 3: 'all Atoll copies started and stayed healthy; stopped again until cutover',
+  4: '2 old container(s) stopped and kept (restart policy no)', 5: '2 service(s) running: 1 host port(s) published, 1 mount(s) in place' }
 const localSteps = (done: number, running = -1): ImportStep[] => LOCAL_STEPS.map((name, i) => ({ name, status: i < done ? 'done' : i === running ? 'running' : 'pending', detail: i < done || i === running ? DETAIL[i] ?? (i === 5 && i < done ? '5/5 一致' : undefined) : undefined }))
 const acmePlan = (): ImportPlan => ({ source: 'zeabur', source_project: 'a1b2c3d4e5f6a', project_name: 'acme-api', target_server_id: 'phx', warnings: ['acme-api.zeabur.app 切换后失效，已映射到 acme-api.example.com'],
   services: zeabur.projects[0].services.map(z => ({ source_service_id: z.service_id, name: z.name, kind: z.kind, image: z.image, image_needs_push: false, ports: z.ports, volumes: z.volumes.map(v => ({ name: v.pvc, mount_path: v.mount_path })), env: [], domains: z.domains.map(d => d.replace('.zeabur.app', '.example.com')), data_bytes: z.volumes.reduce((a, v) => a + v.bytes, 0) })) })
@@ -250,7 +254,7 @@ function tickLocal(j: ImportJob) {
     const [from, to, end] = j.status === 'rehearsing' ? [0, 4, 'rehearsed'] : j.status === 'cutting_over' ? [4, 7, 'live'] : j.status === 'rolling_back' ? [7, 7, 'rolled_back'] : [0, 0, '']
     if (!end) return
     const done = Math.min(to, from + k)
-    j.steps = j.steps.map((s, i) => i < from ? s : { ...s, status: i < done ? 'done' : i === done && done < to ? 'running' : i < to ? 'pending' : s.status })
+    j.steps = j.steps.map((s, i) => i < from ? s : { ...s, status: i < done ? 'done' : i === done && done < to ? 'running' : i < to ? 'pending' : s.status, detail: i < done ? DOCKER_DETAIL[i] : s.detail })
     if (done >= to) j.status = end
     return
   }
