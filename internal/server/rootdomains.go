@@ -72,9 +72,20 @@ func checkCertMode(m string) error {
 }
 
 func (s *Server) handleListRootDomains(w http.ResponseWriter, r *http.Request) error {
-	rs, err := s.st.ListRootDomains(r.Context())
+	ctx := r.Context()
+	rs, err := s.st.ListRootDomains(ctx)
 	if err != nil {
 		return err
+	}
+	// the root carried over from base_domain (migration 0019) keeps resolving its zone
+	// the old way (Settings zone id, else a lookup at DNS time) and never stores it:
+	// show it as that zone rather than "no zone found". Display only, no Cloudflare call.
+	base, _ := s.st.GetSetting(ctx, "base_domain")
+	tok, _ := s.st.GetSetting(ctx, "cloudflare_token")
+	for i := range rs {
+		if rs[i].ZoneName == "" && rs[i].Name == base && tok != "" {
+			rs[i].ZoneName = base
+		}
 	}
 	out := make([]api.RootDomain, len(rs))
 	for i, x := range rs {
@@ -190,7 +201,7 @@ func (s *Server) settleRootCert(ctx context.Context, name string) {
 	oc, err := cf.IssueOriginCert(ictx, name)
 	if err != nil {
 		msg := err.Error()
-		if strings.Contains(msg, "HTTP 403") || strings.Contains(msg, "10000") || strings.Contains(msg, "uthentication") {
+		if strings.Contains(msg, "HTTP 403") || strings.Contains(msg, "HTTP 401") || strings.Contains(msg, "1016") || strings.Contains(msg, "10000") || strings.Contains(msg, "uthentication") {
 			msg = "the Cloudflare token cannot issue Origin CA certificates (add the zone permission SSL and Certificates: Edit): " + msg
 		}
 		s.log.Warn("root domain: origin certificate failed, using ACME", "root", name, "err", err)
