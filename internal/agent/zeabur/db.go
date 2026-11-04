@@ -153,7 +153,7 @@ func (t *Takeover) pipe(ctx context.Context, p pod, srcScript, container, dstScr
 }
 
 // MigrateDB dumps the Zeabur database and restores it into the atoll container (same major
-// version expected). Re-runnable: restores replace existing objects (final sync).
+// version expected). Re-runnable: each Postgres database is dropped and restored afresh (final sync).
 func (t *Takeover) MigrateDB(ctx context.Context, p api.ZeaburDBPayload) (DBResult, error) {
 	res := DBResult{Kind: p.Kind}
 	src, err := t.sourcePod(ctx, p.Namespace, p.SourceServiceID)
@@ -293,13 +293,17 @@ func (t *Takeover) migratePostgres(ctx context.Context, src pod, target string, 
 			// post_restore() (https://docs.timescale.com/self-hosted/latest/backup-and-restore/).
 			// pg_restore reports harmless errors (the extension already exists, catalog
 			// comments), so its exit code is not trusted; the row counts below verify the data.
-			restore = pgEnv + `dropdb -U "$U" --if-exists --force ` + q + ` && createdb -U "$U" ` + q +
+			restore = pgEnv + `dropdb -U "$U" --maintenance-db=template1 --if-exists --force ` + q + ` && createdb -U "$U" --maintenance-db=template1 ` + q +
 				` && psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()" >/dev/null` +
 				` && { pg_restore -U "$U" -d ` + q + ` --no-owner; psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "SELECT timescaledb_post_restore()" >/dev/null; }`
 			res.Warnings = append(res.Warnings, fmt.Sprintf("database %s uses TimescaleDB: restored with timescaledb_pre_restore/post_restore; the target image must carry the same TimescaleDB version (pin it to Zeabur's digest)", db))
 		} else {
-			restore = pgEnv + `psql -U "$U" -d postgres -Atc "select 1 from pg_database where datname='` + db + `'" | grep -q 1 || createdb -U "$U" ` + q +
-				`; pg_restore -U "$U" -d ` + q + ` --no-owner --clean --if-exists`
+			// Restore into a freshly created database rather than pg_restore --clean over the
+			// previous copy: --clean cannot drop objects in dependency order for partitioned
+			// tables ("cannot drop inherited constraint"), so a rehearsal re-run or the final
+			// sync failed. Connections to the Atoll copy are closed (--force).
+			restore = pgEnv + `dropdb -U "$U" --maintenance-db=template1 --if-exists --force ` + q + ` && createdb -U "$U" --maintenance-db=template1 ` + q +
+				` && pg_restore -U "$U" -d ` + q + ` --no-owner`
 		}
 		n, err := t.pipe(ctx, src, dump, target, restore)
 		res.Bytes += n
