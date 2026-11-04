@@ -6,6 +6,11 @@ go 1.26.0
 // dozens of fixed standard-library vulnerabilities (net/http, crypto/tls, crypto/x509).
 toolchain go1.26.10
 
+// CVE-2026-98432: since Go 1.24 listeners open as MPTCP on Linux, which the public
+// remote root exploit needs. Atoll does not use MPTCP. Opt back in with
+// GODEBUG=multipathtcp=2.
+godebug multipathtcp=0
+
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/containerd/errdefs v1.0.0
