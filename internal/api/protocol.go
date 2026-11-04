@@ -58,6 +58,7 @@ type ResolvedSpec struct {
 	Health       *HealthCheck      `json:"health,omitempty"`
 	CPULimit     float64           `json:"cpu_limit,omitempty"`
 	MemLimitMB   int               `json:"mem_limit_mb,omitempty"`
+	User         string            `json:"user,omitempty"` // docker --user ("" = image default)
 	RegistryAuth *RegistryAuth     `json:"registry_auth,omitempty"`
 	// LocalImage: Image only exists on this server (built from source); never pull it.
 	LocalImage bool `json:"local_image,omitempty"`

@@ -24,6 +24,7 @@ type ImportService struct {
 	ImageNeedsPush  bool         `json:"image_needs_push"` // built on Zeabur, exported tar must be pushed to user's registry
 	Command         []string     `json:"command,omitempty"`
 	Args            []string     `json:"args,omitempty"` // added by CLI importer: Zeabur templates often set only args (e.g. redis --requirepass)
+	User            string       `json:"user,omitempty"` // container user Zeabur ran it as (docker --user)
 	Ports           []Port       `json:"ports"`
 	Volumes         []Volume     `json:"volumes"`
 	Configs         []ConfigFile `json:"configs,omitempty"`
@@ -100,24 +101,27 @@ type ZeaburProject struct {
 }
 
 type ZeaburService struct {
-	ServiceID      string         `json:"service_id"`
-	Name           string         `json:"name"`     // dnsName (app.kubernetes.io/name)
-	Workload       string         `json:"workload"` // "deployment/service-<id>" | "statefulset/..." | "" when suspended (PVC only)
-	Replicas       int            `json:"replicas"`
-	Role           string         `json:"role"` // "app" | "database" | "cache" | "other" (guessed from image)
-	Kind           string         `json:"kind"` // Atoll kind guess: image|postgres|mysql|redis|mongo
-	Image          string         `json:"image"`
-	ImageID        string         `json:"image_id"`        // running digest
-	ZeaburRegistry bool           `json:"zeabur_registry"` // built on Zeabur: must export from containerd
-	ImageCached    bool           `json:"image_cached"`
-	Command        []string       `json:"command,omitempty"`
-	Args           []string       `json:"args,omitempty"`
-	Ports          []Port         `json:"ports"`
-	NodePorts      []int          `json:"node_ports,omitempty"`
-	Env            []EnvVar       `json:"env"` // effective expanded values from pod spec
-	Volumes        []ZeaburVolume `json:"volumes"`
-	Configs        []ConfigFile   `json:"configs,omitempty"`
-	Domains        []string       `json:"domains"` // from Ingress objects (custom + *.zeabur.app)
+	ServiceID      string   `json:"service_id"`
+	Name           string   `json:"name"`     // dnsName (app.kubernetes.io/name)
+	Workload       string   `json:"workload"` // "deployment/service-<id>" | "statefulset/..." | "" when suspended (PVC only)
+	Replicas       int      `json:"replicas"`
+	Role           string   `json:"role"` // "app" | "database" | "cache" | "other" (guessed from image)
+	Kind           string   `json:"kind"` // Atoll kind guess: image|postgres|mysql|redis|mongo
+	Image          string   `json:"image"`
+	ImageID        string   `json:"image_id"`        // running digest
+	ZeaburRegistry bool     `json:"zeabur_registry"` // built on Zeabur: must export from containerd
+	ImageCached    bool     `json:"image_cached"`
+	Command        []string `json:"command,omitempty"`
+	Args           []string `json:"args,omitempty"`
+	// User is the pod's effective securityContext runAsUser[:runAsGroup] ("" = image default).
+	// Zeabur runs most pods as root (runAsUser 0), whatever USER the image declares.
+	User      string         `json:"user,omitempty"`
+	Ports     []Port         `json:"ports"`
+	NodePorts []int          `json:"node_ports,omitempty"`
+	Env       []EnvVar       `json:"env"` // effective expanded values from pod spec
+	Volumes   []ZeaburVolume `json:"volumes"`
+	Configs   []ConfigFile   `json:"configs,omitempty"`
+	Domains   []string       `json:"domains"` // from Ingress objects (custom + *.zeabur.app)
 	// MemUsageMB is the pods' current memory use (kubectl top; 0 when metrics are unavailable).
 	MemUsageMB int      `json:"mem_usage_mb,omitempty"`
 	Warnings   []string `json:"warnings,omitempty"`

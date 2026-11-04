@@ -138,6 +138,7 @@ func BuildContainerSpec(p Paths, s api.ResolvedSpec) (ContainerSpec, error) {
 	if s.MemLimitMB > 0 {
 		cs.MemoryBytes = int64(s.MemLimitMB) * 1024 * 1024
 	}
+	cs.User = s.User
 	cs.PidsLimit = DefaultPidsLimit
 	cs.Health = buildHealth(s)
 	return cs, nil

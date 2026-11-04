@@ -76,6 +76,7 @@ func (s *Server) buildSpecWith(ctx context.Context, svc *api.Service, deployment
 		Health:       svc.Health,
 		CPULimit:     svc.CPULimit,
 		MemLimitMB:   svc.MemLimitMB,
+		User:         svc.User,
 	}
 	if spec.Ports == nil {
 		spec.Ports = []api.Port{}

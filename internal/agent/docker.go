@@ -213,6 +213,7 @@ func (d *DockerRuntime) CreateContainer(ctx context.Context, s ContainerSpec) er
 		Env:          s.Env,
 		Labels:       s.Labels,
 		ExposedPorts: nat.PortSet{},
+		User:         s.User,
 	}
 	if len(s.Entrypoint) > 0 {
 		cfg.Entrypoint = s.Entrypoint

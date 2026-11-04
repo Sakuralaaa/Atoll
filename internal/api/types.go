@@ -97,10 +97,13 @@ type Service struct {
 	CPULimit       float64      `json:"cpu_limit,omitempty"` // cores, 0 = unlimited
 	MemLimitMB     int          `json:"mem_limit_mb,omitempty"`
 	RegistryCredID string       `json:"registry_cred_id,omitempty"`
-	Status         string       `json:"status"`   // "running" | "deploying" | "stopped" | "failed" | "unknown"
-	Replicas       string       `json:"replicas"` // e.g. "1/1"
-	CreatedAt      time.Time    `json:"created_at"`
-	Domains        []Domain     `json:"domains,omitempty"`
+	// User overrides the image's USER (docker run --user): "uid", "uid:gid" or a user name.
+	// Empty runs the image's own user. Imports from Zeabur set it from the pod's runAsUser.
+	User      string    `json:"user,omitempty"`
+	Status    string    `json:"status"`   // "running" | "deploying" | "stopped" | "failed" | "unknown"
+	Replicas  string    `json:"replicas"` // e.g. "1/1"
+	CreatedAt time.Time `json:"created_at"`
+	Domains   []Domain  `json:"domains,omitempty"`
 	// ServerID is the server this service runs on (read-only in responses). Usually the
 	// project's server; a service placed on another server (POST .../services with server_id,
 	// or POST /services/{id}/migrate) reaches its siblings over the tailnet mesh.

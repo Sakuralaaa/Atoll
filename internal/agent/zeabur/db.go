@@ -274,11 +274,33 @@ func (t *Takeover) migratePostgres(ctx context.Context, src pod, target string, 
 	}
 	res.Databases = splitNames(out, nil, res)
 	res.Source, res.Target = map[string]int64{}, map[string]int64{}
+	// Roles first: pg_dump carries no roles, so policies/grants TO an app role fail to restore,
+	// and the role passwords the apps log in with (often not the image's POSTGRES_PASSWORD,
+	// which only applies at initdb) would be lost. Errors such as "role already exists" are
+	// expected and ignored (no ON_ERROR_STOP); the ALTER ROLE lines still apply.
+	n, err := t.pipe(ctx, src, pgEnv+`pg_dumpall -U "$U" --roles-only`, target, pgEnv+`psql -U "$U" -d postgres -q >/dev/null 2>&1; exit 0`)
+	res.Bytes += n
+	if err != nil {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("roles not copied (%v); grants and policies to app roles may fail", err))
+	}
 	for _, db := range res.Databases {
 		q := shq(db)
-		dump := pgEnv + `pg_dump -U "$U" -Fc --no-owner --no-acl -d ` + q
-		restore := pgEnv + `psql -U "$U" -d postgres -Atc "select 1 from pg_database where datname='` + db + `'" | grep -q 1 || createdb -U "$U" ` + q +
-			`; pg_restore -U "$U" -d ` + q + ` --no-owner --no-acl --clean --if-exists`
+		ts, _ := t.srcOutput(ctx, src, pgEnv+`psql -U "$U" -d `+q+` -Atc "select 1 from pg_extension where extname='timescaledb'"`)
+		dump := pgEnv + `pg_dump -U "$U" -Fc --no-owner -d ` + q
+		var restore string
+		if strings.TrimSpace(ts) == "1" {
+			// TimescaleDB: restore into a fresh database between timescaledb_pre_restore() and
+			// post_restore() (https://docs.timescale.com/self-hosted/latest/backup-and-restore/).
+			// pg_restore reports harmless errors (the extension already exists, catalog
+			// comments), so its exit code is not trusted; the row counts below verify the data.
+			restore = pgEnv + `dropdb -U "$U" --if-exists --force ` + q + ` && createdb -U "$U" ` + q +
+				` && psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()" >/dev/null` +
+				` && { pg_restore -U "$U" -d ` + q + ` --no-owner; psql -U "$U" -d ` + q + ` -v ON_ERROR_STOP=1 -qc "SELECT timescaledb_post_restore()" >/dev/null; }`
+			res.Warnings = append(res.Warnings, fmt.Sprintf("database %s uses TimescaleDB: restored with timescaledb_pre_restore/post_restore; the target image must carry the same TimescaleDB version (pin it to Zeabur's digest)", db))
+		} else {
+			restore = pgEnv + `psql -U "$U" -d postgres -Atc "select 1 from pg_database where datname='` + db + `'" | grep -q 1 || createdb -U "$U" ` + q +
+				`; pg_restore -U "$U" -d ` + q + ` --no-owner --clean --if-exists`
+		}
 		n, err := t.pipe(ctx, src, dump, target, restore)
 		res.Bytes += n
 		if err != nil {

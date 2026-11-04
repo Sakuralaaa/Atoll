@@ -79,7 +79,7 @@ func (s *Server) handleCreateImport(w http.ResponseWriter, r *http.Request) erro
 	names := map[string]bool{}
 	specs := make([]api.Service, len(plan.Services))
 	for i, is := range plan.Services {
-		v := api.Service{Name: sanitizeName(is.Name), Kind: is.Kind, Image: is.Image, Command: is.Command, Ports: is.Ports, Volumes: is.Volumes, Configs: is.Configs}
+		v := api.Service{Name: sanitizeName(is.Name), Kind: is.Kind, Image: is.Image, Command: is.Command, Args: is.Args, User: is.User, Ports: is.Ports, Volumes: is.Volumes, Configs: is.Configs}
 		if v.Kind == "" {
 			v.Kind = "image"
 		}

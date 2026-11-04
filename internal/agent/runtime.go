@@ -114,6 +114,7 @@ type ContainerSpec struct {
 	Image      string
 	Entrypoint []string
 	Cmd        []string
+	User       string   // docker --user; "" = the image's USER
 	Env        []string // KEY=VALUE, sorted
 	Labels     map[string]string
 	Networks   []NetworkAttach // first is the primary network

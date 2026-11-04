@@ -101,6 +101,7 @@ type PodSpec struct {
 	Containers          []Container `yaml:"containers"`
 	EphemeralContainers []Container `yaml:"ephemeralContainers"`
 	Volumes             []PodVolume `yaml:"volumes"`
+	SecurityContext     *SecContext `yaml:"securityContext"`
 	ImagePullSecrets    []struct {
 		Name string `yaml:"name"`
 	} `yaml:"imagePullSecrets"`
@@ -115,17 +116,48 @@ type ClaimTemplate struct {
 }
 
 type Container struct {
-	Name         string        `yaml:"name"`
-	Image        string        `yaml:"image"`
-	Command      []string      `yaml:"command"`
-	Args         []string      `yaml:"args"`
-	Env          []EnvEntry    `yaml:"env"`
-	EnvFrom      []EnvFrom     `yaml:"envFrom"`
-	Ports        []ContPort    `yaml:"ports"`
-	VolumeMounts []VolumeMount `yaml:"volumeMounts"`
-	StartupProbe *Probe        `yaml:"startupProbe"`
-	ReadyProbe   *Probe        `yaml:"readinessProbe"`
-	Resources    ResourceReqs  `yaml:"resources"`
+	Name            string        `yaml:"name"`
+	Image           string        `yaml:"image"`
+	Command         []string      `yaml:"command"`
+	Args            []string      `yaml:"args"`
+	Env             []EnvEntry    `yaml:"env"`
+	EnvFrom         []EnvFrom     `yaml:"envFrom"`
+	Ports           []ContPort    `yaml:"ports"`
+	VolumeMounts    []VolumeMount `yaml:"volumeMounts"`
+	StartupProbe    *Probe        `yaml:"startupProbe"`
+	ReadyProbe      *Probe        `yaml:"readinessProbe"`
+	Resources       ResourceReqs  `yaml:"resources"`
+	SecurityContext *SecContext   `yaml:"securityContext"`
+}
+
+// SecContext is the part of a pod/container securityContext that decides the process user.
+type SecContext struct {
+	RunAsUser  *int64 `yaml:"runAsUser"`
+	RunAsGroup *int64 `yaml:"runAsGroup"`
+}
+
+// RunAs is the docker --user equivalent of a container's effective securityContext (the
+// container's fields win over the pod's); "" when neither sets runAsUser.
+func RunAs(pod PodSpec, c Container) string {
+	var uid, gid *int64
+	for _, sc := range []*SecContext{pod.SecurityContext, c.SecurityContext} {
+		if sc == nil {
+			continue
+		}
+		if sc.RunAsUser != nil {
+			uid = sc.RunAsUser
+		}
+		if sc.RunAsGroup != nil {
+			gid = sc.RunAsGroup
+		}
+	}
+	if uid == nil {
+		return ""
+	}
+	if gid != nil {
+		return fmt.Sprintf("%d:%d", *uid, *gid)
+	}
+	return fmt.Sprintf("%d", *uid)
 }
 
 type Probe struct {

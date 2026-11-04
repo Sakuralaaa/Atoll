@@ -635,7 +635,7 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) error {
 	// Restore the service's spec fields so later redeploys keep the rolled-back version.
 	svc.Image = spec.Image
 	svc.Ports, svc.Volumes, svc.Configs, svc.Health = spec.Ports, spec.Volumes, spec.Configs, spec.Health
-	svc.CPULimit, svc.MemLimitMB = spec.CPULimit, spec.MemLimitMB
+	svc.CPULimit, svc.MemLimitMB, svc.User = spec.CPULimit, spec.MemLimitMB, spec.User
 	if err := s.st.UpdateServiceSpec(r.Context(), *svc); err != nil {
 		return err
 	}

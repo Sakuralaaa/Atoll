@@ -373,6 +373,7 @@ func extractOne(ns, id string, w Object, ix index, facts HostFacts) api.ZeaburSe
 	c := pod.Containers[0]
 	s.Image = c.Image
 	s.Command, s.Args = c.Command, c.Args
+	s.User = RunAs(pod, c)
 	if ps := ix.pods[id]; len(ps) > 0 {
 		p := ps[0]
 		for _, cs := range p.Status.ContainerStatuses {

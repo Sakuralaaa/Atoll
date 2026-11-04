@@ -14,6 +14,7 @@ var (
 	envKeyRe   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]*$`)
 	hostnameRe = regexp.MustCompile(`^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$`)
 	portNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
+	userRe     = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,63})?$`)
 )
 
 // sanitizeName turns any string into a DNS label ("My App_1" -> "my-app-1").
@@ -140,6 +141,10 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 	}
 	if v.CPULimit < 0 || v.MemLimitMB < 0 {
 		return badRequest("limits must be >= 0")
+	}
+	v.User = strings.TrimSpace(v.User)
+	if v.User != "" && !userRe.MatchString(v.User) {
+		return badRequest("user must be a uid, uid:gid or a user name (like docker --user)")
 	}
 	return nil
 }

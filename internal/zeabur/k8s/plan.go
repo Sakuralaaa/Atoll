@@ -99,6 +99,7 @@ func BuildPlan(services []api.ZeaburService, opt PlanOptions) api.ImportPlan {
 			warn("%s: image was built by Zeabur (%s registry stops serving); it must be exported from the server or rebuilt", name, strings.SplitN(s.Image, "/", 2)[0])
 		}
 		is.Command = append([]string{}, s.Command...)
+		is.User = s.User
 		if len(s.Args) > 0 {
 			is.Args = append([]string{}, s.Args...)
 		}

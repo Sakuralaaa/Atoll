@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/zeabur/k8s"
 )
 
 // ---------- rehearse ----------
@@ -149,7 +150,11 @@ func (z *zrun) doRehearse() error {
 			// Zeabur-built images only exist in containerd; registry images are pulled by
 			// their original ref (tag kept), with containerd as the agent's fallback.
 			pull := !sv.ZeaburRegistry
-			ref, err := s.hub.Call(ctx, z.node, api.MsgZeaburImage, api.ZeaburImagePayload{Image: sv.Image, ServiceID: sv.AtollID, Pull: pull}, s.cfg.TransferTimeout)
+			img := sv.Image
+			if pull {
+				img = z.pinnedImage(sv)
+			}
+			ref, err := s.hub.Call(ctx, z.node, api.MsgZeaburImage, api.ZeaburImagePayload{Image: img, ServiceID: sv.AtollID, Pull: pull}, s.cfg.TransferTimeout)
 			if err != nil {
 				return "", fmt.Errorf("%s: %w", sv.Name, err)
 			}
@@ -213,6 +218,29 @@ func (z *zrun) serviceIDs(filter func(zeaburSvcMeta) bool) []string {
 		}
 	}
 	return ids
+}
+
+// pinnedImage is the registry ref a rehearsal pulls for sv: its Zeabur tag, unless the Atoll
+// service was pinned to a digest of the same repository since (PATCH image repo@sha256:…), for
+// example to keep the exact build Zeabur ran when the tag has moved on to a broken release.
+func (z *zrun) pinnedImage(sv zeaburSvcMeta) string {
+	svc, _, err := z.s.st.GetService(z.ctx, sv.AtollID)
+	if err != nil {
+		return sv.Image
+	}
+	repo, _, dg := k8s.SplitImage(svc.Image)
+	zrepo, _, _ := k8s.SplitImage(sv.Image)
+	if dg != "" && normRepo(repo) == normRepo(zrepo) {
+		return svc.Image
+	}
+	return sv.Image
+}
+
+// normRepo drops the implicit docker.io/ and library/ prefixes so "postgres" and
+// "docker.io/library/postgres" compare equal.
+func normRepo(r string) string {
+	r = strings.TrimPrefix(r, "docker.io/")
+	return strings.TrimPrefix(r, "library/")
 }
 
 func (z *zrun) setImage(serviceID, ref string) error {
