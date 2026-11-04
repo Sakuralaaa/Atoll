@@ -425,6 +425,9 @@ func (s *Server) loadZeaburJob(ctx context.Context, id string) (*api.ImportJob, 
 		return nil, nil, err
 	}
 	if kind != importKindZeabur {
+		if kind == importKindDocker {
+			return nil, nil, badRequest("import %s is a Docker adoption", id)
+		}
 		return nil, nil, badRequest("import %s is a CLI plan import; use /start", id)
 	}
 	return j, &meta, nil

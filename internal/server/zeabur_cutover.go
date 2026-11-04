@@ -18,6 +18,11 @@ import (
 // ---------- cutover ----------
 
 func (s *Server) handleCutover(w http.ResponseWriter, r *http.Request) error {
+	if kind, err := s.importKind(r.Context(), r.PathValue("id")); err != nil {
+		return err
+	} else if kind == importKindDocker {
+		return s.handleDockerCutover(w, r)
+	}
 	var req api.ZeaburCutoverRequest
 	if r.ContentLength != 0 {
 		if err := decode(r, &req); err != nil {
@@ -49,6 +54,9 @@ func (s *Server) handleCutover(w http.ResponseWriter, r *http.Request) error {
 // startCutover launches the cutover of one job in the background (also called for approved
 // confirmations): a node cutover with a single job.
 func (s *Server) startCutover(ctx context.Context, id string, force bool, actor string) (*api.ImportJob, error) {
+	if kind, err := s.importKind(ctx, id); err == nil && kind == importKindDocker {
+		return s.startDockerCutover(ctx, id) // approved confirmation of a Docker adoption
+	}
 	j, _, err := s.loadZeaburJob(ctx, id)
 	if err != nil {
 		return nil, err

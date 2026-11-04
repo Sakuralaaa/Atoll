@@ -25,6 +25,11 @@ func (s *Server) handleRehearse(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if kind, err := s.importKind(ctx, r.PathValue("id")); err != nil {
+		return err
+	} else if kind == importKindDocker {
+		return s.handleDockerRehearse(w, r, req)
+	}
 	allowed := []string{zsPlanned, zsRehearsed, zsFailed, zsRolledBack}
 	if !req.IgnoreMemory {
 		if err := s.checkRehearseMemory(ctx, r.PathValue("id"), allowed); err != nil {

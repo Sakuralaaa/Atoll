@@ -70,6 +70,13 @@ func (s *Server) startMigration(ctx context.Context, projectID, toID, base, acto
 	if p.ServerID == toID {
 		return nil, badRequest("project already runs on that server")
 	}
+	if svcs, err := s.st.ListServices(ctx, projectID); err == nil {
+		for _, v := range svcs {
+			if hasHostPath(v.Volumes) {
+				return nil, errf(409, "host_path", "service %s mounts host paths adopted from Docker in place; Atoll cannot move that data to another server", v.Name)
+			}
+		}
+	}
 	if _, err := s.st.GetNode(ctx, toID); err != nil {
 		return nil, badRequest("unknown target server")
 	}
@@ -101,6 +108,9 @@ func (s *Server) startServiceMigration(ctx context.Context, serviceID, toID, bas
 	from := svc.ServerID
 	if from == toID {
 		return nil, badRequest("service already runs on that server")
+	}
+	if hasHostPath(svc.Volumes) {
+		return nil, errf(409, "host_path", "service %s mounts host paths adopted from Docker in place; Atoll cannot move that data to another server", svc.Name)
 	}
 	if _, err := s.st.GetNode(ctx, toID); err != nil {
 		return nil, badRequest("unknown target server")

@@ -15,6 +15,7 @@ import (
 const (
 	importKindPlan   = "plan"
 	importKindZeabur = "zeabur-local"
+	// importKindDocker = "docker" (docker_adopt.go)
 )
 
 // planMeta is the state of a CLI-uploaded import plan.
@@ -91,6 +92,9 @@ func (s *Server) handleCreateImport(w http.ResponseWriter, r *http.Request) erro
 			return badRequest("duplicate service name %q in plan", v.Name)
 		}
 		names[v.Name] = true
+		if err := checkHostPaths(v.Volumes, nil); err != nil {
+			return err
+		}
 		if err := validateServiceSpec(&v); err != nil {
 			return badRequest("service %s: %v", is.Name, err)
 		}
@@ -154,7 +158,7 @@ func (s *Server) handleImportVolume(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	if kind != importKindPlan {
-		return badRequest("volume upload is only for plan imports; in-place Zeabur imports copy data via rehearse")
+		return badRequest("volume upload is only for plan imports; in-place imports (Zeabur, Docker) handle data via rehearse and cutover")
 	}
 	if j.Status != "planned" && j.Status != "uploading" {
 		return errf(409, "bad_state", "import is %s; volumes can only be uploaded before start", j.Status)
@@ -221,7 +225,7 @@ func (s *Server) handleStartImport(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	if kind != importKindPlan {
-		return badRequest("in-place Zeabur imports use /rehearse and /cutover instead of /start")
+		return badRequest("in-place imports (Zeabur, Docker) use /rehearse and /cutover instead of /start")
 	}
 	if j.Status != "planned" && j.Status != "uploading" && j.Status != "failed" {
 		return errf(409, "bad_state", "import is already %s", j.Status)

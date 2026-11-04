@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net"
 	"path"
 	"regexp"
 	"strings"
@@ -99,6 +100,12 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 			return badRequest("duplicate port name %q", p.Name)
 		}
 		seen[p.Name] = true
+		if !validHostIP(p.HostIP) {
+			return badRequest("port %q: host_ip must be an IP address", p.Name)
+		}
+		if p.HostIP != "" && p.PublicPort == 0 {
+			return badRequest("port %q: host_ip needs a public_port", p.Name)
+		}
 		if p.ContainerPort < 1 || p.ContainerPort > 65535 {
 			return badRequest("port %q: container_port must be 1-65535", p.Name)
 		}
@@ -147,6 +154,52 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 		return badRequest("user must be a uid, uid:gid or a user name (like docker --user)")
 	}
 	return nil
+}
+
+// checkHostPaths refuses volume host paths (api.Volume.HostPath) the API caller sets or
+// changes: only Docker adoption mounts host paths, and a free host path would hand a service
+// the host. prev is the service's stored volumes (nil for a new service). A volume that
+// omits the host path it had keeps it (and its read_only), so editing other fields of an
+// adopted service never detaches its data.
+func checkHostPaths(next, prev []api.Volume) error {
+	old := map[string]api.Volume{}
+	for _, v := range prev {
+		old[v.Name] = v
+	}
+	for i := range next {
+		v := &next[i]
+		o, had := old[v.Name]
+		if had && o.HostPath != "" {
+			if v.HostPath == "" {
+				v.HostPath, v.ReadOnly = o.HostPath, o.ReadOnly
+			}
+			if path.Clean(o.MountPath) != path.Clean(v.MountPath) {
+				return badRequest("volume %q: the mount path of an adopted host path cannot change", v.Name)
+			}
+		}
+		if v.HostPath != "" && (!had || o.HostPath != v.HostPath) {
+			return badRequest("volume %q: host_path is set only by Docker adoption and cannot be added or changed through the API", v.Name)
+		}
+	}
+	return nil
+}
+
+// hasHostPath reports whether a service mounts adopted host paths.
+func hasHostPath(vols []api.Volume) bool {
+	for _, v := range vols {
+		if v.HostPath != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// validHostIP accepts "" or a literal IP address for api.Port.HostIP.
+func validHostIP(ip string) bool {
+	if ip == "" {
+		return true
+	}
+	return net.ParseIP(ip) != nil
 }
 
 func validateEnv(vars []api.EnvVar) error {

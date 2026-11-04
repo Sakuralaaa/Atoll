@@ -17,6 +17,11 @@ import (
 
 func (s *Server) handleZeaburRollback(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+	if kind, err := s.importKind(ctx, r.PathValue("id")); err != nil {
+		return err
+	} else if kind == importKindDocker {
+		return s.handleDockerRollback(w, r)
+	}
 	j, meta, err := s.loadZeaburJob(ctx, r.PathValue("id"))
 	if err != nil {
 		return err
@@ -123,6 +128,9 @@ func (s *Server) handleZeaburCleanup(w http.ResponseWriter, r *http.Request) err
 	}
 	if p := principalFrom(ctx); !p.Session && p.RequireApproval {
 		return errf(403, "approval_required", "removing Zeabur cannot be queued for approval; run it from the panel or with a token without require_approval")
+	}
+	if kind, err := s.importKind(ctx, r.PathValue("id")); err == nil && kind == importKindDocker {
+		return badRequest("a Docker adoption has no cleanup: the old containers and volumes are always kept; remove them yourself with docker once you no longer need a rollback")
 	}
 	j, meta, err := s.loadZeaburJob(ctx, r.PathValue("id"))
 	if err != nil {

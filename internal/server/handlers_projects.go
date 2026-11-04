@@ -306,6 +306,9 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
 		}
 	}
+	if err := checkHostPaths(req.Service.Volumes, nil); err != nil {
+		return err
+	}
 	svc, err := s.createService(r.Context(), p, req.Service, req.Env, true)
 	if err != nil {
 		return err
@@ -532,6 +535,9 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 		if !s.hub.Online(nodeID) {
 			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
 		}
+	}
+	if err := checkHostPaths(next.Volumes, svc.Volumes); err != nil {
+		return err
 	}
 	if err := validateServiceSpecKeeping(&next, svc.Ports); err != nil {
 		return err

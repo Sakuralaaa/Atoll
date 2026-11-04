@@ -78,6 +78,9 @@ func (s *Server) buildSpecWith(ctx context.Context, svc *api.Service, deployment
 		MemLimitMB:   svc.MemLimitMB,
 		User:         svc.User,
 	}
+	if strings.HasPrefix(spec.Image, adoptImageRepo) {
+		spec.LocalImage = true // adopted local image (docker_adopt.go): never pulled
+	}
 	if spec.Ports == nil {
 		spec.Ports = []api.Port{}
 	}

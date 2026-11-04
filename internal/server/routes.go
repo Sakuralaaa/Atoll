@@ -59,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/servers/{id}/metrics", lvlRead, s.handleServerMetrics)
 	a("GET "+v+"/servers/{id}/containers", lvlRead, s.handleServerContainers)
 	a("GET "+v+"/servers/{id}/zeabur", lvlRead, s.handleZeaburScan)
+	a("GET "+v+"/servers/{id}/docker", lvlRead, s.handleDockerScan)
 
 	// projects
 	a("GET "+v+"/projects", needReadList, s.handleListProjects)
@@ -146,6 +147,7 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/imports", lvlRead, s.handleListImports)
 	a("POST "+v+"/imports", needDeployGlobal, s.handleCreateImport)
 	a("POST "+v+"/imports/zeabur-local", needDeployGlobal, s.handleZeaburLocalImport)
+	a("POST "+v+"/imports/docker", needDeployGlobal, s.handleDockerAdopt)
 	a("GET "+v+"/imports/{id}", lvlRead, s.handleGetImport)
 	a("PUT "+v+"/imports/{id}/volumes/{service_name}/{volume}", needDeployGlobal, s.handleImportVolume)
 	a("POST "+v+"/imports/{id}/start", needDeployGlobal, s.handleStartImport)

@@ -105,6 +105,8 @@ func checkable(ref registry.Ref, err error) string {
 	switch {
 	case err != nil:
 		return "unrecognised image reference"
+	case strings.HasPrefix(ref.Name, strings.TrimSuffix(adoptImageRepo, "/")+"/"):
+		return "local image (adopted from Docker); not in a registry"
 	case strings.HasPrefix(ref.Name, "atoll-import/"):
 		return "local image (imported from Zeabur); not in a registry"
 	case strings.HasPrefix(ref.Name, BuildImageRepo):
