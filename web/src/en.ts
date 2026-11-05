@@ -12,6 +12,7 @@ const en: Record<string, string> = {
  "域名（可选）": "Domain (optional)",
  "{0} 需要通过自己的 HTTPS 域名访问": "{0} has to be reached on its own HTTPS domain",
  "留空则之后在服务的「网络」里绑定": "Leave empty and bind one later under the service's Network tab",
+ "{0} 的域名（可选）": "Domain for {0} (optional)",
  "会创建 {0} 个服务：{1}。建议内存至少 {2} MB。": "Creates {0} services: {1}. Needs about {2} MB of memory.",
  "（已被保留策略清理）": " (pruned by retention)",
  "，请 {0}后再试": "; try again in {0}",

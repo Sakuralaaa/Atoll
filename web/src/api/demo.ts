@@ -575,6 +575,7 @@ function route(method: string, path: string, body: any): unknown {
     const vals = Object.fromEntries((app.inputs ?? []).map(i => [i.key, given[i.key] || Math.random().toString(36).slice(2, 18)]))
     const fill = (v: string) => Object.entries(vals).reduce((a, [k, x]) => a.replaceAll(`{{INPUT:${k}}}`, x), v).replaceAll('{{RANDOM}}', Math.random().toString(36).slice(2, 18))
     let dom: Domain | undefined
+    const extra: Domain[] = []
     for (const t of app.services) {
       const tt = t.template ? templates.find(x => x.kind === t.template) : undefined
       const s: Service = { id: nid('svc'), project_id: pr.id, server_id: pr.server_id, name: t.name, kind: t.template || 'image', image: t.image || tt?.image || '', ports: t.ports ?? tt?.ports ?? [], volumes: t.volumes ?? (VOLS[t.template ?? ''] ?? []).map(([name, mount_path]) => ({ name, mount_path })),
@@ -583,9 +584,11 @@ function route(method: string, path: string, body: any): unknown {
       deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: now }]
       setTimeout(() => { s.status = 'running'; s.replicas = '1/1'; deployments[s.id][0].status = 'running' }, 4000)
       if (t.main && body.hostname) { dom = { id: nid('dom'), service_id: s.id, hostname: (h => !body.root_domain ? h : h === '@' ? body.root_domain : h.endsWith('.' + body.root_domain) ? h : `${h}.${body.root_domain}`)(String(body.hostname).trim().toLowerCase()), port_name: 'web', proxied: true, status: 'provisioning', created_at: now }; domains.push(dom); const d = dom; setTimeout(() => { d.status = 'active' }, 8000) }
+      const xh = t.domain ? String((body.domains ?? {})[t.name] ?? '').trim().toLowerCase() : ''
+      if (xh) { const xd: Domain = { id: nid('dom'), service_id: s.id, hostname: xh, port_name: t.domain_port || 'web', proxied: body.proxied ?? true, status: 'provisioning', created_at: now }; domains.push(xd); extra.push(xd); setTimeout(() => { xd.status = 'active' }, 8000) }
       made.push(withSvc(s))
     }
-    return { project: fullProject(pr), services: made, domain: dom }
+    return { project: fullProject(pr), services: made, domain: dom, ...(extra.length ? { extra_domains: extra } : {}) }
   }
   if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }

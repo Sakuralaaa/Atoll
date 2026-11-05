@@ -117,6 +117,9 @@ type Volume struct {
 	// Atoll never deletes, backs up or migrates a host path.
 	HostPath string `json:"host_path,omitempty"`
 	ReadOnly bool   `json:"read_only,omitempty"` // mount read-only (e.g. an adopted ":ro" bind)
+	// Owner ("uid" or "uid:gid") is applied by the agent to the volume dir while it is still
+	// empty, for images that run as a non-root user (e.g. n8n as 1000:1000).
+	Owner string `json:"owner,omitempty"`
 }
 
 type ConfigFile struct {
@@ -561,6 +564,10 @@ type AppTemplateRequest struct {
 	Hostname   string `json:"hostname,omitempty"`
 	RootDomain string `json:"root_domain,omitempty"`
 	Proxied    *bool  `json:"proxied,omitempty"`
+	// Domains binds extra domains to services that offer one (AppTemplateService.Domain),
+	// keyed by service name: {"cli-proxy-api": "api.example.com"}. A value with a dot is a full
+	// hostname; a bare label is a prefix of RootDomain. Proxied applies too; empty binds nothing.
+	Domains map[string]string `json:"domains,omitempty"`
 	// Inputs fills the template's inputs by key; a missing or empty value is generated.
 	Inputs map[string]string `json:"inputs,omitempty"`
 }
@@ -571,6 +578,9 @@ type AppTemplateResult struct {
 	Services    []Service `json:"services"`
 	Domain      *Domain   `json:"domain,omitempty"`
 	DomainError string    `json:"domain_error,omitempty"`
+	// ExtraDomains are the domains bound from Domains; a failed one is in DomainErrors by service name.
+	ExtraDomains []Domain          `json:"extra_domains,omitempty"`
+	DomainErrors map[string]string `json:"domain_errors,omitempty"`
 }
 
 // AppTemplateService is one service of an AppTemplate. Template names a database
@@ -589,6 +599,14 @@ type AppTemplateService struct {
 	DomainEnv  []EnvVar     `json:"domain_env,omitempty"` // added only when a domain is bound at creation
 	MemLimitMB int          `json:"mem_limit_mb,omitempty"`
 	Main       bool         `json:"main,omitempty"` // the service the domain is bound to
+	// Domain offers an optional extra domain for this (non-main) service at creation, bound
+	// to its port DomainPort (default its first http port). DomainLabel names it in the UI.
+	Domain        bool   `json:"domain,omitempty"`
+	DomainPort    string `json:"domain_port,omitempty"`
+	DomainLabel   string `json:"domain_label,omitempty"`
+	DomainLabelEn string `json:"domain_label_en,omitempty"`
+	DomainHint    string `json:"domain_hint,omitempty"`
+	DomainHintEn  string `json:"domain_hint_en,omitempty"`
 }
 
 // MigrationJob tracks POST /api/v1/projects/{id}/migrate (GET /api/v1/migrations/{id}).

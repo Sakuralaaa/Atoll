@@ -137,6 +137,9 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 		if !path.IsAbs(vol.MountPath) || path.Clean(vol.MountPath) == "/" {
 			return badRequest("volume %q: mount_path must be an absolute path other than /", vol.Name)
 		}
+		if vol.Owner != "" && !ownerRe.MatchString(vol.Owner) {
+			return badRequest("volume %q: owner must be \"uid\" or \"uid:gid\"", vol.Name)
+		}
 	}
 	for _, c := range v.Configs {
 		if !path.IsAbs(c.Path) {
@@ -161,6 +164,8 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 // the host. prev is the service's stored volumes (nil for a new service). A volume that
 // omits the host path it had keeps it (and its read_only), so editing other fields of an
 // adopted service never detaches its data.
+var ownerRe = regexp.MustCompile(`^[0-9]{1,10}(:[0-9]{1,10})?$`)
+
 func checkHostPaths(next, prev []api.Volume) error {
 	old := map[string]api.Volume{}
 	for _, v := range prev {

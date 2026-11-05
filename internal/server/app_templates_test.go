@@ -58,4 +58,11 @@ func TestAppTemplatesAPI(t *testing.T) {
 	}
 	// the name is taken now
 	e.mustDo("POST", "/api/v1/app-templates/memos", map[string]string{"server_id": nodeID, "name": "stats"}, nil, 409)
+	// a second domain only for services that offer one
+	e.mustDo("POST", "/api/v1/app-templates/cliproxyapi", map[string]any{"server_id": nodeID, "domains": map[string]string{"cpa-manager-plus": "x.example.com"}}, nil, 400)
+	e.mustDo("POST", "/api/v1/app-templates/cliproxyapi", map[string]any{"server_id": nodeID, "domains": map[string]string{"cli-proxy-api": ""}}, &res, 201)
+	e.mustDo("GET", "/api/v1/services/"+res.Services[0].ID, nil, &svc, 200)
+	if len(svc.Configs) != 1 || svc.Configs[0].Path != "/CLIProxyAPI/config.seed.yaml" || len(svc.Volumes) != 3 || len(svc.Command) != 3 {
+		t.Fatalf("cpa: %+v", svc)
+	}
 }

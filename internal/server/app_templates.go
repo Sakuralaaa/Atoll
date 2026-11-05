@@ -33,8 +33,22 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 	if tpl.NeedsDomain && req.Hostname == "" {
 		return badRequest("%s needs a domain: it only works behind its public HTTPS address", tpl.Name)
 	}
+	extra := map[string]string{}
+	for name, h := range req.Domains {
+		if h = strings.TrimSpace(h); h == "" {
+			continue
+		}
+		ok := false
+		for _, ts := range tpl.Services {
+			ok = ok || (ts.Name == name && ts.Domain)
+		}
+		if !ok {
+			return badRequest("domains: service %q of %s takes no domain", name, tpl.Name)
+		}
+		extra[name] = h
+	}
 	p := principalFrom(ctx)
-	if req.Hostname != "" && !p.Session {
+	if (req.Hostname != "" || len(extra) > 0) && !p.Session {
 		if !p.Perms[api.PermDomains] {
 			return errf(403, "missing_permission", "binding a domain needs the \"domains\" permission; leave hostname empty and bind it later")
 		}
@@ -66,6 +80,7 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 	}
 	out := api.AppTemplateResult{Project: proj}
 	mainID := ""
+	extraIDs := map[string]string{} // service name -> id, for req.Domains
 	for _, ts := range tpl.Services {
 		v := api.Service{Name: ts.Name, Kind: "image", Image: ts.Image, Command: ts.Command, MemLimitMB: ts.MemLimitMB,
 			Ports: append([]api.Port(nil), ts.Ports...), Volumes: append([]api.Volume(nil), ts.Volumes...)}
@@ -89,6 +104,9 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 		if ts.Main {
 			mainID = svc.ID
 		}
+		if ts.Domain {
+			extraIDs[ts.Name] = svc.ID
+		}
 		out.Services = append(out.Services, *svc)
 	}
 	// Bound before the first deploy, so the services start with ${ATOLL_WEB_URL} resolved.
@@ -98,6 +116,34 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 			out.DomainError = err.Error()
 		} else {
 			out.Domain = d
+		}
+	}
+	for _, ts := range tpl.Services {
+		h, ok := extra[ts.Name]
+		if !ok || extraIDs[ts.Name] == "" {
+			continue
+		}
+		port := ts.DomainPort
+		if port == "" {
+			for _, pt := range ts.Ports {
+				if pt.Protocol == "http" {
+					port = pt.Name
+					break
+				}
+			}
+		}
+		root := req.RootDomain
+		if strings.Contains(h, ".") {
+			root = "" // a full hostname (the UI sends these), not a prefix of req.RootDomain
+		}
+		d, err := s.execAddDomain(ctx, extraIDs[ts.Name], domainRequest{Hostname: h, RootDomain: root, PortName: port, Proxied: req.Proxied}, p.actor())
+		if err != nil {
+			if out.DomainErrors == nil {
+				out.DomainErrors = map[string]string{}
+			}
+			out.DomainErrors[ts.Name] = err.Error()
+		} else {
+			out.ExtraDomains = append(out.ExtraDomains, *d)
 		}
 	}
 	for _, svc := range out.Services {

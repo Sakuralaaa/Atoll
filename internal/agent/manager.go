@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -153,8 +154,14 @@ func (m *Manager) prepareHost(ctx context.Context, spec api.ResolvedSpec) error 
 			}
 			continue
 		}
-		if err := os.MkdirAll(m.paths.VolumeDir(spec.ServiceID, v.Name), 0o755); err != nil {
+		dir := m.paths.VolumeDir(spec.ServiceID, v.Name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
+		}
+		if v.Owner != "" {
+			if err := chownIfEmpty(dir, v.Owner); err != nil {
+				return fmt.Errorf("volume %s: owner: %w", v.Name, err)
+			}
 		}
 	}
 	return m.writeConfigs(spec)
@@ -788,4 +795,26 @@ func (m *Manager) Status(ctx context.Context) ([]api.ContainerState, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ServiceID < out[j].ServiceID })
 	return out, nil
+}
+
+// chownIfEmpty hands an empty volume dir to owner ("uid" or "uid:gid") so images running as a
+// non-root user can write it. A dir with content is left alone: the app owns what it wrote.
+func chownIfEmpty(dir, owner string) error {
+	ents, err := os.ReadDir(dir)
+	if err != nil || len(ents) > 0 {
+		return err
+	}
+	uidS, gidS, ok := strings.Cut(owner, ":")
+	if !ok {
+		gidS = uidS
+	}
+	uid, err := strconv.Atoi(uidS)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(gidS)
+	if err != nil {
+		return err
+	}
+	return os.Chown(dir, uid, gid)
 }

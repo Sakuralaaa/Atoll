@@ -811,7 +811,8 @@ const apps: AppTemplate[] = [
     "volumes": [
      {
       "name": "data",
-      "mount_path": "/home/node/.n8n"
+      "mount_path": "/home/node/.n8n",
+      "owner": "1000:1000"
      }
     ],
     "env": [
@@ -916,8 +917,8 @@ const apps: AppTemplate[] = [
   "color": "#2563eb",
   "needs_domain": false,
   "min_mem_mb": 512,
-  "note": "域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。客户端 API Key 在 cli-proxy-api 的配置文件 /CLIProxyAPI/config.yaml（access.api-keys，可在「文件」页查看）；配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署，通过 CPA 管理接口改配置不会保存。要让外部客户端直接调用 API，再给 cli-proxy-api 绑定一个域名（端口 api）。",
-  "note_en": "The domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). The client API key is in cli-proxy-api's /CLIProxyAPI/config.yaml (access.api-keys, viewable on the Files page). The file is mounted read-only: change it by editing the service's config file (configs) and redeploying; config changes made through CPA's management API are not saved. To call the API from outside, bind a domain to cli-proxy-api as well (port api).",
+  "note": "主域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。CPA 的配置文件是 /CLIProxyAPI/conf/config.yaml（在 cli-proxy-api 的持久卷 config 上），客户端 API Key 在其中的 access.api-keys；可直接在 CPA 管理面板里改（API Key、提供商等），也可在「文件」页编辑，重新部署后保留。/CLIProxyAPI/config.seed.yaml 只是首次启动时复制的初始模板。创建时可填「API 域名」给 cli-proxy-api 绑定域名（端口 api），供外部客户端直接调用；以后也可再绑定。",
+  "note_en": "The main domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). CPA's config is /CLIProxyAPI/conf/config.yaml (on cli-proxy-api's persistent volume config), with client API keys under access.api-keys. Edit it in the CPA management panel (API keys, providers, ...) or on the Files page; changes survive redeploys. /CLIProxyAPI/config.seed.yaml is only the initial copy used on first start. Fill \"API domain\" at creation to bind a domain to cli-proxy-api (port api) for external clients, or bind one later.",
   "inputs": [
    {
     "key": "CPA_MANAGEMENT_KEY",
@@ -930,6 +931,11 @@ const apps: AppTemplate[] = [
    {
     "name": "cli-proxy-api",
     "image": "eceasy/cli-proxy-api:latest",
+    "command": [
+     "sh",
+     "-c",
+     "[ -f /CLIProxyAPI/conf/config.yaml ] || cp /CLIProxyAPI/config.seed.yaml /CLIProxyAPI/conf/config.yaml; exec /CLIProxyAPI/CLIProxyAPI -config /CLIProxyAPI/conf/config.yaml"
+    ],
     "ports": [
      {
       "name": "api",
@@ -945,12 +951,16 @@ const apps: AppTemplate[] = [
      {
       "name": "logs",
       "mount_path": "/CLIProxyAPI/logs"
+     },
+     {
+      "name": "config",
+      "mount_path": "/CLIProxyAPI/conf"
      }
     ],
     "configs": [
      {
-      "path": "/CLIProxyAPI/config.yaml",
-      "content": "# CLIProxyAPI config (Atoll one-click app). Full reference: config.example.yaml in\n# github.com/router-for-me/CLIProxyAPI. Edit it in the service's configs, then redeploy.\nconfig-version: 8\n\nserver:\n  port: 8317\n\nmanagement:\n  # The management key is the MANAGEMENT_PASSWORD env var of this service (set at creation).\n  allow-remote: true\n  secret-key: \"\"\n\naccess:\n  # Keys your clients send as \"Authorization: Bearer \u003ckey\u003e\".\n  api-keys:\n    - \"sk-{{RANDOM}}\"\n\noauth:\n  auth-dir: \"/root/.cli-proxy-api\"\n\nobservability:\n  usage:\n    # Needed for request monitoring in CPA Manager Plus.\n    usage-statistics-enabled: true\n    redis-usage-queue-retention-seconds: 60\n"
+      "path": "/CLIProxyAPI/config.seed.yaml",
+      "content": "# CLIProxyAPI config (Atoll one-click app). Full reference: config.example.yaml in\n# github.com/router-for-me/CLIProxyAPI. The live copy is /CLIProxyAPI/conf/config.yaml (on the\n# \"config\" volume): edit it in the CPA panel or on Atoll's Files page; it survives redeploys.\n# This seed is only copied when that file does not exist yet.\nconfig-version: 8\n\nserver:\n  port: 8317\n\nmanagement:\n  # The management key is the MANAGEMENT_PASSWORD env var of this service (set at creation).\n  allow-remote: true\n  secret-key: \"\"\n\naccess:\n  # Keys your clients send as \"Authorization: Bearer \u003ckey\u003e\".\n  api-keys:\n    - \"sk-{{RANDOM}}\"\n\noauth:\n  auth-dir: \"/root/.cli-proxy-api\"\n\nobservability:\n  usage:\n    # Needed for request monitoring in CPA Manager Plus.\n    usage-statistics-enabled: true\n    redis-usage-queue-retention-seconds: 60\n"
      }
     ],
     "env": [
@@ -961,7 +971,13 @@ const apps: AppTemplate[] = [
       "exposed": true
      }
     ],
-    "mem_limit_mb": 512
+    "mem_limit_mb": 512,
+    "domain": true,
+    "domain_port": "api",
+    "domain_label": "API 域名（可选）",
+    "domain_label_en": "API domain (optional)",
+    "domain_hint": "给 cli-proxy-api 绑定，供客户端直接调用；长请求建议灰云（不走 Cloudflare 代理）",
+    "domain_hint_en": "Bound to cli-proxy-api for clients; for long requests use DNS only (grey cloud)"
    },
    {
     "name": "cpa-manager-plus",

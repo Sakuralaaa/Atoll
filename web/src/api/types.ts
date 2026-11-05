@@ -60,7 +60,7 @@ export interface JoinToken { token: string; command: string; expires_at: string 
 export interface InstallCommand { command: string; version: string }
 
 export interface Port { name: string; container_port: number; protocol: 'http' | 'tcp' | 'udp' | string; public_port?: number; /** published on this host address only ("" = all) */ host_ip?: string }
-export interface Volume { name: string; mount_path: string; /** adopted from Docker: existing host dir/file mounted in place (read-only in the API) */ host_path?: string; read_only?: boolean }
+export interface Volume { name: string; mount_path: string; /** adopted from Docker: existing host dir/file mounted in place (read-only in the API) */ host_path?: string; read_only?: boolean; /** "uid[:gid]" the agent gives the empty volume dir */ owner?: string }
 export interface ConfigFile { path: string; content: string }
 export interface HealthCheck { cmd?: string[]; http_path?: string; interval_sec?: number }
 
@@ -285,14 +285,14 @@ export interface AuthStatus { setup_required: boolean }
 export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[] }
 /** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
 /** GET /app-templates item: a one-click app (one or more services). */
-export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; configs?: ConfigFile[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean }
+export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; configs?: ConfigFile[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean; domain?: boolean; domain_port?: string; domain_label?: string; domain_label_en?: string; domain_hint?: string; domain_hint_en?: string }
 /** A value the user may type when creating the app (a password); empty = generated. */
 export interface AppTemplateInput { key: string; label: string; label_en: string; secret: boolean; placeholder?: string }
 export interface AppTemplate {
   id: string; name: string; category: 'blog' | 'tools' | 'ops' | 'dev' | 'ai' | string; description: string; description_en: string
   website: string; color: string; needs_domain: boolean; min_mem_mb: number; note?: string; note_en?: string; inputs?: AppTemplateInput[]; services: AppTemplateService[]
 }
-export interface AppTemplateResult { project: Project; services: Service[]; domain?: Domain; domain_error?: string }
+export interface AppTemplateResult { project: Project; services: Service[]; domain?: Domain; domain_error?: string; extra_domains?: Domain[]; domain_errors?: Record<string, string> }
 export interface Template { kind: string; name: string; description: string; image: string; command?: string[]; ports: Port[]; volumes: Volume[]; env: EnvVar[] }
 /** GET /services/{id}/env/references item; `service` (name of the exposing service) is optional. */
 export interface EnvReference extends EnvVar { service?: string }

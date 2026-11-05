@@ -36,10 +36,13 @@ func cfg(path, content string) []api.ConfigFile {
 }
 
 // cpaConfig is CLIProxyAPI's config.yaml in its v8 layout (see config.example.yaml upstream).
-// The management key is not in here: it comes from MANAGEMENT_PASSWORD, so the read-only
-// mounted file never has to be rewritten (CPA hashes a plaintext secret-key back into the file).
+// It is mounted read-only as a seed (/CLIProxyAPI/config.seed.yaml) and copied once to the
+// "config" volume, where CPA (and its management panel) edit the live copy. The management key
+// comes from MANAGEMENT_PASSWORD.
 const cpaConfig = `# CLIProxyAPI config (Atoll one-click app). Full reference: config.example.yaml in
-# github.com/router-for-me/CLIProxyAPI. Edit it in the service's configs, then redeploy.
+# github.com/router-for-me/CLIProxyAPI. The live copy is /CLIProxyAPI/conf/config.yaml (on the
+# "config" volume): edit it in the CPA panel or on Atoll's Files page; it survives redeploys.
+# This seed is only copied when that file does not exist yet.
 config-version: 8
 
 server:
@@ -293,7 +296,7 @@ var apps = []api.AppTemplate{
 		NeedsDomain: true, MinMemMB: 512,
 		Note: "第一次打开时创建所有者账号。", NoteEn: "Create the owner account on first visit.",
 		Services: []api.AppTemplateService{
-			{Name: "n8n", Image: "n8nio/n8n:latest", Ports: web(5678), Volumes: []api.Volume{vol("data", "/home/node/.n8n")}, Main: true,
+			{Name: "n8n", Image: "n8nio/n8n:latest", Ports: web(5678), Volumes: []api.Volume{{Name: "data", MountPath: "/home/node/.n8n", Owner: "1000:1000"}}, Main: true,
 				Env: env("N8N_ENCRYPTION_KEY", RandomPlaceholder, "N8N_PROXY_HOPS", "1", "GENERIC_TIMEZONE", "Asia/Shanghai"),
 				DomainEnv: env("N8N_HOST", "${ATOLL_WEB_DOMAIN}", "N8N_PROTOCOL", "https", "WEBHOOK_URL", "${ATOLL_WEB_URL}/",
 					"N8N_EDITOR_BASE_URL", "${ATOLL_WEB_URL}/")},
@@ -314,17 +317,21 @@ var apps = []api.AppTemplate{
 		Description: "把 Gemini CLI / Codex / Claude Code 等账号转成 OpenAI 兼容 API，附带 CPA Manager Plus 管理面板（用量统计、账号管理）", DescriptionEn: "Turns Gemini CLI / Codex / Claude Code and other accounts into an OpenAI-compatible API, with the CPA Manager Plus panel (usage analytics, account management)",
 		MinMemMB: 512,
 		Inputs:   []api.AppTemplateInput{secretInput("CPA_MANAGEMENT_KEY", "CPA 管理密钥", "CPA management key")},
-		Note: "域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。" +
-			"客户端 API Key 在 cli-proxy-api 的配置文件 /CLIProxyAPI/config.yaml（access.api-keys，可在「文件」页查看）；配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署，通过 CPA 管理接口改配置不会保存。" +
-			"要让外部客户端直接调用 API，再给 cli-proxy-api 绑定一个域名（端口 api）。",
-		NoteEn: "The domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). " +
-			"The client API key is in cli-proxy-api's /CLIProxyAPI/config.yaml (access.api-keys, viewable on the Files page). The file is mounted read-only: change it by editing the service's config file (configs) and redeploying; config changes made through CPA's management API are not saved. " +
-			"To call the API from outside, bind a domain to cli-proxy-api as well (port api).",
+		Note: "主域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。" +
+			"CPA 的配置文件是 /CLIProxyAPI/conf/config.yaml（在 cli-proxy-api 的持久卷 config 上），客户端 API Key 在其中的 access.api-keys；可直接在 CPA 管理面板里改（API Key、提供商等），也可在「文件」页编辑，重新部署后保留。/CLIProxyAPI/config.seed.yaml 只是首次启动时复制的初始模板。" +
+			"创建时可填「API 域名」给 cli-proxy-api 绑定域名（端口 api），供外部客户端直接调用；以后也可再绑定。",
+		NoteEn: "The main domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). " +
+			"CPA's config is /CLIProxyAPI/conf/config.yaml (on cli-proxy-api's persistent volume config), with client API keys under access.api-keys. Edit it in the CPA management panel (API keys, providers, ...) or on the Files page; changes survive redeploys. /CLIProxyAPI/config.seed.yaml is only the initial copy used on first start. " +
+			"Fill \"API domain\" at creation to bind a domain to cli-proxy-api (port api) for external clients, or bind one later.",
 		Services: []api.AppTemplateService{
 			{Name: "cli-proxy-api", Image: "eceasy/cli-proxy-api:latest", Ports: []api.Port{{Name: "api", ContainerPort: 8317, Protocol: "http"}}, MemLimitMB: 512,
-				Volumes: []api.Volume{vol("auths", "/root/.cli-proxy-api"), vol("logs", "/CLIProxyAPI/logs")},
-				Configs: cfg("/CLIProxyAPI/config.yaml", cpaConfig),
-				Env:     []api.EnvVar{{Key: "MANAGEMENT_PASSWORD", Value: InputRef("CPA_MANAGEMENT_KEY"), Secret: true, Exposed: true}}},
+				Volumes: []api.Volume{vol("auths", "/root/.cli-proxy-api"), vol("logs", "/CLIProxyAPI/logs"), vol("config", "/CLIProxyAPI/conf")},
+				Configs: cfg("/CLIProxyAPI/config.seed.yaml", cpaConfig),
+				// The image is debian:bookworm with the binary at /CLIProxyAPI/CLIProxyAPI (workdir).
+				Command: []string{"sh", "-c", "[ -f /CLIProxyAPI/conf/config.yaml ] || cp /CLIProxyAPI/config.seed.yaml /CLIProxyAPI/conf/config.yaml; exec /CLIProxyAPI/CLIProxyAPI -config /CLIProxyAPI/conf/config.yaml"},
+				Domain:  true, DomainPort: "api", DomainLabel: "API 域名（可选）", DomainLabelEn: "API domain (optional)",
+				DomainHint: "给 cli-proxy-api 绑定，供客户端直接调用；长请求建议灰云（不走 Cloudflare 代理）", DomainHintEn: "Bound to cli-proxy-api for clients; for long requests use DNS only (grey cloud)",
+				Env: []api.EnvVar{{Key: "MANAGEMENT_PASSWORD", Value: InputRef("CPA_MANAGEMENT_KEY"), Secret: true, Exposed: true}}},
 			{Name: "cpa-manager-plus", Image: "seakee/cpa-manager-plus:latest", Ports: web(18317), Volumes: []api.Volume{vol("data", "/data")}, Main: true,
 				Env: env(
 					"CPA_UPSTREAM_URL", "http://${CLI_PROXY_API_HOST}:8317",

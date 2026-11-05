@@ -176,7 +176,7 @@ export const api = {
   startImport: (id: string) => post<ImportJob>(`/imports/${e(id)}/start`),
   templates: () => get<Template[]>('/templates'),
   appTemplates: () => get<AppTemplate[]>('/app-templates'),
-  createFromApp: (id: string, b: { name: string; server_id: string; hostname?: string; root_domain?: string; inputs?: Record<string, string> }) => post<AppTemplateResult>(`/app-templates/${id}`, b),
+  createFromApp: (id: string, b: { name: string; server_id: string; hostname?: string; root_domain?: string; domains?: Record<string, string>; inputs?: Record<string, string> }) => post<AppTemplateResult>(`/app-templates/${id}`, b),
   migration: (id: string) => get<MigrationJob>(`/migrations/${e(id)}`),
   // in-place Zeabur takeover
   zeaburScan: (serverId: string) => get<ZeaburInventory>(`/servers/${e(serverId)}/zeabur`),
