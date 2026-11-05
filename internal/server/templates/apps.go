@@ -64,6 +64,25 @@ var apps = []api.AppTemplate{
 		},
 	},
 	{
+		ID: "papergrid", Name: "PaperGrid", Category: "blog", Color: "#8b7cf6", Website: "https://github.com/Sakuralaaa/blog",
+		Description: "Atoll 风格的轻量博客，SQLite 单容器，内置 MCP 让 AI Agent 写文章", DescriptionEn: "Lightweight Atoll-styled blog on SQLite with a built-in MCP endpoint for AI agents",
+		NeedsDomain: true, MinMemMB: 512,
+		Note:   "管理员邮箱 admin@example.com，初始密码在环境变量 ADMIN_INIT_PASSWORD，登录后在后台修改。后台「接口密钥」页有 MCP 接入说明。",
+		NoteEn: "Admin email is admin@example.com; the initial password is in the ADMIN_INIT_PASSWORD env var. Change it after signing in. The API Keys page explains MCP setup.",
+		Services: []api.AppTemplateService{
+			{Name: "papergrid", Image: "ghcr.io/sakuralaaa/blog:latest", Ports: web(3000), Volumes: []api.Volume{vol("data", "/data")}, Main: true, MemLimitMB: 512,
+				Env: env(
+					"DATABASE_URL", "file:/data/db.sqlite",
+					"NEXTAUTH_SECRET", RandomPlaceholder,
+					"ADMIN_INIT_PASSWORD", RandomPlaceholder,
+					"AUTH_TRUST_HOST", "1",
+					"NEXT_CACHE_DIR", "/data/.next-cache",
+					"MEDIA_ROOT", "/data/uploads",
+				),
+				DomainEnv: env("NEXTAUTH_URL", "${ATOLL_WEB_URL}", "NEXT_PUBLIC_APP_URL", "${ATOLL_WEB_URL}")},
+		},
+	},
+	{
 		ID: "wordpress", Name: "WordPress", Category: "blog", Color: "#21759b", Website: "https://wordpress.org",
 		Description: "全世界用得最多的博客和建站系统，带 MySQL", DescriptionEn: "The world's most used blogging and site system, with MySQL",
 		MinMemMB: 768,

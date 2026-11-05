@@ -157,6 +157,92 @@ const apps: AppTemplate[] = [
   ]
  },
  {
+  "id": "papergrid",
+  "name": "PaperGrid",
+  "category": "blog",
+  "description": "Atoll 风格的轻量博客，SQLite 单容器，内置 MCP 让 AI Agent 写文章",
+  "description_en": "Lightweight Atoll-styled blog on SQLite with a built-in MCP endpoint for AI agents",
+  "website": "https://github.com/Sakuralaaa/blog",
+  "color": "#8b7cf6",
+  "needs_domain": true,
+  "min_mem_mb": 512,
+  "note": "管理员邮箱 admin@example.com，初始密码在环境变量 ADMIN_INIT_PASSWORD，登录后在后台修改。后台「接口密钥」页有 MCP 接入说明。",
+  "note_en": "Admin email is admin@example.com; the initial password is in the ADMIN_INIT_PASSWORD env var. Change it after signing in. The API Keys page explains MCP setup.",
+  "services": [
+   {
+    "name": "papergrid",
+    "image": "ghcr.io/sakuralaaa/blog:latest",
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 3000,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "mount_path": "/data"
+     }
+    ],
+    "env": [
+     {
+      "key": "DATABASE_URL",
+      "value": "file:/data/db.sqlite",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "NEXTAUTH_SECRET",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "ADMIN_INIT_PASSWORD",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "AUTH_TRUST_HOST",
+      "value": "1",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "NEXT_CACHE_DIR",
+      "value": "/data/.next-cache",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "MEDIA_ROOT",
+      "value": "/data/uploads",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "domain_env": [
+     {
+      "key": "NEXTAUTH_URL",
+      "value": "${ATOLL_WEB_URL}",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "NEXT_PUBLIC_APP_URL",
+      "value": "${ATOLL_WEB_URL}",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "mem_limit_mb": 512,
+    "main": true
+   }
+  ]
+ },
+ {
   "id": "wordpress",
   "name": "WordPress",
   "category": "blog",
