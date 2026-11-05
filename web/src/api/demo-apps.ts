@@ -522,6 +522,115 @@ const apps: AppTemplate[] = [
   ]
  },
  {
+  "id": "flaresolverr",
+  "name": "FlareSolverr",
+  "category": "tools",
+  "description": "用无头 Chrome 过 Cloudflare 验证的代理接口，给 grok2api、Jackett 等程序调用",
+  "description_en": "Proxy API that passes Cloudflare challenges with headless Chrome, for grok2api, Jackett and similar tools",
+  "website": "https://github.com/FlareSolverr/FlareSolverr",
+  "color": "#f38020",
+  "needs_domain": false,
+  "min_mem_mb": 512,
+  "note": "只有 API，没有网页界面：程序调用 POST /v1。同一项目里的服务用 http://flaresolverr:8191 访问；其他项目要用就绑定域名。浏览器很吃内存，内存小的机器别开太多会话。",
+  "note_en": "API only, no web UI: apps call POST /v1. Services in the same project reach it at http://flaresolverr:8191; bind a domain to use it from other projects. Browsers use a lot of memory, so keep sessions few on small servers.",
+  "services": [
+   {
+    "name": "flaresolverr",
+    "image": "ghcr.io/flaresolverr/flaresolverr:latest",
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 8191,
+      "protocol": "http"
+     }
+    ],
+    "env": [
+     {
+      "key": "LOG_LEVEL",
+      "value": "info",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "TZ",
+      "value": "Asia/Shanghai",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "mem_limit_mb": 1024,
+    "main": true
+   }
+  ]
+ },
+ {
+  "id": "outlook-email",
+  "name": "OutlookEmail",
+  "category": "tools",
+  "description": "批量管理 Outlook / Hotmail 邮箱，网页里收信看验证码",
+  "description_en": "Manage many Outlook / Hotmail mailboxes and read mail and verification codes in the browser",
+  "website": "https://github.com/assast/outlookEmail",
+  "color": "#0078d4",
+  "needs_domain": false,
+  "min_mem_mb": 256,
+  "note": "登录密码是创建时填写的那个；留空则自动生成，在环境变量 LOGIN_PASSWORD 里（只在第一次启动时生效，之后在网页设置里改）。SECRET_KEY 用来加密数据，不要改。镜像自带的「一键更新」已关闭，更新请在 Atoll 里重新部署。",
+  "note_en": "The login password is the one you entered at creation; if left empty it is generated and kept in the LOGIN_PASSWORD env var (only used on first start; change it later in the web settings). SECRET_KEY encrypts the data, so don't change it. The image's built-in self-update is disabled; update by redeploying in Atoll.",
+  "inputs": [
+   {
+    "key": "LOGIN_PASSWORD",
+    "label": "登录密码",
+    "label_en": "Login password",
+    "secret": true
+   }
+  ],
+  "services": [
+   {
+    "name": "outlook-email",
+    "image": "ghcr.io/assast/outlookemail:latest",
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 5000,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "mount_path": "/app/data"
+     }
+    ],
+    "env": [
+     {
+      "key": "LOGIN_PASSWORD",
+      "value": "{{INPUT:LOGIN_PASSWORD}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "SECRET_KEY",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "FLASK_ENV",
+      "value": "production",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "DOCKER_UPDATE_ENABLED",
+      "value": "false",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "main": true
+   }
+  ]
+ },
+ {
   "id": "uptime-kuma",
   "name": "Uptime Kuma",
   "category": "ops",
@@ -793,6 +902,295 @@ const apps: AppTemplate[] = [
      }
     ],
     "mem_limit_mb": 2048,
+    "main": true
+   }
+  ]
+ },
+ {
+  "id": "cliproxyapi",
+  "name": "CLIProxyAPI + CPA Manager Plus",
+  "category": "ai",
+  "description": "把 Gemini CLI / Codex / Claude Code 等账号转成 OpenAI 兼容 API，附带 CPA Manager Plus 管理面板（用量统计、账号管理）",
+  "description_en": "Turns Gemini CLI / Codex / Claude Code and other accounts into an OpenAI-compatible API, with the CPA Manager Plus panel (usage analytics, account management)",
+  "website": "https://github.com/router-for-me/CLIProxyAPI",
+  "color": "#2563eb",
+  "needs_domain": false,
+  "min_mem_mb": 512,
+  "note": "域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。客户端 API Key 在 cli-proxy-api 的配置文件 /CLIProxyAPI/config.yaml（access.api-keys，可在「文件」页查看）；配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署，通过 CPA 管理接口改配置不会保存。要让外部客户端直接调用 API，再给 cli-proxy-api 绑定一个域名（端口 api）。",
+  "note_en": "The domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). The client API key is in cli-proxy-api's /CLIProxyAPI/config.yaml (access.api-keys, viewable on the Files page). The file is mounted read-only: change it by editing the service's config file (configs) and redeploying; config changes made through CPA's management API are not saved. To call the API from outside, bind a domain to cli-proxy-api as well (port api).",
+  "inputs": [
+   {
+    "key": "CPA_MANAGEMENT_KEY",
+    "label": "CPA 管理密钥",
+    "label_en": "CPA management key",
+    "secret": true
+   }
+  ],
+  "services": [
+   {
+    "name": "cli-proxy-api",
+    "image": "eceasy/cli-proxy-api:latest",
+    "ports": [
+     {
+      "name": "api",
+      "container_port": 8317,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "auths",
+      "mount_path": "/root/.cli-proxy-api"
+     },
+     {
+      "name": "logs",
+      "mount_path": "/CLIProxyAPI/logs"
+     }
+    ],
+    "configs": [
+     {
+      "path": "/CLIProxyAPI/config.yaml",
+      "content": "# CLIProxyAPI config (Atoll one-click app). Full reference: config.example.yaml in\n# github.com/router-for-me/CLIProxyAPI. Edit it in the service's configs, then redeploy.\nconfig-version: 8\n\nserver:\n  port: 8317\n\nmanagement:\n  # The management key is the MANAGEMENT_PASSWORD env var of this service (set at creation).\n  allow-remote: true\n  secret-key: \"\"\n\naccess:\n  # Keys your clients send as \"Authorization: Bearer \u003ckey\u003e\".\n  api-keys:\n    - \"sk-{{RANDOM}}\"\n\noauth:\n  auth-dir: \"/root/.cli-proxy-api\"\n\nobservability:\n  usage:\n    # Needed for request monitoring in CPA Manager Plus.\n    usage-statistics-enabled: true\n    redis-usage-queue-retention-seconds: 60\n"
+     }
+    ],
+    "env": [
+     {
+      "key": "MANAGEMENT_PASSWORD",
+      "value": "{{INPUT:CPA_MANAGEMENT_KEY}}",
+      "secret": true,
+      "exposed": true
+     }
+    ],
+    "mem_limit_mb": 512
+   },
+   {
+    "name": "cpa-manager-plus",
+    "image": "seakee/cpa-manager-plus:latest",
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 18317,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "mount_path": "/data"
+     }
+    ],
+    "env": [
+     {
+      "key": "CPA_UPSTREAM_URL",
+      "value": "http://${CLI_PROXY_API_HOST}:8317",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "CPA_MANAGEMENT_KEY",
+      "value": "${cli-proxy-api.MANAGEMENT_PASSWORD}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "CPA_MANAGER_ADMIN_KEY",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "USAGE_DB_PATH",
+      "value": "/data/usage.sqlite",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "CPA_MANAGER_DATA_KEY_PATH",
+      "value": "/data/data.key",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "USAGE_COLLECTOR_MODE",
+      "value": "auto",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "main": true
+   }
+  ]
+ },
+ {
+  "id": "grok2api",
+  "name": "grok2api",
+  "category": "ai",
+  "description": "把 Grok 账号转成 OpenAI 兼容 API，带管理后台和账号池，SQLite 单容器",
+  "description_en": "Turns Grok accounts into an OpenAI-compatible API with an admin panel and account pool, single container on SQLite",
+  "website": "https://github.com/chenyme/grok2api",
+  "color": "#0a0a0a",
+  "needs_domain": false,
+  "min_mem_mb": 256,
+  "note": "管理员用户名 admin，初始密码是创建时填写的那个；留空则自动生成，写在配置文件 /run/grok2api/config.yaml 的 bootstrapAdmin.password（可在「文件」页查看）。登录后可修改。配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署；credentialEncryptionKey 添加账号后不要再改。绑定 HTTPS 域名后建议把 auth.secureCookies 改成 true。",
+  "note_en": "The admin username is admin; the initial password is the one you entered at creation. If left empty it is generated and written to bootstrapAdmin.password in /run/grok2api/config.yaml (viewable on the Files page). You can change it after signing in. The file is mounted read-only: change it by editing the service's config file (configs) and redeploying. Never change credentialEncryptionKey after adding accounts. With an HTTPS domain bound, set auth.secureCookies to true.",
+  "inputs": [
+   {
+    "key": "ADMIN_PASSWORD",
+    "label": "管理员密码",
+    "label_en": "Admin password",
+    "secret": true
+   }
+  ],
+  "services": [
+   {
+    "name": "grok2api",
+    "image": "ghcr.io/chenyme/grok2api:latest",
+    "command": [
+     "sh",
+     "-c",
+     "chown -R 10001:10001 /app/data \u0026\u0026 exec /usr/local/bin/grok2api-entrypoint /app/grok2api --config /app/config.yaml --listen 0.0.0.0:8000"
+    ],
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 8000,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "mount_path": "/app/data"
+     }
+    ],
+    "configs": [
+     {
+      "path": "/run/grok2api/config.yaml",
+      "content": "# grok2api config (Atoll one-click app). Full reference: config.example.yaml in\n# github.com/chenyme/grok2api. Edit it in the service's configs, then redeploy.\nserver:\n  listen: \"0.0.0.0:8000\"\n\nauth:\n  # Set to true once the panel is only opened over HTTPS (a bound domain).\n  secureCookies: false\n\nsecrets:\n  jwtSecret: \"{{RANDOM}}\"\n  # Keep this forever once accounts are added: changing it makes stored credentials unreadable.\n  credentialEncryptionKey: \"{{RANDOM_BASE64}}\"\n\nbootstrapAdmin:\n  # Used only while the database has no admin. Change the password after signing in.\n  username: \"admin\"\n  password: \"{{INPUT:ADMIN_PASSWORD}}\"\n"
+     }
+    ],
+    "env": [
+     {
+      "key": "TZ",
+      "value": "Asia/Shanghai",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "mem_limit_mb": 512,
+    "main": true
+   }
+  ]
+ },
+ {
+  "id": "deeix-chat",
+  "name": "DEEIX Chat",
+  "category": "ai",
+  "description": "多模型 AI 对话系统，带管理后台、知识库和 MCP，SQLite 单容器",
+  "description_en": "Multi-model AI chat with an admin console, knowledge base and MCP, single container on SQLite",
+  "website": "https://github.com/DEEIX-AI/DEEIX-Chat",
+  "color": "#4f46e5",
+  "needs_domain": true,
+  "min_mem_mb": 512,
+  "note": "初始管理员是 admin，密码只在第一次启动的服务日志里打印一次（搜索 bootstrap superadmin created），首次登录会要求改用户名和密码。模型和其他设置在后台里配置。",
+  "note_en": "The initial admin is admin; the password is printed once in the service logs on first start (search for \"bootstrap superadmin created\"). The first sign-in asks you to change the username and password. Models and other settings are configured in the admin console.",
+  "services": [
+   {
+    "name": "deeix-chat",
+    "image": "ghcr.io/deeix-ai/deeix-chat:latest",
+    "ports": [
+     {
+      "name": "web",
+      "container_port": 8080,
+      "protocol": "http"
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "mount_path": "/app/data"
+     },
+     {
+      "name": "storage",
+      "mount_path": "/app/storage"
+     }
+    ],
+    "env": [
+     {
+      "key": "APP_ENV",
+      "value": "prod",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "DATABASE_DRIVER",
+      "value": "sqlite",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "SQLITE_PATH",
+      "value": "/app/data/deeix.db",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "CACHE_DRIVER",
+      "value": "memory",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "STORAGE_BACKEND",
+      "value": "local",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "STORAGE_ROOT_DIR",
+      "value": "/app/storage",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "JWT_SECRET",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "DATA_ENCRYPTION_KEY",
+      "value": "{{RANDOM}}",
+      "secret": true,
+      "exposed": false
+     },
+     {
+      "key": "TRUSTED_PROXIES",
+      "value": "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fc00::/7",
+      "secret": false,
+      "exposed": false
+     }
+    ],
+    "domain_env": [
+     {
+      "key": "PUBLIC_API_BASE_URL",
+      "value": "${ATOLL_WEB_URL}",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "PUBLIC_WEB_BASE_URL",
+      "value": "${ATOLL_WEB_URL}",
+      "secret": false,
+      "exposed": false
+     },
+     {
+      "key": "CORS_ALLOW_ORIGIN",
+      "value": "${ATOLL_WEB_URL}",
+      "secret": false,
+      "exposed": false
+     }
+    ],
     "main": true
    }
   ]

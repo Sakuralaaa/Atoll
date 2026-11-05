@@ -285,10 +285,12 @@ export interface AuthStatus { setup_required: boolean }
 export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[] }
 /** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
 /** GET /app-templates item: a one-click app (one or more services). */
-export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean }
+export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; configs?: ConfigFile[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean }
+/** A value the user may type when creating the app (a password); empty = generated. */
+export interface AppTemplateInput { key: string; label: string; label_en: string; secret: boolean; placeholder?: string }
 export interface AppTemplate {
   id: string; name: string; category: 'blog' | 'tools' | 'ops' | 'dev' | 'ai' | string; description: string; description_en: string
-  website: string; color: string; needs_domain: boolean; min_mem_mb: number; note?: string; note_en?: string; services: AppTemplateService[]
+  website: string; color: string; needs_domain: boolean; min_mem_mb: number; note?: string; note_en?: string; inputs?: AppTemplateInput[]; services: AppTemplateService[]
 }
 export interface AppTemplateResult { project: Project; services: Service[]; domain?: Domain; domain_error?: string }
 export interface Template { kind: string; name: string; description: string; image: string; command?: string[]; ports: Port[]; volumes: Volume[]; env: EnvVar[] }

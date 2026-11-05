@@ -27,7 +27,7 @@ func newAppsCmd(app *App) *cobra.Command {
 				return app.printJSON(as)
 			}
 			tw := app.table()
-			fmt.Fprintln(tw, "ID\tNAME\tCATEGORY\tSERVICES\tDOMAIN\tDESCRIPTION")
+			fmt.Fprintln(tw, "ID\tNAME\tCATEGORY\tSERVICES\tDOMAIN\tINPUTS\tDESCRIPTION")
 			for _, a := range as {
 				names := make([]string, 0, len(a.Services))
 				for _, s := range a.Services {
@@ -37,17 +37,28 @@ func newAppsCmd(app *App) *cobra.Command {
 				if a.NeedsDomain {
 					dom = "required"
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", a.ID, a.Name, a.Category, strings.Join(names, ","), dom, a.DescriptionEn)
+				keys := make([]string, 0, len(a.Inputs))
+				for _, in := range a.Inputs {
+					keys = append(keys, in.Key)
+				}
+				inputs := strings.Join(keys, ",")
+				if inputs == "" {
+					inputs = "-"
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", a.ID, a.Name, a.Category, strings.Join(names, ","), dom, inputs, a.DescriptionEn)
 			}
 			return tw.Flush()
 		},
 	}
 	var name, server, domain string
+	var sets []string
 	create := &cobra.Command{
-		Use:   "create APP [-n PROJECT] [--server SERVER] [--domain HOST]",
+		Use:   "create APP [-n PROJECT] [--server SERVER] [--domain HOST] [--set KEY=VALUE]...",
 		Short: "Create a project from a one-click app and deploy it",
 		Long: "Creates a new project with the app's services (and its database), binds --domain to the\n" +
 			"app when given, and deploys everything. Some apps need a domain (see `atoll apps ls`).\n" +
+			"Apps with inputs (a password, see the INPUTS column of `atoll apps ls`) take them as\n" +
+			"--set KEY=VALUE; an input left out gets a random value.\n" +
 			"Needs the deploy permission, plus domains when --domain is set.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -57,6 +68,16 @@ func newAppsCmd(app *App) *cobra.Command {
 			}
 			ctx := ctxOf(cmd)
 			req := api.AppTemplateRequest{Name: name, Hostname: domain}
+			for _, kv := range sets {
+				k, v, ok := strings.Cut(kv, "=")
+				if !ok || strings.TrimSpace(k) == "" {
+					return fmt.Errorf("--set wants KEY=VALUE, got %q", k)
+				}
+				if req.Inputs == nil {
+					req.Inputs = map[string]string{}
+				}
+				req.Inputs[strings.TrimSpace(k)] = v
+			}
 			if server != "" {
 				srv, err := c.ResolveServer(ctx, server)
 				if err != nil {
@@ -85,6 +106,7 @@ func newAppsCmd(app *App) *cobra.Command {
 	f.StringVarP(&name, "name", "n", "", "project name (default: the app id)")
 	f.StringVar(&server, "server", "", "server name or id (default: the only server)")
 	f.StringVar(&domain, "domain", "", "hostname to bind to the app, e.g. blog.example.com")
+	f.StringArrayVar(&sets, "set", nil, "app input KEY=VALUE, e.g. --set ADMIN_PASSWORD=... (repeatable; empty or left out = random)")
 	cmd.AddCommand(ls, create)
 	return cmd
 }

@@ -1,13 +1,20 @@
 package templates
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"strings"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
-// RandomPlaceholder in an app template env value becomes a fresh random secret.
+// RandomPlaceholder in an app template env value or config file becomes a fresh random secret.
 const RandomPlaceholder = "{{RANDOM}}"
+
+// RandomBase64Placeholder becomes 32 fresh random bytes in standard base64 (for apps that
+// want a base64 AES-256 key).
+const RandomBase64Placeholder = "{{RANDOM_BASE64}}"
 
 func web(port int) []api.Port {
 	return []api.Port{{Name: "web", ContainerPort: port, Protocol: "http"}}
@@ -15,11 +22,76 @@ func web(port int) []api.Port {
 
 func vol(name, path string) api.Volume { return api.Volume{Name: name, MountPath: path} }
 
+// InputRef is the placeholder for the template input key ({{INPUT:KEY}}).
+func InputRef(key string) string { return inputPrefix + key + "}}" }
+
+const inputPrefix = "{{INPUT:"
+
+func secretInput(key, label, labelEn string) api.AppTemplateInput {
+	return api.AppTemplateInput{Key: key, Label: label, LabelEn: labelEn, Secret: true}
+}
+
+func cfg(path, content string) []api.ConfigFile {
+	return []api.ConfigFile{{Path: path, Content: content}}
+}
+
+// cpaConfig is CLIProxyAPI's config.yaml in its v8 layout (see config.example.yaml upstream).
+// The management key is not in here: it comes from MANAGEMENT_PASSWORD, so the read-only
+// mounted file never has to be rewritten (CPA hashes a plaintext secret-key back into the file).
+const cpaConfig = `# CLIProxyAPI config (Atoll one-click app). Full reference: config.example.yaml in
+# github.com/router-for-me/CLIProxyAPI. Edit it in the service's configs, then redeploy.
+config-version: 8
+
+server:
+  port: 8317
+
+management:
+  # The management key is the MANAGEMENT_PASSWORD env var of this service (set at creation).
+  allow-remote: true
+  secret-key: ""
+
+access:
+  # Keys your clients send as "Authorization: Bearer <key>".
+  api-keys:
+    - "sk-{{RANDOM}}"
+
+oauth:
+  auth-dir: "/root/.cli-proxy-api"
+
+observability:
+  usage:
+    # Needed for request monitoring in CPA Manager Plus.
+    usage-statistics-enabled: true
+    redis-usage-queue-retention-seconds: 60
+`
+
+// grok2apiConfig is grok2api's config.yaml; everything not listed keeps the built-in default
+// (SQLite at /app/data/backend.db, media in /app/data/media, in-memory runtime store).
+const grok2apiConfig = `# grok2api config (Atoll one-click app). Full reference: config.example.yaml in
+# github.com/chenyme/grok2api. Edit it in the service's configs, then redeploy.
+server:
+  listen: "0.0.0.0:8000"
+
+auth:
+  # Set to true once the panel is only opened over HTTPS (a bound domain).
+  secureCookies: false
+
+secrets:
+  jwtSecret: "{{RANDOM}}"
+  # Keep this forever once accounts are added: changing it makes stored credentials unreadable.
+  credentialEncryptionKey: "{{RANDOM_BASE64}}"
+
+bootstrapAdmin:
+  # Used only while the database has no admin. Change the password after signing in.
+  username: "admin"
+  password: "{{INPUT:ADMIN_PASSWORD}}"
+`
+
 func env(kv ...string) []api.EnvVar {
 	out := make([]api.EnvVar, 0, len(kv)/2)
 	for i := 0; i+1 < len(kv); i += 2 {
 		v := kv[i+1]
-		out = append(out, api.EnvVar{Key: kv[i], Value: v, Secret: strings.Contains(v, RandomPlaceholder) || strings.Contains(v, "PASSWORD}") || strings.Contains(v, "CONNECTION_STRING}")})
+		out = append(out, api.EnvVar{Key: kv[i], Value: v, Secret: strings.Contains(v, RandomPlaceholder) || strings.Contains(v, inputPrefix) || strings.Contains(v, "PASSWORD}") || strings.Contains(v, "CONNECTION_STRING}")})
 	}
 	return out
 }
@@ -155,6 +227,29 @@ var apps = []api.AppTemplate{
 		},
 	},
 	{
+		ID: "flaresolverr", Name: "FlareSolverr", Category: "tools", Color: "#f38020", Website: "https://github.com/FlareSolverr/FlareSolverr",
+		Description: "用无头 Chrome 过 Cloudflare 验证的代理接口，给 grok2api、Jackett 等程序调用", DescriptionEn: "Proxy API that passes Cloudflare challenges with headless Chrome, for grok2api, Jackett and similar tools",
+		MinMemMB: 512,
+		Note:     "只有 API，没有网页界面：程序调用 POST /v1。同一项目里的服务用 http://flaresolverr:8191 访问；其他项目要用就绑定域名。浏览器很吃内存，内存小的机器别开太多会话。",
+		NoteEn:   "API only, no web UI: apps call POST /v1. Services in the same project reach it at http://flaresolverr:8191; bind a domain to use it from other projects. Browsers use a lot of memory, so keep sessions few on small servers.",
+		Services: []api.AppTemplateService{
+			{Name: "flaresolverr", Image: "ghcr.io/flaresolverr/flaresolverr:latest", Ports: web(8191), Main: true, MemLimitMB: 1024,
+				Env: env("LOG_LEVEL", "info", "TZ", "Asia/Shanghai")},
+		},
+	},
+	{
+		ID: "outlook-email", Name: "OutlookEmail", Category: "tools", Color: "#0078d4", Website: "https://github.com/assast/outlookEmail",
+		Description: "批量管理 Outlook / Hotmail 邮箱，网页里收信看验证码", DescriptionEn: "Manage many Outlook / Hotmail mailboxes and read mail and verification codes in the browser",
+		MinMemMB: 256,
+		Inputs:   []api.AppTemplateInput{secretInput("LOGIN_PASSWORD", "登录密码", "Login password")},
+		Note:     "登录密码是创建时填写的那个；留空则自动生成，在环境变量 LOGIN_PASSWORD 里（只在第一次启动时生效，之后在网页设置里改）。SECRET_KEY 用来加密数据，不要改。镜像自带的「一键更新」已关闭，更新请在 Atoll 里重新部署。",
+		NoteEn:   "The login password is the one you entered at creation; if left empty it is generated and kept in the LOGIN_PASSWORD env var (only used on first start; change it later in the web settings). SECRET_KEY encrypts the data, so don't change it. The image's built-in self-update is disabled; update by redeploying in Atoll.",
+		Services: []api.AppTemplateService{
+			{Name: "outlook-email", Image: "ghcr.io/assast/outlookemail:latest", Ports: web(5000), Volumes: []api.Volume{vol("data", "/app/data")}, Main: true,
+				Env: env("LOGIN_PASSWORD", InputRef("LOGIN_PASSWORD"), "SECRET_KEY", RandomPlaceholder, "FLASK_ENV", "production", "DOCKER_UPDATE_ENABLED", "false")},
+		},
+	},
+	{
 		ID: "uptime-kuma", Name: "Uptime Kuma", Category: "ops", Color: "#5cdd8b", Website: "https://uptime.kuma.pet",
 		Description: "好看的网站和服务可用性监控，支持多种通知和状态页", DescriptionEn: "Good-looking uptime monitoring with notifications and status pages",
 		MinMemMB: 256,
@@ -214,6 +309,71 @@ var apps = []api.AppTemplate{
 				Env: env("WEBUI_SECRET_KEY", RandomPlaceholder)},
 		},
 	},
+	{
+		ID: "cliproxyapi", Name: "CLIProxyAPI + CPA Manager Plus", Category: "ai", Color: "#2563eb", Website: "https://github.com/router-for-me/CLIProxyAPI",
+		Description: "把 Gemini CLI / Codex / Claude Code 等账号转成 OpenAI 兼容 API，附带 CPA Manager Plus 管理面板（用量统计、账号管理）", DescriptionEn: "Turns Gemini CLI / Codex / Claude Code and other accounts into an OpenAI-compatible API, with the CPA Manager Plus panel (usage analytics, account management)",
+		MinMemMB: 512,
+		Inputs:   []api.AppTemplateInput{secretInput("CPA_MANAGEMENT_KEY", "CPA 管理密钥", "CPA management key")},
+		Note: "域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。" +
+			"客户端 API Key 在 cli-proxy-api 的配置文件 /CLIProxyAPI/config.yaml（access.api-keys，可在「文件」页查看）；配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署，通过 CPA 管理接口改配置不会保存。" +
+			"要让外部客户端直接调用 API，再给 cli-proxy-api 绑定一个域名（端口 api）。",
+		NoteEn: "The domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). " +
+			"The client API key is in cli-proxy-api's /CLIProxyAPI/config.yaml (access.api-keys, viewable on the Files page). The file is mounted read-only: change it by editing the service's config file (configs) and redeploying; config changes made through CPA's management API are not saved. " +
+			"To call the API from outside, bind a domain to cli-proxy-api as well (port api).",
+		Services: []api.AppTemplateService{
+			{Name: "cli-proxy-api", Image: "eceasy/cli-proxy-api:latest", Ports: []api.Port{{Name: "api", ContainerPort: 8317, Protocol: "http"}}, MemLimitMB: 512,
+				Volumes: []api.Volume{vol("auths", "/root/.cli-proxy-api"), vol("logs", "/CLIProxyAPI/logs")},
+				Configs: cfg("/CLIProxyAPI/config.yaml", cpaConfig),
+				Env:     []api.EnvVar{{Key: "MANAGEMENT_PASSWORD", Value: InputRef("CPA_MANAGEMENT_KEY"), Secret: true, Exposed: true}}},
+			{Name: "cpa-manager-plus", Image: "seakee/cpa-manager-plus:latest", Ports: web(18317), Volumes: []api.Volume{vol("data", "/data")}, Main: true,
+				Env: env(
+					"CPA_UPSTREAM_URL", "http://${CLI_PROXY_API_HOST}:8317",
+					"CPA_MANAGEMENT_KEY", "${cli-proxy-api.MANAGEMENT_PASSWORD}",
+					"CPA_MANAGER_ADMIN_KEY", RandomPlaceholder,
+					"USAGE_DB_PATH", "/data/usage.sqlite",
+					"CPA_MANAGER_DATA_KEY_PATH", "/data/data.key",
+					"USAGE_COLLECTOR_MODE", "auto",
+				)},
+		},
+	},
+	{
+		ID: "grok2api", Name: "grok2api", Category: "ai", Color: "#0a0a0a", Website: "https://github.com/chenyme/grok2api",
+		Description: "把 Grok 账号转成 OpenAI 兼容 API，带管理后台和账号池，SQLite 单容器", DescriptionEn: "Turns Grok accounts into an OpenAI-compatible API with an admin panel and account pool, single container on SQLite",
+		MinMemMB: 256,
+		Inputs:   []api.AppTemplateInput{secretInput("ADMIN_PASSWORD", "管理员密码", "Admin password")},
+		Note:     "管理员用户名 admin，初始密码是创建时填写的那个；留空则自动生成，写在配置文件 /run/grok2api/config.yaml 的 bootstrapAdmin.password（可在「文件」页查看）。登录后可修改。配置文件以只读方式挂载，要改就修改服务的配置文件（configs）再重新部署；credentialEncryptionKey 添加账号后不要再改。绑定 HTTPS 域名后建议把 auth.secureCookies 改成 true。",
+		NoteEn:   "The admin username is admin; the initial password is the one you entered at creation. If left empty it is generated and written to bootstrapAdmin.password in /run/grok2api/config.yaml (viewable on the Files page). You can change it after signing in. The file is mounted read-only: change it by editing the service's config file (configs) and redeploying. Never change credentialEncryptionKey after adding accounts. With an HTTPS domain bound, set auth.secureCookies to true.",
+		Services: []api.AppTemplateService{
+			// The image runs as uid 10001 but Atoll's volume dirs start out owned by root.
+			{Name: "grok2api", Image: "ghcr.io/chenyme/grok2api:latest", Ports: web(8000), Volumes: []api.Volume{vol("data", "/app/data")}, Main: true, MemLimitMB: 512,
+				Command: []string{"sh", "-c", "chown -R 10001:10001 /app/data && exec /usr/local/bin/grok2api-entrypoint /app/grok2api --config /app/config.yaml --listen 0.0.0.0:8000"},
+				Configs: cfg("/run/grok2api/config.yaml", grok2apiConfig),
+				Env:     env("TZ", "Asia/Shanghai")},
+		},
+	},
+	{
+		ID: "deeix-chat", Name: "DEEIX Chat", Category: "ai", Color: "#4f46e5", Website: "https://github.com/DEEIX-AI/DEEIX-Chat",
+		Description: "多模型 AI 对话系统，带管理后台、知识库和 MCP，SQLite 单容器", DescriptionEn: "Multi-model AI chat with an admin console, knowledge base and MCP, single container on SQLite",
+		NeedsDomain: true, MinMemMB: 512,
+		Note:   "初始管理员是 admin，密码只在第一次启动的服务日志里打印一次（搜索 bootstrap superadmin created），首次登录会要求改用户名和密码。模型和其他设置在后台里配置。",
+		NoteEn: "The initial admin is admin; the password is printed once in the service logs on first start (search for \"bootstrap superadmin created\"). The first sign-in asks you to change the username and password. Models and other settings are configured in the admin console.",
+		Services: []api.AppTemplateService{
+			{Name: "deeix-chat", Image: "ghcr.io/deeix-ai/deeix-chat:latest", Ports: web(8080), Main: true,
+				Volumes: []api.Volume{vol("data", "/app/data"), vol("storage", "/app/storage")},
+				Env: env(
+					"APP_ENV", "prod",
+					"DATABASE_DRIVER", "sqlite",
+					"SQLITE_PATH", "/app/data/deeix.db",
+					"CACHE_DRIVER", "memory",
+					"STORAGE_BACKEND", "local",
+					"STORAGE_ROOT_DIR", "/app/storage",
+					"JWT_SECRET", RandomPlaceholder,
+					"DATA_ENCRYPTION_KEY", RandomPlaceholder,
+					"TRUSTED_PROXIES", "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fc00::/7",
+				),
+				DomainEnv: env("PUBLIC_API_BASE_URL", "${ATOLL_WEB_URL}", "PUBLIC_WEB_BASE_URL", "${ATOLL_WEB_URL}", "CORS_ALLOW_ORIGIN", "${ATOLL_WEB_URL}")},
+		},
+	},
 }
 
 // Apps returns the one-click apps in display order.
@@ -229,10 +389,69 @@ func App(id string) (api.AppTemplate, bool) {
 	return api.AppTemplate{}, false
 }
 
-// FillRandom replaces every {{RANDOM}} with its own fresh secret.
+// ResolveInputs returns the value of every input of t: the given one, or a fresh random
+// secret when it is missing or empty. Unknown keys and values that would break an env
+// value or a YAML string are rejected; the error never contains the value.
+func ResolveInputs(t api.AppTemplate, given map[string]string) (map[string]string, error) {
+	known := map[string]bool{}
+	for _, in := range t.Inputs {
+		known[in.Key] = true
+	}
+	for k := range given {
+		if !known[k] {
+			return nil, fmt.Errorf("unknown input %q for app %s", k, t.ID)
+		}
+	}
+	out := make(map[string]string, len(t.Inputs))
+	for _, in := range t.Inputs {
+		v := given[in.Key]
+		if v == "" {
+			out[in.Key] = RandomPassword(32)
+			continue
+		}
+		if err := checkInput(v); err != nil {
+			return nil, fmt.Errorf("input %s: %w", in.Key, err)
+		}
+		out[in.Key] = v
+	}
+	return out, nil
+}
+
+func checkInput(v string) error {
+	if len(v) < 8 || len(v) > 128 {
+		return fmt.Errorf("must be 8 to 128 characters")
+	}
+	for _, r := range v {
+		if r < 0x20 || r == 0x7f || r == '"' || r == '\\' {
+			return fmt.Errorf("must not contain quotes, backslashes or control characters")
+		}
+	}
+	if strings.Contains(v, "{{") || strings.Contains(v, "${") {
+		return fmt.Errorf("must not contain \"{{\" or \"${\"")
+	}
+	return nil
+}
+
+// Fill replaces {{INPUT:KEY}} with the resolved inputs, then fills {{RANDOM}} placeholders.
+func Fill(v string, inputs map[string]string) string {
+	for k, val := range inputs {
+		v = strings.ReplaceAll(v, InputRef(k), val)
+	}
+	return FillRandom(v)
+}
+
+// FillRandom replaces every {{RANDOM}} with its own fresh secret and every
+// {{RANDOM_BASE64}} with its own base64-encoded 32 random bytes.
 func FillRandom(v string) string {
 	for strings.Contains(v, RandomPlaceholder) {
 		v = strings.Replace(v, RandomPlaceholder, RandomPassword(32), 1)
+	}
+	for strings.Contains(v, RandomBase64Placeholder) {
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			panic(err)
+		}
+		v = strings.Replace(v, RandomBase64Placeholder, base64.StdEncoding.EncodeToString(b), 1)
 	}
 	return v
 }

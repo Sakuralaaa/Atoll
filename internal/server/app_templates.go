@@ -42,6 +42,10 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 			return errf(403, "approval_required", "this token needs approval for domain changes; leave hostname empty and bind the domain separately")
 		}
 	}
+	inputs, err := templates.ResolveInputs(tpl, req.Inputs)
+	if err != nil {
+		return badRequest("%s", err.Error())
+	}
 	dn, err := checkDisplayName(req.DisplayName)
 	if err != nil {
 		return err
@@ -65,6 +69,9 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 	for _, ts := range tpl.Services {
 		v := api.Service{Name: ts.Name, Kind: "image", Image: ts.Image, Command: ts.Command, MemLimitMB: ts.MemLimitMB,
 			Ports: append([]api.Port(nil), ts.Ports...), Volumes: append([]api.Volume(nil), ts.Volumes...)}
+		for _, c := range ts.Configs {
+			v.Configs = append(v.Configs, api.ConfigFile{Path: c.Path, Content: templates.Fill(c.Content, inputs)})
+		}
 		if ts.Template != "" {
 			v.Kind = ts.Template
 		}
@@ -73,7 +80,7 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 			vars = append(vars, ts.DomainEnv...)
 		}
 		for i := range vars {
-			vars[i].Value = templates.FillRandom(vars[i].Value)
+			vars[i].Value = templates.Fill(vars[i].Value, inputs)
 		}
 		svc, err := s.createService(ctx, proj, v, vars, true)
 		if err != nil {

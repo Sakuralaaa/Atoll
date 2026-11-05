@@ -1323,6 +1323,8 @@ const en: Record<string, string> = {
  "域名已添加，正在配置 DNS 与证书": "Domain added; setting up DNS and certificate",
  "填前缀并选择根域名；其他域名选「完整域名」，需由同一 Cloudflare 账号托管{0}": "Enter a prefix and pick a root domain; for other domains choose \"Full domain\", which must be on the same Cloudflare account{0}",
  "尚未设置根域名，请填写完整域名": "No root domain set; enter a full domain",
- "没有 HTTP 端口，请先在「网络」里添加。": "No HTTP port; add one under Network first."
+ "没有 HTTP 端口，请先在「网络」里添加。": "No HTTP port; add one under Network first.",
+ "留空自动生成": "Leave empty to generate",
+ "显示": "Show"
 }
 export default en

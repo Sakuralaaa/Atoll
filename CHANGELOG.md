@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- 未发布：新增一键应用 CLIProxyAPI + CPA Manager Plus、grok2api、DEEIX Chat、FlareSolverr、OutlookEmail（共 20 个）；应用模板可带配置文件（configs，只读挂载）和创建时填写的输入项（如管理员密码，留空自动生成；API `inputs`、CLI `--set KEY=VALUE`）。只需升级中控。
 - [v0.1.36](docs/releases/v0.1.36.md)：修复中控推送 mesh 时持锁，导致节点反复断线（agent disconnected）。只需升级中控。
 - [v0.1.35](docs/releases/v0.1.35.md)：一键应用模板（15 个，含 Atoll 风格博客 PaperGrid，内置 MCP）；英文界面与 README.en.md。只需升级中控，无迁移。
 - [v0.1.34](docs/releases/v0.1.34.md)：上传自定义头像；侧栏导航可拖动排序并按账号保存；「连接」「审批」「迁移」改名；删除侧栏顶部用户名行。含迁移 0023，升级中控前先备份。

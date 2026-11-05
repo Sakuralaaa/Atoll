@@ -525,18 +525,30 @@ type Template struct {
 // references resolved at deploy time like any other env (e.g. ${POSTGRES_HOST} from the
 // database service, ${ATOLL_WEB_URL} once a domain is bound).
 type AppTemplate struct {
-	ID            string               `json:"id"`
-	Name          string               `json:"name"`
-	Category      string               `json:"category"` // "blog" | "tools" | "ops" | "dev" | "ai"
-	Description   string               `json:"description"`
-	DescriptionEn string               `json:"description_en"`
-	Website       string               `json:"website"`
-	Color         string               `json:"color"`        // brand color for the icon tile, "#rrggbb"
-	NeedsDomain   bool                 `json:"needs_domain"` // the app only works behind its public HTTPS URL
-	MinMemMB      int                  `json:"min_mem_mb"`   // rough memory the whole app needs
-	Note          string               `json:"note,omitempty"`
-	NoteEn        string               `json:"note_en,omitempty"`
-	Services      []AppTemplateService `json:"services"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Category      string `json:"category"` // "blog" | "tools" | "ops" | "dev" | "ai"
+	Description   string `json:"description"`
+	DescriptionEn string `json:"description_en"`
+	Website       string `json:"website"`
+	Color         string `json:"color"`        // brand color for the icon tile, "#rrggbb"
+	NeedsDomain   bool   `json:"needs_domain"` // the app only works behind its public HTTPS URL
+	MinMemMB      int    `json:"min_mem_mb"`   // rough memory the whole app needs
+	Note          string `json:"note,omitempty"`
+	NoteEn        string `json:"note_en,omitempty"`
+	// Inputs are values the user may type at creation (a password); env values and config
+	// content use them as {{INPUT:KEY}}. An empty value becomes a fresh random secret.
+	Inputs   []AppTemplateInput   `json:"inputs,omitempty"`
+	Services []AppTemplateService `json:"services"`
+}
+
+// AppTemplateInput is one value asked for when creating a project from an app template.
+type AppTemplateInput struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	LabelEn     string `json:"label_en"`
+	Secret      bool   `json:"secret"` // a password: masked in the UI
+	Placeholder string `json:"placeholder,omitempty"`
 }
 
 // AppTemplateRequest is the body of POST /api/v1/app-templates/{id}.
@@ -549,6 +561,8 @@ type AppTemplateRequest struct {
 	Hostname   string `json:"hostname,omitempty"`
 	RootDomain string `json:"root_domain,omitempty"`
 	Proxied    *bool  `json:"proxied,omitempty"`
+	// Inputs fills the template's inputs by key; a missing or empty value is generated.
+	Inputs map[string]string `json:"inputs,omitempty"`
 }
 
 // AppTemplateResult is the answer of POST /api/v1/app-templates/{id}.
@@ -562,16 +576,19 @@ type AppTemplateResult struct {
 // AppTemplateService is one service of an AppTemplate. Template names a database
 // template kind ("postgres", "mysql", ...); otherwise Image/Ports/Volumes/Env apply.
 type AppTemplateService struct {
-	Name       string   `json:"name"`
-	Template   string   `json:"template,omitempty"`
-	Image      string   `json:"image,omitempty"`
-	Command    []string `json:"command,omitempty"`
-	Ports      []Port   `json:"ports,omitempty"`
-	Volumes    []Volume `json:"volumes,omitempty"`
-	Env        []EnvVar `json:"env,omitempty"`
-	DomainEnv  []EnvVar `json:"domain_env,omitempty"` // added only when a domain is bound at creation
-	MemLimitMB int      `json:"mem_limit_mb,omitempty"`
-	Main       bool     `json:"main,omitempty"` // the service the domain is bound to
+	Name     string   `json:"name"`
+	Template string   `json:"template,omitempty"`
+	Image    string   `json:"image,omitempty"`
+	Command  []string `json:"command,omitempty"`
+	Ports    []Port   `json:"ports,omitempty"`
+	Volumes  []Volume `json:"volumes,omitempty"`
+	// Configs are files mounted read-only into the container; {{RANDOM}} / {{RANDOM_BASE64}}
+	// in their content are filled like env values. Users edit them as the service's configs.
+	Configs    []ConfigFile `json:"configs,omitempty"`
+	Env        []EnvVar     `json:"env,omitempty"`
+	DomainEnv  []EnvVar     `json:"domain_env,omitempty"` // added only when a domain is bound at creation
+	MemLimitMB int          `json:"mem_limit_mb,omitempty"`
+	Main       bool         `json:"main,omitempty"` // the service the domain is bound to
 }
 
 // MigrationJob tracks POST /api/v1/projects/{id}/migrate (GET /api/v1/migrations/{id}).

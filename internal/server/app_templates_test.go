@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -31,6 +32,29 @@ func TestAppTemplatesAPI(t *testing.T) {
 	}
 	if len(got["APP_SECRET"]) != 32 || got["DATABASE_URL"] != "${POSTGRES_CONNECTION_STRING}" {
 		t.Fatalf("env: %+v", got)
+	}
+	// config files are carried over with their placeholders filled
+	e.mustDo("POST", "/api/v1/app-templates/grok2api", map[string]any{"server_id": nodeID, "inputs": map[string]string{"ADMIN_PASSWORD": "typed-pass-1"}}, &res, 201)
+	var svc api.Service
+	e.mustDo("GET", "/api/v1/services/"+res.Services[0].ID, nil, &svc, 200)
+	if len(svc.Configs) != 1 || svc.Configs[0].Path != "/run/grok2api/config.yaml" || strings.Contains(svc.Configs[0].Content, "{{") ||
+		!strings.Contains(svc.Configs[0].Content, "credentialEncryptionKey: \"") {
+		t.Fatalf("configs: %+v", svc.Configs)
+	}
+	if !strings.Contains(svc.Configs[0].Content, `password: "typed-pass-1"`) {
+		t.Fatalf("input not filled: %s", svc.Configs[0].Content)
+	}
+	e.mustDo("POST", "/api/v1/app-templates/outlook-email", map[string]any{"server_id": nodeID, "inputs": map[string]string{"NOPE": "typed-pass-1"}}, nil, 400)
+	e.mustDo("POST", "/api/v1/app-templates/outlook-email", map[string]any{"server_id": nodeID, "inputs": map[string]string{"LOGIN_PASSWORD": ""}}, &res, 201)
+	e.mustDo("GET", "/api/v1/services/"+res.Services[0].ID+"/env?reveal=1", nil, &vars, 200)
+	found := false
+	for _, v := range vars {
+		if v.Key == "LOGIN_PASSWORD" {
+			found = len(v.Value) == 32 && v.Secret
+		}
+	}
+	if !found {
+		t.Fatalf("empty input not generated: %+v", vars)
 	}
 	// the name is taken now
 	e.mustDo("POST", "/api/v1/app-templates/memos", map[string]string{"server_id": nodeID, "name": "stats"}, nil, 409)

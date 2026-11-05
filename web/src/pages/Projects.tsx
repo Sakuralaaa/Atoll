@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BACK } from '../api/backTo'
-import { ArrowLeft, ArrowUpDown, LayoutGrid, List, Package, Pin, Plus, SearchX, Server as ServerIcon } from 'lucide-react'
+import { ArrowLeft, ArrowUpDown, Eye, EyeOff, LayoutGrid, List, Package, Pin, Plus, SearchX, Server as ServerIcon } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
@@ -21,7 +21,7 @@ import { L, useT } from '../i18n'
 import { ServerGroupCards } from '../components/ServerGroups'
 import { groupByServer } from '../api/groups'
 import { providerOf } from '../api/providers'
-import type { ImageUpdate, Project, Server } from '../api/types'
+import type { AppTemplate, ImageUpdate, Project, Server } from '../api/types'
 
 const GROUP_KEY = 'atoll.projects.groupByServer'
 
@@ -155,6 +155,12 @@ function ProjectCard({ p, servers, updates, prefs, drag }: CardProps & { p: Proj
 
 const APP_CATS: [string, string][] = [['all', L('全部')], ['blog', L('博客')], ['tools', L('工具')], ['ops', L('运维')], ['dev', L('开发')], ['ai', 'AI']]
 
+/** The typed inputs of this app; empty ones are left out so the server generates them. */
+function appInputs(app: AppTemplate, typed: Record<string, string>): Record<string, string> | undefined {
+  const out = Object.fromEntries((app.inputs ?? []).filter(i => typed[i.key]).map(i => [i.key, typed[i.key]]))
+  return Object.keys(out).length ? out : undefined
+}
+
 function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaultServer?: string }) {
   const nav = useNavigate()
   const { lang } = useT()
@@ -165,6 +171,8 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
   const [appId, setAppId] = useState('')
   const [name, setName] = useState(''); const [desc, setDesc] = useState(''); const [sid, setSid] = useState('')
   const [host, setHost] = useState('')
+  const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [reveal, setReveal] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
   const server = sid || (defaultServer && servers.some(s => s.id === defaultServer) ? defaultServer : '') || servers.find(s => s.status === 'online')?.id || servers[0]?.id || ''
   const app = apps.find(a => a.id === appId)
@@ -179,7 +187,7 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
       if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
       return
     }
-    const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, hostname: host.trim() || undefined }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
+    const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, hostname: host.trim() || undefined, inputs: appInputs(app!, inputs) }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
     setBusy(false)
     if (r) { const main = r.services.find(x => x.name === app!.services.find(t => t.main)?.name); onClose(); nav(main ? `/projects/${r.project.id}/services/${main.id}` : `/projects/${r.project.id}`) }
   }
@@ -218,6 +226,15 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
           <Label t={app.needs_domain ? (lang === "en" ? "Domain" : "域名") : L("域名（可选）")} d={app.needs_domain ? L("{0} 需要通过自己的 HTTPS 域名访问", app.name) : L("留空则之后在服务的「网络」里绑定")}>
             <TextInput className="w-full" mono value={host} onChange={e => setHost(e.target.value)} placeholder={`${app.id}.example.com`} />
           </Label>
+          {(app.inputs ?? []).map(i => (
+            <Label key={i.key} t={lang === 'en' ? i.label_en : i.label} d={L("留空自动生成")}>
+              <div className="flex gap-1.5">
+                <TextInput className="w-full" mono autoComplete="new-password" type={i.secret && !reveal[i.key] ? 'password' : 'text'} value={inputs[i.key] ?? ''}
+                  onChange={e => setInputs(v => ({ ...v, [i.key]: e.target.value }))} placeholder={i.placeholder} />
+                {i.secret && <Button size="sm" type="button" title={reveal[i.key] ? L("隐藏") : L("显示")} onClick={() => setReveal(v => ({ ...v, [i.key]: !v[i.key] }))}>{reveal[i.key] ? <EyeOff size={14} /> : <Eye size={14} />}</Button>}
+              </div>
+            </Label>
+          ))}
           <div className="text-[12.5px] text-muted leading-relaxed">
             {L("会创建 {0} 个服务：{1}。建议内存至少 {2} MB。", app.services.length, app.services.map(x => x.name).join(L('、')), app.min_mem_mb)}
             {(lang === 'en' ? app.note_en : app.note) && <> {lang === 'en' ? app.note_en : app.note}</>}
