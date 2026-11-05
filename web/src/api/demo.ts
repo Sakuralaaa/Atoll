@@ -287,6 +287,8 @@ const FS: Record<string, string[] | string> = {
   '/app/config.yaml': CONFIG, '/app/VERSION': 'v2.3.1\n', '/app/.env.example': 'SECRET_KEY=\nADMIN_PASSWORD=\n', '/app/start.sh': '#!/bin/sh\nexec python main.py\n',
   '/app/requirements.txt': 'flask==3.1.0\napscheduler==3.11.0\nrequests==2.32.3\n', '/app/main.py': 'from app import create_app\n\napp = create_app()\n',
 }
+// mail-relay's config.yaml is an Atoll config-file mount (read-only in the container, edited through the spec)
+services.filter(s => s.project_id === 'mailrelay' && s.kind === 'image').forEach(s => { s.configs = [{ path: '/app/config.yaml', content: CONFIG }] })
 function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
   const script = cmd[0] === 'sh' && cmd[1] === '-c' ? cmd[2] : cmd.join(' ')
   if (script === 'pwd') return { ok: true, output: '/app\n' }
@@ -299,6 +301,9 @@ function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
     const f = FS[target]
     return typeof f === 'string' ? { ok: true, output: f } : { ok: true, output: `# ${target}\n` }
   }
+  if (script.startsWith('wc')) { const f = FS[target]; return { ok: true, output: `${typeof f === 'string' ? new TextEncoder().encode(f).length : 0}\n` } }
+  if (script.startsWith('cat "$1" >')) { FS[cmd[5]] = String(FS[cmd[4]] ?? ''); delete FS[cmd[4]]; return { ok: true, output: '' } }
+  if (script.startsWith('printf "%s" "$1" >>')) { const path = cmd[5]; FS[path] = String(FS[path] ?? '') + cmd[4]; return { ok: true, output: '' } }
   if (script.startsWith('printf')) {
     const path = cmd[5], dir = path.replace(/\/[^/]+$/, '') || '/', name = path.slice(dir.length + (dir === '/' ? 0 : 1))
     if (!(path in FS) && Array.isArray(FS[dir])) (FS[dir] as string[]).push(name)
@@ -454,8 +459,9 @@ function route(method: string, path: string, body: any): unknown {
     if (G) return services.filter(s => s.project_id === a![0]).map(withSvc)
     const t = templates.find(x => x.kind === body.kind)
     const s: Service = { id: nid('svc'), project_id: a[0], server_id: body.server_id || projects.find(x => x.id === a![0])?.server_id, name: body.name, kind: body.kind, image: body.image || t?.image || '', ports: body.ports ?? [], volumes: body.volumes ?? (VOLS[body.kind] ?? []).map(([name, mount_path]) => ({ name, mount_path })), status: 'deploying', replicas: '0/1', created_at: new Date().toISOString(),
+      command: body.command, args: body.args, configs: body.configs, ...(body.registry_auth ? { registry_cred_id: nid('reg') } : {}),
       mem_limit_mb: body.mem_limit_mb === -1 ? 0 : body.mem_limit_mb || settings.default_mem_limit_mb || 0, cpu_limit: body.cpu_limit === -1 ? 0 : body.cpu_limit || settings.default_cpu_limit || 0 }
-    services.push(s); env[s.id] = []; deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: new Date().toISOString() }]
+    services.push(s); env[s.id] = (body.env ?? []).map((e: EnvVar) => ({ ...e, exposed: false })); deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: new Date().toISOString() }]
     if (body.git) return { ...withSvc(s), ...demoGit.create(s, body.git) }
     return withSvc(s)
   }

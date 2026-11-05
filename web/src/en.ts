@@ -1325,6 +1325,13 @@ const en: Record<string, string> = {
  "尚未设置根域名，请填写完整域名": "No root domain set; enter a full domain",
  "没有 HTTP 端口，请先在「网络」里添加。": "No HTTP port; add one under Network first.",
  "留空自动生成": "Leave empty to generate",
- "显示": "Show"
+ "显示": "Show",
+ "文件超过 1 MB（{0}），请用命令行编辑": "File is over 1 MB ({0}); edit it from the command line",
+ "文件超过 1 MB，无法在这里保存": "File is over 1 MB and can't be saved here",
+ "这是 Atoll 挂载的配置文件，保存后会重新部署服务。继续？": "This is a config file mounted by Atoll. Saving redeploys the service. Continue?",
+ "配置已保存，正在重新部署": "Config saved, redeploying",
+ "配置文件": "Config files",
+ "· 配置文件，保存后会重新部署": "· config file, saving redeploys",
+ "通过容器内的 ls / cat 读取，保存时写回原路径（最大 1 MB）。Atoll 挂载的配置文件保存后会重新部署。大文件和二进制文件请用命令行。": "Read with ls / cat inside the container and written back to the same path on save (up to 1 MB). Config files mounted by Atoll redeploy the service when saved. Use the command line for large or binary files."
 }
 export default en
