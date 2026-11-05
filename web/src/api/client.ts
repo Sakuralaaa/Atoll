@@ -1,7 +1,7 @@
 import { L } from '../i18n'
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
-  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
+  ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, AppTemplate, AppTemplateResult, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
 } from './types'
 
 export const API = '/api/v1'
@@ -173,6 +173,8 @@ export const api = {
   createImport: (plan: ImportPlan) => post<ImportJob>('/imports', plan),
   startImport: (id: string) => post<ImportJob>(`/imports/${e(id)}/start`),
   templates: () => get<Template[]>('/templates'),
+  appTemplates: () => get<AppTemplate[]>('/app-templates'),
+  createFromApp: (id: string, b: { name: string; server_id: string; hostname?: string }) => post<AppTemplateResult>(`/app-templates/${id}`, b),
   migration: (id: string) => get<MigrationJob>(`/migrations/${e(id)}`),
   // in-place Zeabur takeover
   zeaburScan: (serverId: string) => get<ZeaburInventory>(`/servers/${e(serverId)}/zeabur`),

@@ -1,4 +1,5 @@
 import { L } from '../i18n'
+import demoApps from './demo-apps'
 // Demo backend: serves the original mock data through the same REST paths the real client uses.
 // Enabled with ?demo=1 or VITE_DEMO=1. Mutations live in memory for the tab.
 import { projects as mockProjects, servers as mockServers } from '../mock'
@@ -556,6 +557,27 @@ function route(method: string, path: string, body: any): unknown {
     return settings
   }
   if (G && m('templates')) return templates
+  if (G && m('app-templates')) return demoApps
+  if (P && (a = m('app-templates/*'))) {
+    const app = demoApps.find(x => x.id === a![0]) ?? fail(404, `unknown app template "${a[0]}"`)
+    if (app.needs_domain && !String(body.hostname ?? '').trim()) fail(400, `${app.name} needs a domain`)
+    const name = String(body.name || app.id).trim()
+    if (projects.some(x => x.name === name)) fail(409, `a project named "${name}" already exists`)
+    const pr: Project = { id: nid('prj'), name, server_id: body.server_id, description: app.name, created_at: new Date().toISOString() }; projects.push(pr)
+    const made: Service[] = [], now = new Date().toISOString()
+    let dom: Domain | undefined
+    for (const t of app.services) {
+      const tt = t.template ? templates.find(x => x.kind === t.template) : undefined
+      const s: Service = { id: nid('svc'), project_id: pr.id, server_id: pr.server_id, name: t.name, kind: t.template || 'image', image: t.image || tt?.image || '', ports: t.ports ?? tt?.ports ?? [], volumes: t.volumes ?? (VOLS[t.template ?? ''] ?? []).map(([name, mount_path]) => ({ name, mount_path })),
+        status: 'deploying', replicas: '0/1', created_at: now, mem_limit_mb: t.mem_limit_mb || settings.default_mem_limit_mb || 0, cpu_limit: settings.default_cpu_limit || 0 }
+      services.push(s); env[s.id] = [...(t.env ?? []), ...(body.hostname ? t.domain_env ?? [] : [])].map(e => ({ ...e, value: e.value.replaceAll('{{RANDOM}}', Math.random().toString(36).slice(2, 18)) }))
+      deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: now }]
+      setTimeout(() => { s.status = 'running'; s.replicas = '1/1'; deployments[s.id][0].status = 'running' }, 4000)
+      if (t.main && body.hostname) { dom = { id: nid('dom'), service_id: s.id, hostname: String(body.hostname).trim().toLowerCase(), port_name: 'web', proxied: true, status: 'provisioning', created_at: now }; domains.push(dom); const d = dom; setTimeout(() => { d.status = 'active' }, 8000) }
+      made.push(withSvc(s))
+    }
+    return { project: fullProject(pr), services: made, domain: dom }
+  }
   if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }
   if (P && m('imports/docker')) {

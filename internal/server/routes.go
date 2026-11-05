@@ -155,6 +155,8 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/problems", lvlRead, s.handleListProblems)
 	a("PUT "+v+"/settings", needSettings, s.handlePutSettings)
 	a("GET "+v+"/templates", needReadGlobal, s.handleTemplates)
+	a("GET "+v+"/app-templates", needReadGlobal, s.handleListAppTemplates)
+	a("POST "+v+"/app-templates/{id}", needDeployGlobal, s.handleCreateFromAppTemplate)
 
 	// imports
 	a("GET "+v+"/imports", lvlRead, s.handleListImports)

@@ -717,6 +717,18 @@ func (c *Client) ListTemplates(ctx context.Context) ([]api.Template, error) {
 	return v, c.do(ctx, http.MethodGet, "/templates", nil, &v)
 }
 
+// ListAppTemplates returns the one-click apps (GET /app-templates).
+func (c *Client) ListAppTemplates(ctx context.Context) ([]api.AppTemplate, error) {
+	var v []api.AppTemplate
+	return v, c.do(ctx, http.MethodGet, "/app-templates", nil, &v)
+}
+
+// CreateFromAppTemplate creates a project from a one-click app and deploys it.
+func (c *Client) CreateFromAppTemplate(ctx context.Context, id string, req api.AppTemplateRequest) (*api.AppTemplateResult, error) {
+	var v api.AppTemplateResult
+	return &v, c.do(ctx, http.MethodPost, "/app-templates/"+esc(id), req, &v)
+}
+
 // ---------- imports ----------
 
 func (c *Client) ListImports(ctx context.Context) ([]api.ImportJob, error) {

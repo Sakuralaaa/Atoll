@@ -153,27 +153,77 @@ function ProjectCard({ p, servers, updates, prefs, drag }: CardProps & { p: Proj
   )
 }
 
+const APP_CATS: [string, string][] = [['all', L('全部')], ['blog', L('博客')], ['tools', L('工具')], ['ops', L('运维')], ['dev', L('开发')], ['ai', 'AI']]
+
 function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaultServer?: string }) {
   const nav = useNavigate()
+  const { lang } = useT()
   const servers = (useQuery('servers', api.servers).data ?? []).filter(s => s.role !== 'control')
+  const apps = useQuery('app-templates', api.appTemplates).data ?? []
+  const [mode, setMode] = useState<'empty' | 'app'>('empty')
+  const [cat, setCat] = useState('all')
+  const [appId, setAppId] = useState('')
   const [name, setName] = useState(''); const [desc, setDesc] = useState(''); const [sid, setSid] = useState('')
+  const [host, setHost] = useState('')
   const [busy, setBusy] = useState(false)
   const server = sid || (defaultServer && servers.some(s => s.id === defaultServer) ? defaultServer : '') || servers.find(s => s.status === 'online')?.id || servers[0]?.id || ''
+  const app = apps.find(a => a.id === appId)
+  const projName = name.trim() || app?.id || ''
+  const ready = mode === 'empty' ? !!name.trim() && !!server : !!app && !!server && !!projName && (!app.needs_domain || !!host.trim())
   const submit = async () => {
-    if (!name.trim() || !server) return
+    if (!ready || busy) return
     setBusy(true)
-    const p = await run(() => api.createProject({ name: name.trim(), server_id: server, description: desc || undefined }), { ok: L("项目已创建"), invalidate: ['projects'] })
+    if (mode === 'empty') {
+      const p = await run(() => api.createProject({ name: name.trim(), server_id: server, description: desc || undefined }), { ok: L("项目已创建"), invalidate: ['projects'] })
+      setBusy(false)
+      if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
+      return
+    }
+    const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, hostname: host.trim() || undefined }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
     setBusy(false)
-    if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
+    if (r) { const main = r.services.find(x => x.name === app!.services.find(t => t.main)?.name); onClose(); nav(main ? `/projects/${r.project.id}/services/${main.id}` : `/projects/${r.project.id}`) }
   }
+  const shown = apps.filter(a => cat === 'all' || a.category === cat)
+  const tab = (v: 'empty' | 'app', label: string) => (
+    <button type="button" onClick={() => setMode(v)} className={cx('h-8 px-3 rounded-md text-[13px] font-semibold transition-colors', mode === v ? 'bg-[#fde047] text-[#141414] border-2 border-[var(--edge)]' : 'text-muted hover:text-fg')}>{label}</button>
+  )
   return (
-    <Modal title={L("创建项目")} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!name.trim() || !server || busy} onClick={submit}>{L("创建")}</Button></>}>
-      <Label t={L("项目名称")}><TextInput autoFocus className="w-full" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="my-app" /></Label>
-      <Label t={L("运行服务器")} d={L("同一项目的服务都部署在这台服务器上，之后可以整体迁移")}>
-        {servers.length ? <Select className="w-full" value={server} onChange={e => setSid(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}{s.status !== 'online' ? L("（离线）") : ''}</option>)}</Select>
-          : <div className="text-[13px] text-muted">{L("还没有可用的服务器，请先到「服务器」页添加。")}</div>}
-      </Label>
-      <Label t={L("描述（可选）")}><TextInput className="w-full" value={desc} onChange={e => setDesc(e.target.value)} /></Label>
+    <Modal title={L("创建项目")} width={mode === 'app' ? 760 : 560} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!ready || busy} onClick={submit}>{mode === 'app' ? L("创建并部署") : L("创建")}</Button></>}>
+      <div className="inline-flex rounded-lg field p-[3px] gap-0.5 mb-4">{tab('empty', L('空项目'))}{tab('app', L('应用模板'))}</div>
+      {mode === 'app' && <>
+        <div className="flex flex-wrap gap-1.5 mb-3">{APP_CATS.map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setCat(k)} className={cx('h-7 px-2.5 rounded-md text-[12.5px] font-semibold border', cat === k ? 'border-[var(--edge)] bg-ov/10 text-fg' : 'border-transparent text-muted hover:text-fg')}>{label}</button>
+        ))}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4 max-h-[300px] overflow-auto pr-1 -mr-1">
+          {shown.map(a => (
+            <button key={a.id} type="button" onClick={() => { setAppId(a.id); if (!name.trim() || apps.some(x => x.id === name.trim())) setName(a.id) }}
+              className={cx('text-left flex gap-3 p-3 rounded-lg border-2 transition-colors', appId === a.id ? 'border-[#8b5cf6] bg-[#8b5cf6]/10' : 'border-line hover:border-[var(--edge)]')}>
+              <span style={{ background: a.color }} className="tile h-9 w-9 shrink-0 rounded-[8px] grid place-items-center text-[15px] font-extrabold font-mono text-white">{a.name[0]}</span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 text-[13.5px] font-semibold">{a.name}{a.services.length > 1 && <span className="text-[11px] font-mono text-dim">+{a.services.filter(x => !x.main).map(x => x.template ?? x.name).join(', ')}</span>}</span>
+                <span className="block text-[12px] text-muted leading-snug mt-0.5">{lang === 'en' ? a.description_en : a.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </>}
+      {(mode === 'empty' || app) && <>
+        <Label t={L("项目名称")}><TextInput autoFocus={mode === 'empty'} className="w-full" value={mode === 'app' ? projName : name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="my-app" /></Label>
+        <Label t={L("运行服务器")} d={L("同一项目的服务都部署在这台服务器上，之后可以整体迁移")}>
+          {servers.length ? <Select className="w-full" value={server} onChange={e => setSid(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}{s.status !== 'online' ? L("（离线）") : ''}</option>)}</Select>
+            : <div className="text-[13px] text-muted">{L("还没有可用的服务器，请先到「服务器」页添加。")}</div>}
+        </Label>
+        {mode === 'empty' && <Label t={L("描述（可选）")}><TextInput className="w-full" value={desc} onChange={e => setDesc(e.target.value)} /></Label>}
+        {app && mode === 'app' && <>
+          <Label t={app.needs_domain ? (lang === "en" ? "Domain" : "域名") : L("域名（可选）")} d={app.needs_domain ? L("{0} 需要通过自己的 HTTPS 域名访问", app.name) : L("留空则之后在服务的「网络」里绑定")}>
+            <TextInput className="w-full" mono value={host} onChange={e => setHost(e.target.value)} placeholder={`${app.id}.example.com`} />
+          </Label>
+          <div className="text-[12.5px] text-muted leading-relaxed">
+            {L("会创建 {0} 个服务：{1}。建议内存至少 {2} MB。", app.services.length, app.services.map(x => x.name).join(L('、')), app.min_mem_mb)}
+            {(lang === 'en' ? app.note_en : app.note) && <> {lang === 'en' ? app.note_en : app.note}</>}
+          </div>
+        </>}
+      </>}
     </Modal>
   )
 }

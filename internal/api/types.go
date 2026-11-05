@@ -519,6 +519,61 @@ type Template struct {
 	Env         []EnvVar `json:"env"`
 }
 
+// AppTemplate is a one-click app (GET /api/v1/app-templates): a project with one or more
+// services, e.g. a blog and its database. POST /api/v1/app-templates/{id} creates it.
+// Env values may contain {{RANDOM}} (a fresh 32-char secret per value) and ${...}
+// references resolved at deploy time like any other env (e.g. ${POSTGRES_HOST} from the
+// database service, ${ATOLL_WEB_URL} once a domain is bound).
+type AppTemplate struct {
+	ID            string               `json:"id"`
+	Name          string               `json:"name"`
+	Category      string               `json:"category"` // "blog" | "tools" | "ops" | "dev" | "ai"
+	Description   string               `json:"description"`
+	DescriptionEn string               `json:"description_en"`
+	Website       string               `json:"website"`
+	Color         string               `json:"color"`        // brand color for the icon tile, "#rrggbb"
+	NeedsDomain   bool                 `json:"needs_domain"` // the app only works behind its public HTTPS URL
+	MinMemMB      int                  `json:"min_mem_mb"`   // rough memory the whole app needs
+	Note          string               `json:"note,omitempty"`
+	NoteEn        string               `json:"note_en,omitempty"`
+	Services      []AppTemplateService `json:"services"`
+}
+
+// AppTemplateRequest is the body of POST /api/v1/app-templates/{id}.
+type AppTemplateRequest struct {
+	Name        string `json:"name"` // project name, default the template id
+	DisplayName string `json:"display_name,omitempty"`
+	ServerID    string `json:"server_id"`
+	// Hostname binds a domain to the app's main service (with RootDomain: the part in
+	// front of that root, as in POST /services/{id}/domains).
+	Hostname   string `json:"hostname,omitempty"`
+	RootDomain string `json:"root_domain,omitempty"`
+	Proxied    *bool  `json:"proxied,omitempty"`
+}
+
+// AppTemplateResult is the answer of POST /api/v1/app-templates/{id}.
+type AppTemplateResult struct {
+	Project     *Project  `json:"project"`
+	Services    []Service `json:"services"`
+	Domain      *Domain   `json:"domain,omitempty"`
+	DomainError string    `json:"domain_error,omitempty"`
+}
+
+// AppTemplateService is one service of an AppTemplate. Template names a database
+// template kind ("postgres", "mysql", ...); otherwise Image/Ports/Volumes/Env apply.
+type AppTemplateService struct {
+	Name       string   `json:"name"`
+	Template   string   `json:"template,omitempty"`
+	Image      string   `json:"image,omitempty"`
+	Command    []string `json:"command,omitempty"`
+	Ports      []Port   `json:"ports,omitempty"`
+	Volumes    []Volume `json:"volumes,omitempty"`
+	Env        []EnvVar `json:"env,omitempty"`
+	DomainEnv  []EnvVar `json:"domain_env,omitempty"` // added only when a domain is bound at creation
+	MemLimitMB int      `json:"mem_limit_mb,omitempty"`
+	Main       bool     `json:"main,omitempty"` // the service the domain is bound to
+}
+
 // MigrationJob tracks POST /api/v1/projects/{id}/migrate (GET /api/v1/migrations/{id}).
 type MigrationJob struct {
 	ID         string       `json:"id"` // "mig_..."

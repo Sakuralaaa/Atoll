@@ -284,6 +284,13 @@ export interface ZeaburCleanupRequest { confirm: string; keep_backup: boolean }
 export interface AuthStatus { setup_required: boolean }
 export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[] }
 /** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
+/** GET /app-templates item: a one-click app (one or more services). */
+export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean }
+export interface AppTemplate {
+  id: string; name: string; category: 'blog' | 'tools' | 'ops' | 'dev' | 'ai' | string; description: string; description_en: string
+  website: string; color: string; needs_domain: boolean; min_mem_mb: number; note?: string; note_en?: string; services: AppTemplateService[]
+}
+export interface AppTemplateResult { project: Project; services: Service[]; domain?: Domain; domain_error?: string }
 export interface Template { kind: string; name: string; description: string; image: string; command?: string[]; ports: Port[]; volumes: Volume[]; env: EnvVar[] }
 /** GET /services/{id}/env/references item; `service` (name of the exposing service) is optional. */
 export interface EnvReference extends EnvVar { service?: string }

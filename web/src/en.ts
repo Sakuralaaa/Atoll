@@ -1,6 +1,18 @@
 // English strings for L('中文'). Keys are the Chinese source text; generated from the UI and kept in sync by hand.
 // Placeholders {0}, {1}… are filled by L's extra arguments.
 const en: Record<string, string> = {
+ "博客": "Blog",
+ "工具": "Tools",
+ "运维": "Ops",
+ "开发": "Dev",
+ "{0} 已创建，正在部署": "{0} created, deploying",
+ "创建并部署": "Create and deploy",
+ "空项目": "Empty project",
+ "应用模板": "App templates",
+ "域名（可选）": "Domain (optional)",
+ "{0} 需要通过自己的 HTTPS 域名访问": "{0} has to be reached on its own HTTPS domain",
+ "留空则之后在服务的「网络」里绑定": "Leave empty and bind one later under the service's Network tab",
+ "会创建 {0} 个服务：{1}。建议内存至少 {2} MB。": "Creates {0} services: {1}. Needs about {2} MB of memory.",
  "（已被保留策略清理）": " (pruned by retention)",
  "，请 {0}后再试": "; try again in {0}",
  "，请稍后再试": "; try again later",
