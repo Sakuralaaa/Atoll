@@ -18,6 +18,7 @@ import { statusText } from '../components/ui-utils'
 import { useProjects } from '../api/queries'
 import { providerOf, countryOf, regionOf } from '../api/providers'
 import { Flag } from '../components/Flag'
+import { backLabel, backTo } from '../api/backTo'
 import { useNetState } from '../components/net'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
@@ -41,7 +42,7 @@ export default function ServerDetail() {
   return (
     <MainShell>
       <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
-        <Link to="/servers" className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />返回</Link>
+        <Link to={backTo(`/servers/${id}`, '/servers')} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo(`/servers/${id}`, '/servers'))}</Link>
         {s ? <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] mt-2 [overflow-wrap:anywhere]">{s.name}</h1> : <Skeleton className="h-8 w-80 mt-3" />}
         <div className="mt-1"><CopyId v={id} /></div>
         <Tabs className="mt-6" items={TABS} value={tab} onChange={k => setSp({ tab: k })} />

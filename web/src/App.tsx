@@ -25,6 +25,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { api } from './api/client'
 import { useQuery } from './api/hooks'
 import { useLiveEvents } from './api/ws'
+import { useTrackBackTo } from './api/backTo'
 
 export default function App() {
   const { pathname } = useLocation()
@@ -32,6 +33,7 @@ export default function App() {
   // a 401 here redirects to #/login (client.ts); the live socket only runs once we know who we are
   const me = useQuery(onLogin ? null : 'me', api.me)
   useLiveEvents(!onLogin && !!me.data)
+  useTrackBackTo()
   return (
     <>
       {/* pages load on first visit; Projects and Login stay in the entry chunk */}

@@ -20,6 +20,7 @@ import { useFiringProblems } from '../api/problems'
 import { providerOf } from '../api/providers'
 import { openPalette } from './palette'
 import { SortableList } from './Sortable'
+import { backLabel, backTo } from '../api/backTo'
 
 const useMe = () => useQuery('me', api.me)
 const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
@@ -193,8 +194,12 @@ export function MainShell({ children }: { children: React.ReactNode }) {
 export function ProjectShell({ project, active, children }: { project: Project; active?: string; children: React.ReactNode }) {
   const nav = useNavigate()
   const loc = useLocation()
-  const srv = useServers().data?.find(s => s.id === project.server_id)
+  const allServers = useServers().data
+  const srv = allServers?.find(s => s.id === project.server_id)
   const { t } = useT()
+  const projectList = useProjects().data
+  const back = backTo(`/projects/${project.id}`, '/')
+  const backText = backLabel(back, { server: id => allServers?.find(s => s.id === id)?.name, project: id => { const p = projectList?.find(x => x.id === id); return p && projName(p) } })
   const prefs = useProjectPrefs()
   const services = project.services ?? []
   const updates = useUpdatesByService()
@@ -204,8 +209,8 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const keep = f.active ? `?${FILTER_PARAM}=${f.active}` : ''
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
-    <Frame pad="pt-6" top={<><Link to="/" title="项目" className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</span>{project.created_at && <StarButton id={project.id} prefs={prefs} />}</>} side={<>
-        <Link to="/" className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg"><ArrowLeft size={16} />项目</Link>
+    <Frame pad="pt-6" top={<><Link to={back} title={backText} className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</span>{project.created_at && <StarButton id={project.id} prefs={prefs} />}</>} side={<>
+        <Link to={back} className="flex items-center gap-2 text-[13px] text-fg2 px-2 h-8 hover:text-fg min-w-0"><ArrowLeft size={16} className="shrink-0" /><span className="truncate">{backText}</span></Link>
         <div className="px-2 mt-3">
           <div className="flex items-center gap-1"><h1 className="text-[17px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</h1>{project.created_at && <StarButton id={project.id} prefs={prefs} className="-mr-1.5" />}</div>
           {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
