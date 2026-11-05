@@ -1,35 +1,140 @@
-# Atoll
+<p align="center">
+  <img alt="Atoll" src="./web/public/favicon.svg" width="96" />
+</p>
 
-自托管的多 VPS 容器面板：**一台轻量中控 + 每台机器一个 agent + 原生 Docker**。手感参考 Zeabur：从镜像或 GitHub 仓库部署，图形化管理域名、环境变量、卷、备份和迁移。
+<h1 align="center">Atoll</h1>
 
+<p align="center">
+  <strong>自托管的多 VPS 容器面板：一台轻量中控 + 每台机器一个 agent + 原生 Docker</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Sakuralaaa/Atoll/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Sakuralaaa/Atoll?include_prereleases&label=release&color=8b5cf6" /></a>
+  <a href="./go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
+  <a href="./web/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>
+  <img alt="Platform" src="https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-FCC624?logo=linux&logoColor=111827" />
+  <a href="./android/README.md"><img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" /></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-blue" /></a>
+</p>
+
+<p align="center">
+  <img alt="Atoll 面板" src="./docs/images/projects-dark.webp" width="900" />
+</p>
+
+> [!NOTE]
 > **状态：pre-alpha。** 构建和测试在 CI 中通过（含 `-race`），但还没有在大规模生产环境中验证。先在不重要的业务上试用，并开启备份。
 
-```
-            你的浏览器 / atoll CLI / MCP
-                       │  HTTPS
-                ┌──────▼──────┐
-                │ atoll-server│  中控：API + 面板 + SQLite
-                └──────▲──────┘  (离线不影响业务流量)
-          WebSocket (agent 主动连出，节点不开入站端口)
-        ┌──────────────┼──────────────┐
-  ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐
-  │ atoll-agent│  │ atoll-agent│  │ atoll-agent│  每台 VPS：Docker + Caddy 入口
-  └─────▲─────┘  └─────▲─────┘  └─────▲─────┘
-        └──── 用户流量直达各台 VPS（Cloudflare 代理）────┘
-```
+> [!TIP]
+> 手感参考 Zeabur：从镜像或 GitHub 仓库部署，图形化管理域名、环境变量、卷、备份和迁移。已经在用 Zeabur 或自己 `docker run` 的服务，可以[原地接管](#迁移与接管)。
 
 ## 目录
 
+- [概览](#概览)
+- [界面预览](#界面预览)
 - [快速开始](#快速开始)
-- [功能](#功能)
+- [迁移与接管](#迁移与接管)
 - [管理多台机器](#管理多台机器)
 - [从源码构建服务](#从源码构建服务)
 - [安全](#安全)
-- [校验下载的文件](#校验下载的文件)
 - [日常运维](#日常运维)
+- [校验下载的文件](#校验下载的文件)
 - [Android 客户端](#android-客户端)
 - [开发](#开发)
 - [文档索引](#文档索引)
+
+## 概览
+
+Atoll 由三部分组成：中控 `atoll-server`（API + 内嵌面板 + SQLite）、每台 VPS 上的 `atoll-agent`，以及给人和 AI 用的 `atoll` CLI / MCP。agent 主动用 WebSocket 连回中控，节点不开入站端口；用户流量经各机器自己的 Caddy 直达容器，**中控离线不影响业务**。
+
+### 架构
+
+```mermaid
+flowchart TB
+    classDef access fill:#e1f5fe,stroke:#01579b
+    classDef core fill:#ede9fe,stroke:#5b21b6
+    classDef node fill:#e8f5e9,stroke:#1b5e20
+    classDef ext fill:#fff3e0,stroke:#e65100
+
+    subgraph Access["使用方"]
+        direction LR
+        Browser["浏览器 / Android App"]
+        CLI["atoll CLI · REST API"]
+        MCP["atoll mcp<br/>Claude Code · Codex"]
+    end
+
+    subgraph Control["中控 atoll-server"]
+        direction LR
+        API["API · 面板 · 审批"]
+        DB[("SQLite<br/>单写 + 只读池")]
+        Hub["Agent Hub<br/>WebSocket"]
+        API --> DB
+        API --> Hub
+    end
+
+    subgraph Nodes["每台 VPS"]
+        direction LR
+        Agent["atoll-agent"]
+        Docker["Docker 容器<br/>BuildKit 构建"]
+        Caddy["Caddy 入口"]
+        Restic["restic 备份<br/>本地调度"]
+        Agent --> Docker
+        Agent --> Caddy
+        Agent --> Restic
+    end
+
+    CF["Cloudflare DNS · 代理"]
+    S3[("S3 兼容存储<br/>R2 · B2 · MinIO")]
+    Users["🌐 用户流量"]
+
+    Browser -->|HTTPS| API
+    CLI -->|HTTPS| API
+    MCP -->|HTTPS| API
+    Agent -->|"WebSocket（节点主动连出）"| Hub
+    API -->|DNS 记录 · Origin CA| CF
+    Users --> CF --> Caddy --> Docker
+    Restic --> S3
+
+    class Browser,CLI,MCP access
+    class API,DB,Hub core
+    class Agent,Docker,Caddy,Restic node
+    class CF,S3,Users ext
+```
+
+中控只负责调度和记录；部署、构建、备份都在节点上执行。可选 Tailscale，让中控与节点、跨机器服务之间走私有网络。
+
+### 核心能力
+
+| 模块 | 能力 |
+| :-- | :-- |
+| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署；新服务默认内存上限 1024 MB |
+| 模板 | PostgreSQL / MySQL / Redis / MongoDB |
+| 流量 | 每台机器自己的 Caddy 入口；多根域名；绑定子域名时自动建 Cloudflare 记录，橙云 / 灰云一键切换，Origin CA 或 ACME 证书 |
+| 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；Zeabur 原地接管；接管 `docker run` / compose 启动的容器 |
+| 备份 | restic 直传任意 S3 兼容存储，数据库逻辑导出 + 卷快照；节点本地调度，中控离线照常备份；可恢复到另一台机器 |
+| 更新 | 镜像更新检测（digest 与新 semver tag），只提醒或在时间窗内自动更新；中控与 agent 一键升级，失败自动回滚 |
+| 中控 | 自身状态、日志、审计；每日加密备份；一条命令迁移中控，业务不停 |
+| 面板 | 中文界面，黑夜 / 白天主题；项目收藏、置顶、拖动排序；侧栏导航顺序按账号保存；自定义头像；`Ctrl K` 命令面板；异常集中提示 |
+| 自动化 | `atoll` CLI、REST API、`atoll mcp`；按权限细分、可限定项目的 token；危险操作可要求在面板审批 |
+| 安全 | 两步验证、防爆破、会话管理、CSP / HSTS；Release 带 SHA256SUMS 与构建来源证明 |
+
+## 界面预览
+
+<table>
+  <tr>
+    <td width="50%"><img alt="服务详情" src="./docs/images/service.webp" /><p align="center"><sub>服务详情：运行状态、30 天可用性、资源曲线、镜像更新</sub></p></td>
+    <td width="50%"><img alt="服务器" src="./docs/images/servers.webp" /><p align="center"><sub>服务器：在线状态、资源、延迟、agent 一键升级</sub></p></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="域名" src="./docs/images/domains.webp" /><p align="center"><sub>域名：Cloudflare 代理、证书状态、令牌权限检测</sub></p></td>
+    <td width="50%"><img alt="中控" src="./docs/images/control.webp" /><p align="center"><sub>中控：版本、主机、数据库与最近一次备份</sub></p></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="接管 Docker 容器" src="./docs/images/docker.webp" /><p align="center"><sub>接管 Docker 容器：选服务器 → 扫描 → 演练 → 切换</sub></p></td>
+    <td width="50%"><img alt="白天主题" src="./docs/images/projects-light.webp" /><p align="center"><sub>白天主题</sub></p></td>
+  </tr>
+</table>
+
+> 截图来自面板内置的演示模式（`?demo=1`），数据均为示例。
 
 ## 快速开始
 
@@ -55,19 +160,16 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 
 **3. 部署第一个服务**：面板里新建项目，选机器，填镜像（如 `nginx:1`）和端口，再绑定域名。配置了 Cloudflare 的话，DNS 记录会自动创建。
 
-## 功能
+## 迁移与接管
 
-| 方向 | 内容 |
-| --- | --- |
-| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量可跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署（先起新容器，健康后再切流量）；新服务默认内存上限 1024 MB（可在设置里改） |
-| 模板 | PostgreSQL / MySQL / Redis / MongoDB |
-| 流量 | 每台机器自己的 Caddy 入口，中控离线不影响业务；绑定子域名时自动在 Cloudflare 建 proxied 记录 |
-| 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；[从 Zeabur 原地接管](docs/migrate-from-zeabur.md)（扫描 → 导入 → 演练 → 切换 → 可回滚 → 卸载 k3s）；[接管自己用 docker run / compose 启动的容器](docs/adopt-docker.md)（同端口、数据原地挂载、旧容器保留可回滚） |
-| 备份 | restic 直传任意 S3 兼容存储（R2 / B2 / S3 / MinIO），数据库逻辑导出 + 卷快照；各节点本地调度，中控离线也照常备份；可恢复到另一台机器 |
-| 更新 | 镜像更新检测（digest 和新的 semver tag），可只提醒或在时间窗内自动更新；中控从 GitHub Release 一键自更新，失败自动回滚 |
-| 中控 | 自身状态、日志、审计；每日加密备份；[一条命令迁移中控](docs/control.md)，业务不停 |
-| 私有网络 | 可选 Tailscale：中控与节点之间、跨机器服务互访走 tailnet |
-| 自动化 | `atoll` CLI、REST API、`atoll mcp`（供 Claude Code / Codex 等使用），按权限细分并可限定项目的 token |
+| 来源 | 做法 | 文档 |
+| :-- | :-- | :-- |
+| Zeabur | 扫描 → 导入 → 演练 → 切换，可回滚，最后卸载 k3s | [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md) |
+| 自己 `docker run` / compose 的容器 | 同端口、数据原地挂载，旧容器保留可回滚 | [docs/adopt-docker.md](docs/adopt-docker.md) |
+| Atoll 内机器之间 | 服务迁移：卷 + 数据库导出恢复 | [docs/api.md](docs/api.md) |
+| 中控本身 | 一条命令迁到新机器，业务不停 | [docs/control.md](docs/control.md) |
+
+面板入口在侧栏「迁移」。
 
 ## 管理多台机器
 
@@ -133,6 +235,16 @@ atoll logs SERVICE --build -f
 
 细节见 [docs/api.md](docs/api.md#auth)。
 
+## 日常运维
+
+| 要做的事 | 怎么做 |
+| --- | --- |
+| 升级中控 | 面板「中控 → 更新」，或重跑 `install-server.sh --version vX.Y.Z` |
+| 升级 agent | 面板「服务器」页顶部「全部升级」，或单台服务器「设置 → Agent」；CLI `atoll servers upgrade-agent --all`。校验 SHA-256 后替换，新 agent 两分钟内没连回就自动回滚，容器不重建。v0.1.6 之前的 agent 需要在节点上重跑一次添加命令（已加入的节点会跳过加入步骤） |
+| 中控备份和迁移 | 见 [docs/control.md](docs/control.md) |
+| 看日志 | `journalctl -u atoll-server -f`、`journalctl -u atoll-agent -f`，或在面板「中控」页查看 |
+| 清理磁盘 | 构建镜像每个服务保留最近 3 个；全局清理用 `docker system prune` |
+
 ## 校验下载的文件
 
 每个 Release 带 `SHA256SUMS`，还有 GitHub 签发的构建来源证明（provenance），能证明二进制是由本仓库的 release 工作流构建的。
@@ -145,16 +257,6 @@ gh attestation verify atoll-server-linux-amd64 --repo Sakuralaaa/Atoll
 ```
 
 安装脚本会自动对照 `SHA256SUMS` 校验从 GitHub 下载的二进制；从中控下载 agent 时，对照添加命令里的 `--sha256-*` 校验。中控自更新同样先校验 `SHA256SUMS`，失败自动回滚。
-
-## 日常运维
-
-| 要做的事 | 怎么做 |
-| --- | --- |
-| 升级中控 | 面板「中控 → 更新」，或重跑 `install-server.sh --version vX.Y.Z` |
-| 升级 agent | 面板「服务器」页顶部「全部升级」，或单台服务器「设置 → Agent」；CLI `atoll servers upgrade-agent --all`。校验 SHA-256 后替换，新 agent 两分钟内没连回就自动回滚，容器不重建。v0.1.6 之前的 agent 需要在节点上重跑一次添加命令（已加入的节点会跳过加入步骤） |
-| 中控备份和迁移 | 见 [docs/control.md](docs/control.md) |
-| 看日志 | `journalctl -u atoll-server -f`、`journalctl -u atoll-agent -f`，或在面板「中控」页查看 |
-| 清理磁盘 | 构建镜像每个服务保留最近 3 个；全局清理用 `docker system prune` |
 
 ## Android 客户端
 
@@ -197,7 +299,8 @@ git tag v0.1.0 && git push --tags
 - [docs/control.md](docs/control.md)：中控的备份、自更新、迁移、灾难恢复
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md)：从 Zeabur 迁移
 - [docs/adopt-docker.md](docs/adopt-docker.md)：接管自己用 Docker 启动的容器
-- [notes/finish-agent.md](notes/finish-agent.md)：开发交接记录
+- [docs/ui-guide.md](docs/ui-guide.md)：面板界面约定
+- [CHANGELOG.md](CHANGELOG.md)：版本记录
 
 ## License
 
