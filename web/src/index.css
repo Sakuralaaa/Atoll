@@ -89,3 +89,28 @@ body {
 @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 .rise { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
 :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/* ---- sidebar ---- */
+.side-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
+.side-scroll:hover { scrollbar-color: var(--line2) transparent; }
+.side-scroll::-webkit-scrollbar { width: 5px; }
+.side-scroll::-webkit-scrollbar-thumb { background: transparent; }
+.side-scroll:hover::-webkit-scrollbar-thumb { background: var(--line2); }
+.side-list .tile { border-width: 1.5px !important; box-shadow: 2px 2px 0 0 var(--edge) !important; }
+
+/* ---- drag to reorder ---- */
+.sort-row { touch-action: pan-y; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+.sort-row:active { cursor: grabbing; }
+.sort-grip { opacity: .35; transition: opacity .15s; }
+.sort-row:hover .sort-grip, .sort-grip.is-on { opacity: .9; }
+@media (hover: none) { .sort-grip { opacity: .5; } }
+.drag-ghost { opacity: 1; }
+.drag-ghost > * { visibility: hidden; }
+.drag-ghost::after { content: ""; position: absolute; inset: 2px 0; border: 2px dashed var(--line2); border-radius: 6px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.drag-lift { cursor: grabbing; border-radius: 6px; background: var(--card); border: 2px solid var(--edge); box-shadow: 5px 6px 0 0 var(--edge);
+  transform: rotate(-1.2deg) scale(1.02); animation: lift .16s cubic-bezier(.2,.8,.2,1); }
+.drag-lift > * { background: transparent !important; box-shadow: none !important; border-color: transparent !important; }
+@keyframes lift { from { transform: none; box-shadow: 0 0 0 0 var(--edge); } }
+@media (prefers-reduced-motion: reduce) { .drag-lift { transform: none; animation: none; } }
+.no-sb { scrollbar-width: none; } .no-sb::-webkit-scrollbar { display: none; }

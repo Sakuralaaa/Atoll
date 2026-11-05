@@ -9,7 +9,9 @@ import (
 
 // Project favorites and pins belong to the account (not the browser), so they follow the
 // user across devices. A project-scoped API token sees and changes only its own projects;
-// entries for other projects are kept untouched.
+// entries for other projects are kept untouched (appended after the ones it sent). Both
+// lists keep the order they are sent in: favorites are the sidebar 收藏 order, pins the
+// order at the top of 我的项目.
 
 const maxProjectPrefs = 1000
 

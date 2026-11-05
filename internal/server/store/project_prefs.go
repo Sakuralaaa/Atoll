@@ -6,34 +6,40 @@ import (
 	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
-// ProjectPrefs returns the user's favorite projects (sorted by id) and pinned projects in
-// their pinned order.
+// ProjectPrefs returns the user's favorite projects in their saved order and pinned projects
+// in their pinned order.
 func (s *Store) ProjectPrefs(ctx context.Context, userID int64) (api.ProjectPrefs, error) {
 	out := api.ProjectPrefs{Favorites: []string{}, Pinned: []string{}}
-	rows, err := s.DB.QueryContext(ctx, `SELECT project_id, favorite, pin_order FROM project_prefs
-		WHERE user_id=? AND (favorite=1 OR pin_order>0) ORDER BY pin_order, project_id`, userID)
-	if err != nil {
+	list := func(q string) ([]string, error) {
+		ids := []string{}
+		rows, err := s.DB.QueryContext(ctx, q, userID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
+			}
+			ids = append(ids, id)
+		}
+		return ids, rows.Err()
+	}
+	var err error
+	if out.Favorites, err = list(`SELECT project_id FROM project_prefs WHERE user_id=? AND favorite=1 ORDER BY fav_order, project_id`); err != nil {
 		return out, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		var fav, pin int
-		if err := rows.Scan(&id, &fav, &pin); err != nil {
-			return out, err
-		}
-		if fav == 1 {
-			out.Favorites = append(out.Favorites, id)
-		}
-		if pin > 0 {
-			out.Pinned = append(out.Pinned, id)
-		}
+	if out.Pinned, err = list(`SELECT project_id FROM project_prefs WHERE user_id=? AND pin_order>0 ORDER BY pin_order, project_id`); err != nil {
+		return out, err
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // SetProjectPrefs replaces the user's favorites and/or pins (a nil list is left as is).
-// Ids that are not existing projects are skipped.
+// Both lists are saved in the order given (duplicates dropped), so a newly starred project
+// sent at the end of the list lands at the end of the favorites. Ids that are not existing
+// projects are skipped.
 func (s *Store) SetProjectPrefs(ctx context.Context, userID int64, favorites, pinned []string) error {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -47,11 +53,20 @@ func (s *Store) SetProjectPrefs(ctx context.Context, userID int64, favorites, pi
 		return err
 	}
 	if favorites != nil {
-		if _, err := tx.ExecContext(ctx, `UPDATE project_prefs SET favorite=0 WHERE user_id=?`, userID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE project_prefs SET favorite=0, fav_order=0 WHERE user_id=?`, userID); err != nil {
 			return err
 		}
+		seen := map[string]bool{}
+		n := 0
 		for _, id := range favorites {
-			if err := upsert(id, "favorite", 1); err != nil {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			n++
+			if _, err := tx.ExecContext(ctx, `INSERT INTO project_prefs(user_id, project_id, favorite, fav_order)
+				SELECT ?, id, 1, ? FROM projects WHERE id=?
+				ON CONFLICT(user_id, project_id) DO UPDATE SET favorite=1, fav_order=excluded.fav_order`, userID, n, id); err != nil {
 				return err
 			}
 		}

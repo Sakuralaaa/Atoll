@@ -35,7 +35,7 @@ const servers: Server[] = mockServers.filter(s => s.role !== 'control').map(s =>
 }))
 
 // demo favorites / pins (synced per account on a real install)
-const projectPrefs: ProjectPrefs = { favorites: ['acme', 'qabot'], pinned: ['linkproxy'] }
+const projectPrefs: ProjectPrefs = { favorites: ['linkproxy', 'acme', 'qabot', 'chat', 'file-share', 'mailrelay'], pinned: ['linkproxy'] }
 
 const VOLS: Record<string, [string, string][]> = {
   postgres: [['data', '/var/lib/postgresql/data']], mysql: [['data', '/var/lib/mysql']], redis: [['data', '/data']], mongo: [['data', '/data/db']],

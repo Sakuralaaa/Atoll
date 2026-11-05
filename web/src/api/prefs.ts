@@ -23,6 +23,8 @@ export function useProjectPrefs() {
     prefs, loaded: !!q.data, isFav, isPinned,
     toggleFav: (id: string) => save({ favorites: isFav(id) ? prefs.favorites.filter(x => x !== id) : [...prefs.favorites, id] }),
     togglePin: (id: string) => save({ pinned: isPinned(id) ? prefs.pinned.filter(x => x !== id) : [...prefs.pinned, id] }),
+    /** save the 收藏 order after a drag (ids the caller did not show keep their place at the end) */
+    reorderFavs: (ids: string[]) => save({ favorites: [...ids, ...prefs.favorites.filter(x => !ids.includes(x))] }),
     /** move a pinned project one place up (-1) or down (+1) */
     movePin: (id: string, d: -1 | 1) => {
       const ps = [...prefs.pinned], i = ps.indexOf(id), j = i + d

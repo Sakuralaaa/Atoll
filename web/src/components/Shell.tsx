@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog, GripVertical } from 'lucide-react'
+import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
 import { setLang, useT, type Lang } from '../i18n'
 import { applyTheme, currentTheme, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
@@ -19,6 +19,7 @@ import { FILTER_PARAM, serviceFilters, useStatusFilter } from '../api/filters'
 import { useFiringProblems } from '../api/problems'
 import { providerOf } from '../api/providers'
 import { openPalette } from './palette'
+import { SortableList } from './Sortable'
 
 const useMe = () => useQuery('me', api.me)
 const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
@@ -106,7 +107,7 @@ function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; t
     <div className="h-full flex topline">
       {open && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setOpen(false)} />}
       <aside onClick={e => { if ((e.target as HTMLElement).closest('a')) setOpen(false) }}
-        className={cx('w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pb-4 overflow-y-auto', pad,
+        className={cx('w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pb-4 overflow-y-auto no-sb', pad,
           'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[min(280px,86vw)] max-lg:border-r-2 max-lg:border-[var(--edge)] max-lg:transition-transform max-lg:duration-200',
           open ? 'max-lg:translate-x-0 max-lg:shadow-[6px_0_0_0_var(--edge)]' : 'max-lg:-translate-x-full max-lg:invisible')}>
         <button onClick={() => setOpen(false)} title="关闭菜单" className="lg:hidden absolute right-3 top-5 h-8 w-8 grid place-items-center rounded-md text-muted hover:text-fg"><X size={18} /></button>
@@ -123,26 +124,29 @@ function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; t
   )
 }
 
-/** Sidebar quick access to the account's favorite projects (收藏). */
+/** Sidebar quick access to the account's favorite projects (收藏), in the account's own order:
+ *  drag a row (or long-press on touch) to reorder. The list scrolls on its own between the fixed
+ *  nav above and the status footer below. */
 function Favorites() {
   const { t } = useT()
   const prefs = useProjectPrefs()
   const projects = useProjects().data ?? []
   const loc = useLocation()
-  const favs = projects.filter(p => prefs.isFav(p.id))
-  if (!favs.length) return null
-  const max = 8
+  const byId = new Map(projects.map(p => [p.id, p]))
+  const favs = prefs.prefs.favorites.map(id => byId.get(id)).filter((p): p is Project => !!p)
+  if (!favs.length) return <div className="flex-1" />
+  const max = 30
   return (
-    <div className="mt-4">
-      <div className="h-px bg-line mb-4" />
-      <Link to="/?filter=fav" className="px-3 mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-dim tracking-wider hover:text-fg2"><Star size={12} />{t('收藏', 'Favorites')}<span className="ml-auto font-mono tnum">{favs.length}</span></Link>
-      <div className="flex flex-col gap-0.5">
-        {favs.slice(0, max).map(p => {
-          const on = loc.pathname.startsWith(`/projects/${p.id}`)
-          return <Link key={p.id} to={`/projects/${p.id}`} className={cx('flex items-center gap-2.5 h-9 px-2 rounded-lg text-[13px]', on ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}>
-            <ServiceIcon s={projIcon(p)} size={22} /><span className="truncate flex-1 font-medium">{projName(p)}</span>
-          </Link>
-        })}
+    <div className="mt-4 pt-3 border-t border-line flex-1 basis-0 min-h-[136px] flex flex-col">
+      <Link to="/?filter=fav" className="h-7 px-3 mb-1 flex items-center gap-2 text-[12px] font-semibold text-dim tracking-wider hover:text-fg2"><Star size={13} className="shrink-0" />{t('收藏', 'Favorites')}<span className="ml-auto font-mono tnum text-[11.5px]">{favs.length}</span></Link>
+      <div className="side-scroll side-list flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-3">
+        <SortableList items={favs.slice(0, max)} id={p => p.id} enabled={favs.length > 1} onReorder={ids => prefs.reorderFavs(ids)} className="flex flex-col gap-0.5"
+          render={(p, grip) => {
+            const on = loc.pathname.startsWith(`/projects/${p.id}`)
+            return <Link to={`/projects/${p.id}`} draggable={false} className={cx('flex items-center gap-2.5 h-9 pl-2.5 pr-1.5 rounded-lg text-[13px]', on ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}>
+              <ServiceIcon s={projIcon(p)} size={22} /><span className="truncate flex-1 font-medium">{projName(p)}</span>{grip}
+            </Link>
+          }} />
         {favs.length > max && <Link to="/?filter=fav" className="h-8 px-3 flex items-center text-[12.5px] text-accent hover:underline">{t(`查看全部 ${favs.length} 个`, `All ${favs.length}`)}</Link>}
       </div>
     </div>
@@ -163,11 +167,10 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   )
   return (
     <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title="待确认">{pending}</Link>}</>} side={<>
-        <Link to="/" className="px-2 mb-6"><Logo /></Link>
+        <Link to="/" className="px-2 mb-4 shrink-0"><Logo /></Link>
         <Team />
-        <div className="mt-3"><SearchBox /></div>
-        <div className="h-px bg-line my-4" />
-        <nav className="flex flex-col gap-1">
+        <div className="mt-2 shrink-0"><SearchBox /></div>
+        <nav className="mt-4 flex flex-col gap-0.5 shrink-0">
           {item('/', <Package size={16} />, '项目')}
           {item('/servers', <Server size={16} />, '服务器')}
           {item('/control', <ServerCog size={16} />, '中控')}
@@ -178,11 +181,11 @@ export function MainShell({ children }: { children: React.ReactNode }) {
           {item('/settings', <SlidersHorizontal size={16} />, '设置')}
         </nav>
         <Favorites />
-        <div className="flex-1" />
-        {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2.5 mb-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} />{problems} 个异常需要处理</Link>}
-        <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2.5 mb-3 text-[12px] text-muted flex items-center gap-2"><Dot status={servers ? 'online' : 'unknown'} />{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</Link>
-        <div className="h-px bg-line mb-3" />
-        <UserRow />
+        <div className="shrink-0 pt-3 border-t border-line flex flex-col gap-2.5">
+          {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} 个异常需要处理</span></Link>}
+          <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? `中控在线 · ${online}/${workers.length} 服务器已连接` : '正在连接中控…'}</span></Link>
+          <UserRow />
+        </div>
     </>}>{children}</Frame>
   )
 }
@@ -208,25 +211,24 @@ export function ProjectShell({ project, active, children }: { project: Project; 
           {srv ? <Link to={`/servers/${srv.id}`} className="mt-1.5 flex items-center gap-2 text-[13px] text-muted hover:text-fg"><Mini provider={providerOf(srv)} /><span className="truncate">{srv.name}</span><Dot status={srv.status} /></Link>
             : <div className="mt-1.5 h-5 w-40 rounded bg-ov/[0.07] animate-pulse" />}
         </div>
-        <div className="mt-4 flex flex-col gap-1">
+        <div className="mt-4 flex flex-col gap-0.5 shrink-0">
           <NavLink to={`/projects/${project.id}/settings`} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium', isActive ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}><Settings size={16} />项目设置</NavLink>
           <button onClick={add} className="flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium text-accent hover:bg-ov/5"><Plus size={16} />新建服务</button>
         </div>
-        <div className="h-px bg-line my-4" />
-        <div className="px-2 text-[12px] font-semibold text-dim tracking-wider mb-2">服务</div>
+        <div className="mt-4 pt-3 border-t border-line flex-1 basis-0 min-h-[160px] flex flex-col">
+        <div className="h-7 px-2 mb-1 flex items-center text-[12px] font-semibold text-dim tracking-wider">服务<span className="ml-auto font-mono tnum text-[11.5px]">{services.length || ''}</span></div>
         {services.length > 1 && <FilterChips f={f} defs={defs} compact className="px-1 mb-2" />}
-        <div className="flex flex-col gap-1 overflow-auto">
+        <div className="side-scroll side-list flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-3">
           {!services.length && <div className="px-2 text-[12.5px] text-dim">还没有服务</div>}
           {!!services.length && !f.list.length && f.def && <div className="px-2 py-1 text-[12.5px] text-dim">{t(`没有「${f.def.zh}」的服务`, `No services match “${f.def.en}”`)} · <button onClick={() => f.set('')} className="text-accent hover:underline">{t('显示全部', 'Show all')}</button></div>}
           <SortableServices project={project} list={f.list} sortable={!f.active && services.length > 1} render={(s, grip) => (
-            <Link to={`/projects/${project.id}/services/${s.id}${keep}`} className={cx('group flex items-center gap-3 h-10 px-2 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
-              {grip}<ServiceIcon s={svcIcon(s)} size={26} /><span className="text-[13px] font-medium truncate flex-1">{svcName(s)}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />
+            <Link to={`/projects/${project.id}/services/${s.id}${keep}`} draggable={false} className={cx('flex items-center gap-2.5 h-10 pl-2 pr-1.5 rounded-lg', active === s.id ? 'nav-active' : 'hover:bg-ov/5')}>
+              <ServiceIcon s={svcIcon(s)} size={24} /><span className="text-[13px] font-medium truncate flex-1">{svcName(s)}</span><UpdateBadge u={updates[s.id]} compact /><Dot status={s.status} />{grip}
             </Link>
           )} />
         </div>
-        <div className="flex-1" />
-        <div className="h-px bg-line mb-3" />
-        <div className="px-2 flex items-center gap-2"><div className="min-w-0"><div className="text-[11.5px] text-dim">项目 ID</div>
+        </div>
+        <div className="shrink-0 pt-3 border-t border-line px-2 flex items-center gap-2"><div className="min-w-0"><div className="text-[11.5px] text-dim">项目 ID</div>
         <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg max-w-full"><span className="truncate">{project.id}</span><Copy size={11} className="shrink-0" /></button></div><div className="ml-auto"><ThemeToggle /></div></div>
     </>}>{children}</Frame>
   )
@@ -234,52 +236,19 @@ export function ProjectShell({ project, active, children }: { project: Project; 
 
 type Svc = NonNullable<Project['services']>[number]
 
-/** The project sidebar's services, reorderable by dragging the grip (mouse, pen or touch: pointer
- *  events, so it works on tablets where HTML drag-and-drop does not). The order is saved for the
- *  project (PUT /projects/{id}/service-order). Off while a status filter narrows the list. */
+/** The project sidebar's services, reorderable by dragging a row (mouse, long-press on touch,
+ *  or keyboard) with animated reflow. The order is saved for the project
+ *  (PUT /projects/{id}/service-order). Off while a status filter narrows the list. */
 function SortableServices({ project, list, sortable, render }: { project: Project; list: Svc[]; sortable: boolean; render: (s: Svc, grip: React.ReactNode) => React.ReactNode }) {
-  const { t } = useT()
   const ids = list.map(s => s.id).join(',')
   // a local order only lives until the server's list changes (saved, or another device reordered)
   const [local, setLocal] = useState<{ base: string; ids: string[] } | null>(null)
   const order = local && local.base === ids ? local.ids : null
-  const setOrder = (o: string[] | null) => setLocal(o ? { base: ids, ids: o } : null)
-  const [dragId, setDragId] = useState<string | null>(null)
-  const rows = useRef(new Map<string, HTMLDivElement>())
-  const start = useRef<string>('')
   const byId = new Map(list.map(s => [s.id, s]))
   const shown = order ? order.map(id => byId.get(id)).filter((s): s is Svc => !!s) : list
-  const move = (y: number) => {
-    if (!dragId) return
-    const cur = shown.map(s => s.id)
-    let to = cur.length - 1
-    for (let i = 0; i < cur.length; i++) {
-      const r = rows.current.get(cur[i])?.getBoundingClientRect()
-      if (r && y < r.top + r.height / 2) { to = i; break }
-    }
-    const from = cur.indexOf(dragId)
-    if (from < 0) return
-    if (to > from) to--
-    if (to === from) return
-    cur.splice(from, 1); cur.splice(to, 0, dragId)
-    setOrder(cur)
+  const reorder = (next: string[]) => {
+    setLocal({ base: ids, ids: next })
+    void run(() => api.setServiceOrder(project.id, next), { invalidate: ['project'] }).then(r => { if (!r) setLocal(null) })
   }
-  const end = () => {
-    if (!dragId) return
-    setDragId(null)
-    const next = shown.map(s => s.id)
-    if (next.join(',') === start.current) return
-    void run(() => api.setServiceOrder(project.id, next), { invalidate: ['project'] }).then(r => { if (!r) setOrder(null) })
-  }
-  return <>{shown.map(s => {
-    const grip = sortable ? (
-      <span role="button" aria-label={t('拖动排序', 'Drag to reorder')} title={t('拖动排序', 'Drag to reorder')}
-        className={cx('-ml-1 -mr-2 shrink-0 cursor-grab touch-none select-none text-dim transition-opacity', dragId === s.id ? 'opacity-100 cursor-grabbing' : 'opacity-40 md:opacity-0 md:group-hover:opacity-60')}
-        onClick={e => { e.preventDefault(); e.stopPropagation() }}
-        onPointerDown={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); start.current = shown.map(x => x.id).join(','); setDragId(s.id) }}
-        onPointerMove={e => { if (dragId === s.id) move(e.clientY) }}
-        onPointerUp={end} onPointerCancel={end}><GripVertical size={14} /></span>
-    ) : null
-    return <div key={s.id} ref={el => { if (el) rows.current.set(s.id, el); else rows.current.delete(s.id) }} className={cx(dragId === s.id && 'opacity-70 ring-1 ring-accent/50 rounded-lg')}>{render(s, grip)}</div>
-  })}</>
+  return <SortableList items={shown} id={s => s.id} enabled={sortable} onReorder={reorder} className="flex flex-col gap-0.5" render={(s, grip) => render(s, grip)} />
 }

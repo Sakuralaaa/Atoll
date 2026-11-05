@@ -570,6 +570,6 @@ type LogLine struct {
 
 // ProjectPrefs are one account's favorite and pinned projects (GET/PUT /api/v1/me/project-prefs).
 type ProjectPrefs struct {
-	Favorites []string `json:"favorites"` // project ids
+	Favorites []string `json:"favorites"` // project ids, in the sidebar order (PUT saves the order sent)
 	Pinned    []string `json:"pinned"`    // project ids, in the order they show at the top
 }
