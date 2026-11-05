@@ -10,6 +10,7 @@ import { run, useBusy, useQuery } from '../api/hooks'
 import type { Project, Server } from '../api/types'
 import { providerOf } from '../api/providers'
 import { placeholder, useProject } from '../api/queries'
+import { backTo } from '../api/backTo'
 
 const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => (
   <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 leading-5">{d}</div>}</div>{children}</div>
@@ -76,7 +77,7 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
       {migrate && <Migrate p={p} servers={servers} onClose={() => setMigrate(false)} />}
       {del && <ConfirmDialog title="删除项目" name={p.name} onClose={() => setDel(false)}
         description={<>将删除 <b>{p.name}</b> 下的 {n} 个服务、它们的数据卷和 Atoll 创建的 DNS 记录。此操作不可恢复。</>}
-        onConfirm={async () => { const r = await run(() => api.deleteProject(p.id), { ok: '项目已删除', invalidate: ['projects'] }); if (r !== undefined && !isConfirmation(r)) nav('/') }} />}
+        onConfirm={async () => { const r = await run(() => api.deleteProject(p.id), { ok: '项目已删除', invalidate: ['projects'] }); if (r !== undefined && !isConfirmation(r)) nav(backTo(`/projects/${p.id}`, '/').startsWith(`/projects/${p.id}`) ? '/' : backTo(`/projects/${p.id}`, '/')) }} />}
     </>
   )
 }

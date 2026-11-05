@@ -12,6 +12,7 @@ import type { DockerContainer, DockerGroup, DockerInventory, DockerPort, ImportJ
 import { cx } from '../components/ui-utils'
 import { useT } from '../i18n'
 import { useBackendText } from '../api/backendText'
+import { BACK, backLabel, backTo } from '../api/backTo'
 
 // Docker adoption (docs/adopt-docker.md): take over containers the user started with
 // `docker run` or docker compose, in place. /import/docker?server=ID → scan; ?job=ID → steps.
@@ -43,7 +44,7 @@ export default function ImportDocker() {
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         {fromProject ? <Link to={`/projects/${fromProject}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{t('返回项目', 'Back to project')}</Link>
-          : <Link to="/import" className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{t('迁移', 'Import')}</Link>}
+          : <Link to={backTo('/import/docker', '/import')} state={BACK} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo('/import/docker', '/import'))}</Link>}
         <div className="flex flex-wrap items-end justify-between gap-3 mt-2 mb-2">
           <div className="min-w-0">
             <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{t('接管 Docker 容器', 'Adopt Docker containers')}<Badge tone="violet">{t('原地接管', 'In place')}</Badge></h1>

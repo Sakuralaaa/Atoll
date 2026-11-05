@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, RefreshCw, X, Loader2, Copy, Check } from 'lucide-react'
 import { Button, Card } from './ui'
 import { cx } from './ui-utils'
@@ -46,6 +46,9 @@ export function ConfirmDialog({ title, description, name, action = '确认删除
   onConfirm: () => Promise<unknown> | void; onClose: () => void; children?: React.ReactNode
 }) {
   const [v, setV] = useState(''); const [busy, setBusy] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  // double-click the name (or the box) to fill it in; the delete still needs its own click
+  const fill = () => { if (name === undefined || v === name) return; setV(name); window.getSelection()?.removeAllRanges(); input.current?.focus() }
   const ok = (name === undefined || v === name) && !busy
   const go = async () => { if (!ok) return; setBusy(true); try { await onConfirm(); onClose() } finally { setBusy(false) } }
   return (
@@ -54,8 +57,8 @@ export function ConfirmDialog({ title, description, name, action = '确认删除
       <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">{description}</div>
       {children}
       {name !== undefined && <>
-        <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span className="font-mono font-bold text-fg">{name}</span> 以确认</div>
-        <input autoFocus value={v} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
+        <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span onDoubleClick={fill} title="双击填入" className="font-mono font-bold text-fg cursor-pointer select-none">{name}</span> 以确认<span className="text-dim">（双击名称或输入框可自动填入）</span></div>
+        <input ref={input} autoFocus value={v} onDoubleClick={fill} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
       </>}
     </Modal>
   )

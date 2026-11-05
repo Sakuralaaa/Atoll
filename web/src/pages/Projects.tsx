@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { BACK } from '../api/backTo'
 import { ArrowLeft, ArrowUpDown, LayoutGrid, List, Package, Pin, Plus, SearchX, Server as ServerIcon } from 'lucide-react'
 import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
@@ -52,7 +53,7 @@ export default function Projects() {
   const selServer = sel ? servers?.find(s => s.id === sel) : undefined
   const pinned = list.filter(p => prefs.isPinned(p.id))
   const cardProps = { servers, updates, prefs }
-  const back = () => { const n = new URLSearchParams(sp); n.delete('server'); setSp(n) }
+  const back = () => { const n = new URLSearchParams(sp); n.delete('server'); setSp(n, { state: BACK }) }
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">

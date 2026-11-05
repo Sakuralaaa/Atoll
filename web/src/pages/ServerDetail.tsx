@@ -18,7 +18,7 @@ import { statusText } from '../components/ui-utils'
 import { useProjects } from '../api/queries'
 import { providerOf, countryOf, regionOf } from '../api/providers'
 import { Flag } from '../components/Flag'
-import { backLabel, backTo } from '../api/backTo'
+import { BACK, backLabel, backTo } from '../api/backTo'
 import { useNetState } from '../components/net'
 
 const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id), { interval: 30000 })
@@ -42,7 +42,7 @@ export default function ServerDetail() {
   return (
     <MainShell>
       <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
-        <Link to={backTo(`/servers/${id}`, '/servers')} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo(`/servers/${id}`, '/servers'))}</Link>
+        <Link to={backTo(`/servers/${id}`, '/servers')} state={BACK} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo(`/servers/${id}`, '/servers'))}</Link>
         {s ? <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] mt-2 [overflow-wrap:anywhere]">{s.name}</h1> : <Skeleton className="h-8 w-80 mt-3" />}
         <div className="mt-1"><CopyId v={id} /></div>
         <Tabs className="mt-6" items={TABS} value={tab} onChange={k => setSp({ tab: k })} />
@@ -231,7 +231,7 @@ function SettingsTab({ s }: { s: Server }) {
       </Section>
       {del && <ConfirmDialog title="删除服务器" name={s.name} onClose={() => setDel(false)}
         description={<>将从 Atoll 中移除 <b>{s.name}</b>，Agent 会停止并删除本机的期望状态。{ps.length ? <>这台服务器上还有 <b>{ps.length}</b> 个项目，它们会一并失去管理。</> : null}</>}
-        onConfirm={async () => { const r = await run(() => api.deleteServer(s.id), { ok: '服务器已删除', invalidate: ['servers'] }); if (r !== undefined) nav('/servers') }} />}
+        onConfirm={async () => { const r = await run(() => api.deleteServer(s.id), { ok: '服务器已删除', invalidate: ['servers'] }); if (r !== undefined) { const b = backTo(`/servers/${s.id}`, '/servers'); nav(b.includes(s.id) ? '/servers' : b) } }} />}
       {evac && <Evacuate s={s} ps={ps} onClose={() => setEvac(false)} />}
     </>
   )
