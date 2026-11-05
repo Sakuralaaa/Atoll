@@ -1345,6 +1345,9 @@ const en: Record<string, string> = {
  "覆盖镜像的 ENTRYPOINT，留空使用镜像默认值。例如 sh -c \"npm run start\"": "Overrides the image ENTRYPOINT; empty keeps the image default. E.g. sh -c \"npm run start\"",
  "以只读方式挂载到容器里；之后可在「文件」页修改（保存后会重新部署）。": "Mounted read-only into the container; edit later on the Files page (saving redeploys).",
  "文件内容": "File content",
- "添加配置文件": "Add config file"
+ "添加配置文件": "Add config file",
+ "前缀，如 {0}；填 @ 使用根域名本身": "prefix, e.g. {0}; @ = the root domain itself",
+ "前缀，如 {0}；留空则不绑定": "prefix, e.g. {0}; empty = no domain",
+ "域名格式不对": "Invalid domain"
 }
 export default en

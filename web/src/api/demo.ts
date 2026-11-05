@@ -582,7 +582,7 @@ function route(method: string, path: string, body: any): unknown {
       services.push(s); env[s.id] = [...(t.env ?? []), ...(body.hostname ? t.domain_env ?? [] : [])].map(e => ({ ...e, value: fill(e.value) }))
       deployments[s.id] = [{ id: nid('dep'), service_id: s.id, server_id: '', status: 'pulling', trigger: 'create', started_at: now }]
       setTimeout(() => { s.status = 'running'; s.replicas = '1/1'; deployments[s.id][0].status = 'running' }, 4000)
-      if (t.main && body.hostname) { dom = { id: nid('dom'), service_id: s.id, hostname: String(body.hostname).trim().toLowerCase(), port_name: 'web', proxied: true, status: 'provisioning', created_at: now }; domains.push(dom); const d = dom; setTimeout(() => { d.status = 'active' }, 8000) }
+      if (t.main && body.hostname) { dom = { id: nid('dom'), service_id: s.id, hostname: (h => !body.root_domain ? h : h === '@' ? body.root_domain : h.endsWith('.' + body.root_domain) ? h : `${h}.${body.root_domain}`)(String(body.hostname).trim().toLowerCase()), port_name: 'web', proxied: true, status: 'provisioning', created_at: now }; domains.push(dom); const d = dom; setTimeout(() => { d.status = 'active' }, 8000) }
       made.push(withSvc(s))
     }
     return { project: fullProject(pr), services: made, domain: dom }

@@ -6,6 +6,7 @@ import { ProblemsBanner } from '../components/Problems'
 import { MainShell } from '../components/Shell'
 import { Button, Dot, Mini, ServiceIcon } from '../components/ui'
 import { CardSkeleton, Empty, ErrorState, Label, Modal, Select, TextInput } from '../components/feedback'
+import { HostnameInput, useHostnameInput } from '../components/HostnameInput'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
 import { primaryDomain, projIcon, svcIcon, svcName, projName } from '../api/view'
@@ -170,14 +171,15 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
   const [cat, setCat] = useState('all')
   const [appId, setAppId] = useState('')
   const [name, setName] = useState(''); const [desc, setDesc] = useState(''); const [sid, setSid] = useState('')
-  const [host, setHost] = useState('')
+  const h = useHostnameInput()
+  const noDomain = !h.text.trim()
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [reveal, setReveal] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
   const server = sid || (defaultServer && servers.some(s => s.id === defaultServer) ? defaultServer : '') || servers.find(s => s.status === 'online')?.id || servers[0]?.id || ''
   const app = apps.find(a => a.id === appId)
   const projName = name.trim() || app?.id || ''
-  const ready = mode === 'empty' ? !!name.trim() && !!server : !!app && !!server && !!projName && (!app.needs_domain || !!host.trim())
+  const ready = mode === 'empty' ? !!name.trim() && !!server : !!app && !!server && !!projName && (noDomain ? !app.needs_domain : h.v.ok)
   const submit = async () => {
     if (!ready || busy) return
     setBusy(true)
@@ -187,7 +189,7 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
       if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
       return
     }
-    const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, hostname: host.trim() || undefined, inputs: appInputs(app!, inputs) }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
+    const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, ...(noDomain ? {} : { hostname: h.v.hostname, ...(h.v.root_domain ? { root_domain: h.v.root_domain } : {}) }), inputs: appInputs(app!, inputs) }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
     setBusy(false)
     if (r) { const main = r.services.find(x => x.name === app!.services.find(t => t.main)?.name); onClose(); nav(main ? `/projects/${r.project.id}/services/${main.id}` : `/projects/${r.project.id}`) }
   }
@@ -224,7 +226,8 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
         {mode === 'empty' && <Label t={L("描述（可选）")}><TextInput className="w-full" value={desc} onChange={e => setDesc(e.target.value)} /></Label>}
         {app && mode === 'app' && <>
           <Label t={app.needs_domain ? (lang === "en" ? "Domain" : "域名") : L("域名（可选）")} d={app.needs_domain ? L("{0} 需要通过自己的 HTTPS 域名访问", app.name) : L("留空则之后在服务的「网络」里绑定")}>
-            <TextInput className="w-full" mono value={host} onChange={e => setHost(e.target.value)} placeholder={`${app.id}.example.com`} />
+            <HostnameInput h={h} onEnter={submit} placeholder={app.needs_domain ? L("前缀，如 {0}；填 @ 使用根域名本身", app.id) : L("前缀，如 {0}；留空则不绑定", app.id)} />
+            {!noDomain && <div className={cx('text-[12px] font-mono mt-1.5 break-all', h.v.ok ? 'text-muted' : 'text-[#ef4444]')}>{h.v.ok ? <>→ https://{h.v.full}</> : L("域名格式不对")}</div>}
           </Label>
           {(app.inputs ?? []).map(i => (
             <Label key={i.key} t={lang === 'en' ? i.label_en : i.label} d={L("留空自动生成")}>

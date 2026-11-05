@@ -26,13 +26,13 @@ export function useHostnameInput(projectRoot?: string) {
   return { v, text, setText, root, setRoot: setPicked, names }
 }
 
-export function HostnameInput({ h, autoFocus, onEnter }: { h: ReturnType<typeof useHostnameInput>; autoFocus?: boolean; onEnter?: () => void }) {
+export function HostnameInput({ h, autoFocus, onEnter, placeholder }: { h: ReturnType<typeof useHostnameInput>; autoFocus?: boolean; onEnter?: () => void; placeholder?: string }) {
   const { t } = useT()
   const full = h.root === FULL || !h.names.length
   return (
     <div className="flex flex-wrap items-center gap-2 min-w-0">
       <TextInput autoFocus={autoFocus} mono className="flex-1 min-w-[min(100%,160px)]" value={h.text} onChange={e => h.setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && onEnter?.()}
-        placeholder={full ? 'app.example.com' : t('前缀，如 app；留空为根域名本身', 'prefix, e.g. app; empty = the root itself')} />
+        placeholder={full ? 'app.example.com' : placeholder ?? t('前缀，如 app；留空为根域名本身', 'prefix, e.g. app; empty = the root itself')} />
       {h.names.length > 0 && (
         <Select className="w-auto max-w-full font-mono" value={h.root} onChange={e => h.setRoot(e.target.value)} title={t('根域名', 'Root domain')}>
           {h.names.map(n => <option key={n} value={n}>.{n}</option>)}
