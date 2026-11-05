@@ -917,8 +917,8 @@ const apps: AppTemplate[] = [
   "color": "#2563eb",
   "needs_domain": false,
   "min_mem_mb": 512,
-  "note": "主域名绑定在管理面板 cpa-manager-plus 上，管理员密钥是它的环境变量 CPA_MANAGER_ADMIN_KEY；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。CPA 的配置文件是 /CLIProxyAPI/conf/config.yaml（在 cli-proxy-api 的持久卷 config 上），客户端 API Key 在其中的 access.api-keys；可直接在 CPA 管理面板里改（API Key、提供商等），也可在「文件」页编辑，重新部署后保留。/CLIProxyAPI/config.seed.yaml 只是首次启动时复制的初始模板。创建时可填「API 域名」给 cli-proxy-api 绑定域名（端口 api），供外部客户端直接调用；以后也可再绑定。",
-  "note_en": "The main domain goes to the cpa-manager-plus panel; its admin key is the CPA_MANAGER_ADMIN_KEY env var. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). CPA's config is /CLIProxyAPI/conf/config.yaml (on cli-proxy-api's persistent volume config), with client API keys under access.api-keys. Edit it in the CPA management panel (API keys, providers, ...) or on the Files page; changes survive redeploys. /CLIProxyAPI/config.seed.yaml is only the initial copy used on first start. Fill \"API domain\" at creation to bind a domain to cli-proxy-api (port api) for external clients, or bind one later.",
+  "note": "主域名绑定在管理面板 cpa-manager-plus 上，登录密钥和 CPA 管理密钥相同；面板已通过内网 http://cli-proxy-api:8317 连好 CPA，CPA 管理密钥是创建时填写的那个（留空则自动生成，在 cli-proxy-api 的环境变量 MANAGEMENT_PASSWORD 里）。CPA 的配置文件是 /CLIProxyAPI/conf/config.yaml（在 cli-proxy-api 的持久卷 config 上），客户端 API Key 在其中的 access.api-keys；可直接在 CPA 管理面板里改（API Key、提供商等），也可在「文件」页编辑，重新部署后保留。/CLIProxyAPI/config.seed.yaml 只是首次启动时复制的初始模板。创建时可填「API 域名」给 cli-proxy-api 绑定域名（端口 api），供外部客户端直接调用；以后也可再绑定。",
+  "note_en": "The main domain goes to the cpa-manager-plus panel; its login key is the same as the CPA management key. The panel is already connected to CPA over the internal network at http://cli-proxy-api:8317; the CPA management key is the one you entered at creation (or, if left empty, the generated one in cli-proxy-api's MANAGEMENT_PASSWORD env var). CPA's config is /CLIProxyAPI/conf/config.yaml (on cli-proxy-api's persistent volume config), with client API keys under access.api-keys. Edit it in the CPA management panel (API keys, providers, ...) or on the Files page; changes survive redeploys. /CLIProxyAPI/config.seed.yaml is only the initial copy used on first start. Fill \"API domain\" at creation to bind a domain to cli-proxy-api (port api) for external clients, or bind one later.",
   "inputs": [
    {
     "key": "CPA_MANAGEMENT_KEY",
@@ -1010,7 +1010,7 @@ const apps: AppTemplate[] = [
      },
      {
       "key": "CPA_MANAGER_ADMIN_KEY",
-      "value": "{{RANDOM}}",
+      "value": "${cli-proxy-api.MANAGEMENT_PASSWORD}",
       "secret": true,
       "exposed": false
      },
