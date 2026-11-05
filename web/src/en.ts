@@ -1332,6 +1332,19 @@ const en: Record<string, string> = {
  "配置已保存，正在重新部署": "Config saved, redeploying",
  "配置文件": "Config files",
  "· 配置文件，保存后会重新部署": "· config file, saving redeploys",
- "通过容器内的 ls / cat 读取，保存时写回原路径（最大 1 MB）。Atoll 挂载的配置文件保存后会重新部署。大文件和二进制文件请用命令行。": "Read with ls / cat inside the container and written back to the same path on save (up to 1 MB). Config files mounted by Atoll redeploy the service when saved. Use the command line for large or binary files."
+ "通过容器内的 ls / cat 读取，保存时写回原路径（最大 1 MB）。Atoll 挂载的配置文件保存后会重新部署。大文件和二进制文件请用命令行。": "Read with ls / cat inside the container and written back to the same path on save (up to 1 MB). Config files mounted by Atoll redeploy the service when saved. Use the command line for large or binary files.",
+ "私有镜像凭据": "Private image credentials",
+ "拉取私有镜像时使用（如 GHCR 用 GitHub 用户名 + token）。加密保存，不会再显示。": "Used to pull a private image (e.g. GHCR: GitHub username + token). Stored encrypted and never shown again.",
+ "密码 / Token": "Password / token",
+ "私有值": "Secret value",
+ "切换回表格": "Back to the table",
+ "不暴露端口": "No ports exposed",
+ "卷": "Volumes",
+ "持久化目录，重新部署后数据保留。": "Persistent directories; data survives redeploys.",
+ "添加卷": "Add volume",
+ "覆盖镜像的 ENTRYPOINT，留空使用镜像默认值。例如 sh -c \"npm run start\"": "Overrides the image ENTRYPOINT; empty keeps the image default. E.g. sh -c \"npm run start\"",
+ "以只读方式挂载到容器里；之后可在「文件」页修改（保存后会重新部署）。": "Mounted read-only into the container; edit later on the Files page (saving redeploys).",
+ "文件内容": "File content",
+ "添加配置文件": "Add config file"
 }
 export default en

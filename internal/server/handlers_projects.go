@@ -287,6 +287,18 @@ func (s *Server) teardownServices(ctx context.Context, svcs []serviceOnNode, kee
 type createServiceRequest struct {
 	api.Service
 	Env []api.EnvVar `json:"env,omitempty"` // optional initial env (extension)
+	// RegistryAuth (write-only) pulls a private image: stored encrypted as the service's
+	// registry credential (registry_cred_id), never returned.
+	RegistryAuth *api.RegistryAuth `json:"registry_auth,omitempty"`
+}
+
+// registryHost is the registry server of an image ref ("" = Docker Hub).
+func registryHost(image string) string {
+	first, _, ok := strings.Cut(image, "/")
+	if ok && (strings.ContainsAny(first, ".:") || first == "localhost") {
+		return first
+	}
+	return ""
 }
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) error {
@@ -330,6 +342,24 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 	}
 	if err := checkHostPaths(req.Service.Volumes, nil); err != nil {
 		return err
+	}
+	req.Service.RegistryCredID = "" // only set from registry_auth below
+	if ra := req.RegistryAuth; ra != nil && req.Git == nil && (ra.Username != "" || ra.Password != "") {
+		cred := api.RegistryAuth{Server: strings.TrimSpace(ra.Server), Username: strings.TrimSpace(ra.Username), Password: ra.Password}
+		if cred.Username == "" || cred.Password == "" {
+			return badRequest("registry_auth needs both username and password")
+		}
+		if cred.Server == "" {
+			cred.Server = registryHost(strings.TrimSpace(req.Service.Image))
+		}
+		if cred.Server == "" {
+			cred.Server = "https://index.docker.io/v1/"
+		}
+		id := newID("reg")
+		if err := s.st.SetSecretBlob(r.Context(), "registry_cred:"+id, cred); err != nil {
+			return err
+		}
+		req.Service.RegistryCredID = id
 	}
 	svc, err := s.createService(r.Context(), p, req.Service, req.Env, true)
 	if err != nil {

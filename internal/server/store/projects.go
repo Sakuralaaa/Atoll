@@ -239,6 +239,9 @@ func (s *Store) DeleteService(ctx context.Context, id string) error {
 	s.DB.ExecContext(ctx, `DELETE FROM container_states WHERE service_id=?`, id)
 	s.DB.ExecContext(ctx, `DELETE FROM container_metrics WHERE service_id=?`, id)
 	s.DB.ExecContext(ctx, `DELETE FROM mesh_ports WHERE service_id=?`, id)
+	// its own registry credential (POST .../services registry_auth), if not shared
+	s.DB.ExecContext(ctx, `DELETE FROM settings WHERE key = 'registry_cred:' || (SELECT registry_cred_id FROM services WHERE id=? AND registry_cred_id LIKE 'reg\_%' ESCAPE '\')
+		AND NOT EXISTS (SELECT 1 FROM services o, services me WHERE me.id=? AND o.id<>me.id AND o.registry_cred_id=me.registry_cred_id)`, id, id)
 	res, err := s.DB.ExecContext(ctx, `DELETE FROM services WHERE id=?`, id)
 	if err != nil {
 		return err

@@ -69,7 +69,9 @@ const del = <T = void,>(p: string) => request<T>('DELETE', p)
 const e = encodeURIComponent
 
 export type Range = '1h' | '24h' | '7d'
-export type NewService = Partial<Service> & { name: string; kind: string; image?: string; ports?: Port[]; volumes?: Volume[] }
+export type NewService = Partial<Service> & { name: string; kind: string; image?: string; ports?: Port[]; volumes?: Volume[]; env?: EnvVar[]
+  /** write-only: credential for a private image (stored encrypted as registry_cred_id) */
+  registry_auth?: { server?: string; username: string; password: string } }
 
 export const api = {
   // auth
