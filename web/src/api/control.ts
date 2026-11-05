@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // 中控 / Control: REST calls for managing atoll-server itself (docs/api.md → Control).
 // Every session-only call uses noRedirect: a 401 here is usually "re-auth needed" or a wrong
 // password in the re-auth dialog, which must stay on the page. Any other 401 (session gone)
@@ -96,7 +97,7 @@ export async function exportBundle(passphrase: string, sink: Sink | undefined, o
   let res: Response
   try {
     res = await fetch(API + '/control/export', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/octet-stream' }, body: JSON.stringify({ passphrase }) })
-  } catch { throw new ApiError(0, '无法连接到 Atoll 服务器') }
+  } catch { throw new ApiError(0, L("无法连接到 Atoll 服务器")) }
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`, code: string | undefined
     try { const d = await res.json(); msg = d.error ?? msg; code = d.code } catch { /* not json */ }
@@ -124,17 +125,17 @@ export async function exportBundle(passphrase: string, sink: Sink | undefined, o
 export function uptime(sec: number) {
   if (!sec || sec < 0) return '—'
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60)
-  if (d) return `${d} 天 ${h} 小时`
-  if (h) return `${h} 小时 ${m} 分钟`
-  return `${Math.max(1, m)} 分钟`
+  if (d) return L("{0} 天 {1} 小时", d, h)
+  if (h) return L("{0} 小时 {1} 分钟", h, m)
+  return L("{0} 分钟", Math.max(1, m))
 }
-export const triggerLabel: Record<string, string> = { scheduled: '定时', manual: '手动', 'pre-update': '更新前', unknown: '未知' }
-export const phaseLabel: Record<string, string> = { downloading: '下载新版本', verifying: '校验 SHA256 与版本号', backing_up: '中控备份（pre-update）', restarting: '切换并重启，等待健康检查' }
+export const triggerLabel: Record<string, string> = { scheduled: L("定时"), manual: L("手动"), 'pre-update': L("更新前"), unknown: L("未知") }
+export const phaseLabel: Record<string, string> = { downloading: L("下载新版本"), verifying: L("校验 SHA256 与版本号"), backing_up: L("中控备份（pre-update）"), restarting: L("切换并重启，等待健康检查") }
 export const PHASES = ['downloading', 'verifying', 'backing_up', 'restarting']
 export const passphraseFromText: Record<string, string> = {
-  control_backup_passphrase: '中控备份口令（在本页设置）',
-  backup_repo_password: '备份仓库密码（设置 → 备份）',
-  generated: '自动生成的口令',
+  control_backup_passphrase: L("中控备份口令（在本页设置）"),
+  backup_repo_password: L("备份仓库密码（设置 → 备份）"),
+  generated: L("自动生成的口令"),
 }
 /** host of a URL when it is a domain name (not an IP literal). */
 export function domainOf(url?: string) {

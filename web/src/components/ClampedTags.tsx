@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { cx } from './ui-utils'
 
@@ -35,7 +36,7 @@ export function ClampedTags({ items, rows = 2, className }: { items: { key: stri
   return (
     <div ref={ref} className={cx('flex flex-wrap content-start items-center gap-1.5 overflow-hidden', className)}>
       {items.slice(0, shown).map(i => <span key={i.key} title={i.title} className="text-[12px] leading-5 px-2 py-0.5 rounded-md field text-fg2 max-w-[160px] truncate">{i.node}</span>)}
-      {rest > 0 && <span className="text-[12px] leading-5 px-2 py-0.5 rounded-md bg-ov/[0.07] text-muted font-mono tnum shrink-0" title={items.slice(shown).map(i => i.title ?? i.key).join('、')}>+{rest}</span>}
+      {rest > 0 && <span className="text-[12px] leading-5 px-2 py-0.5 rounded-md bg-ov/[0.07] text-muted font-mono tnum shrink-0" title={items.slice(shown).map(i => i.title ?? i.key).join(L("、"))}>+{rest}</span>}
     </div>
   )
 }

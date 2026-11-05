@@ -1,3 +1,4 @@
+import { L, getLang } from '../i18n'
 // 中控 (Control): the atoll-server host itself. Workloads keep running while it restarts or is down;
 // the same machine may also run an agent (a worker), shown as 同机节点. Concepts: docs/control.md, docs/ui-guide.md.
 import { useEffect, useState } from 'react'
@@ -25,12 +26,12 @@ import { toast } from '../components/toast'
 import { useReauth } from '../components/useReauth'
 
 const TABS = [
-  { k: 'overview', l: '概览', icon: <Gauge size={16} /> },
-  { k: 'update', l: '更新', icon: <CircleArrowUp size={16} /> },
-  { k: 'backups', l: '备份', icon: <Archive size={16} /> },
-  { k: 'logs', l: '日志', icon: <ScrollText size={16} /> },
-  { k: 'audit', l: '审计日志', icon: <ShieldCheck size={16} /> },
-  { k: 'migrate', l: '迁移', icon: <Truck size={16} /> },
+  { k: 'overview', l: L("概览"), icon: <Gauge size={16} /> },
+  { k: 'update', l: L("更新"), icon: <CircleArrowUp size={16} /> },
+  { k: 'backups', l: L("备份"), icon: <Archive size={16} /> },
+  { k: 'logs', l: L("日志"), icon: <ScrollText size={16} /> },
+  { k: 'audit', l: L("审计日志"), icon: <ShieldCheck size={16} /> },
+  { k: 'migrate', l: L("迁移"), icon: <Truck size={16} /> },
 ]
 
 /** An update/rollback this tab started: poll fast until a new last_update_result shows up. */
@@ -53,28 +54,28 @@ export default function Control() {
     const target = watch.version || s.update_target
     if (target && s.version === target && !(r && r.started_at !== watch.prevStart && !r.ok)) {
       // the new binary is serving: done from the user's point of view (the helper's report follows)
-      toast(watch.mode === 'rollback' ? `已回滚到 ${target}` : `已升级到 ${target}`, 'ok')
+      toast(watch.mode === 'rollback' ? L("已回滚到 {0}", target) : L("已升级到 {0}", target), 'ok')
       // oxlint-disable-next-line react/set-state-in-effect
       setWatch(undefined); invalidate('control')
       return
     }
     if (s.update_in_progress) return
     if (r && r.started_at !== watch.prevStart) {
-      if (r.ok) toast(r.mode === 'rollback' ? `已回滚到 ${r.to_version}` : `已升级到 ${r.to_version}`, 'ok')
-      else toast(r.rolled_back ? `新版本不健康，已自动换回 ${r.from_version}` : `${r.mode === 'rollback' ? '回滚' : '升级'}失败：${r.error ?? ''}`, 'error')
+      if (r.ok) toast(r.mode === 'rollback' ? L("已回滚到 {0}", r.to_version) : L("已升级到 {0}", r.to_version), 'ok')
+      else toast(r.rolled_back ? L("新版本不健康，已自动换回 {0}", r.from_version) : L("{0}失败：{1}", r.mode === 'rollback' ? L('回滚') : (getLang() === 'en' ? 'Upgrade' : '升级'), r.error ?? ''), 'error')
       // reacting to a polled result (toast + stop watching) is the effect's job; nothing to derive in render
       // oxlint-disable-next-line react/set-state-in-effect
       setWatch(undefined); invalidate('control')
     } else if (Date.now() - watch.since > 5 * 60e3) setWatch(undefined)
   }, [s, watch, q.error])
-  const tabs = TABS.map(t => t.k === 'update' && s?.update_available ? { ...t, l: '更新 · 有新版本' } : t)
+  const tabs = TABS.map(t => t.k === 'update' && s?.update_available ? { ...t, l: L("更新 · 有新版本") } : t)
   return (
     <MainShell>
       <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em]">中控</h1>
+          <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em]">{L("中控")}</h1>
           {s && <span className="flex items-center gap-2 text-[13px] text-fg2 min-w-0"><Dot status={q.error ? 'offline' : 'online'} /><span className="font-semibold text-fg truncate" title={s.host.hostname}>{s.name || s.host.hostname}</span>
-            <button aria-label="重命名中控" title="重命名" onClick={() => setRenaming(true)} className="text-muted hover:text-fg"><Pencil size={13} /></button></span>}
+            <button aria-label={L("重命名中控")} title={L("重命名")} onClick={() => setRenaming(true)} className="text-muted hover:text-fg"><Pencil size={13} /></button></span>}
           <span className="ml-auto"><ReauthChip /></span>
         </div>
         {renaming && s && <RenameControl s={s} onClose={() => setRenaming(false)} />}
@@ -97,12 +98,12 @@ export default function Control() {
 function RenameControl({ s, onClose }: { s: ControlStatus; onClose: () => void }) {
   const [name, setName] = useState(s.name ?? '')
   const [busy, wrap] = useBusy()
-  const save = () => wrap(async () => { if (await run(() => controlApi.rename(name.trim()), { ok: name.trim() ? '已重命名' : '已恢复为主机名', invalidate: ['control'] })) onClose() })
+  const save = () => wrap(async () => { if (await run(() => controlApi.rename(name.trim()), { ok: name.trim() ? L("已重命名") : L("已恢复为主机名"), invalidate: ['control'] })) onClose() })
   return (
-    <Modal title={<><Pencil size={16} />重命名中控</>} onClose={onClose} width={440}
-      footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={busy || [...name.trim()].length > 100} onClick={save}>{busy && <Loader2 size={14} className="animate-spin" />}保存</Button></>}>
+    <Modal title={<><Pencil size={16} />{L("重命名中控")}</>} onClose={onClose} width={440}
+      footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={busy || [...name.trim()].length > 100} onClick={save}>{busy && <Loader2 size={14} className="animate-spin" />}{L("保存")}</Button></>}>
       <TextInput autoFocus className="w-full" placeholder={s.host.hostname} value={name} maxLength={100} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} />
-      <div className="mt-2 text-[12.5px] text-muted">留空则显示主机名 {s.host.hostname}</div>
+      <div className="mt-2 text-[12.5px] text-muted">{L("留空则显示主机名")} {s.host.hostname}</div>
     </Modal>
   )
 }
@@ -119,62 +120,62 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
     <>
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-3">运行信息</div>
-          <KV k="状态" v={<span className="inline-flex items-center gap-2"><Dot status="online" />运行中 · 已运行 {uptime(s.uptime_seconds)}</span>} />
-          <KV k="版本" v={<span className="inline-flex flex-wrap items-center justify-end gap-2"><span className="font-mono font-semibold">{s.version}</span>{s.update_available && s.latest_release && <button onClick={() => go('update')}><Badge tone="violet"><CircleArrowUp size={12} />{s.latest_release.tag} 可用</Badge></button>}</span>} />
+          <div className="text-[13px] font-semibold mb-3">{L("运行信息")}</div>
+          <KV k={L("状态")} v={<span className="inline-flex items-center gap-2"><Dot status="online" />{L("运行中 · 已运行")} {uptime(s.uptime_seconds)}</span>} />
+          <KV k={L("版本")} v={<span className="inline-flex flex-wrap items-center justify-end gap-2"><span className="font-mono font-semibold">{s.version}</span>{s.update_available && s.latest_release && <button onClick={() => go('update')}><Badge tone="violet"><CircleArrowUp size={12} />{s.latest_release.tag} {L("可用")}</Badge></button>}</span>} />
           <KV k="Commit" v={<span className="font-mono text-[12.5px]">{s.commit || '—'}</span>} />
           <KV k="Go" v={<span className="font-mono text-[12.5px]">{s.go_version}</span>} />
-          <KV k="启动时间" v={dateTime(s.started_at)} />
+          <KV k={L("启动时间")} v={dateTime(s.started_at)} />
         </Card>
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-3">主机</div>
-          <KV k="主机名" v={<span className="font-mono text-[12.5px]">{s.host.hostname}</span>} />
-          {peer && <KV k="同机节点" v={<Link to={`/servers/${peer.id}`} className="inline-flex items-center gap-1.5 hover:underline"><ServerIcon size={13} />{peer.name}</Link>} />}
-          <KV k="系统" v={s.host.os || '—'} />
-          <KV k="内核" v={<span className="font-mono text-[12.5px]">{s.host.kernel || '—'}</span>} />
-          <KV k="架构" v={`${s.host.arch} · ${s.host.cpu_cores} vCPU`} />
-          <KV k="开机时长" v={uptime(s.host.uptime_seconds)} />
+          <div className="text-[13px] font-semibold mb-3">{L("主机")}</div>
+          <KV k={L("主机名")} v={<span className="font-mono text-[12.5px]">{s.host.hostname}</span>} />
+          {peer && <KV k={L("同机节点")} v={<Link to={`/servers/${peer.id}`} className="inline-flex items-center gap-1.5 hover:underline"><ServerIcon size={13} />{peer.name}</Link>} />}
+          <KV k={L("系统")} v={s.host.os || '—'} />
+          <KV k={L("内核")} v={<span className="font-mono text-[12.5px]">{s.host.kernel || '—'}</span>} />
+          <KV k={L("架构")} v={`${s.host.arch} · ${s.host.cpu_cores} vCPU`} />
+          <KV k={L("开机时长")} v={uptime(s.host.uptime_seconds)} />
         </Card>
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-5">资源使用</div>
-          {([['CPU', Math.round(s.cpu_pct), `${s.cpu_pct.toFixed(1)}%`, '#60a5fa'], ['内存', pct(s.mem_used_mb, s.mem_total_mb), `${gb(s.mem_used_mb)} / ${gb(s.mem_total_mb)}`, '#a78bfa'], ['硬盘（数据目录所在）', pct(s.disk_used_gb, s.disk_total_gb), `${s.disk_used_gb} / ${s.disk_total_gb} GB`, '#34d399']] as const).map(([l, v, txt, c]) => (
+          <div className="text-[13px] font-semibold mb-5">{L("资源使用")}</div>
+          {([['CPU', Math.round(s.cpu_pct), `${s.cpu_pct.toFixed(1)}%`, '#60a5fa'], [L("内存"), pct(s.mem_used_mb, s.mem_total_mb), `${gb(s.mem_used_mb)} / ${gb(s.mem_total_mb)}`, '#a78bfa'], [L("硬盘（数据目录所在）"), pct(s.disk_used_gb, s.disk_total_gb), `${s.disk_used_gb} / ${s.disk_total_gb} GB`, '#34d399']] as const).map(([l, v, txt, c]) => (
             <div key={l} className="mb-5">
               <div className="flex justify-between gap-3 text-[13px] mb-2"><span className="text-muted truncate">{l}</span><span className="font-semibold tnum whitespace-nowrap">{txt}</span></div>
               <Ticks value={v} color={c} n={64} />
             </div>
           ))}
-          <div className="text-[12.5px] text-dim tnum">负载 {s.load1.toFixed(2)} / {s.load5.toFixed(2)} / {s.load15.toFixed(2)}</div>
+          <div className="text-[12.5px] text-dim tnum">{L("负载")} {s.load1.toFixed(2)} / {s.load5.toFixed(2)} / {s.load15.toFixed(2)}</div>
         </Card>
         <Card className="p-6 flex flex-col">
-          <div className="text-[13px] font-semibold mb-3">数据</div>
-          <KV k="数据库" v={<span className="tnum">{bytes(s.database_bytes)}<span className="text-dim"> · SQLite + WAL</span></span>} />
-          <KV k="数据目录" v={<span className="tnum">{bytes(s.data_dir_bytes)}</span>} />
-          <KV k="路径" v={<span className="font-mono text-[12.5px]">{s.data_dir}</span>} />
-          <KV k="所在硬盘可用" v={<span className="tnum">{Math.max(0, s.disk_total_gb - s.disk_used_gb).toFixed(1)} GB<span className="text-dim"> / {s.disk_total_gb} GB</span></span>} />
+          <div className="text-[13px] font-semibold mb-3">{L("数据")}</div>
+          <KV k={L("数据库")} v={<span className="tnum">{bytes(s.database_bytes)}<span className="text-dim"> · SQLite + WAL</span></span>} />
+          <KV k={L("数据目录")} v={<span className="tnum">{bytes(s.data_dir_bytes)}</span>} />
+          <KV k={L("路径")} v={<span className="font-mono text-[12.5px]">{s.data_dir}</span>} />
+          <KV k={L("所在硬盘可用")} v={<span className="tnum">{Math.max(0, s.disk_total_gb - s.disk_used_gb).toFixed(1)} GB<span className="text-dim"> / {s.disk_total_gb} GB</span></span>} />
           {/* fills the card to the row's height: what the data directory is made of */}
           <div className="mt-auto pt-4">
-            <div className="flex justify-between gap-3 text-[12.5px] mb-2"><span className="text-muted">数据库占数据目录</span><span className="font-semibold tnum">{pct(s.database_bytes, s.data_dir_bytes)}%</span></div>
+            <div className="flex justify-between gap-3 text-[12.5px] mb-2"><span className="text-muted">{L("数据库占数据目录")}</span><span className="font-semibold tnum">{pct(s.database_bytes, s.data_dir_bytes)}%</span></div>
             <Ticks value={pct(s.database_bytes, s.data_dir_bytes)} color="#fbbf24" n={64} />
-            <div className="mt-2 text-[12px] text-dim">其余主要是中控备份、迁移数据包和 agent 下载文件</div>
+            <div className="mt-2 text-[12px] text-dim">{L("其余主要是中控备份、迁移数据包和 agent 下载文件")}</div>
           </div>
         </Card>
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-3">网络</div>
-          <KV k="公网地址" v={s.public_url ? <a href={s.public_url} target="_blank" rel="noreferrer" className="font-mono text-[12.5px] hover:underline">{s.public_url}</a> : '—'} />
-          <KV k="Tailnet" v={t ? <span className="inline-flex flex-wrap items-center justify-end gap-2"><IP className="font-mono text-[12.5px]" v={t.ip} />{t.listen_error ? <Badge tone="red">监听失败</Badge> : t.listen ? <Badge tone="green">监听中</Badge> : null}</span> : <span className="text-dim">未启用</span>} />
-          {t?.control_url && <KV k="Agent 私网地址" v={<span className="font-mono text-[12px] tracking-tight">{t.control_url}</span>} />}
+          <div className="text-[13px] font-semibold mb-3">{L("网络")}</div>
+          <KV k={L("公网地址")} v={s.public_url ? <a href={s.public_url} target="_blank" rel="noreferrer" className="font-mono text-[12.5px] hover:underline">{s.public_url}</a> : '—'} />
+          <KV k="Tailnet" v={t ? <span className="inline-flex flex-wrap items-center justify-end gap-2"><IP className="font-mono text-[12.5px]" v={t.ip} />{t.listen_error ? <Badge tone="red">{L("监听失败")}</Badge> : t.listen ? <Badge tone="green">{L("监听中")}</Badge> : null}</span> : <span className="text-dim">{L("未启用")}</span>} />
+          {t?.control_url && <KV k={L("Agent 私网地址")} v={<span className="font-mono text-[12px] tracking-tight">{t.control_url}</span>} />}
           {t?.listen_error && <div className="text-[12.5px] text-[#ef4444] font-semibold py-1 [overflow-wrap:anywhere]">{t.listen_error}</div>}
-          <KV k="Agent 连接" v={<Link to="/servers" className="inline-flex items-center gap-2 hover:underline"><Dot status={s.agents_connected === s.agents_total ? 'online' : 'deploying'} />{s.agents_connected} / {s.agents_total} 台服务器在线</Link>} />
+          <KV k={L("Agent 连接")} v={<Link to="/servers" className="inline-flex items-center gap-2 hover:underline"><Dot status={s.agents_connected === s.agents_total ? 'online' : 'deploying'} />{s.agents_connected} / {s.agents_total} {L("台服务器在线")}</Link>} />
         </Card>
         <Card className="p-6 flex flex-col">
-          <div className="text-[13px] font-semibold mb-3 flex items-center gap-2">最近一次中控备份<button onClick={() => go('backups')} className="ml-auto text-[12.5px] font-medium text-accent hover:underline">全部备份</button></div>
+          <div className="text-[13px] font-semibold mb-3 flex items-center gap-2">{L("最近一次中控备份")}<button onClick={() => go('backups')} className="ml-auto text-[12.5px] font-medium text-accent hover:underline">{L("全部备份")}</button></div>
           {b ? <>
-            <KV k="时间" v={<span>{dateTime(b.created_at)}<span className="text-dim"> · {ago(b.created_at)}</span></span>} />
-            <KV k="触发" v={triggerLabel[b.trigger] ?? b.trigger} />
-            <KV k="大小" v={<span className="tnum">{bytes(b.size_bytes)}</span>} />
-            <KV k="位置" v={<Where local={b.local} remote={b.remote} />} />
+            <KV k={L("时间")} v={<span>{dateTime(b.created_at)}<span className="text-dim"> · {ago(b.created_at)}</span></span>} />
+            <KV k={L("触发")} v={triggerLabel[b.trigger] ?? b.trigger} />
+            <KV k={L("大小")} v={<span className="tnum">{bytes(b.size_bytes)}</span>} />
+            <KV k={L("位置")} v={<Where local={b.local} remote={b.remote} />} />
             {b.error && <div className="text-[12.5px] text-[#f59e0b] font-semibold py-1 [overflow-wrap:anywhere]">{b.error}</div>}
-          </> : <div className="flex-1 grid place-items-center text-[13px] text-dim py-6">还没有中控备份（每天自动备份一次）</div>}
+          </> : <div className="flex-1 grid place-items-center text-[13px] text-dim py-6">{L("还没有中控备份（每天自动备份一次）")}</div>}
         </Card>
       </div>
       <Metrics />
@@ -189,12 +190,12 @@ function Metrics() {
   const labels = timeLabels(d.map(x => x.at))
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 mt-9 mb-5"><h2 className="text-[18px] font-semibold tracking-tight">资源曲线</h2><RangePicker v={range} set={setRange} /></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mt-9 mb-5"><h2 className="text-[18px] font-semibold tracking-tight">{L("资源曲线")}</h2><RangePicker v={range} set={setRange} /></div>
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
-        <Chart title="CPU 使用率" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
-        <Chart title="内存使用率" icon={<MemoryStick size={15} />} data={d.map(x => (x.mem_total_mb ? (x.mem_used_mb / x.mem_total_mb) * 100 : 0))} color="#38bdf8" max={100} labels={labels} />
-        <Chart title="硬盘空间使用率" icon={<HardDrive size={15} />} data={d.map(x => (x.disk_total_gb ? (x.disk_used_gb / x.disk_total_gb) * 100 : 0))} color="#34d399" max={100} labels={labels} />
+        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
+        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => (x.mem_total_mb ? (x.mem_used_mb / x.mem_total_mb) * 100 : 0))} color="#38bdf8" max={100} labels={labels} />
+        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => (x.disk_total_gb ? (x.disk_used_gb / x.disk_total_gb) * 100 : 0))} color="#34d399" max={100} labels={labels} />
       </div>
     </>
   )
@@ -212,14 +213,14 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
   const target = watch?.version || s.update_target
   const arrived = !!target && s.version === target && !offline
   const check = () => wrapCheck(() => run(() => controlApi.checkUpdate(), { invalidate: ['control'] }).then(r => {
-    if (r) toast(r.update_available ? `发现新版本 ${r.latest_release?.tag}` : r.release_error ? `检查失败：${r.release_error}` : '已是最新版本', r.release_error && !r.update_available ? 'error' : r.update_available ? 'info' : 'ok')
+    if (r) toast(r.update_available ? L("发现新版本 {0}", r.latest_release?.tag) : r.release_error ? L("检查失败：{0}", r.release_error) : L("已是最新版本"), r.release_error && !r.update_available ? 'error' : r.update_available ? 'info' : 'ok')
   }))
   const start = async (mode: 'update' | 'rollback') => {
     setConfirm(undefined)
     const prevStart = s.last_update_result?.started_at
     const r = await guard(() => mode === 'update' ? controlApi.update(rel?.tag) : controlApi.rollback(), {
-      title: mode === 'update' ? `升级到 ${rel?.tag}` : `回滚到 ${s.rollback_version}`,
-      desc: mode === 'update' ? '升级中控需要确认身份。' : '回滚中控需要确认身份。',
+      title: mode === 'update' ? L("升级到 {0}", rel?.tag) : L("回滚到 {0}", s.rollback_version),
+      desc: mode === 'update' ? L("升级中控需要确认身份。") : L("回滚中控需要确认身份。"),
     })
     if (r) { setWatch({ mode, version: r.version, prevStart, since: Date.now() }); invalidate('control') }
   }
@@ -229,59 +230,58 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
       <Card className="p-5 @2xl:p-6">
         <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 [&>*]:min-w-0">
           <div className="rounded-xl border-2 border-dashed border-line2 p-4 min-w-0">
-            <div className="text-[12.5px] text-muted">当前版本</div>
+            <div className="text-[12.5px] text-muted">{L("当前版本")}</div>
             <div className="mt-1 text-[22px] font-extrabold italic font-mono tracking-tight">{s.version}</div>
             <div className="text-[12.5px] text-dim font-mono mt-0.5 truncate">{s.commit ? `commit ${s.commit}` : ''}{s.commit ? ' · ' : ''}{s.go_version}</div>
           </div>
           <div className={cx('rounded-xl p-4 min-w-0', s.update_available ? 'surface !bg-[color-mix(in_srgb,#8b5cf6_16%,var(--card))]' : 'border-2 border-dashed border-line2')}>
-            <div className="text-[12.5px] text-muted flex items-center gap-2">最新发布{rel?.prerelease && <Badge tone="amber">预发布</Badge>}</div>
+            <div className="text-[12.5px] text-muted flex items-center gap-2">{L("最新发布")}{rel?.prerelease && <Badge tone="amber">{L("预发布")}</Badge>}</div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-[22px] font-extrabold italic font-mono tracking-tight">{rel?.tag ?? '—'}</span>
-              {s.update_available ? <Badge tone="violet">有新版本</Badge> : rel && <Badge tone="green">已是最新</Badge>}
+              {s.update_available ? <Badge tone="violet">{L("有新版本")}</Badge> : rel && <Badge tone="green">{L("已是最新")}</Badge>}
             </div>
             <div className="text-[12.5px] text-dim mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {rel && <span>发布于 {ago(rel.published_at)}</span>}
-              {rel?.url && <a href={rel.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline font-medium">发布说明<ExternalLink size={12} /></a>}
+              {rel && <span>{L("发布于")} {ago(rel.published_at)}</span>}
+              {rel?.url && <a href={rel.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline font-medium">{L("发布说明")}<ExternalLink size={12} /></a>}
             </div>
           </div>
         </div>
-        {s.release_error && <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-[#fef3c7] text-[#141414] px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">检查 GitHub 发布失败：{s.release_error}</span></div>}
+        {s.release_error && <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-[#fef3c7] text-[#141414] px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("检查 GitHub 发布失败：")}{s.release_error}</span></div>}
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button variant="primary" disabled={!s.update_available || !s.self_update_supported || busy || !rel} onClick={() => setConfirm('update')}><Rocket size={15} />{s.update_available && rel ? `升级到 ${rel.tag}` : '已是最新版本'}</Button>
-          <Button onClick={check} disabled={checking || busy}>{checking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}检查更新</Button>
-          {rel && <span className="text-[12.5px] text-dim">上次检查 {ago(rel.checked_at)} · 每 6 小时自动检查</span>}
+          <Button variant="primary" disabled={!s.update_available || !s.self_update_supported || busy || !rel} onClick={() => setConfirm('update')}><Rocket size={15} />{s.update_available && rel ? L("升级到 {0}", rel.tag) : L("已是最新版本")}</Button>
+          <Button onClick={check} disabled={checking || busy}>{checking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}{L("检查更新")}</Button>
+          {rel && <span className="text-[12.5px] text-dim">{L("上次检查")} {ago(rel.checked_at)} {L("· 每 6 小时自动检查")}</span>}
         </div>
         {!s.self_update_supported && <div className="mt-5">
-          <div className="text-[13px] text-fg2 mb-2 leading-6">atoll-server 不是以 systemd 服务运行，无法在面板里自更新。请在中控主机上用安装脚本升级：</div>
+          <div className="text-[13px] text-fg2 mb-2 leading-6">{L("atoll-server 不是以 systemd 服务运行，无法在面板里自更新。请在中控主机上用安装脚本升级：")}</div>
           <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{`curl -fsSL ${installServerURL(rel?.tag ?? 'main')} | sudo sh -s -- --version ${rel?.tag ?? 'vX.Y.Z'}`}</CodeBlock></div>
         </div>}
       </Card>
       <Card className="p-5 flex gap-3 items-start">
         <Info size={17} className="text-accent mt-0.5 shrink-0" />
         <div className="text-[13px] text-fg2 leading-6 min-w-0">
-          <b>升级期间各服务器上的服务照常运行。</b>中控重启时面板和 API 会中断几秒，agent 会自动重连；业务容器、对外域名和 HTTPS 都在各 worker 上，不受影响。
-          升级前会自动做一份 <span className="font-mono">pre-update</span> 中控备份；新版本 60 秒内没有通过健康检查会自动换回旧版本。
+          <b>{L("升级期间各服务器上的服务照常运行。")}</b>{L("中控重启时面板和 API 会中断几秒，agent 会自动重连；业务容器、对外域名和 HTTPS 都在各 worker 上，不受影响。\n          升级前会自动做一份")} <span className="font-mono">pre-update</span> {L("中控备份；新版本 60 秒内没有通过健康检查会自动换回旧版本。")}
         </div>
       </Card>
       {s.last_update_result && <LastResult r={s.last_update_result} />}
       <Card className="p-5 @2xl:p-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex-1 min-w-[min(100%,260px)]">
-            <div className="text-[13px] font-semibold flex items-center gap-2"><Undo2 size={15} />回滚</div>
+            <div className="text-[13px] font-semibold flex items-center gap-2"><Undo2 size={15} />{L("回滚")}</div>
             <div className="text-[13px] text-muted mt-1 leading-6">{s.rollback_version
-              ? <>把 <span className="font-mono">atoll-server</span> 换回上一个版本 <b className="font-mono text-fg">{s.rollback_version}</b>，同样有 60 秒健康检查（再回滚一次就回到当前版本）。新版本可能已给数据库加了新表或列，旧版本一般能忽略；如有问题，用 pre-update 备份恢复。</>
-              : '没有可回滚的上一个版本（自更新成功后才会保留 atoll-server.prev）。'}</div>
+              ? <>{L("把")} <span className="font-mono">atoll-server</span> {L("换回上一个版本")} <b className="font-mono text-fg">{s.rollback_version}</b>{L("，同样有 60 秒健康检查（再回滚一次就回到当前版本）。新版本可能已给数据库加了新表或列，旧版本一般能忽略；如有问题，用 pre-update 备份恢复。")}</>
+              : L("没有可回滚的上一个版本（自更新成功后才会保留 atoll-server.prev）。")}</div>
           </div>
-          <Button variant="danger-outline" disabled={!s.rollback_version || busy || !s.self_update_supported} onClick={() => setConfirm('rollback')}><Undo2 size={15} />回滚{s.rollback_version ? `到 ${s.rollback_version}` : ''}</Button>
+          <Button variant="danger-outline" disabled={!s.rollback_version || busy || !s.self_update_supported} onClick={() => setConfirm('rollback')}><Undo2 size={15} />{L("回滚")}{s.rollback_version ? L("到 {0}", s.rollback_version) : ''}</Button>
         </div>
       </Card>
-      {confirm && <Modal width={520} title={<>{confirm === 'update' ? <Rocket size={17} className="text-accent" /> : <Undo2 size={17} className="text-[#ef4444]" />}{confirm === 'update' ? `升级到 ${rel?.tag}` : `回滚到 ${s.rollback_version}`}</>} onClose={() => setConfirm(undefined)}
-        footer={<><Button size="sm" onClick={() => setConfirm(undefined)}>取消</Button><Button size="sm" variant={confirm === 'update' ? 'primary' : 'danger'} onClick={() => start(confirm)}>{confirm === 'update' ? '开始升级' : '开始回滚'}</Button></>}>
+      {confirm && <Modal width={520} title={<>{confirm === 'update' ? <Rocket size={17} className="text-accent" /> : <Undo2 size={17} className="text-[#ef4444]" />}{confirm === 'update' ? L("升级到 {0}", rel?.tag) : L("回滚到 {0}", s.rollback_version)}</>} onClose={() => setConfirm(undefined)}
+        footer={<><Button size="sm" onClick={() => setConfirm(undefined)}>{L("取消")}</Button><Button size="sm" variant={confirm === 'update' ? 'primary' : 'danger'} onClick={() => start(confirm)}>{confirm === 'update' ? L("开始升级") : L("开始回滚")}</Button></>}>
         <div className="text-[13.5px] text-fg2 leading-6 space-y-2 [overflow-wrap:anywhere]">
           {confirm === 'update'
-            ? <><p>中控将从 GitHub 下载 <b className="font-mono">{rel?.tag}</b>，校验 SHA256 和版本号，先做一份 pre-update 中控备份，再切换并重启。</p></>
-            : <p>中控将换回 <b className="font-mono">{s.rollback_version}</b> 并重启。</p>}
-          <p>面板会中断几秒后自动恢复；<b>各服务器上的服务不受影响</b>。60 秒内不健康会自动换回。</p>
+            ? <><p>{L("中控将从 GitHub 下载")} <b className="font-mono">{rel?.tag}</b>{L("，校验 SHA256 和版本号，先做一份 pre-update 中控备份，再切换并重启。")}</p></>
+            : <p>{L("中控将换回")} <b className="font-mono">{s.rollback_version}</b> {L("并重启。")}</p>}
+          <p>{L("面板会中断几秒后自动恢复；")}<b>{L("各服务器上的服务不受影响")}</b>{L("。60 秒内不健康会自动换回。")}</p>
         </div>
       </Modal>}
       {dialog}
@@ -302,7 +302,7 @@ function Progress({ s, offline, watch }: { s: ControlStatus; offline: boolean; w
     <Card className="p-5 @2xl:p-6 !bg-[color-mix(in_srgb,#8b5cf6_16%,var(--card))]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Loader2 size={17} className="animate-spin text-accent" />
-        <div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{mode === 'rollback' ? '正在回滚' : '正在升级'}{watch?.version ? <span className="font-mono"> → {watch.version}</span> : null}</div>
+        <div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{mode === 'rollback' ? L("正在回滚") : L("正在升级")}{watch?.version ? <span className="font-mono"> → {watch.version}</span> : null}</div>
         <span className="ml-auto text-[12.5px] text-muted tnum">{el}s</span>
       </div>
       <div className="mt-4 grid grid-cols-1 @2xl:grid-cols-2 @5xl:grid-cols-4 gap-2.5">
@@ -314,7 +314,7 @@ function Progress({ s, offline, watch }: { s: ControlStatus; offline: boolean; w
         ))}
       </div>
       <div className="mt-3 text-[12.5px] text-fg2 leading-6">
-        {offline ? '中控正在重启，暂时连不上，等它恢复后这里会自动更新…' : '可以离开本页，升级在中控后台继续。'}各服务器上的服务照常运行。
+        {offline ? L("中控正在重启，暂时连不上，等它恢复后这里会自动更新…") : L("可以离开本页，升级在中控后台继续。")}{L("各服务器上的服务照常运行。")}
       </div>
     </Card>
   )
@@ -325,8 +325,8 @@ function LastResult({ r }: { r: UpdateResult }) {
   return (
     <Card className="p-5 @2xl:p-6">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-[13px] font-semibold mr-1">上一次{r.mode === 'rollback' ? '回滚' : '升级'}</div>
-        <Badge tone={tone}>{r.ok ? <><CheckCircle2 size={12} />成功</> : r.rolled_back ? <><Undo2 size={12} />失败，已自动换回</> : <><XCircle size={12} />失败</>}</Badge>
+        <div className="text-[13px] font-semibold mr-1">{L("上一次")}{r.mode === 'rollback' ? L("回滚") : L("升级")}</div>
+        <Badge tone={tone}>{r.ok ? <><CheckCircle2 size={12} />{L("成功")}</> : r.rolled_back ? <><Undo2 size={12} />{L("失败，已自动换回")}</> : <><XCircle size={12} />{L("失败")}</>}</Badge>
         <span className="ml-auto text-[12.5px] text-dim">{dateTime(r.finished_at || r.started_at)} · {ago(r.finished_at || r.started_at)}</span>
       </div>
       <div className="mt-3 font-mono text-[13px] [overflow-wrap:anywhere]">{r.from_version || '?'} → {r.to_version || '?'}</div>
@@ -348,12 +348,12 @@ export function ControlCard() {
           <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', on ? 'bg-emerald-400' : s ? 'bg-zinc-600' : 'bg-zinc-500')} />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold">中控</span>{s && <span className="font-mono text-[12.5px] text-fg2">{s.version}</span>}{s?.update_available && <Badge tone="violet">可更新</Badge>}</div>
-          <div className="text-[12.5px] text-muted truncate" title={s?.host.hostname}>{s ? `${on ? '在线' : '连不上'} · ${s.name || s.host.hostname}` : q.error ? '连不上中控' : <Skeleton className="h-3 w-32 mt-1" />}</div>
+          <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold">{L("中控")}</span>{s && <span className="font-mono text-[12.5px] text-fg2">{s.version}</span>}{s?.update_available && <Badge tone="violet">{L("可更新")}</Badge>}</div>
+          <div className="text-[12.5px] text-muted truncate" title={s?.host.hostname}>{s ? `${on ? L("在线") : L("连不上")} · ${s.name || s.host.hostname}` : q.error ? L("连不上中控") : <Skeleton className="h-3 w-32 mt-1" />}</div>
         </div>
       </div>
       {s && <div className="grid grid-cols-3 gap-x-4 text-[12px] w-full @3xl:w-auto @3xl:min-w-[360px] [&>div]:min-w-0">
-        {([['CPU', Math.round(s.cpu_pct)], ['内存', pct(s.mem_used_mb, s.mem_total_mb)], ['硬盘', pct(s.disk_used_gb, s.disk_total_gb)]] as const).map(([l, v]) => (
+        {([['CPU', Math.round(s.cpu_pct)], [L("内存"), pct(s.mem_used_mb, s.mem_total_mb)], [L("硬盘"), pct(s.disk_used_gb, s.disk_total_gb)]] as const).map(([l, v]) => (
           <div key={l}><div className="flex justify-between text-muted mb-1"><span>{l}</span><span className="font-semibold text-fg tnum">{v}%</span></div><Ticks value={v} n={18} /></div>
         ))}
       </div>}

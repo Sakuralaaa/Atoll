@@ -11,15 +11,15 @@ import { StepScan, StepServer } from './import/StepScan'
 import { StepSelect } from './import/SelectForm'
 import { JobView } from './import/JobView'
 import { AdvancedCli, History } from './import/History'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 
 const STEPS = [
-  { n: 1, l: '选择服务器', i: <ServerIcon size={15} /> },
-  { n: 2, l: '扫描', i: <ScanSearch size={15} /> },
-  { n: 3, l: '选择服务', i: <ListChecks size={15} /> },
-  { n: 4, l: '演练', i: <FlaskConical size={15} /> },
-  { n: 5, l: '切换', i: <Power size={15} /> },
-  { n: 6, l: '移除 Zeabur k3s', i: <Trash2 size={15} /> },
+  { n: 1, l: L("选择服务器"), i: <ServerIcon size={15} /> },
+  { n: 2, l: L("扫描"), i: <ScanSearch size={15} /> },
+  { n: 3, l: L("选择服务"), i: <ListChecks size={15} /> },
+  { n: 4, l: L("演练"), i: <FlaskConical size={15} /> },
+  { n: 5, l: L("切换"), i: <Power size={15} /> },
+  { n: 6, l: L("移除 Zeabur k3s"), i: <Trash2 size={15} /> },
 ]
 
 function jobStep(j: ImportJob, want: string | null) {
@@ -42,10 +42,10 @@ export default function Import() {
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
           <div className="min-w-0">
-            <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">从 Zeabur 迁移<Badge tone="violet">原地接管</Badge></h1>
-            <p className="text-[13.5px] text-muted mt-2 max-w-[760px] leading-6">在 Zeabur 托管的那台 VPS 上装好 Atoll Agent，服务原样搬进本机 Docker：镜像从本机导出，数据卷本机复制，数据库同版本导出恢复。同一台机器、同一个 IP；Zeabur 上的东西一样不删，随时可以回滚。</p>
+            <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{L("从 Zeabur 迁移")}<Badge tone="violet">{L("原地接管")}</Badge></h1>
+            <p className="text-[13.5px] text-muted mt-2 max-w-[760px] leading-6">{L("在 Zeabur 托管的那台 VPS 上装好 Atoll Agent，服务原样搬进本机 Docker：镜像从本机导出，数据卷本机复制，数据库同版本导出恢复。同一台机器、同一个 IP；Zeabur 上的东西一样不删，随时可以回滚。")}</p>
           </div>
-          {(jobId || server) && <Button onClick={() => setSp({})}><X size={14} />重新开始</Button>}
+          {(jobId || server) && <Button onClick={() => setSp({})}><X size={14} />{L("重新开始")}</Button>}
         </div>
         {!jobId && !server && <DockerEntry />}
         <Stepper step={step} completed={completed} />

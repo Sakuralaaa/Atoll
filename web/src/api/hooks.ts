@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ApiError, isConfirmation } from './client'
 import { toast } from '../components/toast'
@@ -63,12 +64,12 @@ export function useQuery<T>(key: string | null, fn: () => Promise<T>, opts: { in
 export async function run<T>(fn: () => Promise<T>, o: { ok?: string; invalidate?: string[] } = {}): Promise<T | undefined> {
   try {
     const r = await fn()
-    if (isConfirmation(r)) toast('已提交，等待在「审批」中批准', 'info')
+    if (isConfirmation(r)) toast(L("已提交，等待在「审批」中批准"), 'info')
     else if (o.ok) toast(o.ok, 'ok')
     if (o.invalidate) invalidate(...o.invalidate)
     return r
   } catch (e) {
-    toast((e as Error).message || '操作失败', 'error')
+    toast((e as Error).message || L("操作失败"), 'error')
     return undefined
   }
 }

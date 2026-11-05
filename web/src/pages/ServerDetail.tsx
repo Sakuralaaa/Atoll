@@ -12,7 +12,7 @@ import { ago, day, gb, projIcon, timeLabels, usagePct, projName } from '../api/v
 import type { Project, Server } from '../api/types'
 import { NetBadge, ServerNetworkAction } from '../components/ServerNetwork'
 import { Latency } from '../components/Latency'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { statusText } from '../components/ui-utils'
 import { useProjects } from '../api/queries'
@@ -25,12 +25,12 @@ const useServer = (id: string) => useQuery(`server:${id}`, () => api.server(id),
 const projectsOn = (ps: Project[] | undefined, sid: string) => (ps ?? []).filter(p => p.server_id === sid)
 
 const TABS = [
-  { k: 'info', l: '服务器信息', icon: <Info size={16} /> },
-  { k: 'projects', l: '项目', icon: <Code2 size={16} /> },
+  { k: 'info', l: L("服务器信息"), icon: <Info size={16} /> },
+  { k: 'projects', l: L("项目"), icon: <Code2 size={16} /> },
   { k: 'ssh', l: 'SSH', icon: <SquareTerminal size={16} /> },
-  { k: 'metrics', l: '监控指标', icon: <BarChart3 size={16} /> },
-  { k: 'status', l: '状态', icon: <Cpu size={16} /> },
-  { k: 'settings', l: '设置', icon: <Settings size={16} /> },
+  { k: 'metrics', l: L("监控指标"), icon: <BarChart3 size={16} /> },
+  { k: 'status', l: L("状态"), icon: <Cpu size={16} /> },
+  { k: 'settings', l: L("设置"), icon: <Settings size={16} /> },
 ]
 
 export default function ServerDetail() {
@@ -72,37 +72,37 @@ function InfoTab({ s }: { s: Server }) {
     <>
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-3">运行信息</div>
-          <KV k="状态" v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? 'Agent 已连接' : s.status === 'pending' ? '等待 Agent 连接' : `失联 · ${ago(s.last_seen_at)}`}</span>} />
+          <div className="text-[13px] font-semibold mb-3">{L("运行信息")}</div>
+          <KV k={L("状态")} v={<span className="flex items-center gap-2"><Dot status={s.status} />{on ? L("Agent 已连接") : s.status === 'pending' ? L("等待 Agent 连接") : L("失联 · {0}", ago(s.last_seen_at))}</span>} />
           <KV k={t('延迟', 'Latency')} v={<Latency s={s} label={false} avg />} />
           <KV k="Agent" v={<span className="flex flex-wrap items-center justify-end gap-2">{s.agent_version || '—'}<AgentUpgradeBadge s={s} /></span>} />
           <KV k={t('管理通道', 'Agent channel')} v={<span className="flex flex-col items-end gap-1.5"><span className="whitespace-nowrap"><NetBadge s={s} /></span>{s.tailnet_host && <span className="font-mono text-[12.5px] max-w-full [overflow-wrap:anywhere]" title={s.tailnet_host}>{s.tailnet_host}</span>}</span>} />
           <KV k={t('内网 IP', 'Tailnet IP')} v={<IP className="font-mono text-[13px]" v={s.tailnet_ip} />} />
-          <KV k="最近心跳" v={ago(s.last_seen_at)} />
-          <KV k="区域" v={<span className="flex items-center gap-2"><Flag code={countryOf(s)} />{regionOf(s) || '—'}</span>} />
+          <KV k={L("最近心跳")} v={ago(s.last_seen_at)} />
+          <KV k={L("区域")} v={<span className="flex items-center gap-2"><Flag code={countryOf(s)} />{regionOf(s) || '—'}</span>} />
           <KV k="IPv4" v={<IP className="font-mono text-[13px]" v={s.public_ipv4} />} />
         </Card>
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-3">规格信息</div>
-          <KV k="服务商" v={<span className="flex items-center gap-2">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}{s.provider || (providerOf(s) !== '?' ? `${providerOf(s)}（按 IP 推测）` : '—')}</span>} />
+          <div className="text-[13px] font-semibold mb-3">{L("规格信息")}</div>
+          <KV k={L("服务商")} v={<span className="flex items-center gap-2">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}{s.provider || (providerOf(s) !== '?' ? L("{0}（按 IP 推测）", providerOf(s)) : '—')}</span>} />
           <KV k="CPU" v={`${s.cpu_cores} vCPU · ${s.arch}`} />
-          <KV k="内存" v={gb(s.mem_mb)} />
-          <KV k="硬盘" v={`${s.disk_gb} GB`} />
-          <KV k="系统" v={s.os || '—'} />
-          <KV k="加入时间" v={day(s.created_at)} />
+          <KV k={L("内存")} v={gb(s.mem_mb)} />
+          <KV k={L("硬盘")} v={`${s.disk_gb} GB`} />
+          <KV k={L("系统")} v={s.os || '—'} />
+          <KV k={L("加入时间")} v={day(s.created_at)} />
         </Card>
         <Card className="p-6">
-          <div className="text-[13px] font-semibold mb-5">资源使用</div>
-          {[['CPU 使用率', u.cpu, '#60a5fa'], ['内存使用率', u.mem, '#a78bfa'], ['硬盘使用率', u.disk, '#34d399']].map(([l, v, c]) => (
+          <div className="text-[13px] font-semibold mb-5">{L("资源使用")}</div>
+          {[[L("CPU 使用率"), u.cpu, '#60a5fa'], [L("内存使用率"), u.mem, '#a78bfa'], [L("硬盘使用率"), u.disk, '#34d399']].map(([l, v, c]) => (
             <div key={l as string} className="mb-5">
               <div className="flex justify-between text-[13px] mb-2"><span className="text-muted">{l}</span><span className="font-semibold">{v}%</span></div>
               <Ticks value={v as number} color={c as string} n={64} />
             </div>
           ))}
-          <div className="text-[12.5px] text-dim">{s.usage ? `负载 ${s.usage.load1.toFixed(2)} · 采样于 ${ago(s.usage.at)}` : '暂无监控数据'}</div>
+          <div className="text-[12.5px] text-dim">{s.usage ? L("负载 {0} · 采样于 {1}", s.usage.load1.toFixed(2), ago(s.usage.at)) : L("暂无监控数据")}</div>
         </Card>
       </div>
-      <div className="mt-8 text-[13px] font-semibold mb-3">项目</div>
+      <div className="mt-8 text-[13px] font-semibold mb-3">{L("项目")}</div>
       <ProjectsTab s={s} />
     </>
   )
@@ -112,7 +112,7 @@ function ProjectsTab({ s }: { s: Server }) {
   const q = useProjects()
   if (!q.data) return q.error ? <ErrorState error={q.error} onRetry={q.refetch} /> : <CardSkeleton n={3} h={140} />
   const ps = projectsOn(q.data, s.id)
-  if (!ps.length) return <Empty icon={<Code2 size={22} />} title="这台服务器上还没有项目" desc={s.role === 'control' ? '中控节点只运行面板与调度。' : '创建项目时选择这台服务器，或把其他服务器上的项目迁移过来。'} />
+  if (!ps.length) return <Empty icon={<Code2 size={22} />} title={L("这台服务器上还没有项目")} desc={s.role === 'control' ? L("中控节点只运行面板与调度。") : L("创建项目时选择这台服务器，或把其他服务器上的项目迁移过来。")} />
   return (
     <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
       {ps.map(p => {
@@ -122,8 +122,8 @@ function ProjectsTab({ s }: { s: Server }) {
           <Link key={p.id} to={`/projects/${p.id}`} className="rounded-2xl surface surface-hover p-5">
             <div className="flex items-center gap-3 min-w-0"><ServiceIcon s={projIcon(p)} size={40} /><span className="text-[15px] font-semibold truncate min-w-0" title={p.name}>{projName(p)}</span></div>
             <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3.5 text-[13px]">
-              <span className="text-muted">服务器</span><span className="flex items-center justify-end gap-2 min-w-0">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}<span className="truncate" title={s.name}>{s.name}</span></span>
-              <span className="text-muted">服务</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} 运行中</span>
+              <span className="text-muted">{L("服务器")}</span><span className="flex items-center justify-end gap-2 min-w-0">{providerOf(s) !== '?' && <Mini provider={providerOf(s)} />}<span className="truncate" title={s.name}>{s.name}</span></span>
+              <span className="text-muted">{L("服务")}</span><span className="flex items-center justify-end gap-2"><Dot status={!ss.length ? 'unknown' : run === ss.length ? 'running' : 'deploying'} />{run}/{ss.length} {L("运行中")}</span>
             </div>
           </Link>
         )
@@ -132,7 +132,7 @@ function ProjectsTab({ s }: { s: Server }) {
   )
 }
 
-const RANGES: { k: Range; l: string }[] = [{ k: '1h', l: '最近 1 小时' }, { k: '24h', l: '最近 24 小时' }, { k: '7d', l: '最近 7 天' }]
+const RANGES: { k: Range; l: string }[] = [{ k: '1h', l: L("最近 1 小时") }, { k: '24h', l: L("最近 24 小时") }, { k: '7d', l: L("最近 7 天") }]
 export function RangePicker({ v, set }: { v: Range; set: (r: Range) => void }) {
   return (
     <div className="relative">
@@ -159,18 +159,18 @@ function MetricsTab({ s }: { s: Server }) {
   const aggAts = (per.data ?? []).find(a => a.length)?.map(x => x.at) ?? []
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="text-[20px] font-semibold tracking-tight">监控指标</h2><div className="flex flex-wrap gap-2"><RangePicker v={range} set={setRange} />{isDemo() && <Button variant="primary"><Bell size={15} />设置告警</Button>}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="text-[20px] font-semibold tracking-tight">{L("监控指标")}</h2><div className="flex flex-wrap gap-2"><RangePicker v={range} set={setRange} />{isDemo() && <Button variant="primary"><Bell size={15} />{L("设置告警")}</Button>}</div></div>
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
-        <Chart title="CPU 使用率" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
-        <Chart title="内存使用率" icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="#38bdf8" max={100} labels={labels} />
-        <Chart title="硬盘空间使用率" icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
+        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
+        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="#38bdf8" max={100} labels={labels} />
+        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 mt-9 mb-3"><h3 className="text-[15px] font-semibold">项目分布</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-9 mb-3"><h3 className="text-[15px] font-semibold">{L("项目分布")}</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
       <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2 min-w-0 max-w-full"><span className="h-3 w-3 rounded-full shrink-0" style={{ background: colors[i % 6] }} />{projName(p)}</span>)}</div>
       <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
-        <Chart title="CPU 使用率（容器合计）" icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="#a855f7" labels={timeLabels(aggAts)} />
-        <Chart title="内存（容器合计）" icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="#eab308" unit=" MB" labels={timeLabels(aggAts)} />
+        <Chart title={L("CPU 使用率（容器合计）")} icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="#a855f7" labels={timeLabels(aggAts)} />
+        <Chart title={L("内存（容器合计）")} icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="#eab308" unit=" MB" labels={timeLabels(aggAts)} />
       </div>
     </>
   )
@@ -198,40 +198,40 @@ function SettingsTab({ s }: { s: Server }) {
   const [name, setName] = useState(s.name); const [provider, setProvider] = useState(s.provider ?? ''); const [region, setRegion] = useState(s.region ?? '')
   const [del, setDel] = useState(false); const [evac, setEvac] = useState(false)
   const dirty = name !== s.name || provider !== (s.provider ?? '') || region !== (s.region ?? '')
-  const save = () => run(() => api.updateServer(s.id, { name, provider, region }), { ok: '已保存', invalidate: ['servers', `server:${s.id}`] })
+  const save = () => run(() => api.updateServer(s.id, { name, provider, region }), { ok: L("已保存"), invalidate: ['servers', `server:${s.id}`] })
   const ps = projectsOn(useProjects().data, s.id)
   return (
     <>
-      <Section title="基本">
-        <Row t="服务器名称"><TextInput className="w-full @4xl:w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
-        <Row t="服务商" d="仅用于显示图标，例如 Hetzner、Oracle、RackNerd、VMISS；留空则按 IP 归属自动推测"><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
-        <Row t="区域" d="以国家代码结尾会显示旗帜，例如 Phoenix, US；留空则按 IP 自动显示"><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
-        <Row t="IP 地址" d="由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。"><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]"><IP v={s.public_ipv4} /></div></Row>
-        <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>取消</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>保存配置</Button></div>
+      <Section title={L("基本")}>
+        <Row t={L("服务器名称")}><TextInput className="w-full @4xl:w-[480px]" value={name} onChange={e => setName(e.target.value)} /></Row>
+        <Row t={L("服务商")} d={L("仅用于显示图标，例如 Hetzner、Oracle、RackNerd、VMISS；留空则按 IP 归属自动推测")}><TextInput className="w-full @4xl:w-[480px]" value={provider} onChange={e => setProvider(e.target.value)} /></Row>
+        <Row t={L("区域")} d={L("以国家代码结尾会显示旗帜，例如 Phoenix, US；留空则按 IP 自动显示")}><TextInput className="w-full @4xl:w-[480px]" value={region} onChange={e => setRegion(e.target.value)} /></Row>
+        <Row t={L("IP 地址")} d={L("由 Agent 自动上报；更换公网 IP 后绑定的域名会自动改指向。")}><div className="w-full @4xl:w-[480px] min-h-11 py-2 rounded-lg field px-3.5 flex items-center text-[13px] font-mono [overflow-wrap:anywhere]"><IP v={s.public_ipv4} /></div></Row>
+        <div className="px-6 py-4 flex justify-end gap-2">{dirty && <Button size="sm" onClick={() => { setName(s.name); setProvider(s.provider ?? ''); setRegion(s.region ?? '') }}>{L("取消")}</Button>}<Button variant="primary" size="sm" disabled={!dirty || !name.trim()} onClick={save}>{L("保存配置")}</Button></div>
       </Section>
       <NetworkSection s={s} />
       <Section title="Agent">
-        <Row t="Atoll Agent" d={`${s.agent_version || '未知版本'} · 本地保存期望状态，中控离线时容器照常运行`}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? '已连接' : statusText[s.status] ?? s.status}</span><AgentUpgradeAction s={s} /></Row>
+        <Row t="Atoll Agent" d={L("{0} · 本地保存期望状态，中控离线时容器照常运行", s.agent_version || L('未知版本'))}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? L("已连接") : statusText[s.status] ?? s.status}</span><AgentUpgradeAction s={s} /></Row>
         {s.agent_upgrade?.state === 'failed' && s.agent_upgrade.error && <div className="px-6 pb-4 -mt-2 text-[12.5px] text-[#ef4444] [overflow-wrap:anywhere]">{s.agent_upgrade.error}</div>}
-        <Row t="防火墙" d="80/443 仅放行 Cloudflare IP；SSH 与 Agent 只走 Tailscale"><Badge tone="green">已启用</Badge></Row>
+        <Row t={L("防火墙")} d={L("80/443 仅放行 Cloudflare IP；SSH 与 Agent 只走 Tailscale")}><Badge tone="green">{L("已启用")}</Badge></Row>
       </Section>
-      {isDemo() && <Section title="资源保留">
+      {isDemo() && <Section title={L("资源保留")}>
         <div className="p-6">
-          <div className="text-[13.5px] text-muted mb-4">为 Docker、Caddy 和系统进程保留 CPU 与内存，项目容器不会占满整台机器。</div>
-          <div className="rounded-xl border border-line bg-card2/60 p-5 flex flex-col @2xl:flex-row gap-5"><Stepper l="CPU" v={250} max={`${s.cpu_cores * 1000} m`} /><Stepper l="内存" v={512} max={`${s.mem_mb} Mi`} /></div>
-          <div className="flex justify-end gap-2 mt-5"><Button variant="primary" size="sm">保存</Button><Button size="sm">取消</Button></div>
+          <div className="text-[13.5px] text-muted mb-4">{L("为 Docker、Caddy 和系统进程保留 CPU 与内存，项目容器不会占满整台机器。")}</div>
+          <div className="rounded-xl border border-line bg-card2/60 p-5 flex flex-col @2xl:flex-row gap-5"><Stepper l="CPU" v={250} max={`${s.cpu_cores * 1000} m`} /><Stepper l={L("内存")} v={512} max={`${s.mem_mb} Mi`} /></div>
+          <div className="flex justify-end gap-2 mt-5"><Button variant="primary" size="sm">{L("保存")}</Button><Button size="sm">{L("取消")}</Button></div>
         </div>
       </Section>}
       <Section title={t('接管容器', 'Adopt containers')}>
         <Row t={t('接管 Docker 容器', 'Adopt Docker containers')} d={t('把这台服务器上你自己用 docker run / compose 启动的容器交给 Atoll：同样端口，数据原地挂载，旧容器保留可回滚。', 'Hand the containers you started here with docker run / compose to Atoll: same ports, data mounted in place, old containers kept for rollback.')}><Link to={`/import/docker?server=${s.id}`} className="btn-secondary h-8 px-3 inline-flex items-center gap-1.5 text-[12.5px]">{t('扫描容器', 'Scan containers')}</Link></Row>
       </Section>
-      <Section title="危险区域">
-        <Row t="迁出全部项目" d="把这台服务器上的项目迁到其他服务器，完成后自动切换 DNS。"><Button variant="danger-outline" size="sm" disabled={!ps.length} onClick={() => setEvac(true)}>迁出项目</Button></Row>
-        <Row t="删除服务器" d="移除 Agent 并删除与它关联的所有数据。"><Button variant="danger" size="sm" onClick={() => setDel(true)}>删除服务器</Button></Row>
+      <Section title={L("危险区域")}>
+        <Row t={L("迁出全部项目")} d={L("把这台服务器上的项目迁到其他服务器，完成后自动切换 DNS。")}><Button variant="danger-outline" size="sm" disabled={!ps.length} onClick={() => setEvac(true)}>{L("迁出项目")}</Button></Row>
+        <Row t={L("删除服务器")} d={L("移除 Agent 并删除与它关联的所有数据。")}><Button variant="danger" size="sm" onClick={() => setDel(true)}>{L("删除服务器")}</Button></Row>
       </Section>
-      {del && <ConfirmDialog title="删除服务器" name={s.name} onClose={() => setDel(false)}
-        description={<>将从 Atoll 中移除 <b>{s.name}</b>，Agent 会停止并删除本机的期望状态。{ps.length ? <>这台服务器上还有 <b>{ps.length}</b> 个项目，它们会一并失去管理。</> : null}</>}
-        onConfirm={async () => { const r = await run(() => api.deleteServer(s.id), { ok: '服务器已删除', invalidate: ['servers'] }); if (r !== undefined) { const b = backTo(`/servers/${s.id}`, '/servers'); nav(b.includes(s.id) ? '/servers' : b) } }} />}
+      {del && <ConfirmDialog title={L("删除服务器")} name={s.name} onClose={() => setDel(false)}
+        description={<>{L("将从 Atoll 中移除")} <b>{s.name}</b>{L("，Agent 会停止并删除本机的期望状态。")}{ps.length ? <>{L("这台服务器上还有")} <b>{ps.length}</b> {L("个项目，它们会一并失去管理。")}</> : null}</>}
+        onConfirm={async () => { const r = await run(() => api.deleteServer(s.id), { ok: L("服务器已删除"), invalidate: ['servers'] }); if (r !== undefined) { const b = backTo(`/servers/${s.id}`, '/servers'); nav(b.includes(s.id) ? '/servers' : b) } }} />}
       {evac && <Evacuate s={s} ps={ps} onClose={() => setEvac(false)} />}
     </>
   )
@@ -260,13 +260,13 @@ function Evacuate({ s, ps, onClose }: { s: Server; ps: Project[]; onClose: () =>
   const [t, setT] = useState(''); const [confirm, setConfirm] = useState(false)
   const target = t || targets[0]?.id || ''
   const tName = targets.find(x => x.id === target)?.name
-  if (confirm) return <ConfirmDialog title="迁出全部项目" action="开始迁移" name={s.name} onClose={onClose}
-    description={<>将把 <b>{ps.length}</b> 个项目（{ps.map(projName).join('、')}）迁移到 <b>{tName}</b>。迁移期间服务会短暂停机，完成后自动切换 DNS。</>}
-    onConfirm={async () => { for (const p of ps) await run(() => api.migrateProject(p.id, target)); run(async () => {}, { ok: '迁移任务已提交', invalidate: ['projects'] }) }} />
+  if (confirm) return <ConfirmDialog title={L("迁出全部项目")} action={L("开始迁移")} name={s.name} onClose={onClose}
+    description={<>{L("将把")} <b>{ps.length}</b> {L("个项目（")}{ps.map(projName).join(L("、"))}{L("）迁移到")} <b>{tName}</b>{L("。迁移期间服务会短暂停机，完成后自动切换 DNS。")}</>}
+    onConfirm={async () => { for (const p of ps) await run(() => api.migrateProject(p.id, target)); run(async () => {}, { ok: L("迁移任务已提交"), invalidate: ['projects'] }) }} />
   return (
-    <Modal title="迁出全部项目" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!target} onClick={() => setConfirm(true)}>下一步</Button></>}>
-      <div className="text-[13.5px] text-fg2 mb-4">选择目标服务器，{ps.length} 个项目会依次迁移。</div>
-      {targets.length ? <Select className="w-full" value={target} onChange={e => setT(e.target.value)}>{targets.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</Select> : <div className="text-[13px] text-muted">没有其他在线的服务器。</div>}
+    <Modal title={L("迁出全部项目")} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!target} onClick={() => setConfirm(true)}>{L("下一步")}</Button></>}>
+      <div className="text-[13.5px] text-fg2 mb-4">{L("选择目标服务器，")}{ps.length} {L("个项目会依次迁移。")}</div>
+      {targets.length ? <Select className="w-full" value={target} onChange={e => setT(e.target.value)}>{targets.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</Select> : <div className="text-[13px] text-muted">{L("没有其他在线的服务器。")}</div>}
     </Modal>
   )
 }
@@ -276,14 +276,14 @@ function SshTab({ s }: { s: Server }) {
   if (!isDemo()) return (
     <Card className="p-6">
       <div className="text-[13px] font-semibold mb-1 flex items-center gap-2"><SquareTerminal size={16} />SSH</div>
-      <div className="text-[13px] text-muted mb-4">面板内终端尚未开放。通过 Tailscale 连接：</div>
+      <div className="text-[13px] text-muted mb-4">{L("面板内终端尚未开放。通过 Tailscale 连接：")}</div>
       <CodeBlock>{`ssh root@${host}`}</CodeBlock>
-      <div className="text-[12.5px] text-dim mt-3">也可以在服务页的「命令」里对单个容器执行命令。</div>
+      <div className="text-[12.5px] text-dim mt-3">{L("也可以在服务页的「命令」里对单个容器执行命令。")}</div>
     </Card>
   )
   return (
     <Card className="bg-sunk overflow-hidden">
-      <div className="h-10 px-4 flex items-center text-[13px] text-muted border-b border-line gap-2 min-w-0 whitespace-nowrap overflow-hidden"><SquareTerminal size={14} className="shrink-0" />root@{s.name.split(' ')[0].toLowerCase()} · 经 Tailscale</div>
+      <div className="h-10 px-4 flex items-center text-[13px] text-muted border-b border-line gap-2 min-w-0 whitespace-nowrap overflow-hidden"><SquareTerminal size={14} className="shrink-0" />root@{s.name.split(' ')[0].toLowerCase()} {L("· 经 Tailscale")}</div>
       <pre className="p-5 font-mono text-[13px] leading-7 text-fg2 h-[460px] overflow-auto">{`Welcome to ${s.os} (GNU/Linux ${s.arch})
 Last login: Thu Oct 29 20:58:11 2026 from 100.88.12.4
 root@${s.id}:~# docker ps --format 'table {{.Names}}\\t{{.Status}}'
@@ -304,12 +304,12 @@ function StatusTab({ s }: { s: Server }) {
   const c = useQuery(`containers:${s.id}`, () => api.serverContainers(s.id), { interval: 15000 })
   const ps = useProjects().data
   if (!c.data) return c.error ? <ErrorState error={c.error} onRetry={c.refetch} /> : <RowsSkeleton n={5} />
-  if (!c.data.length) return <Empty icon={<ServerIcon size={22} />} title="没有 Atoll 容器" desc="Agent 每 30 秒上报一次容器状态。" />
+  if (!c.data.length) return <Empty icon={<ServerIcon size={22} />} title={L("没有 Atoll 容器")} desc={L("Agent 每 30 秒上报一次容器状态。")} />
   const find = (sid: string) => { for (const p of ps ?? []) { const x = p.services?.find(v => v.id === sid); if (x) return { p, x } } return undefined }
   const st = (state: string) => state === 'running' ? 'running' : state === 'restarting' ? 'failed' : state === 'created' ? 'deploying' : 'stopped'
   return (
     <Card className="overflow-x-auto"><div className="min-w-[720px]">
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-11 items-center text-[12.5px] text-muted border-b border-line"><span>容器</span><span>项目</span><span>镜像</span><span>状态</span><span>重启次数</span></div>
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-11 items-center text-[12.5px] text-muted border-b border-line"><span>{L("容器")}</span><span>{L("项目")}</span><span>{L("镜像")}</span><span>{L("状态")}</span><span>{L("重启次数")}</span></div>
       {c.data.map(row => {
         const f = find(row.service_id)
         return (

@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useState } from 'react'
 import { type LucideIcon, ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -10,16 +11,16 @@ import type { Confirmation } from '../api/types'
 import { cx } from '../components/ui-utils'
 
 const ACTION: Record<string, [string, LucideIcon]> = {
-  'service.delete': ['删除服务', Trash2],
-  'project.delete': ['删除项目', Trash2],
-  'server.delete': ['移除服务器', Server],
-  'service.migrate': ['迁移', ArrowRightLeft],
-  'project.migrate': ['迁移', ArrowRightLeft],
-  'domain.add': ['绑定域名', Globe],
-  'domain.delete': ['解绑域名', Globe],
-  'domain.proxy': ['切换域名代理', Globe],
+  'service.delete': [L("删除服务"), Trash2],
+  'project.delete': [L("删除项目"), Trash2],
+  'server.delete': [L("移除服务器"), Server],
+  'service.migrate': [L("迁移"), ArrowRightLeft],
+  'project.migrate': [L("迁移"), ArrowRightLeft],
+  'domain.add': [L("绑定域名"), Globe],
+  'domain.delete': [L("解绑域名"), Globe],
+  'domain.proxy': [L("切换域名代理"), Globe],
 }
-const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: ['已批准', 'green'], rejected: ['已拒绝', 'red'], expired: ['已过期', 'zinc'], pending: ['待审批', 'amber'] }
+const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: [L("已批准"), 'green'], rejected: [L("已拒绝"), 'red'], expired: [L("已过期"), 'zinc'], pending: [L("待审批"), 'amber'] }
 const danger = (a: string) => a.endsWith('.delete')
 
 export default function Confirmations() {
@@ -29,14 +30,14 @@ export default function Confirmations() {
   return (
     <MainShell>
       <div className="max-w-[1100px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">审批<Hint>CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。</Hint>{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
+        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">{L("审批")}<Hint>{L("CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。")}</Hint>{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
         <div className="mb-6" />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
-        {q.data && !pending.length && <Empty icon={<ShieldCheck size={22} />} title="没有待审批的操作" desc="agent 发起破坏性操作时会出现在这里，侧栏会显示数量。" />}
+        {q.data && !pending.length && <Empty icon={<ShieldCheck size={22} />} title={L("没有待审批的操作")} desc={L("agent 发起破坏性操作时会出现在这里，侧栏会显示数量。")} />}
         <div className="space-y-4">{pending.map(c => <PendingCard key={c.id} c={c} />)}</div>
         {done.length > 0 && <>
-          <div className="text-[13px] font-semibold mt-12 mb-3">历史</div>
+          <div className="text-[13px] font-semibold mt-12 mb-3">{L("历史")}</div>
           <Card className="divide-y divide-line">
             {done.map(c => {
               const [st, tone] = STATUS[c.status] ?? [c.status, 'zinc']
@@ -62,7 +63,7 @@ function PendingCard({ c }: { c: Confirmation }) {
   const [label, Icon] = ACTION[c.action] ?? [c.action, ShieldAlert]
   const act = async (k: 'a' | 'r') => {
     setBusy(k)
-    await run(() => (k === 'a' ? api.approve(c.id) : api.reject(c.id)), { ok: k === 'a' ? '已批准，正在执行' : '已拒绝', invalidate: ['confirmations', 'projects', 'project:', 'domains', 'servers'] })
+    await run(() => (k === 'a' ? api.approve(c.id) : api.reject(c.id)), { ok: k === 'a' ? L("已批准，正在执行") : L("已拒绝"), invalidate: ['confirmations', 'projects', 'project:', 'domains', 'servers'] })
     setBusy(undefined)
   }
   return (
@@ -71,11 +72,11 @@ function PendingCard({ c }: { c: Confirmation }) {
       <div className="flex-1 min-w-[min(100%,220px)]">
         <div className="flex items-center gap-2 flex-wrap"><span className="text-[15px] font-extrabold italic tracking-[-0.02em]">{label}</span><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full" title={c.target}>{c.target}</span></div>
         <div className="text-[13px] text-fg2 mt-1 leading-5 [overflow-wrap:anywhere]">{c.summary}</div>
-        <div className="text-[12px] text-muted mt-1.5 flex items-start gap-1.5 [overflow-wrap:anywhere]"><Bot size={13} className="shrink-0 mt-px" />令牌「{c.created_by}」· {ago(c.created_at)}</div>
+        <div className="text-[12px] text-muted mt-1.5 flex items-start gap-1.5 [overflow-wrap:anywhere]"><Bot size={13} className="shrink-0 mt-px" />{L("令牌「")}{c.created_by}{L("」·")} {ago(c.created_at)}</div>
       </div>
       <div className="flex gap-2 shrink-0 @max-3xl:w-full @max-3xl:justify-end">
-        <Button disabled={!!busy} onClick={() => act('r')}>{busy === 'r' ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}拒绝</Button>
-        <Button variant={danger(c.action) ? 'danger' : 'primary'} disabled={!!busy} onClick={() => act('a')}>{busy === 'a' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}批准</Button>
+        <Button disabled={!!busy} onClick={() => act('r')}>{busy === 'r' ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}{L("拒绝")}</Button>
+        <Button variant={danger(c.action) ? 'danger' : 'primary'} disabled={!!busy} onClick={() => act('a')}>{busy === 'a' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}{L("批准")}</Button>
       </div>
     </Card>
   )

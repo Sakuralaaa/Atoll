@@ -13,7 +13,7 @@ import { DomainBadge, DomainNote } from '../components/DomainStatus'
 import { providerOf } from '../api/providers'
 import { useProjects } from '../api/queries'
 import { HostnameInput, useHostnameInput } from '../components/HostnameInput'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { ProxyChoice } from '../components/ProxyChoice'
 
 
@@ -35,27 +35,27 @@ export default function Domains() {
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">域名</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />绑定域名</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("域名")}</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />{L("绑定域名")}</Button></div>
         {!settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
           <Card className="mb-8 overflow-hidden">
             <div className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5">
               <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
               <div className="flex-1 min-w-[min(100%,240px)]">
-                <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || '未设置根域名'}{(roots?.length ?? 0) > 1 && <span className="text-[13px] font-normal text-muted">+{roots!.length - 1} 个根域名</span>}{cfOk ? <Badge tone="green">已连接</Badge> : <Badge tone="amber">未连接</Badge>}</div>
-                <div className="text-[13px] text-muted mt-1">{cfOk ? `Cloudflare · ${settings.tls_mode === 'acme' ? 'ACME 证书' : 'Origin CA 证书'} · 绑定根域名下的域名时自动创建 DNS 记录` : '在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。'}</div>
+                <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || L("未设置根域名")}{(roots?.length ?? 0) > 1 && <span className="text-[13px] font-normal text-muted">+{roots!.length - 1} {L("个根域名")}</span>}{cfOk ? <Badge tone="green">{L("已连接")}</Badge> : <Badge tone="amber">{L("未连接")}</Badge>}</div>
+                <div className="text-[13px] text-muted mt-1">{cfOk ? L("Cloudflare · {0} · 绑定根域名下的域名时自动创建 DNS 记录", settings.tls_mode === 'acme' ? L('ACME 证书') : L('Origin CA 证书')) : L("在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。")}</div>
               </div>
-              {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 tnum @max-3xl:w-full @max-3xl:pl-[68px]">{q.data?.length ?? '—'} 条记录由 Atoll 管理</div>
-                : <Link to="/settings"><Button><Settings2 size={14} />去设置<ArrowRight size={14} /></Button></Link>}
+              {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 tnum @max-3xl:w-full @max-3xl:pl-[68px]">{q.data?.length ?? '—'} {L("条记录由 Atoll 管理")}</div>
+                : <Link to="/settings"><Button><Settings2 size={14} />{L("去设置")}<ArrowRight size={14} /></Button></Link>}
             </div>
             {cfOk && <TokenPerms c={perms} />}
           </Card>
         )}
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={4} />}
-        {q.data && !q.data.length && <Empty icon={<Globe size={22} />} title="还没有绑定域名" desc="给有 HTTP 端口的服务绑定域名后，atoll-caddy 会自动签发证书并反代到容器。" action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />绑定域名</Button>} />}
+        {q.data && !q.data.length && <Empty icon={<Globe size={22} />} title={L("还没有绑定域名")} desc={L("给有 HTTP 端口的服务绑定域名后，atoll-caddy 会自动签发证书并反代到容器。")} action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{L("绑定域名")}</Button>} />}
         {q.data && q.data.length > 0 && (
           <Card className="overflow-hidden">
-            <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>域名</span><span>服务</span><span>指向服务器</span><span>记录</span><span>状态</span><span /></div>
+            <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>{L("域名")}</span><span>{L("服务")}</span><span>{L("指向服务器")}</span><span>{L("记录")}</span><span>{L("状态")}</span><span /></div>
             {q.data.map(d => {
               const o = svcOf(d), srv = servers?.find(x => x.id === o?.p.server_id)
               return (
@@ -68,8 +68,8 @@ export default function Domains() {
                   <span className="font-mono text-[12.5px] text-muted truncate @max-4xl:order-3">{srv ? <>A <IP v={srv.public_ipv4} /></> : '—'}</span>
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">
-                    <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title="打开" className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
-                    <button title="解绑" onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                    <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title={L("打开")} className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
+                    <button title={L("解绑")} onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
                   </span>
                 </div>
               )
@@ -78,9 +78,9 @@ export default function Domains() {
         )}
       </div>
       {add && <AddDomain projects={projects ?? []} base={settings?.base_domain} onClose={() => setAdd(false)} />}
-      {del && <ConfirmDialog title="解绑域名" action="确认解绑" name={del.hostname} onClose={() => setDel(undefined)}
-        description={<>将从 atoll-caddy 移除 <b>{del.hostname}</b> 的路由，并删除 Atoll 创建的 Cloudflare DNS 记录。</>}
-        onConfirm={() => run(() => api.deleteDomain(del.id), { ok: '已解绑', invalidate: ['domains', 'project', 'projects'] })} />}
+      {del && <ConfirmDialog title={L("解绑域名")} action={L("确认解绑")} name={del.hostname} onClose={() => setDel(undefined)}
+        description={<>{L("将从 atoll-caddy 移除")} <b>{del.hostname}</b> {L("的路由，并删除 Atoll 创建的 Cloudflare DNS 记录。")}</>}
+        onConfirm={() => run(() => api.deleteDomain(del.id), { ok: L("已解绑"), invalidate: ['domains', 'project', 'projects'] })} />}
       {flip && <ProxyFlip d={flip} roots={roots ?? []} onClose={() => setFlip(undefined)} />}
     </MainShell>
   )
@@ -185,17 +185,17 @@ export function AddDomain({ projects, base, onClose, fixed }: { projects: Projec
   const ok = !!cur && !!portName && h.v.ok
   const submit = () => wrap(async () => {
     if (!ok || !cur) return
-    const r = await run(() => api.addDomain(cur.id, { hostname: h.v.hostname, root_domain: h.v.root_domain, port_name: portName, proxied }), { ok: '域名已绑定，DNS 与证书生效中', invalidate: ['domains', `project:${cur.project_id}`, 'projects'] })
+    const r = await run(() => api.addDomain(cur.id, { hostname: h.v.hostname, root_domain: h.v.root_domain, port_name: portName, proxied }), { ok: L("域名已绑定，DNS 与证书生效中"), invalidate: ['domains', `project:${cur.project_id}`, 'projects'] })
     if (r) onClose()
   })
   return (
-    <Modal title="绑定域名" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!ok || busy} onClick={submit}>{busy && <Loader2 size={13} className="animate-spin" />}绑定</Button></>}>
-      {!opts.length ? <div className="text-[13px] text-muted">还没有带 HTTP 端口的服务。</div> : <>
-        {!fixed && <Label t="服务"><Select className="w-full" value={sid} onChange={e => { setSid(e.target.value); setPort('') }}>{opts.map(o => <option key={o.s.id} value={o.s.id}>{o.p ? svcLabel(o.p, o.s) : svcName(o.s)}</option>)}</Select></Label>}
-        <Label t="域名" d={h.names.length ? `根域名下的域名会自动在 Cloudflare 建记录；其他域名请手动把 A 记录指向服务器 IP。${h.v.ok && h.v.full ? ` 将绑定 ${h.v.full}` : ''}` : base ? `${base} 的子域名会自动在 Cloudflare 建记录；其他域名请手动把 A 记录指向服务器 IP。` : '请把域名的 A 记录指向服务器 IP。'}>
+    <Modal title={L("绑定域名")} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!ok || busy} onClick={submit}>{busy && <Loader2 size={13} className="animate-spin" />}{L("绑定")}</Button></>}>
+      {!opts.length ? <div className="text-[13px] text-muted">{L("还没有带 HTTP 端口的服务。")}</div> : <>
+        {!fixed && <Label t={L("服务")}><Select className="w-full" value={sid} onChange={e => { setSid(e.target.value); setPort('') }}>{opts.map(o => <option key={o.s.id} value={o.s.id}>{o.p ? svcLabel(o.p, o.s) : svcName(o.s)}</option>)}</Select></Label>}
+        <Label t={L("域名")} d={h.names.length ? L("根域名下的域名会自动在 Cloudflare 建记录；其他域名请手动把 A 记录指向服务器 IP。{0}", h.v.ok && h.v.full ? L(' 将绑定 {0}', h.v.full) : '') : base ? L("{0} 的子域名会自动在 Cloudflare 建记录；其他域名请手动把 A 记录指向服务器 IP。", base) : L("请把域名的 A 记录指向服务器 IP。")}>
           <HostnameInput h={h} autoFocus onEnter={submit} />
         </Label>
-        {httpPorts.length > 1 && <Label t="端口"><Select className="w-full" value={portName} onChange={e => setPort(e.target.value)}>{httpPorts.map(x => <option key={x.name} value={x.name}>{x.name} · {x.container_port}</option>)}</Select></Label>}
+        {httpPorts.length > 1 && <Label t={L("端口")}><Select className="w-full" value={portName} onChange={e => setPort(e.target.value)}>{httpPorts.map(x => <option key={x.name} value={x.name}>{x.name} · {x.container_port}</option>)}</Select></Label>}
         <ProxyChoice proxied={proxied} onChange={setProxied} />
       </>}
     </Modal>

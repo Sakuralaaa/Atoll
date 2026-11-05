@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { projName } from '../api/view'
 import { Package, Plus, Settings } from 'lucide-react'
@@ -25,8 +26,8 @@ export default function ProjectIndex() {
         {!p && !q.error && <CardSkeleton n={1} cols={1} h={200} />}
         {p && !first && <>
           <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] mb-8">{projName(p)}</h1>
-          <Empty icon={<Package size={22} />} title="项目里还没有服务" desc="部署一个 Docker 镜像，或者一键创建 PostgreSQL / MySQL / Redis / MongoDB。同一项目的服务通过内网主机名互相访问。"
-            action={<div className="flex gap-2"><Button variant="primary" onClick={openAdd}><Plus size={15} />新建服务</Button><Link to={`/projects/${pid}/settings`}><Button><Settings size={14} />项目设置</Button></Link></div>} />
+          <Empty icon={<Package size={22} />} title={L("项目里还没有服务")} desc={L("部署一个 Docker 镜像，或者一键创建 PostgreSQL / MySQL / Redis / MongoDB。同一项目的服务通过内网主机名互相访问。")}
+            action={<div className="flex gap-2"><Button variant="primary" onClick={openAdd}><Plus size={15} />{L("新建服务")}</Button><Link to={`/projects/${pid}/settings`}><Button><Settings size={14} />{L("项目设置")}</Button></Link></div>} />
         </>}
       </div>
       {sp.get('add') && p && <AddServiceModal projectId={pid} onCreated={s => nav(`/projects/${pid}/services/${s.id}`)} onClose={closeAdd} />}

@@ -6,7 +6,7 @@ import { agentOutdated } from '../api/view'
 import type { AgentUpgradeRow, Server } from '../api/types'
 import { Badge, Button } from './ui'
 import { CodeBlock, CopyButton, Modal } from './feedback'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { toast } from './toast'
 
 
@@ -51,7 +51,7 @@ function ManualUpgrade({ names, onClose }: { names: string[]; onClose: () => voi
   return (
     <Modal title={t('这些 Agent 需要手动升级一次', 'These agents need one manual upgrade')} width={680} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{t('知道了', 'OK')}</Button>}>
       <div className="text-[13.5px] text-fg2 leading-6">{t('v0.1.6 之前的 Agent 不支持在面板里升级。在下面这些服务器上以 root 运行一次这条命令，之后就能在面板里一键升级。已加入的服务器不需要 token，容器不会重建。', 'Agents before v0.1.6 cannot upgrade from the panel. Run this once as root on each server below; after that, upgrades work from the panel. Joined servers need no token and containers are not recreated.')}</div>
-      <div className="mt-3 text-[13px] font-semibold [overflow-wrap:anywhere]">{names.join('、')}</div>
+      <div className="mt-3 text-[13px] font-semibold [overflow-wrap:anywhere]">{names.join(L("、"))}</div>
       <div className="mt-3 [&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{cmd || (q.error ? q.error.message : t('正在生成命令…', 'Building the command…'))}</CodeBlock></div>
       {cmd && <div className="mt-3 flex justify-end"><CopyButton text={cmd} label={t('复制命令', 'Copy')} /></div>}
     </Modal>
@@ -91,7 +91,7 @@ export function AgentUpgradeAll({ servers }: { servers: Server[] }) {
         <Button size="sm" variant="primary" disabled={busy} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{t(`升级 ${auto.length} 台`, `Upgrade ${auto.length}`)}</Button>
       </>}>
         <div className="text-[13.5px] text-fg2 leading-6">{t('每台服务器下载中控托管的新版 Agent，校验 SHA-256 后替换并重启（每次 3 台）。新 Agent 两分钟内没连回中控就自动换回旧版。容器一直运行，不会重建。', 'Each server downloads the hosted agent, checks its SHA-256, swaps it in and restarts (3 at a time). If the new agent does not reconnect within two minutes the old one is restored. Containers keep running and are not recreated.')}</div>
-        <div className="mt-3 text-[13px] [overflow-wrap:anywhere]">{auto.map(s => `${s.name} (${s.agent_version})`).join('、')}</div>
+        <div className="mt-3 text-[13px] [overflow-wrap:anywhere]">{auto.map(s => `${s.name} (${s.agent_version})`).join(L("、"))}</div>
         {manual.length > 0 && <div className="mt-4 text-[12.5px] text-muted leading-5">{t(`另有 ${manual.length} 台是旧版 Agent（${manual.map(s => s.name).join('、')}），需要先手动运行一次安装脚本。`, `${manual.length} more run an old agent (${manual.map(s => s.name).join(', ')}) and need the install script once.`)}</div>}
       </Modal>
     ) : <ManualUpgrade names={manual.map(s => s.name)} onClose={close} />)}

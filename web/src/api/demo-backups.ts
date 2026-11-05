@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // Demo backend for backups (/services/{id}/backup-policy, /services/{id}/backups, /backups/{id}/restore,
 // /restores/{id}, /settings/backup/*). Generic demo data only (see mock.ts).
 import { ApiError } from './client'
@@ -41,13 +42,13 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
     return st
   }
   const startVerify = (kind: 'check' | 'drill', s?: Service): BackupVerification => {
-    if (!configured()) fail(409, 'configure a backup target in Settings → 备份存储 first')
+    if (!configured()) fail(409, L("configure a backup target in Settings → 备份存储 first"))
     if (latest(kind, s?.id)?.status === 'running') fail(409, `a ${kind} is still running`)
     const v: BackupVerification = { id: `bvf_demo${hex(8)}`, kind, service_id: s?.id, server_id: s ? projectServer(s.project_id) : onlineServer(), trigger: 'manual',
       status: 'running', subset: kind === 'check' ? '5%' : undefined, steps: [], duration_ms: 0, started_at: new Date().toISOString() }
     verifications.unshift(v); return v
   }
-  const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
+  const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("服务不存在"))
   const parts = (s: Service, p: BackupPolicy) => DB_KINDS.has(s.kind) ? ['dump', ...(p.include_volumes && s.volumes?.length ? ['volumes'] : [])] : s.volumes?.length ? ['volumes'] : []
   const nextRun = (p: BackupPolicy) => {
     if (!p.enabled) return undefined
@@ -147,12 +148,12 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
         if (!password) fail(404, 'no backup repository password is set')
         return { password, repository: `s3:${settings.backup_endpoint}/${settings.backup_bucket}/${settings.backup_prefix || 'atoll'}` }
       }
-      return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+      return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
     }
     if (seg[0] === 'backup-verify') {
       if (G && seg.length === 1) return verifyStatus()
       if (P && seg[1] === 'check') return startVerify('check')
-      return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+      return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
     }
     if (seg[0]?.startsWith('backup-verifications') && G) { seedVerify(); return verifications }
     if (seg[0] === 'services' && seg.length === 3) {
@@ -179,7 +180,7 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
       const list = seed(s)
       if (G) return list
       if (P) {
-        if (!configured()) fail(409, 'no backup target configured: set it in Settings → 备份存储')
+        if (!configured()) fail(409, L("no backup target configured: set it in Settings → 备份存储"))
         if (!parts(s, policy(s)).length) fail(409, `service ${s.name} has no volumes and is not a database template: nothing to back up`)
         if (list.some(b => b.status === 'running')) fail(409, 'a backup of this service is already running')
         const b: Backup = { id: `bak_demo${hex(8)}`, service_id: s.id, server_id: projectServer(s.project_id), trigger: 'manual', status: 'running', snapshots: [], bytes: 0, added: 0, duration_ms: 0, started_at: new Date().toISOString() }
@@ -189,7 +190,7 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
     }
     if (seg[0] === 'backups' && seg.length >= 2) {
       const id = decodeURIComponent(seg[1])
-      const b = Object.values(backups).flat().find(x => x.id === id) ?? fail(404, '备份不存在')
+      const b = Object.values(backups).flat().find(x => x.id === id) ?? fail(404, L("备份不存在"))
       if (G && seg.length === 2) return b
       if (P && seg[2] === 'restore') {
         if (b.status !== 'done') fail(409, `backup ${b.id} is ${b.status}`)
@@ -197,14 +198,14 @@ export function makeDemoBackups(services: Service[], servers: Server[], projectS
         const tgt = servers.find(x => x.id === to) ?? fail(400, `unknown target_server_id "${to}"`)
         if (tgt.status !== 'online') fail(409, 'target server is offline')
         if (to !== from && servers.find(x => x.id === from)?.status === 'online') fail(409, 'the project\'s server is online: restore in place, or move the project with migrate first (restoring to another server is for when the server is gone)')
-        const steps = to === from ? ['停止服务', '下载快照', '恢复数据', '启动服务'] : ['在目标服务器创建项目', '下载快照', '恢复数据', '启动服务', '切换 DNS']
+        const steps = to === from ? [L("停止服务"), L("下载快照"), L("恢复数据"), L("启动服务")] : [L("在目标服务器创建项目"), L("下载快照"), L("恢复数据"), L("启动服务"), L("切换 DNS")]
         const j: RestoreJob = { id: `rst_demo${hex(8)}`, backup_id: b.id, service_id: s.id, project_id: s.project_id, from_server_id: from, to_server_id: to, status: 'running',
           steps: steps.map(name => ({ name, status: 'pending' })), created_at: new Date().toISOString() }
         restores.unshift(j); return j
       }
-      return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+      return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
     }
-    if (seg[0] === 'restores' && seg.length === 2 && G) return restores.find(j => j.id === decodeURIComponent(seg[1])) ?? fail(404, '还原任务不存在')
+    if (seg[0] === 'restores' && seg.length === 2 && G) return restores.find(j => j.id === decodeURIComponent(seg[1])) ?? fail(404, L("还原任务不存在"))
     return undefined
   }
   return { route, putSettings }

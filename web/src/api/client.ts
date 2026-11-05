@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import type {
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
@@ -45,7 +46,7 @@ export async function request<T>(method: string, path: string, body?: unknown, o
     res = await fetch(API + path, { method, headers, body: payload, credentials: 'include', signal: o.signal })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
-    throw new ApiError(0, '无法连接到 Atoll 服务器')
+    throw new ApiError(0, L("无法连接到 Atoll 服务器"))
   }
   const text = await res.text()
   let data: unknown = undefined

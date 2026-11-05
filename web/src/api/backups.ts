@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // Backups (restic to any S3 bucket): REST calls + hooks. Kept out of client.ts like updates.ts.
 import { request } from './client'
 import { useQuery } from './hooks'
@@ -46,7 +47,7 @@ export function duration(ms: number) {
   if (!ms) return '—'
   if (ms < 1000) return `${ms} ms`
   const s = Math.round(ms / 1000)
-  if (s < 60) return `${s} 秒`
+  if (s < 60) return L("{0} 秒", s)
   const m = Math.floor(s / 60)
-  return m < 60 ? `${m} 分 ${s % 60} 秒` : `${Math.floor(m / 60)} 小时 ${m % 60} 分`
+  return m < 60 ? L("{0} 分 {1} 秒", m, s % 60) : L("{0} 小时 {1} 分", Math.floor(m / 60), m % 60)
 }

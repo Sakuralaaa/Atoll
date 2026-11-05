@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ChevronDown, Folder, FileText, FolderPlus, FilePlus, RefreshCw, Loader2, Save, AlertTriangle } from 'lucide-react'
@@ -19,7 +20,7 @@ const parent = (p: string) => p.replace(/\/[^/]+\/?$/, '') || '/'
 /** Run one command in the container; throws on agent/command error. */
 async function sh(sid: string, cmd: string[]) {
   const r = await api.exec(sid, cmd)
-  if (!r.ok) throw new Error(r.error || r.output || '命令执行失败')
+  if (!r.ok) throw new Error(r.error || r.output || L("命令执行失败"))
   return r.output ?? ''
 }
 
@@ -66,7 +67,7 @@ export default function FilesPage() {
     setOpen(o => { const n = new Set(o); if (n.has(p)) n.delete(p); else { n.add(p); if (!Array.isArray(dirs[p])) list(p) } return n })
   }
   const openFile = async (p: string) => {
-    if (dirty && !confirm('当前文件有未保存的修改，确定放弃？')) return
+    if (dirty && !confirm(L("当前文件有未保存的修改，确定放弃？"))) return
     setFile(p); setFileErr(undefined); setLoadingFile(true)
     try { const c = await sh(sid, ['cat', p]); setOrig(c); setText(c) }
     catch (e) { setFileErr((e as Error).message); setOrig(undefined); setText('') }
@@ -75,8 +76,8 @@ export default function FilesPage() {
   const dirty = orig !== undefined && text !== orig
   const save = () => wrapSave(async () => {
     if (!file || !dirty) return
-    try { await sh(sid, ['sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', text, file]); setOrig(text); toast('已保存', 'ok') }
-    catch (e) { toast(`保存失败：${(e as Error).message}`, 'error') }
+    try { await sh(sid, ['sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', text, file]); setOrig(text); toast(L("已保存"), 'ok') }
+    catch (e) { toast(L("保存失败：{0}", (e as Error).message), 'error') }
   })
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save() } }
@@ -98,7 +99,7 @@ export default function FilesPage() {
     const st = dirs[dir]
     if (st === 'loading' || st === undefined) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center"><Skeleton className="h-3 w-24" /></div>
     if (!Array.isArray(st)) return <div style={{ paddingLeft: depth * 18 + 26 }} className="py-1 text-[12px] text-[#ef4444] break-all">{st.error}</div>
-    if (!st.length) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center text-[12px] text-dim">空目录</div>
+    if (!st.length) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center text-[12px] text-dim">{L("空目录")}</div>
     return st.map(e => {
       const p = join(dir, e.name), vol = isVol(p), isOpen = open.has(p)
       return (
@@ -119,25 +120,25 @@ export default function FilesPage() {
   return (
     <div className="h-full flex flex-col md:flex-row topline">
       <aside className="w-full md:w-[300px] lg:w-[340px] shrink-0 bg-side md:border-r border-line flex flex-col px-4 md:px-5 pt-6 md:pt-7 min-h-0 max-md:max-h-[45%] max-md:border-b-2 max-md:border-[var(--edge)]">
-        <Link to={`/projects/${pid}/services/${sid}`} className="flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg min-w-0"><ChevronLeft size={16} className="shrink-0" /><span className="truncate">返回 {s?.name ?? ''}</span></Link>
+        <Link to={`/projects/${pid}/services/${sid}`} className="flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg min-w-0"><ChevronLeft size={16} className="shrink-0" /><span className="truncate">{L("返回")} {s?.name ?? ''}</span></Link>
         <div className="flex items-center mt-3 md:mt-5">
-          <h1 className="text-[17px] font-extrabold italic tracking-[-0.02em] flex-1">文件管理</h1>
+          <h1 className="text-[17px] font-extrabold italic tracking-[-0.02em] flex-1">{L("文件管理")}</h1>
           <span className="flex gap-1 text-muted">
-            <button title="新建文件夹" onClick={() => { setCreating('dir'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FolderPlus size={16} /></button>
-            <button title="新建文件" onClick={() => { setCreating('file'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FilePlus size={16} /></button>
-            <button title="刷新" onClick={() => { setDirs({}); [...open].forEach(list) }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><RefreshCw size={15} /></button>
+            <button title={L("新建文件夹")} onClick={() => { setCreating('dir'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FolderPlus size={16} /></button>
+            <button title={L("新建文件")} onClick={() => { setCreating('file'); setNewName('') }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><FilePlus size={16} /></button>
+            <button title={L("刷新")} onClick={() => { setDirs({}); [...open].forEach(list) }} className="h-8 w-8 grid place-items-center rounded-[4px] hover:bg-ov/5 hover:text-fg"><RefreshCw size={15} /></button>
           </span>
         </div>
-        <div className="text-[12.5px] text-muted mt-1 mb-3 leading-5 max-md:hidden">已挂载的卷以<span className="text-accent font-semibold">紫色</span>显示，重新部署后仍保留；其他位置的修改会在重新部署时丢失。</div>
+        <div className="text-[12.5px] text-muted mt-1 mb-3 leading-5 max-md:hidden">{L("已挂载的卷以")}<span className="text-accent font-semibold">{L("紫色")}</span>{L("显示，重新部署后仍保留；其他位置的修改会在重新部署时丢失。")}</div>
         {creating && (
           <div className="mb-3">
-            <div className="text-[12px] text-dim mb-1.5 font-mono truncate">在 {target} 下新建{creating === 'dir' ? '文件夹' : '文件'}</div>
+            <div className="text-[12px] text-dim mb-1.5 font-mono truncate">{L("在")} {target} {L("下新建")}{creating === 'dir' ? L("文件夹") : L("文件")}</div>
             <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create(); if (e.key === 'Escape') setCreating(undefined) }}
               placeholder={creating === 'dir' ? 'folder' : 'file.txt'} className="w-full h-9 rounded-lg field px-3 font-mono text-[13px] outline-none text-fg placeholder:text-dim" />
           </div>
         )}
         <div className="font-mono text-[13px] overflow-auto flex-1 pb-6 -mx-1 px-1">
-          {rootErr ? <div className="text-[12.5px] text-[#ef4444] break-all font-sans">无法读取容器文件：{rootErr}<div className="mt-2"><Button size="sm" onClick={start}><RefreshCw size={13} />重试</Button></div></div>
+          {rootErr ? <div className="text-[12.5px] text-[#ef4444] break-all font-sans">{L("无法读取容器文件：")}{rootErr}<div className="mt-2"><Button size="sm" onClick={start}><RefreshCw size={13} />{L("重试")}</Button></div></div>
             : !root ? <div className="space-y-2.5 pt-1">{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} className="h-3.5" />)}</div>
             : <>
               <button onClick={() => toggle(root)} className="w-full flex items-center gap-2 h-[30px] px-1 rounded-[4px] hover:bg-ov/5 text-left">
@@ -152,13 +153,13 @@ export default function FilesPage() {
           {file ? <>
             <span className="font-mono truncate">{file}</span>
             {orig !== undefined && <span className="text-dim shrink-0 tnum">· {bytes(new TextEncoder().encode(text).length)}</span>}
-            {isVol(file) ? <span className="text-[12px] text-accent shrink-0">· 卷内文件</span> : <span className="text-[12px] text-dim shrink-0 max-lg:hidden">· 不在卷内，重新部署后恢复原样</span>}
-            {dirty && <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" title="未保存" />}
+            {isVol(file) ? <span className="text-[12px] text-accent shrink-0">{L("· 卷内文件")}</span> : <span className="text-[12px] text-dim shrink-0 max-lg:hidden">{L("· 不在卷内，重新部署后恢复原样")}</span>}
+            {dirty && <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" title={L("未保存")} />}
             <span className="ml-auto" />
-            <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}保存</Button>
-          </> : <span className="text-muted">从左侧选择一个文件</span>}
+            <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}{L("保存")}</Button>
+          </> : <span className="text-muted">{L("从左侧选择一个文件")}</span>}
         </div>
-        {!file ? <div className="flex-1 flex items-center justify-center p-6 md:p-10 min-w-0 [&>*]:max-w-full"><Empty icon={<FileText size={22} />} title="浏览容器里的文件" desc="通过容器内的 ls / cat 读取，保存时写回原路径。适合改配置文件，大文件和二进制文件请用命令行。" /></div>
+        {!file ? <div className="flex-1 flex items-center justify-center p-6 md:p-10 min-w-0 [&>*]:max-w-full"><Empty icon={<FileText size={22} />} title={L("浏览容器里的文件")} desc={L("通过容器内的 ls / cat 读取，保存时写回原路径。适合改配置文件，大文件和二进制文件请用命令行。")} /></div>
           : loadingFile ? <div className="p-5 space-y-3">{[60, 40, 75, 30, 55].map((w, i) => <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />)}</div>
           : fileErr ? <div className="p-6 flex items-start gap-2 text-[13px] text-[#ef4444]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="break-all">{fileErr}</span></div>
           : (

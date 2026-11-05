@@ -1,9 +1,10 @@
+import { L } from '../i18n'
 import { useProblems } from './queries'
 import type { Problem } from './types'
 
 const LABEL: Record<string, string> = {
-  node_offline: '服务器离线', disk_high: '磁盘空间不足', service_down: '服务异常',
-  deploy_failed: '部署失败', backup_failed: '备份失败', backup_verify_failed: '备份校验失败', domain_error: '域名异常',
+  node_offline: L("服务器离线"), disk_high: L("磁盘空间不足"), service_down: L("服务异常"),
+  deploy_failed: L("部署失败"), backup_failed: L("备份失败"), backup_verify_failed: L("备份校验失败"), domain_error: L("域名异常"),
 }
 export const problemLabel = (k: string) => LABEL[k] ?? k
 

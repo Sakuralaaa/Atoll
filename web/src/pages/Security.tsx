@@ -9,7 +9,7 @@ import QRCode from '../components/QRCode'
 import { api, ApiError, isDemo } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import type { SessionInfo, TwoFactorEnrollment, TwoFactorStatus } from '../api/types'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { cx } from '../components/ui-utils'
 import { toast } from '../components/toast'
 
@@ -68,7 +68,7 @@ function Section({ icon, title, right, children }: { icon: React.ReactNode; titl
 async function squareAvatar(file: File): Promise<string> {
   const url = URL.createObjectURL(file)
   try {
-    const img = await new Promise<HTMLImageElement>((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error('无法读取这张图片')); i.src = url })
+    const img = await new Promise<HTMLImageElement>((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error(L("无法读取这张图片"))); i.src = url })
     const side = Math.min(img.naturalWidth, img.naturalHeight)
     const c = document.createElement('canvas'); c.width = c.height = 128
     const g = c.getContext('2d')!

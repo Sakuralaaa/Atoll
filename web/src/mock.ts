@@ -1,3 +1,4 @@
+import { L } from './i18n'
 export type Status = 'running' | 'deploying' | 'stopped' | 'failed'
 export type Kind = 'image' | 'postgres' | 'mysql' | 'redis' | 'mongo'
 
@@ -19,7 +20,7 @@ export const servers: Server[] = [
   { id: 'phx', name: 'Oracle ARM West Phoenix', provider: 'Oracle', providerColor: '#f80000', ip: '203.0.113.10', region: 'Phoenix, US', flag: '🇺🇸', cpu: 4, memGB: 24, diskGB: 200, cpuUse: 12, memUse: 41, diskUse: 34, status: 'online', latency: 38, os: 'Ubuntu 24.04', arch: 'arm64' },
   { id: 'fra', name: 'Hetzner CAX21 Falkenstein', provider: 'Hetzner', providerColor: '#d50c2d', ip: '203.0.113.20', region: 'Falkenstein, DE', flag: '🇩🇪', cpu: 4, memGB: 8, diskGB: 80, cpuUse: 27, memUse: 58, diskUse: 46, status: 'online', latency: 162, os: 'Debian 13', arch: 'arm64' },
   { id: 'sin', name: 'DigitalOcean SGP1', provider: 'DigitalOcean', providerColor: '#0080ff', ip: '203.0.113.30', region: 'Singapore, SG', flag: '🇸🇬', cpu: 2, memGB: 4, diskGB: 80, cpuUse: 64, memUse: 82, diskUse: 58, status: 'online', attention: true, latency: 71, os: 'Ubuntu 24.04', arch: 'amd64' },
-  { id: 'tyo', name: 'Vultr Tokyo 控制节点', provider: 'Vultr', providerColor: '#007bfc', ip: '203.0.113.40', region: 'Tokyo, JP', flag: '🇯🇵', cpu: 1, memGB: 2, diskGB: 30, cpuUse: 8, memUse: 36, diskUse: 21, status: 'online', latency: 4, os: 'Debian 13', arch: 'amd64', role: 'control' },
+  { id: 'tyo', name: L("Vultr Tokyo 控制节点"), provider: 'Vultr', providerColor: '#007bfc', ip: '203.0.113.40', region: 'Tokyo, JP', flag: '🇯🇵', cpu: 1, memGB: 2, diskGB: 30, cpuUse: 8, memUse: 36, diskUse: 21, status: 'online', latency: 4, os: 'Debian 13', arch: 'amd64', role: 'control' },
   { id: 'lax', name: 'RackNerd LA', provider: 'RackNerd', providerColor: '#16a34a', ip: '203.0.113.50', region: 'Los Angeles, US', flag: '🇺🇸', cpu: 2, memGB: 3, diskGB: 50, cpuUse: 0, memUse: 0, diskUse: 18, status: 'offline', latency: 0, os: 'Ubuntu 22.04', arch: 'amd64' },
 ]
 

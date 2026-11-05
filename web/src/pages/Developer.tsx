@@ -7,7 +7,7 @@ import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import { ago, projName } from '../api/view'
 import { ALL_PERMISSIONS, GLOBAL_PERMISSIONS, type APIToken, type Permission } from '../api/types'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { cx } from '../components/ui-utils'
 import { useProjects } from '../api/queries'
 
@@ -91,9 +91,7 @@ export default function Developer() {
 
         <div className="mt-10 text-[15px] font-semibold flex items-center gap-2 mb-3"><Terminal size={18} />CLI</div>
         <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
-          <Card className="p-5 flex flex-col"><div className="text-[13px] font-semibold mb-3">{t('安装并登录', 'Install and log in')}</div><CodeBlock grow>{`# 从 GitHub Releases 下载 atoll 并放进 PATH
-atoll login --url ${panel} \\
-  --token ${tok}`}</CodeBlock></Card>
+          <Card className="p-5 flex flex-col"><div className="text-[13px] font-semibold mb-3">{t('安装并登录', 'Install and log in')}</div><CodeBlock grow>{L("# 从 GitHub Releases 下载 atoll 并放进 PATH\natoll login --url {0} \\\n  --token {1}", panel, tok)}</CodeBlock></Card>
           <Card className="p-5 flex flex-col"><div className="text-[13px] font-semibold mb-3">{t('常用命令', 'Common commands')}</div><CodeBlock grow>{`atoll deploy ghcr.io/me/api:v1.9 -p saas-api
 atoll env set -s api DATABASE_URL=...
 atoll logs api -f
@@ -122,9 +120,9 @@ args = ["mcp", "--url", "${panel}",
 }
 
 const PRESETS: { k: string; zh: string; en: string; perms: Permission[] }[] = [
-  { k: 'read', zh: '只读', en: 'Read-only', perms: ['read'] },
-  { k: 'deploy', zh: '部署', en: 'Deploy', perms: ['read', 'deploy'] },
-  { k: 'all', zh: '全部', en: 'All', perms: ALL_PERMISSIONS },
+  { k: 'read', zh: L("只读"), en: 'Read-only', perms: ['read'] },
+  { k: 'deploy', zh: L("部署"), en: 'Deploy', perms: ['read', 'deploy'] },
+  { k: 'all', zh: L("全部"), en: 'All', perms: ALL_PERMISSIONS },
 ]
 
 /** Create (POST /tokens) or edit (PATCH /tokens/{id}) a token. */
@@ -182,7 +180,7 @@ function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onClose: (
         </div>
         {danger.length > 0 && <div className="mt-3 rounded-lg border-2 border-[var(--edge)] bg-[#fca5a5] text-[#141414] px-3.5 py-2.5 text-[12.5px] leading-5 flex gap-2 shadow-[3px_3px_0_0_var(--edge)]">
           <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-          <span><b>{t('高风险权限：', 'High-risk permissions: ')}</b>{danger.map(p => info[p][0]).join(t('、', ', '))}。{t('拿到这个令牌的人或 agent 可以直接删除数据、迁移服务或接管其他令牌。', 'Whoever holds this token can delete data, move services or take over other tokens directly.')}{!approval && t('建议同时开启下面的「需要面板审批」。', ' Consider turning on "require panel approval" below.')}</span>
+          <span><b>{t('高风险权限：', 'High-risk permissions: ')}</b>{danger.map(p => info[p][0]).join(t('、', ', '))}{L("。")}{t('拿到这个令牌的人或 agent 可以直接删除数据、迁移服务或接管其他令牌。', 'Whoever holds this token can delete data, move services or take over other tokens directly.')}{!approval && t('建议同时开启下面的「需要面板审批」。', ' Consider turning on "require panel approval" below.')}</span>
         </div>}
       </div>
 

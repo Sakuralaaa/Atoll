@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useState } from 'react'
 import { ArrowUpCircle, Loader2, Save } from 'lucide-react'
 import { Button, Card, Hint } from './ui'
@@ -15,17 +16,17 @@ export default function ImageCheckSettings({ s }: { s: Settings }) {
   const n = Number(v)
   const ok = Number.isInteger(n) && n >= 1 && n <= 168
   // PUT /settings replaces every field: send the current values back (write-only secrets are "" = keep).
-  const save = () => wrap(() => run(() => api.putSettings({ ...s, ...KEEP_NETWORK, image_check_interval_hours: n }), { ok: '检查间隔已保存', invalidate: ['settings'] }))
+  const save = () => wrap(() => run(() => api.putSettings({ ...s, ...KEEP_NETWORK, image_check_interval_hours: n }), { ok: L("检查间隔已保存"), invalidate: ['settings'] }))
   return (
     <div className="mt-8 mb-8">
-      <div className="text-[15px] font-semibold flex items-center gap-2 mb-3"><ArrowUpCircle size={17} />镜像更新<Hint>中控定期向镜像仓库查询每个服务所用标签的最新摘要（只发 HEAD 请求，不计入 Docker Hub 拉取次数），有新版本时在服务上显示「有更新」。每个服务可在「服务状态」里单独设为仅通知、自动更新或关闭。</Hint></div>
+      <div className="text-[15px] font-semibold flex items-center gap-2 mb-3"><ArrowUpCircle size={17} />{L("镜像更新")}<Hint>{L("中控定期向镜像仓库查询每个服务所用标签的最新摘要（只发 HEAD 请求，不计入 Docker Hub 拉取次数），有新版本时在服务上显示「有更新」。每个服务可在「服务状态」里单独设为仅通知、自动更新或关闭。")}</Hint></div>
       <Card className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-center">
-        <div><div className="text-[13px] font-semibold">检查间隔</div><div className="text-[12.5px] text-muted mt-1">小时，1–168，默认 6</div></div>
+        <div><div className="text-[13px] font-semibold">{L("检查间隔")}</div><div className="text-[12.5px] text-muted mt-1">{L("小时，1–168，默认 6")}</div></div>
         <div className="flex flex-wrap items-center gap-3">
           <TextInput mono type="number" min={1} max={168} className="w-[120px]" value={v} onChange={e => setV(e.target.value)} />
-          <span className="text-[13px] text-muted">小时</span>
-          {!ok && <span className="text-[12px] text-[#ef4444]">请输入 1 到 168 之间的整数</span>}
-          <Button className="ml-auto" size="sm" variant="primary" disabled={!ok || n === cur || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存</Button>
+          <span className="text-[13px] text-muted">{L("小时")}</span>
+          {!ok && <span className="text-[12px] text-[#ef4444]">{L("请输入 1 到 168 之间的整数")}</span>}
+          <Button className="ml-auto" size="sm" variant="primary" disabled={!ok || n === cur || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{L("保存")}</Button>
         </div>
       </Card>
     </div>

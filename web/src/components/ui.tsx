@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Copy, Info, Server as ServerGlyph } from 'lucide-react'
 import { colorFor, letterFor, type IconSpec } from '../api/view'
@@ -181,7 +182,7 @@ export function Brand({ icon, size = 16, color }: { icon: { path: string; hex: s
 }
 
 export function CopyId({ v }: { v: string }) {
-  return <button type="button" title="复制" onClick={() => navigator.clipboard?.writeText(v)} className="inline-flex items-center gap-1.5 font-mono text-[12px] text-muted hover:text-fg">{v}<Copy size={13} className="text-muted" /></button>
+  return <button type="button" title={L("复制")} onClick={() => navigator.clipboard?.writeText(v)} className="inline-flex items-center gap-1.5 font-mono text-[12px] text-muted hover:text-fg">{v}<Copy size={13} className="text-muted" /></button>
 }
 
 export function Badge({ children, tone = 'amber' }: { children: React.ReactNode; tone?: 'amber' | 'green' | 'violet' | 'zinc' | 'red' }) {
@@ -207,7 +208,7 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
   const w = 600
   if (data.length < 2) return (
     <Card className="overflow-hidden"><div className="px-5 pt-4 flex items-center gap-1.5 text-[12.5px] text-muted">{icon}{title}</div>
-      <div className="px-5 pb-5 pt-3"><div style={{ height: h + 50 }} className="rounded-lg border-2 border-dashed border-line2 grid place-items-center text-[13px] text-dim">暂无数据，Agent 每 15 秒上报一次</div></div></Card>
+      <div className="px-5 pb-5 pt-3"><div style={{ height: h + 50 }} className="rounded-lg border-2 border-dashed border-line2 grid place-items-center text-[13px] text-dim">{L("暂无数据，Agent 每 15 秒上报一次")}</div></div></Card>
   )
   const top = max ?? (Math.ceil(Math.max(...data) * 1.3) || 1)
   const step = w / (data.length - 1)
@@ -220,7 +221,7 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
       <div className="px-5 pt-4 flex items-start">
         <div><div className="flex items-center gap-1.5 text-[12.5px] text-muted">{icon}{title}</div>
           <div className="mt-1 text-[22px] font-semibold tracking-tight tnum">{last.toFixed(1)}<span className="text-[13px] text-muted font-normal ml-0.5">{unit}</span></div></div>
-        <span className="ml-auto text-[11.5px] text-dim mt-0.5 tnum">峰值 {Math.max(...data).toFixed(1)}{unit}</span>
+        <span className="ml-auto text-[11.5px] text-dim mt-0.5 tnum">{L("峰值")} {Math.max(...data).toFixed(1)}{unit}</span>
       </div>
       <div className="px-5 pt-3 pb-3">
         <div className="relative">
@@ -258,7 +259,7 @@ export function Hint({ children, className }: { children: React.ReactNode; class
   }, [open])
   return (
     <span ref={ref} className={cx('relative inline-flex align-middle', className)} onPointerEnter={e => e.pointerType === 'mouse' && show(true)} onPointerLeave={e => e.pointerType === 'mouse' && show(false)}>
-      <button type="button" aria-label="说明" aria-expanded={open} onClick={e => { e.preventDefault(); e.stopPropagation(); show(true) }}
+      <button type="button" aria-label={L("说明")} aria-expanded={open} onClick={e => { e.preventDefault(); e.stopPropagation(); show(true) }}
         className="h-5 w-5 grid place-items-center rounded-full text-dim hover:text-fg"><Info size={14} /></button>
       {open && pos && <span role="tooltip" style={pos} className="fixed z-50 rounded-lg surface px-3.5 py-2.5 text-[12.5px] font-normal not-italic tracking-normal leading-5 text-fg2 whitespace-normal">{children}</span>}
     </span>

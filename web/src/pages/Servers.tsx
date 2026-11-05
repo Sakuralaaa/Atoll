@@ -11,7 +11,7 @@ import { invalidate, useQuery } from '../api/hooks'
 import { gb, needsAttention, usagePct } from '../api/view'
 import type { JoinToken } from '../api/types'
 import { NetBadge } from '../components/ServerNetwork'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { ControlCard } from './Control'
 import { AgentUpgradeAll, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { cx } from '../components/ui-utils'
@@ -111,17 +111,17 @@ function AddServer({ onClose }: { onClose: () => void }) {
   const [t, setT] = useState<JoinToken>(); const [err, setErr] = useState<string>()
   useEffect(() => { api.joinToken().then(setT, e => setErr(e.message)) }, [])
   return (
-    <Modal title={tr('添加服务器', 'Add server')} width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{tr('完成', 'Done')}</Button>}>
-      <div className="text-[13.5px] text-fg2 leading-6">{tr('在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。', 'Run this as root on the new VPS. It installs Docker and the Atoll agent; the agent connects back to the control server and the server shows up in the list.')}</div>
+    <Modal title={tr(L("添加服务器"), 'Add server')} width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{tr(L("完成"), 'Done')}</Button>}>
+      <div className="text-[13.5px] text-fg2 leading-6">{tr(L("在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。"), 'Run this as root on the new VPS. It installs Docker and the Atoll agent; the agent connects back to the control server and the server shows up in the list.')}</div>
       <div className="mt-4">
         {err && <div className="text-[13px] text-[#ef4444]">{err}</div>}
         {!t && !err && <div className="h-[76px] rounded-lg field grid place-items-center text-muted"><Loader2 className="animate-spin" size={18} /></div>}
         {t && <>
           <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{t.command}</CodeBlock></div>
-          <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />{(() => { const at = new Date(t.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); return tr(`一次性令牌，${at} 前有效`, `One-time token, valid until ${at}`) })()}<span className="ml-auto"><CopyButton text={t.command} label={tr('复制命令', 'Copy')} /></span></div>
+          <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />{(() => { const at = new Date(t.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); return tr(L("一次性令牌，{0} 前有效", at), `One-time token, valid until ${at}`) })()}<span className="ml-auto"><CopyButton text={t.command} label={tr(L("复制命令"), 'Copy')} /></span></div>
         </>}
       </div>
-      <div className="mt-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">{tr('支持 Debian 12+/Ubuntu 22.04+，amd64 与 arm64。80/443 默认只放行 Cloudflare IP。', 'Debian 12+ / Ubuntu 22.04+, amd64 and arm64. Ports 80/443 accept only Cloudflare IPs by default.')}</div>
+      <div className="mt-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">{tr(L("支持 Debian 12+/Ubuntu 22.04+，amd64 与 arm64。80/443 默认只放行 Cloudflare IP。"), 'Debian 12+ / Ubuntu 22.04+, amd64 and arm64. Ports 80/443 accept only Cloudflare IPs by default.')}</div>
     </Modal>
   )
 }

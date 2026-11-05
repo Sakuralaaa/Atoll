@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // Demo backend for image update detection (GET /image-updates, /services/{id}/image-update/...).
 import { ApiError } from './client'
 import type { Deployment, ImageUpdate, Service } from './types'
@@ -57,7 +58,7 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
     u.note = u.policy === 'auto' && u.digest_changed && u.window ? `auto-update waits for the window ${u.window} UTC` : undefined
     return u
   }
-  const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
+  const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("服务不存在"))
 
   /** Returns undefined when the path is not an image-update route. */
   return function route(method: string, seg: string[], body: any): unknown {
@@ -92,6 +93,6 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
       view(s)
       return d
     }
-    return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+    return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
   }
 }

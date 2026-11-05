@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, RefreshCw, X, Loader2, Copy, Check } from 'lucide-react'
 import { Button, Card } from './ui'
@@ -41,7 +42,7 @@ export function Modal({ title, onClose, children, width = 560, footer }: { title
 
 /** Confirm dialog. With `name`, the user must type it exactly (reserved for deleting a service,
  *  project, server or other hard-to-undo actions); without it, it is a plain confirm. */
-export function ConfirmDialog({ title, description, name, action = '确认删除', danger = true, onConfirm, onClose, children }: {
+export function ConfirmDialog({ title, description, name, action = L("确认删除"), danger = true, onConfirm, onClose, children }: {
   title: string; description: React.ReactNode; name?: string; action?: string; danger?: boolean
   onConfirm: () => Promise<unknown> | void; onClose: () => void; children?: React.ReactNode
 }) {
@@ -53,11 +54,11 @@ export function ConfirmDialog({ title, description, name, action = '确认删除
   const go = async () => { if (!ok) return; setBusy(true); try { await onConfirm(); onClose() } finally { setBusy(false) } }
   return (
     <Modal title={<><AlertTriangle size={17} className={danger ? 'text-[#ef4444]' : 'text-accent'} />{title}</>} onClose={onClose}
-      footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} autoFocus={name === undefined} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
+      footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} autoFocus={name === undefined} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
       <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">{description}</div>
       {children}
       {name !== undefined && <>
-        <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">输入 <span onDoubleClick={fill} title="双击填入" className="font-mono font-bold text-fg cursor-pointer select-none">{name}</span> 以确认<span className="text-dim">（双击名称或输入框可自动填入）</span></div>
+        <div className="mt-5 text-[13px] text-muted [overflow-wrap:anywhere]">{L("输入")} <span onDoubleClick={fill} title={L("双击填入")} className="font-mono font-bold text-fg cursor-pointer select-none">{name}</span> {L("以确认")}<span className="text-dim">{L("（双击名称或输入框可自动填入）")}</span></div>
         <input ref={input} autoFocus value={v} onDoubleClick={fill} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} className="mt-2 w-full h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none" />
       </>}
     </Modal>
@@ -81,9 +82,9 @@ export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) =
     </button>
   )
 }
-export function CopyButton({ text, label = '复制' }: { text: string; label?: string }) {
+export function CopyButton({ text, label = L("复制") }: { text: string; label?: string }) {
   const [done, setDone] = useState(false)
-  return <Button size="sm" onClick={() => { navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) }, () => toast('复制失败，请手动选择', 'error')) }}>{done ? <Check size={14} /> : <Copy size={14} />}{done ? '已复制' : label}</Button>
+  return <Button size="sm" onClick={() => { navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) }, () => toast(L("复制失败，请手动选择"), 'error')) }}>{done ? <Check size={14} /> : <Copy size={14} />}{done ? L("已复制") : label}</Button>
 }
 /** Copyable command. Wraps instead of scrolling sideways, so the copy button never covers text; `grow` fills a stretched card. */
 export function CodeBlock({ children, grow }: { children: string; grow?: boolean }) {
@@ -91,7 +92,7 @@ export function CodeBlock({ children, grow }: { children: string; grow?: boolean
   return (
     <div className={cx('relative rounded-lg field min-w-0', grow && 'flex-1')}>
       <pre className="px-4 py-3.5 pr-11 font-mono text-[13px] leading-6 text-fg2 whitespace-pre-wrap [overflow-wrap:anywhere] m-0">{children}</pre>
-      <button aria-label="复制" title="复制" onClick={() => navigator.clipboard?.writeText(children).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) })} className="absolute right-2.5 top-3 h-7 w-7 grid place-items-center rounded-md text-muted hover:text-fg hover:bg-ov/5">{done ? <Check size={14} /> : <Copy size={14} />}</button>
+      <button aria-label={L("复制")} title={L("复制")} onClick={() => navigator.clipboard?.writeText(children).then(() => { setDone(true); setTimeout(() => setDone(false), 1500) })} className="absolute right-2.5 top-3 h-7 w-7 grid place-items-center rounded-md text-muted hover:text-fg hover:bg-ov/5">{done ? <Check size={14} /> : <Copy size={14} />}</button>
     </div>
   )
 }
@@ -125,8 +126,8 @@ export function Empty({ icon, title, desc, action }: { icon?: React.ReactNode; t
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
     <Card className="px-6 py-5 flex items-center gap-4 !bg-[#fca5a5] text-[#141414]">
-      <AlertTriangle size={18} /><div className="flex-1"><div className="text-[13.5px] font-bold">加载失败</div><div className="text-[13px] mt-0.5">{error.message}</div></div>
-      {onRetry && <button onClick={onRetry} className="btn-secondary h-8 px-3 text-[12.5px] inline-flex items-center gap-1.5"><RefreshCw size={13} />重试</button>}
+      <AlertTriangle size={18} /><div className="flex-1"><div className="text-[13.5px] font-bold">{L("加载失败")}</div><div className="text-[13px] mt-0.5">{error.message}</div></div>
+      {onRetry && <button onClick={onRetry} className="btn-secondary h-8 px-3 text-[12.5px] inline-flex items-center gap-1.5"><RefreshCw size={13} />{L("重试")}</button>}
     </Card>
   )
 }

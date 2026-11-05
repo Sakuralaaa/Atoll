@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // Demo backend: serves the original mock data through the same REST paths the real client uses.
 // Enabled with ?demo=1 or VITE_DEMO=1. Mutations live in memory for the tab.
 import { projects as mockProjects, servers as mockServers } from '../mock'
@@ -58,7 +59,7 @@ for (const p of mockProjects) {
       cpu_limit: db ? 0 : 1, mem_limit_mb: db ? 0 : 512, health: db ? undefined : { http_path: '/health', interval_sec: 30 },
     }
     services.push(svc)
-    if (s.domain) domains.push({ id: `dom_${s.id}`, service_id: s.id, hostname: s.domain, port_name: 'web', proxied: true, status: s.status === 'failed' ? 'error' : 'active', error: s.status === 'failed' ? '后端不可达 (502)' : undefined, created_at: svc.created_at })
+    if (s.domain) domains.push({ id: `dom_${s.id}`, service_id: s.id, hostname: s.domain, port_name: 'web', proxied: true, status: s.status === 'failed' ? 'error' : 'active', error: s.status === 'failed' ? L("后端不可达 (502)") : undefined, created_at: svc.created_at })
     const U = db ? s.kind.toUpperCase() : ''
     env[s.id] = db ? [
       { key: `${U}_HOST`, value: s.name, secret: false, exposed: true },
@@ -81,7 +82,7 @@ for (const p of mockProjects) {
     }))
   }
 }
-projects.push({ id: 'sandbox', name: 'sandbox', description: '空项目示例', server_id: 'fra', created_at: iso(D) })
+projects.push({ id: 'sandbox', name: 'sandbox', description: L("空项目示例"), server_id: 'fra', created_at: iso(D) })
 // image services in projects with a DB reference it
 for (const p of projects) {
   const ss = services.filter(s => s.project_id === p.id), db = ss.find(s => s.kind !== 'image')
@@ -91,13 +92,13 @@ for (const p of projects) {
 const tokens: APIToken[] = [
   { id: 'tok_demo1', name: 'claude-code-macbook', scope: 'admin', permissions: ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens'], require_approval: true, prefix: 'atl_pat_3fA9', last_used_at: iso(2 * 60e3), created_at: iso(9 * D) },
   { id: 'tok_demo2', name: 'codex-ci', scope: 'deploy', permissions: ['read', 'deploy', 'domains'], projects: ['acme', 'linkproxy'], prefix: 'atl_pat_k21Q', last_used_at: iso(D), created_at: iso(6 * D) },
-  { id: 'tok_demo3', name: '只读监控', scope: 'read', permissions: ['read'], prefix: 'atl_pat_Zx07', last_used_at: iso(5 * D), created_at: iso(12 * D) },
+  { id: 'tok_demo3', name: L("只读监控"), scope: 'read', permissions: ['read'], prefix: 'atl_pat_Zx07', last_used_at: iso(5 * D), created_at: iso(12 * D) },
 ]
 const confirmations: Confirmation[] = [
-  { id: 'cfm_demo1', action: 'service.delete', target: 'cron-worker', summary: '删除服务 LinkProxy / cron-worker（容器、2 个卷）', status: 'pending', created_by: 'codex-ci', created_at: iso(4 * 60e3) },
-  { id: 'cfm_demo2', action: 'domain.add', target: 'api.example.com', summary: '为 acme-api / acme-api 绑定 api.example.com（Cloudflare 代理记录 → 203.0.113.10）', status: 'pending', created_by: 'claude-code-macbook', created_at: iso(18 * 60e3) },
-  { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: '把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix', status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
-  { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: '删除项目 old-blog（3 个服务）', status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
+  { id: 'cfm_demo1', action: 'service.delete', target: 'cron-worker', summary: L("删除服务 LinkProxy / cron-worker（容器、2 个卷）"), status: 'pending', created_by: 'codex-ci', created_at: iso(4 * 60e3) },
+  { id: 'cfm_demo2', action: 'domain.add', target: 'api.example.com', summary: L("为 acme-api / acme-api 绑定 api.example.com（Cloudflare 代理记录 → 203.0.113.10）"), status: 'pending', created_by: 'claude-code-macbook', created_at: iso(18 * 60e3) },
+  { id: 'cfm_demo3', action: 'service.migrate', target: 'file-share', summary: L("把项目 file-share 从 Hetzner CAX21 Falkenstein 迁移到 Oracle ARM West Phoenix"), status: 'approved', created_by: 'claude-code-macbook', created_at: iso(2 * D) },
+  { id: 'cfm_demo4', action: 'project.delete', target: 'old-blog', summary: L("删除项目 old-blog（3 个服务）"), status: 'rejected', created_by: 'codex-ci', created_at: iso(4 * D) },
 ]
 // multi-domain demo: example.com follows the global HTTPS settings, example.net got its own
 // Origin CA certificate, example.org fell back to ACME (token without SSL permission)
@@ -153,20 +154,20 @@ const settings: Settings = { base_domain: 'example.com', cloudflare_zone_id: '9f
 const tpl = (kind: string, name: string, image: string, description: string, port: number, mount: string): Template =>
   ({ kind, name, image, description, ports: [{ name: kind, container_port: port, protocol: 'tcp' }], volumes: [{ name: 'data', mount_path: mount }], env: [] })
 const templates: Template[] = [
-  tpl('postgres', 'PostgreSQL', 'postgres:17-alpine', '自动生成密码，暴露 POSTGRES_CONNECTION_STRING', 5432, '/var/lib/postgresql/data'),
-  tpl('mysql', 'MySQL', 'mysql:8.4', '自动生成 root 密码与连接串', 3306, '/var/lib/mysql'),
-  tpl('redis', 'Redis', 'redis:7-alpine', '带密码与持久化', 6379, '/data'),
-  tpl('mongo', 'MongoDB', 'mongo:8.0', '自动生成 root 账号', 27017, '/data/db'),
+  tpl('postgres', 'PostgreSQL', 'postgres:17-alpine', L("自动生成密码，暴露 POSTGRES_CONNECTION_STRING"), 5432, '/var/lib/postgresql/data'),
+  tpl('mysql', 'MySQL', 'mysql:8.4', L("自动生成 root 密码与连接串"), 3306, '/var/lib/mysql'),
+  tpl('redis', 'Redis', 'redis:7-alpine', L("带密码与持久化"), 6379, '/data'),
+  tpl('mongo', 'MongoDB', 'mongo:8.0', L("自动生成 root 账号"), 27017, '/data/db'),
 ]
 const mkPlan = (name: string, svcs: [string, string, string, number][], warnings: string[] = []): ImportPlan => ({
   source: 'zeabur', source_project: '7f00e1f2a9c3', project_name: name, target_server_id: 'phx', warnings,
   services: svcs.map(([n, kind, image, bytes]) => ({ source_service_id: `zb-${n}`, name: n, kind, image, image_needs_push: image.includes('zeabur'), ports: [], volumes: [], env: [], domains: [], data_bytes: bytes })),
 })
-const STEPS = ['创建项目与服务', '推送镜像', '上传数据卷', '部署服务', '健康检查', '切换 DNS']
+const STEPS = [L("创建项目与服务"), L("推送镜像"), L("上传数据卷"), L("部署服务"), L("健康检查"), L("切换 DNS")]
 const imports: ImportJob[] = [
   { id: 'imp_demo1', status: 'deploying', created_at: iso(25 * 60e3), project_id: 'acme',
-    plan: mkPlan('acme-api', [['acme-api', 'image', 'ghcr.io/example/acme-api:latest', 0], ['postgresql', 'postgres', 'postgres:17-alpine', 182e6], ['redis', 'redis', 'redis:7-alpine', 3e6]], ['acme-api.zeabur.app 不会迁移，请改用自定义域名']),
-    steps: STEPS.map((name, i) => ({ name, status: i < 3 ? 'done' : i === 3 ? 'running' : 'pending', detail: i === 2 ? '2 个卷 · 185 MB' : i === 3 ? '2/3 已运行' : undefined })) },
+    plan: mkPlan('acme-api', [['acme-api', 'image', 'ghcr.io/example/acme-api:latest', 0], ['postgresql', 'postgres', 'postgres:17-alpine', 182e6], ['redis', 'redis', 'redis:7-alpine', 3e6]], [L("acme-api.zeabur.app 不会迁移，请改用自定义域名")]),
+    steps: STEPS.map((name, i) => ({ name, status: i < 3 ? 'done' : i === 3 ? 'running' : 'pending', detail: i === 2 ? L("2 个卷 · 185 MB") : i === 3 ? L("2/3 已运行") : undefined })) },
   { id: 'imp_demo2', status: 'done', created_at: iso(3 * D), project_id: 'mailrelay',
     plan: mkPlan('mail-relay', [['mail-relay', 'image', 'registry.zeabur.cloud/p-7f00/mailrelay:7c1', 41e6]]),
     steps: STEPS.map(name => ({ name, status: 'done' })) },
@@ -210,25 +211,25 @@ const zeabur: ZeaburInventory = {
       { service_id: 'a1b2c1d0f7', name: 'postgresql', workload: 'statefulset/service-a1b2c1d0f7', replicas: 1, role: 'database', kind: 'postgres', image: 'postgres:16-alpine', image_id: 'sha256:9a07e3c1b4d8', zeabur_registry: false, image_cached: true,
         ports: [{ name: 'database', container_port: 5432, protocol: 'tcp' }], env: [], volumes: [zv('postgresql-data', '/var/lib/postgresql/data', 182e6, NS1)], domains: [],
         status: 'running', data_store: 'postgres', k8s_services: ['service-a1b2c1d0f7', 'postgresql'],
-        warnings: ['PostgreSQL 16：用 postgres:16 同主版本 pg_dump/pg_restore'] },
+        warnings: [L("PostgreSQL 16：用 postgres:16 同主版本 pg_dump/pg_restore")] },
       { service_id: 'a1b2c1d10a', name: 'redis', workload: 'statefulset/service-a1b2c1d10a', replicas: 1, role: 'cache', kind: 'redis', image: 'redis:7.2-alpine', image_id: 'sha256:1fd3a8b0c6e2', zeabur_registry: false, image_cached: true,
         ports: [{ name: 'redis', container_port: 6379, protocol: 'tcp' }], env: [], volumes: [zv('redis-data', '/data', 3.1e6, NS1)], domains: [],
         status: 'degraded', data_store: 'redis', k8s_services: ['service-a1b2c1d10a'],
-        warnings: ['未开启 AOF：只有最后一次 RDB 快照会被迁移，快照之后写入的键可能丢失', '最近 1 小时重启 3 次（OOMKilled）'] },
-    ], warnings: ['孤立 PVC acme-api-uploads-old（112 MB）不属于任何服务，不会迁移；需要的话请先手动备份', 'postgresql 的 PVC 使用 local-path（hostPath），删除 k3s 会一并删除，切换后请勿提前清理'] },
+        warnings: [L("未开启 AOF：只有最后一次 RDB 快照会被迁移，快照之后写入的键可能丢失"), L("最近 1 小时重启 3 次（OOMKilled）")] },
+    ], warnings: [L("孤立 PVC acme-api-uploads-old（112 MB）不属于任何服务，不会迁移；需要的话请先手动备份"), L("postgresql 的 PVC 使用 local-path（hostPath），删除 k3s 会一并删除，切换后请勿提前清理")] },
     { namespace: NS2, project_id: 'e5f6a7b8c9d0b', project_name: 'LinkProxy', environment_name: 'production', services: [
       { service_id: 'e5f6aa0b31', name: 'linkproxy', workload: 'deployment/service-e5f6aa0b31', replicas: 1, role: 'app', kind: 'image', image: 'example/link-proxy:latest', image_id: 'sha256:c3e90f12aa47', zeabur_registry: false, image_cached: true,
         ports: [{ name: 'web', container_port: 8317, protocol: 'http' }], node_ports: [30817], env: [{ key: 'MANAGEMENT_BASE', value: 'https://linkproxy-demo.zeabur.app/v0', secret: false, exposed: false }], volumes: [zv('auths', '/root/.link-proxy', 2.4e6, NS2)], domains: ['linkproxy-demo.zeabur.app'],
         status: 'running', data_store: '',
-        warnings: ['latest 标签：将固定到正在运行的摘要 sha256:c3e90f12aa47', 'NodePort 30817 迁移后改为 Caddy 反代'] },
+        warnings: [L("latest 标签：将固定到正在运行的摘要 sha256:c3e90f12aa47"), L("NodePort 30817 迁移后改为 Caddy 反代")] },
       { service_id: 'e5f6aa0c88', name: 'config-editor', workload: '', replicas: 0, role: 'other', kind: 'image', image: 'registry.zeabur.cloud/e5f6a7b8/config-editor:1a2b3c4', image_id: '', zeabur_registry: true, image_cached: false,
         ports: [], env: [], volumes: [zv('config', '/data', 0.2e6, NS2)], domains: [], status: 'suspended',
         references: [{ target: 'e5f6aa0b31', via: 'shared-configmap', object: 'ConfigMap/linkproxy-config', inferred: false }],
-        warnings: ['服务已暂停，本机没有镜像缓存，只能迁移数据卷'] },
-    ], warnings: ['deployment/debug-shell 不是 Zeabur 服务，已忽略'] },
+        warnings: [L("服务已暂停，本机没有镜像缓存，只能迁移数据卷")] },
+    ], warnings: [L("deployment/debug-shell 不是 Zeabur 服务，已忽略")] },
   ],
 }
-const LOCAL_STEPS = ['导出 Zeabur 构建的镜像', '拉取公共镜像（固定到运行中的摘要）', '复制数据卷', '导出并恢复数据库', '启动 Atoll 容器（不接公网）', '校验数据行数', '缩容 Zeabur 应用', '最终数据同步', '停用 Zeabur 入口', '启用 atoll-caddy 接管 80/443']
+const LOCAL_STEPS = [L("导出 Zeabur 构建的镜像"), L("拉取公共镜像（固定到运行中的摘要）"), L("复制数据卷"), L("导出并恢复数据库"), L("启动 Atoll 容器（不接公网）"), L("校验数据行数"), L("缩容 Zeabur 应用"), L("最终数据同步"), L("停用 Zeabur 入口"), L("启用 atoll-caddy 接管 80/443")]
 const VERIFY: ImportVerify[] = [
   { service: 'postgresql', table: 'public.tokens', source_rows: 1284, target_rows: 1284 },
   { service: 'postgresql', table: 'public.request_logs', source_rows: 98213, target_rows: 98213 },
@@ -236,13 +237,13 @@ const VERIFY: ImportVerify[] = [
   { service: 'postgresql', table: 'public.settings', source_rows: 27, target_rows: 27 },
   { service: 'redis', table: 'db0 (keys)', source_rows: 412, target_rows: 412 },
 ]
-const DETAIL: Record<number, string> = { 0: '1 个镜像 · registry.zeabur.cloud/…/acme-api → atoll-import/acme-api:4be1c09a7d2f', 1: 'postgres:16-alpine@sha256:9a07e3…, redis:7.2-alpine@sha256:1fd3a8…', 2: '3 个卷 · 226 MB', 3: 'pg_dump 16.4 → pg_restore · 4 张表', 4: '3/3 运行中 · 仅项目内网' }
+const DETAIL: Record<number, string> = { 0: L("1 个镜像 · registry.zeabur.cloud/…/acme-api → atoll-import/acme-api:4be1c09a7d2f"), 1: 'postgres:16-alpine@sha256:9a07e3…, redis:7.2-alpine@sha256:1fd3a8…', 2: L("3 个卷 · 226 MB"), 3: L("pg_dump 16.4 → pg_restore · 4 张表"), 4: L("3/3 运行中 · 仅项目内网") }
 // step details as the server writes them (English; the UI translates them, api/backendText.ts)
 const DOCKER_DETAIL: Record<number, string> = { 0: '2 container(s) found; 41.2 GB disk free, 1830 MB memory free', 1: '2 image(s) pinned to their registry digest, 0 kept as local image(s)',
   2: '2 Atoll copy(ies) started without published ports; writable data dirs are scratch copies, the old containers keep serving', 3: 'all Atoll copies started and stayed healthy; stopped again until cutover',
   4: '2 old container(s) stopped and kept (restart policy no)', 5: '2 service(s) running: 1 host port(s) published, 1 mount(s) in place' }
-const localSteps = (done: number, running = -1): ImportStep[] => LOCAL_STEPS.map((name, i) => ({ name, status: i < done ? 'done' : i === running ? 'running' : 'pending', detail: i < done || i === running ? DETAIL[i] ?? (i === 5 && i < done ? '5/5 一致' : undefined) : undefined }))
-const acmePlan = (): ImportPlan => ({ source: 'zeabur', source_project: 'a1b2c3d4e5f6a', project_name: 'acme-api', target_server_id: 'phx', warnings: ['acme-api.zeabur.app 切换后失效，已映射到 acme-api.example.com'],
+const localSteps = (done: number, running = -1): ImportStep[] => LOCAL_STEPS.map((name, i) => ({ name, status: i < done ? 'done' : i === running ? 'running' : 'pending', detail: i < done || i === running ? DETAIL[i] ?? (i === 5 && i < done ? L("5/5 一致") : undefined) : undefined }))
+const acmePlan = (): ImportPlan => ({ source: 'zeabur', source_project: 'a1b2c3d4e5f6a', project_name: 'acme-api', target_server_id: 'phx', warnings: [L("acme-api.zeabur.app 切换后失效，已映射到 acme-api.example.com")],
   services: zeabur.projects[0].services.map(z => ({ source_service_id: z.service_id, name: z.name, kind: z.kind, image: z.image, image_needs_push: false, ports: z.ports, volumes: z.volumes.map(v => ({ name: v.pvc, mount_path: v.mount_path })), env: [], domains: z.domains.map(d => d.replace('.zeabur.app', '.example.com')), data_bytes: z.volumes.reduce((a, v) => a + v.bytes, 0) })) })
 const localJob = (id: string, status: string, steps: ImportStep[], verify: ImportVerify[], ago: number): ImportJob =>
   ({ id, mode: 'zeabur-local', server_id: 'phx', namespace: NS1, project_id: 'acme', status, steps, verify, created_at: iso(ago), plan: acmePlan() })
@@ -276,25 +277,7 @@ imports.unshift(
 )
 
 // ---------- fake container filesystem for exec ----------
-const CONFIG = `# mail-relay 配置
-server:
-  host: 0.0.0.0
-  port: 5000
-  public_url: https://mail.example.com
-
-database:
-  path: /app/data/mail.db
-
-scheduler:
-  forward_interval: 300   # 秒
-  timezone: Asia/Shanghai
-
-forward:
-  channels: []            # telegram / webhook
-
-log:
-  level: INFO
-  dir: /app/logs`
+const CONFIG = L("# mail-relay 配置\nserver:\n  host: 0.0.0.0\n  port: 5000\n  public_url: https://mail.example.com\n\ndatabase:\n  path: /app/data/mail.db\n\nscheduler:\n  forward_interval: 300   # 秒\n  timezone: Asia/Shanghai\n\nforward:\n  channels: []            # telegram / webhook\n\nlog:\n  level: INFO\n  dir: /app/logs")
 const FS: Record<string, string[] | string> = {
   '/': ['app/', 'bin/', 'etc/', 'tmp/', 'usr/'],
   '/app': ['.env.example', '.github/', 'VERSION', 'data/', 'docker-compose.yml', 'docs/', 'static/', 'main.py', 'config.yaml', 'requirements.txt', 'scripts/', 'start.sh', 'templates/', 'logs/'],
@@ -332,7 +315,7 @@ function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
 const demoGit = makeDemoGit(services, deployments, nid)
 const demoUpdates = makeDemoUpdates(services, deployments)
 const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p => p.id === pid)?.server_id ?? '', settings)
-const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务不存在')
+const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("服务不存在"))
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
@@ -443,22 +426,22 @@ function route(method: string, path: string, body: any): unknown {
     return c.map((x, i): NodeMetrics => ({ ...u, at: x.at, cpu_pct: Math.min(100, x.v), mem_used_mb: Math.min(u.mem_total_mb, mm[i].v), disk_used_gb: dd[i].v }))
   }
   if (P && (a = m('servers/*/network'))) {
-    const s = servers.find(x => x.id === a![0]) ?? fail(404, '服务器不存在')
+    const s = servers.find(x => x.id === a![0]) ?? fail(404, L("服务器不存在"))
     if (s.status !== 'online') fail(409, 'server is offline')
     if (body.action !== 'public' && settings.network_provider !== 'tailscale') fail(409, 'enable the Tailscale network provider in Settings first')
     const pub = settings.public_url, cu = settings.tailnet_control_url || 'http://100.64.0.4:7301'
     if (body.action === 'public') s.network = { provider: 'tailscale', state: 'running', via_tailnet: false, control_url: pub, fallback_urls: [] }
     else { s.tailnet_ip = s.tailnet_ip || `100.64.0.${30 + servers.indexOf(s)}`; s.network = { provider: 'tailscale', state: 'running', via_tailnet: true, control_url: cu, fallback_urls: [pub] } }
-    return { switched: true, control_url: s.network.control_url, tailnet_ip: s.tailnet_ip, state: 'running', message: body.action === 'join' ? '(demo) Tailscale 已安装并加入 tailnet' : undefined }
+    return { switched: true, control_url: s.network.control_url, tailnet_ip: s.tailnet_ip, state: 'running', message: body.action === 'join' ? L("(demo) Tailscale 已安装并加入 tailnet") : undefined }
   }
   if ((a = m('servers/*/docker'))) return { ...dockerInv, scanned_at: new Date().toISOString() }
-  if ((a = m('servers/*/zeabur'))) { if (a[0] !== 'phx') fail(404, '这台服务器上没有检测到 Zeabur（k3s 未安装）'); return { ...zeabur, scanned_at: new Date().toISOString() } }
+  if ((a = m('servers/*/zeabur'))) { if (a[0] !== 'phx') fail(404, L("这台服务器上没有检测到 Zeabur（k3s 未安装）")); return { ...zeabur, scanned_at: new Date().toISOString() } }
   if ((a = m('servers/*/containers'))) {
     const pids = projects.filter(p => p.server_id === a![0]).map(p => p.id)
     return services.filter(s => pids.includes(s.project_id)).map((s): ContainerState => ({ service_id: s.id, deployment_id: deployments[s.id]?.[0]?.id ?? '', state: s.status === 'running' ? 'running' : s.status === 'failed' ? 'restarting' : 'exited', restart_count: s.status === 'failed' ? 14 : 0, started_at: iso(2 * D) }))
   }
   if ((a = m('servers/*'))) {
-    const i = servers.findIndex(x => x.id === a![0]); if (i < 0) fail(404, '服务器不存在')
+    const i = servers.findIndex(x => x.id === a![0]); if (i < 0) fail(404, L("服务器不存在"))
     if (X) Object.assign(servers[i], body)
     if (DEL) { servers.splice(i, 1); return {} }
     return servers[i]
@@ -482,11 +465,11 @@ function route(method: string, path: string, body: any): unknown {
     const sorted = [...ids.map(id => mine.find(s => s.id === id)!), ...mine.filter(s => !ids.includes(s.id))]
     const slots = services.map((s, i) => s.project_id === pid ? i : -1).filter(i => i >= 0)
     slots.forEach((slot, k) => { services[slot] = sorted[k] })
-    return fullProject(projects.find(x => x.id === pid) ?? fail(404, '项目不存在'))
+    return fullProject(projects.find(x => x.id === pid) ?? fail(404, L("项目不存在")))
   }
   if ((a = m('projects/*/migrate'))) { const pr = projects.find(x => x.id === a![0])!; pr.server_id = body.server_id; services.filter(x => x.project_id === pr.id).forEach(x => { x.server_id = body.server_id }); return {} }
   if ((a = m('projects/*'))) {
-    const pr = projects.find(x => x.id === a![0]) ?? fail(404, '项目不存在')
+    const pr = projects.find(x => x.id === a![0]) ?? fail(404, L("项目不存在"))
     if (X && body.root_domain !== undefined && body.root_domain && !rootDomains.some(r => r.name === body.root_domain)) fail(400, `unknown root domain "${body.root_domain}"`)
     if (X) { Object.assign(pr, body); if (body.root_domain === '') delete pr.root_domain }
     if (DEL) { projects.splice(projects.indexOf(pr), 1); return {} }
@@ -531,7 +514,7 @@ function route(method: string, path: string, body: any): unknown {
     if (!servers.some(x => x.id === body.server_id)) fail(400, `unknown target server_id "${body.server_id}"`)
     if (from === body.server_id) fail(400, 'service already runs there')
     s.server_id = body.server_id
-    return { id: nid('mig'), project_id: s.project_id, service_id: s.id, from_server_id: from, to_server_id: body.server_id, status: 'running', steps: [{ name: '停止服务', status: 'done' }, { name: '复制数据卷', status: 'running' }], created_at: new Date().toISOString() }
+    return { id: nid('mig'), project_id: s.project_id, service_id: s.id, from_server_id: from, to_server_id: body.server_id, status: 'running', steps: [{ name: L("停止服务"), status: 'done' }, { name: L("复制数据卷"), status: 'running' }], created_at: new Date().toISOString() }
   }
   if ((a = m('services/*/exec'))) return exec(body.cmd)
   if ((a = m('services/*'))) {
@@ -576,7 +559,7 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('imports')) { imports.forEach(tickLocal); return imports }
   if (P && m('imports')) { const j: ImportJob = { id: nid('imp'), plan: body, status: 'planned', created_at: new Date().toISOString(), steps: STEPS.map(name => ({ name, status: 'pending' })) }; imports.unshift(j); return j }
   if (P && m('imports/docker')) {
-    const g = dockerInv.groups.find(x => x.key === body.group) ?? fail(404, '找不到这一组容器')
+    const g = dockerInv.groups.find(x => x.key === body.group) ?? fail(404, L("找不到这一组容器"))
     const cs = g.containers.filter(c => c.risk === 'auto' && (!body.containers?.length || body.containers.includes(c.name)))
     const j: ImportJob = { id: nid('imp'), mode: 'docker', group: g.key, server_id: body.server_id, status: 'planned', created_at: new Date().toISOString(),
       steps: ['Check containers and resources', 'Prepare images', 'Start Atoll copies (no ports, scratch data)', 'Verify', 'Stop old containers', 'Start Atoll services on the old ports and data', 'Verify after cutover'].map(name => ({ name, status: 'pending' })),
@@ -587,7 +570,7 @@ function route(method: string, path: string, body: any): unknown {
     imports.unshift(j); return j
   }
   if (P && m('imports/zeabur-local')) {
-    const zp = zeabur.projects.find(x => x.namespace === body.namespace) ?? fail(404, '找不到 Zeabur 项目')
+    const zp = zeabur.projects.find(x => x.namespace === body.namespace) ?? fail(404, L("找不到 Zeabur 项目"))
     const pick = zp.services.filter(z => !body.service_ids?.length || body.service_ids.includes(z.service_id))
     const j = localJob(nid('imp'), 'planned', localSteps(0), [], 0)
     j.created_at = new Date().toISOString(); j.namespace = zp.namespace; j.server_id = body.server_id; j.project_id = undefined
@@ -597,30 +580,30 @@ function route(method: string, path: string, body: any): unknown {
     imports.unshift(j); return j
   }
   if ((a = m('imports/*/cleanup'))) {
-    const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
+    const j = imports.find(x => x.id === a![0]) ?? fail(404, L("导入任务不存在"))
     const srv = servers.find(x => x.id === j.server_id)
-    if (body?.confirm !== srv?.name) fail(400, '确认名称与服务器名称不一致')
+    if (body?.confirm !== srv?.name) fail(400, L("确认名称与服务器名称不一致"))
     j.status = 'cleaning'; started[j.id] = Date.now(); return j
   }
   if ((a = m('imports/*/rehearse')) || (a = m('imports/*/cutover')) || (a = m('imports/*/rollback'))) {
-    const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在')
+    const j = imports.find(x => x.id === a![0]) ?? fail(404, L("导入任务不存在"))
     j.status = { rehearse: 'rehearsing', cutover: 'cutting_over', rollback: 'rolling_back' }[seg[2]]!; started[j.id] = Date.now(); tickLocal(j); return j
   }
   if (P && (a = m('servers/*/zeabur/cutover'))) {
     const ids: string[] = body?.import_ids ?? []
-    const jobs = ids.map(id => imports.find(x => x.id === id) ?? fail(404, '导入任务不存在'))
+    const jobs = ids.map(id => imports.find(x => x.id === id) ?? fail(404, L("导入任务不存在")))
     jobs.forEach(j => { j.status = 'cutting_over'; started[j.id] = Date.now(); tickLocal(j) })
     return { server_id: a[0], jobs }
   }
   if (P && (a = m('servers/*/zeabur/rollback'))) {
     const jobs = imports.filter(x => x.server_id === a![0] && ['live', 'failed'].includes(x.status))
-    if (!jobs.length) fail(409, '这台服务器上没有已切换的导入')
+    if (!jobs.length) fail(409, L("这台服务器上没有已切换的导入"))
     jobs.forEach(j => { j.status = 'rolling_back'; started[j.id] = Date.now(); tickLocal(j) })
     return { server_id: a[0], jobs }
   }
   if ((a = m('imports/*/start'))) { const j = imports.find(x => x.id === a![0])!; j.status = 'deploying'; j.steps[0].status = 'done'; j.steps[1].status = 'running'; return j }
-  if ((a = m('imports/*'))) { const j = imports.find(x => x.id === a![0]) ?? fail(404, '导入任务不存在'); tickLocal(j); return j }
-  fail(404, `demo: 未实现 ${method} ${path}`)
+  if ((a = m('imports/*'))) { const j = imports.find(x => x.id === a![0]) ?? fail(404, L("导入任务不存在")); tickLocal(j); return j }
+  fail(404, L("demo: 未实现 {0} {1}", method, path))
 }
 
 export async function demoRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -630,17 +613,17 @@ export async function demoRequest<T>(method: string, path: string, body?: unknow
 
 const LOGS: [string, string][] = [
   ['stdout', '[forward] skip job: no active channels configured'],
-  ['stdout', '2026-10-29 21:11:07,454 INFO [apscheduler.executors.default] Job "邮件转发轮询 (trigger: interval[0:05:00])" executed successfully'],
-  ['stdout', '2026-10-29 21:16:07,452 INFO [apscheduler.executors.default] Running job "邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:21:07 CST)"'],
+  ['stdout', L("2026-10-29 21:11:07,454 INFO [apscheduler.executors.default] Job \"邮件转发轮询 (trigger: interval[0:05:00])\" executed successfully")],
+  ['stdout', L("2026-10-29 21:16:07,452 INFO [apscheduler.executors.default] Running job \"邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:21:07 CST)\"")],
   ['stdout', '[forward] skip job: no active channels configured'],
   ['stderr', 'WARN token refresh for account #3 took 4.2s (threshold 3s)'],
   ['stdout', '104.28.158.90 - - [29/Oct/2026:21:21:01 +0800] "GET / HTTP/1.1" 302 199 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"'],
   ['stdout', '104.28.158.90 - - [29/Oct/2026:21:21:01 +0800] "GET /login HTTP/1.1" 200 8141 "-" "Mozilla/5.0 (X11; Linux x86_64)"'],
   ['stderr', 'ERROR 104.28.158.90 - - [29/Oct/2026:21:21:02 +0800] "GET /favicon.ico HTTP/1.1" 404 240 "https://mail.example.com/login"'],
-  ['stdout', '2026-10-29 21:21:07,452 INFO [apscheduler.executors.default] Running job "邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:26:07 CST)"'],
+  ['stdout', L("2026-10-29 21:21:07,452 INFO [apscheduler.executors.default] Running job \"邮件转发轮询 (trigger: interval[0:05:00], next run at: 21:26:07 CST)\"")],
   ['stdout', '[forward] skip job: no active channels configured'],
-  ['stdout', '2026-10-29 21:21:07,453 INFO [apscheduler.executors.default] Job "邮件转发轮询 (trigger: interval[0:05:00])" executed successfully'],
-  ['stdout', '2026-10-29 21:26:07,451 INFO [apscheduler.executors.default] Running job "邮件转发轮询"'],
+  ['stdout', L("2026-10-29 21:21:07,453 INFO [apscheduler.executors.default] Job \"邮件转发轮询 (trigger: interval[0:05:00])\" executed successfully")],
+  ['stdout', L("2026-10-29 21:26:07,451 INFO [apscheduler.executors.default] Running job \"邮件转发轮询\"")],
 ]
 export function demoLogStream(serviceId: string, push: (l: LogLine) => void, onState: (open: boolean) => void) {
   onState(true)

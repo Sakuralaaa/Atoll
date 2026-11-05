@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 // Demo backend for 中控 / Control (/control*, /audit). In memory, example.com values.
 // Re-auth: any password passes except "wrong"; 3 wrong in a row lock for 30 s (429 + Retry-After).
 // `#…&2fa=1` (or 2FA enabled in Settings → Security) also asks for a 6-digit code.
@@ -53,7 +54,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
     }
     // the unit restarts in the middle of the last phase: the panel briefly cannot reach the server
     const restartAt = job.mode === 'rollback' ? 1500 : 9000
-    if (ph === 'restarting' && el > restartAt && el < restartAt + 1800) fail(0, '无法连接到 Atoll 服务器')
+    if (ph === 'restarting' && el > restartAt && el < restartAt + 1800) fail(0, L("无法连接到 Atoll 服务器"))
     return ph
   }
   let controlName = ''
@@ -224,6 +225,6 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
       const d = new Date(), name = `atoll-control-${host()}-${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z.atollbak`
       log('control.export', '', { size: 9.6e6 }); return { name }
     }
-    return fail(404, `demo: 未实现 ${method} /${seg.join('/')}`)
+    return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
   }
 }

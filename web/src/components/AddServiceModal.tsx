@@ -8,15 +8,15 @@ import { autoName, emptyGitForm, gitBody, gitFormError, type GitForm } from '../
 import { GitFields, SourceToggle, WebhookSetup, type SourceKind } from './GitSource'
 import { Button, ServiceIcon } from './ui'
 import { Label, Select, TextInput } from './feedback'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { cx } from './ui-utils'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'docker'; i: React.ReactNode; t: string; d: string }[] = [
-  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: 'Docker 容器镜像 / GitHub 仓库', d: '从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建' },
-  { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: '数据库', d: 'PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量' },
+  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: L("Docker 容器镜像 / GitHub 仓库"), d: L("从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建") },
+  { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: L("数据库"), d: L("PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量") },
   // not a step here: opens the adoption wizard (/import/docker) on the project's server
-  { k: 'docker', i: <Boxes size={20} className="text-[#a78bfa]" />, t: '从已有 Docker 容器接管', d: '服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据' },
+  { k: 'docker', i: <Boxes size={20} className="text-[#a78bfa]" />, t: L("从已有 Docker 容器接管"), d: L("服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据") },
 ]
 
 export default function AddServiceModal({ projectId, onClose, onCreated }: { projectId: string; onClose: () => void; onCreated?: (s: Service) => void }) {
@@ -53,8 +53,8 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
         <div className="flex items-center gap-3 px-5 h-16 border-b border-line">
           {step === 'pick' ? <Search size={18} className="text-muted" /> : <button onClick={() => setStep('pick')} className="text-muted hover:text-fg"><ArrowLeft size={18} /></button>}
           {step === 'pick'
-            ? <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} placeholder="要部署什么服务？" className="text-[16px] flex-1 bg-transparent outline-none focus-visible:outline-none placeholder:text-dim text-fg" />
-            : <span className="text-[16px] font-semibold flex-1">{step === 'image' ? '部署服务' : '数据库'}</span>}
+            ? <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} placeholder={L("要部署什么服务？")} className="text-[16px] flex-1 bg-transparent outline-none focus-visible:outline-none placeholder:text-dim text-fg" />
+            : <span className="text-[16px] font-semibold flex-1">{step === 'image' ? L("部署服务") : L("数据库")}</span>}
           <button onClick={onClose} className="text-muted"><X size={18} /></button>
         </div>
         {step === 'pick' && <>
@@ -67,7 +67,7 @@ export default function AddServiceModal({ projectId, onClose, onCreated }: { pro
               </button>
             ))}
           </div>
-          <div className="border-t border-line px-5 h-11 flex items-center gap-4 text-[12px] text-dim"><span>↑↓ 选择</span><span>↵ 确认</span><span>Esc 关闭</span></div>
+          <div className="border-t border-line px-5 h-11 flex items-center gap-4 text-[12px] text-dim"><span>{L("↑↓ 选择")}</span><span>{L("↵ 确认")}</span><span>{L("Esc 关闭")}</span></div>
         </>}
         {step !== 'pick' && !showWebhook && <Placement projectId={projectId} value={serverId} onChange={setServerId} />}
         {step === 'image' && <ImageForm projectId={projectId} serverId={serverId} onDone={done} onWebhook={() => setShowWebhook(true)} />}
@@ -118,7 +118,7 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
     const place = serverId ? { server_id: serverId } : {}
     const s = source === 'image'
       ? await run(() => api.createService(projectId, { name: name || auto, kind: 'image', image: image.includes(':') || image.includes('@') ? image.trim() : `${image.trim()}:latest`, volumes: [], ports, ...place }),
-        { ok: '服务已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
+        { ok: L("服务已创建，正在部署"), invalidate: [`project:${projectId}`, 'projects'] })
       : await run(() => api.createService(projectId, { name: name || auto, kind: 'image', git: gitBody(git) as GitSource, volumes: [], ports, ...place }),
         { ok: t('服务已创建，正在构建', 'Service created, building'), invalidate: [`project:${projectId}`, 'projects'] })
     setBusy(false)
@@ -137,17 +137,17 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
     <div className="p-5">
       <div className="mb-4"><SourceToggle value={source} onChange={setSource} /></div>
       {source === 'image'
-        ? <Label t="镜像" d="例如 ghcr.io/me/app:v1；不写标签时使用 latest"><TextInput autoFocus mono className="w-full" placeholder="ghcr.io/owner/image:tag" value={image} onChange={e => setImage(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Label>
+        ? <Label t={L("镜像")} d={L("例如 ghcr.io/me/app:v1；不写标签时使用 latest")}><TextInput autoFocus mono className="w-full" placeholder="ghcr.io/owner/image:tag" value={image} onChange={e => setImage(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Label>
         : <GitFields f={git} set={setGit} autoFocus />}
-      <Label t="服务名称" d="也是项目内网的主机名"><TextInput className="w-full" placeholder={auto || 'my-service'} value={name} onChange={e => setName(e.target.value)} /></Label>
+      <Label t={L("服务名称")} d={L("也是项目内网的主机名")}><TextInput className="w-full" placeholder={auto || 'my-service'} value={name} onChange={e => setName(e.target.value)} /></Label>
       <div className="grid grid-cols-2 gap-4">
-        <Label t="容器端口"><TextInput mono className="w-full" value={port} onChange={e => setPort(e.target.value.replace(/\D/g, ''))} placeholder="留空表示不暴露" /></Label>
-        <Label t="协议"><Select className="w-full" value={proto} onChange={e => setProto(e.target.value)}><option value="http">HTTP（可绑定域名）</option><option value="tcp">TCP</option><option value="udp">UDP</option></Select></Label>
+        <Label t={L("容器端口")}><TextInput mono className="w-full" value={port} onChange={e => setPort(e.target.value.replace(/\D/g, ''))} placeholder={L("留空表示不暴露")} /></Label>
+        <Label t={L("协议")}><Select className="w-full" value={proto} onChange={e => setProto(e.target.value)}><option value="http">{L("HTTP（可绑定域名）")}</option><option value="tcp">TCP</option><option value="udp">UDP</option></Select></Label>
       </div>
       {source === 'git' && <div className="text-[12px] text-dim -mt-1 mb-3">{t('在服务所在的服务器上执行 docker build，需要仓库里有 Dockerfile（不支持自动识别）。', "Runs docker build on the service's server; the repo needs a Dockerfile (no auto-detection).")}</div>}
       <div className="flex items-center justify-end gap-2 mt-2">
         {source === 'git' && git.repo && gitErr && <span className="mr-auto text-[12.5px] text-[#ef4444]">{gitErr}</span>}
-        <Button variant="primary" disabled={!ready || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}{source === 'git' ? t('构建并部署', 'Build and deploy') : '部署'}</Button>
+        <Button variant="primary" disabled={!ready || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}{source === 'git' ? t('构建并部署', 'Build and deploy') : L("部署")}</Button>
       </div>
     </div>
   )
@@ -158,7 +158,7 @@ function DbPicker({ projectId, serverId, onDone }: { projectId: string; serverId
   const [busy, setBusy] = useState<string>()
   const create = async (kind: string) => {
     setBusy(kind)
-    const s = await run(() => api.createService(projectId, { name: kind === 'postgres' ? 'postgresql' : kind === 'mongo' ? 'mongodb' : kind, kind, ...(serverId ? { server_id: serverId } : {}) }), { ok: '数据库已创建，正在部署', invalidate: [`project:${projectId}`, 'projects'] })
+    const s = await run(() => api.createService(projectId, { name: kind === 'postgres' ? 'postgresql' : kind === 'mongo' ? 'mongodb' : kind, kind, ...(serverId ? { server_id: serverId } : {}) }), { ok: L("数据库已创建，正在部署"), invalidate: [`project:${projectId}`, 'projects'] })
     setBusy(undefined); onDone(s)
   }
   return (
@@ -168,7 +168,7 @@ function DbPicker({ projectId, serverId, onDone }: { projectId: string; serverId
       {t.data?.map(x => (
         <button key={x.kind} disabled={!!busy} onClick={() => create(x.kind)} className="w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl hover:bg-ov/[0.06]">
           <ServiceIcon s={{ kind: x.kind, letter: x.name[0] }} size={40} />
-          <div className="flex-1"><div className="text-[14px] font-semibold">{x.name} <span className="font-mono text-[12px] text-dim font-normal ml-1">{x.image}</span></div><div className="text-[13px] text-muted mt-0.5">{x.description ?? '自动生成密码与连接变量'}</div></div>
+          <div className="flex-1"><div className="text-[14px] font-semibold">{x.name} <span className="font-mono text-[12px] text-dim font-normal ml-1">{x.image}</span></div><div className="text-[13px] text-muted mt-0.5">{x.description ?? L("自动生成密码与连接变量")}</div></div>
           {busy === x.kind ? <Loader2 size={17} className="animate-spin text-muted" /> : <ChevronRight size={17} className="text-dim" />}
         </button>
       ))}

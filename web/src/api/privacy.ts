@@ -24,7 +24,7 @@ const V4 = /\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b/g
 // four or more colon-separated hex groups, or a "::" form (so times like 12:30:45 stay as they are)
 const V6 = /\b(?:[0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:)+:(?:[0-9a-fA-F]{1,4}:?)*/g
 
-/** maskIPs keeps the first two parts of each address: 198.51.100.22 → 203.0.•.•, 2001:db8:1::5 → 2001:db8:•••. */
+/** maskIPs keeps the first two parts of each address: 198.51.100.22 → 198.51.•.•, 2001:db8:1::5 → 2001:db8:•••. */
 export function maskIPs(s: string): string {
   return s
     .replace(V4, (_m, a, b) => `${a}.${b}.•.•`)

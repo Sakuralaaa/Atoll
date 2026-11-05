@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useState } from 'react'
 import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -22,7 +23,7 @@ export default function Settings() {
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">设置</h1>
+        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("设置")}</h1>
         <SettingsTabs />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
@@ -56,7 +57,7 @@ function Field({ t, d, children, right }: { t: string; d?: React.ReactNode; chil
     </div>
   )
 }
-const Saved = ({ on }: { on: boolean }) => on ? <Badge tone="green"><Check size={11} strokeWidth={3} />已保存</Badge> : <Badge tone="zinc">未设置</Badge>
+const Saved = ({ on }: { on: boolean }) => on ? <Badge tone="green"><Check size={11} strokeWidth={3} />{L("已保存")}</Badge> : <Badge tone="zinc">{L("未设置")}</Badge>
 
 function Form({ s }: { s: S }) {
   const [v, setV] = useState({ cloudflare_zone_id: s.cloudflare_zone_id, tls_mode: s.tls_mode || 'cloudflare-origin', public_url: s.public_url, acme_email: s.acme_email ?? '' })
@@ -71,50 +72,50 @@ function Form({ s }: { s: S }) {
     const body: Partial<S> = { ...v, base_domain: s.base_domain, public_url: v.public_url.trim().replace(/\/$/, '') }
     if (token.trim()) body.cloudflare_token = token.trim()
     if (cert.trim() && key.trim()) { body.origin_cert_pem = cert.trim() + '\n'; body.origin_key_pem = key.trim() + '\n' }
-    const r = await run(() => api.putSettings(body), { ok: '设置已保存', invalidate: ['settings', 'domains'] })
+    const r = await run(() => api.putSettings(body), { ok: L("设置已保存"), invalidate: ['settings', 'domains'] })
     if (r) { setToken(''); setCert(''); setKey('') }
   })
   const area = 'w-full rounded-lg field px-3.5 py-3 font-mono text-[12px] leading-5 outline-none text-fg placeholder:text-dim resize-y'
   return (
     <>
-      <Section icon={<Link2 size={17} />} t="面板">
-        <Field t="面板地址" d="Agent 和 CLI 用它连回中控">
+      <Section icon={<Link2 size={17} />} t={L("面板")}>
+        <Field t={L("面板地址")} d={L("Agent 和 CLI 用它连回中控")}>
           <TextInput mono className="w-full" value={v.public_url} onChange={set('public_url')} placeholder="https://panel.example.com" />
         </Field>
       </Section>
-      <Section icon={<Globe size={17} />} t="Cloudflare" d="服务绑定根域名下的域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限；要给根域名自动签 Origin 证书，再加 SSL and Certificates 编辑权限。">
-        <Field t="Zone ID" d="可选：默认根域名的 Zone，留空则按域名自动查找">
-          <TextInput mono className="w-full" value={v.cloudflare_zone_id} onChange={set('cloudflare_zone_id')} placeholder="32 位十六进制" />
+      <Section icon={<Globe size={17} />} t="Cloudflare" d={L("服务绑定根域名下的域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限；要给根域名自动签 Origin 证书，再加 SSL and Certificates 编辑权限。")}>
+        <Field t="Zone ID" d={L("可选：默认根域名的 Zone，留空则按域名自动查找")}>
+          <TextInput mono className="w-full" value={v.cloudflare_zone_id} onChange={set('cloudflare_zone_id')} placeholder={L("32 位十六进制")} />
         </Field>
-        <Field t="API 令牌" right={<Saved on={s.has_cloudflare_token} />}>
-          <TextInput mono type="password" autoComplete="off" className="w-full" value={token} onChange={e => setToken(e.target.value)} placeholder={s.has_cloudflare_token ? '已设置，留空保持不变' : '粘贴 Cloudflare API 令牌'} />
+        <Field t={L("API 令牌")} right={<Saved on={s.has_cloudflare_token} />}>
+          <TextInput mono type="password" autoComplete="off" className="w-full" value={token} onChange={e => setToken(e.target.value)} placeholder={s.has_cloudflare_token ? L("已设置，留空保持不变") : L("粘贴 Cloudflare API 令牌")} />
         </Field>
       </Section>
-      <Section icon={<ShieldCheck size={17} />} t="HTTPS 证书" d="全局证书设置：证书模式为「跟随全局」的根域名和不在任何根域名下的域名用它。Cloudflare 代理模式推荐用 Origin CA 证书（15 年有效，推送到每台服务器的 atoll-caddy）；不走代理时用 ACME 自动签发。">
-        <Field t="证书模式">
+      <Section icon={<ShieldCheck size={17} />} t={L("HTTPS 证书")} d={L("全局证书设置：证书模式为「跟随全局」的根域名和不在任何根域名下的域名用它。Cloudflare 代理模式推荐用 Origin CA 证书（15 年有效，推送到每台服务器的 atoll-caddy）；不走代理时用 ACME 自动签发。")}>
+        <Field t={L("证书模式")}>
           <Select className="w-full" value={v.tls_mode} onChange={set('tls_mode')}>
             <option value="cloudflare-origin">Cloudflare Origin CA</option>
-            <option value="acme">ACME（Let's Encrypt）</option>
+            <option value="acme">{L("ACME（Let's Encrypt）")}</option>
           </Select>
         </Field>
         {v.tls_mode === 'acme' ? (
-          <Field t="ACME 邮箱" d="证书到期提醒发到这里">
+          <Field t={L("ACME 邮箱")} d={L("证书到期提醒发到这里")}>
             <TextInput className="w-full" type="email" value={v.acme_email} onChange={set('acme_email')} placeholder="you@example.com" />
           </Field>
         ) : <>
-          <Field t="Origin 证书" right={<Saved on={s.has_origin_cert} />} d="PEM 格式，Cloudflare → SSL/TLS → 源服务器 → 创建证书">
-            <textarea rows={4} className={area} value={cert} onChange={e => setCert(e.target.value)} placeholder={s.has_origin_cert ? '已设置，留空保持不变' : '-----BEGIN CERTIFICATE-----'} spellCheck={false} />
+          <Field t={L("Origin 证书")} right={<Saved on={s.has_origin_cert} />} d={L("PEM 格式，Cloudflare → SSL/TLS → 源服务器 → 创建证书")}>
+            <textarea rows={4} className={area} value={cert} onChange={e => setCert(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN CERTIFICATE-----'} spellCheck={false} />
           </Field>
-          <Field t="私钥" right={<KeyRound size={13} className="text-muted" />}>
-            <textarea rows={4} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? '已设置，留空保持不变' : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
-            {!certPair && <div className="text-[12px] text-[#ef4444] mt-1.5">证书和私钥需要一起填写</div>}
-            {certPair && !certLooksOk && <div className="text-[12px] text-[#ef4444] mt-1.5">看起来不是 PEM 格式</div>}
+          <Field t={L("私钥")} right={<KeyRound size={13} className="text-muted" />}>
+            <textarea rows={4} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
+            {!certPair && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("证书和私钥需要一起填写")}</div>}
+            {certPair && !certLooksOk && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("看起来不是 PEM 格式")}</div>}
           </Field>
         </>}
       </Section>
       <div className={cx('flex flex-wrap items-center justify-end gap-3', changed && 'sticky bottom-6')}>
-        {changed && <span className="text-[12.5px] text-muted">有未保存的修改</span>}
-        <Button variant="primary" size="sm" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}保存</Button>
+        {changed && <span className="text-[12.5px] text-muted">{L("有未保存的修改")}</span>}
+        <Button variant="primary" size="sm" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{L("保存")}</Button>
       </div>
     </>
   )

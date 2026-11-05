@@ -7,7 +7,7 @@ import { Modal } from './feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { NetworkResult, Server, ServerNetworkRequest } from '../api/types'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { onTailnet } from './net'
 
 /** 内网 / 公网 badge for the agent's management channel. */
@@ -48,7 +48,7 @@ export function ServerNetworkAction({ s }: { s: Server }) {
       </div>
       {ask && <Modal title={<><Network size={17} />{label}</>} onClose={() => !busy && setAsk(undefined)}
         footer={<><Button size="sm" disabled={busy} onClick={() => setAsk(undefined)}>{t('取消', 'Cancel')}</Button><Button size="sm" variant="primary" disabled={busy} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{label}</Button></>}>
-        <div className="text-[13.5px] text-fg2 leading-6"><b>{s.name}</b>：{desc}</div>
+        <div className="text-[13.5px] text-fg2 leading-6"><b>{s.name}</b>{L("：")}{desc}</div>
       </Modal>}
       {res && <Modal title={<><Network size={17} />{res.switched ? t('已切换', 'Switched') : t('未切换', 'Not switched')}</>} onClose={() => setRes(undefined)} footer={<Button size="sm" variant="primary" onClick={() => setRes(undefined)}>{t('好', 'OK')}</Button>}>
         <div className="space-y-2 text-[13px]">

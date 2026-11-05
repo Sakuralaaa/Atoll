@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useCallback, useState } from 'react'
 import { ReauthDialog } from './Reauth'
 import { toast } from './toast'
@@ -20,7 +21,7 @@ export function useReauth() {
         const err = x as ApiError
         if (err.status === 401 && err.code === 'reauth_required' && attempt === 0) { setUntil(0); continue }
         if (o.rethrow) throw err
-        toast(err.message || '操作失败', 'error'); return undefined
+        toast(err.message || L("操作失败"), 'error'); return undefined
       }
     }
     return undefined

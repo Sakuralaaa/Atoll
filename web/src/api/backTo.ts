@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
 
@@ -71,9 +72,9 @@ export function backTo(scope: string, fallback: string): string {
 export function backLabel(path: string, names: { server?: (id: string) => string | undefined; project?: (id: string) => string | undefined } = {}): string {
   const [p, q = ''] = path.split('?')
   const grouped = p === '/' && new URLSearchParams(q).get('server') // 我的项目 narrowed to one machine
-  if (grouped) return (grouped !== '_' && names.server?.(grouped)) || '项目'
+  if (grouped) return (grouped !== '_' && names.server?.(grouped)) || L("项目")
   const m = p.match(/^\/(projects|servers)\/([^/]+)/)
-  if (m) return (m[1] === 'servers' ? names.server?.(m[2]) : names.project?.(m[2])) ?? (m[1] === 'servers' ? '服务器' : '项目')
-  const top: Record<string, string> = { '/': '项目', '/servers': '服务器', '/control': '中控', '/domains': '域名', '/developer': '连接', '/confirmations': '审批', '/import': '迁移', '/settings': '设置' }
-  return top[p] ?? (p.startsWith('/settings') ? '设置' : p.startsWith('/import') ? '迁移' : '返回')
+  if (m) return (m[1] === 'servers' ? names.server?.(m[2]) : names.project?.(m[2])) ?? (m[1] === 'servers' ? L("服务器") : L("项目"))
+  const top: Record<string, string> = { '/': L("项目"), '/servers': L("服务器"), '/control': L("中控"), '/domains': L("域名"), '/developer': L("连接"), '/confirmations': L("审批"), '/import': L("迁移"), '/settings': L("设置") }
+  return top[p] ?? (p.startsWith('/settings') ? L("设置") : p.startsWith('/import') ? L("迁移") : L("返回"))
 }

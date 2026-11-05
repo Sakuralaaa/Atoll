@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { api } from './client'
 import { useQuery } from './hooks'
 import { toast } from '../components/toast'
@@ -15,7 +16,7 @@ export function useProjectPrefs() {
   const save = async (next: Partial<ProjectPrefs>) => {
     const before = prefs
     q.set({ ...prefs, ...next })
-    try { q.set(await api.setProjectPrefs(next)) } catch (e) { q.set(before); toast((e as Error).message || '保存失败', 'error') }
+    try { q.set(await api.setProjectPrefs(next)) } catch (e) { q.set(before); toast((e as Error).message || L("保存失败"), 'error') }
   }
   const isFav = (id: string) => prefs.favorites.includes(id)
   const isPinned = (id: string) => prefs.pinned.includes(id)

@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  简体中文 | <a href="./README.en.md">English</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Sakuralaaa/Atoll/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Sakuralaaa/Atoll?include_prereleases&label=release&color=8b5cf6" /></a>
   <a href="./go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
   <a href="./web/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>

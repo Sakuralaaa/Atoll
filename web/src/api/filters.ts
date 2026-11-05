@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useSearchParams } from 'react-router-dom'
 import type { Problem, Server, Service } from './types'
 import { needsAttention } from './view'
@@ -32,10 +33,10 @@ export const serviceHasProblem = (s: Service, problems: Problem[]) =>
 /** Service chips: 异常 / 运行中 / 已停止 / 部署中. */
 export function serviceFilters(problems: Problem[]): FilterDef<Service>[] {
   return [
-    { id: 'problem', zh: '异常', en: 'Problems', alert: true, test: s => serviceHasProblem(s, problems) },
-    { id: 'running', zh: '运行中', en: 'Running', test: s => s.status === 'running' },
-    { id: 'stopped', zh: '已停止', en: 'Stopped', test: s => s.status === 'stopped' },
-    { id: 'deploying', zh: '部署中', en: 'Deploying', test: s => s.status === 'deploying' },
+    { id: 'problem', zh: L("异常"), en: 'Problems', alert: true, test: s => serviceHasProblem(s, problems) },
+    { id: 'running', zh: L("运行中"), en: 'Running', test: s => s.status === 'running' },
+    { id: 'stopped', zh: L("已停止"), en: 'Stopped', test: s => s.status === 'stopped' },
+    { id: 'deploying', zh: L("部署中"), en: 'Deploying', test: s => s.status === 'deploying' },
   ]
 }
 
@@ -51,8 +52,8 @@ export function projectFilters<P extends { id: string; services?: Service[] }>(p
 export function serverFilters(problems: Problem[]): FilterDef<Server>[] {
   const firing = (s: Server) => problems.some(p => (p.kind === 'node_offline' || p.kind === 'disk_high') && (p.subject_id === s.id || p.server_id === s.id))
   return [
-    { id: 'online', zh: '在线', en: 'Online', test: s => s.status === 'online' },
-    { id: 'offline', zh: '离线', en: 'Offline', test: s => s.status === 'offline' },
-    { id: 'problem', zh: '异常', en: 'Problems', alert: true, test: s => firing(s) || needsAttention(s) },
+    { id: 'online', zh: L("在线"), en: 'Online', test: s => s.status === 'online' },
+    { id: 'offline', zh: L("离线"), en: 'Offline', test: s => s.status === 'offline' },
+    { id: 'problem', zh: L("异常"), en: 'Problems', alert: true, test: s => firing(s) || needsAttention(s) },
   ]
 }

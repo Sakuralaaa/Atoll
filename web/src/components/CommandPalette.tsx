@@ -1,3 +1,4 @@
+import { L } from '../i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMask } from '../api/privacy'
 import { svcName, projName } from '../api/view'
@@ -13,8 +14,8 @@ import { OPEN_PALETTE, score } from './palette'
 type Item = { id: string; group: string; label: string; hint?: string; icon: React.ReactNode; to?: string; restart?: { id: string; name: string } }
 
 const pages: [string, string][] = [
-  ['/', '项目'], ['/servers', '服务器'], ['/control', '中控'], ['/domains', '域名'], ['/developer', '连接'],
-  ['/confirmations', '审批'], ['/import', '迁移'], ['/settings', '设置'], ['/settings/security', '账户与安全'],
+  ['/', L("项目")], ['/servers', L("服务器")], ['/control', L("中控")], ['/domains', L("域名")], ['/developer', L("连接")],
+  ['/confirmations', L("审批")], ['/import', L("迁移")], ['/settings', L("设置")], ['/settings/security', L("账户与安全")],
 ]
 
 export function CommandPalette() {
@@ -44,22 +45,22 @@ function Palette({ onClose }: { onClose: () => void }) {
   const list = useRef<HTMLDivElement>(null)
 
   const items = useMemo(() => {
-    const out: Item[] = pages.map(([to, l]) => ({ id: `page:${to}`, group: '页面', label: l, icon: <ArrowRight size={15} />, to }))
+    const out: Item[] = pages.map(([to, l]) => ({ id: `page:${to}`, group: L("页面"), label: l, icon: <ArrowRight size={15} />, to }))
     const svcPath = new Map<string, { path: string; name: string }>()
     for (const p of projects ?? []) {
-      out.push({ id: `p:${p.id}`, group: '项目', label: projName(p), icon: <Package size={15} />, to: `/projects/${p.id}` })
+      out.push({ id: `p:${p.id}`, group: L("项目"), label: projName(p), icon: <Package size={15} />, to: `/projects/${p.id}` })
       for (const s of p.services ?? []) {
         const path = `/projects/${p.id}/services/${s.id}`
         svcPath.set(s.id, { path, name: s.name })
-        out.push({ id: `s:${s.id}`, group: '服务', label: svcName(s), hint: s.display_name ? `${p.name} · ${s.name}` : p.name, icon: <Box size={15} />, to: path })
-        out.push({ id: `l:${s.id}`, group: '操作', label: `查看日志 ${svcName(s)}`, hint: p.name, icon: <ScrollText size={15} />, to: `${path}/logs` })
-        out.push({ id: `r:${s.id}`, group: '操作', label: `重新启动 ${svcName(s)}`, hint: p.name, icon: <RotateCw size={15} />, restart: { id: s.id, name: svcName(s) } })
+        out.push({ id: `s:${s.id}`, group: L("服务"), label: svcName(s), hint: s.display_name ? `${p.name} · ${s.name}` : p.name, icon: <Box size={15} />, to: path })
+        out.push({ id: `l:${s.id}`, group: L("操作"), label: L("查看日志 {0}", svcName(s)), hint: p.name, icon: <ScrollText size={15} />, to: `${path}/logs` })
+        out.push({ id: `r:${s.id}`, group: L("操作"), label: L("重新启动 {0}", svcName(s)), hint: p.name, icon: <RotateCw size={15} />, restart: { id: s.id, name: svcName(s) } })
       }
     }
-    for (const s of servers ?? []) if (s.role !== 'control') out.push({ id: `srv:${s.id}`, group: '服务器', label: s.name, hint: s.public_ipv4, icon: <Server size={15} />, to: `/servers/${s.id}` })
+    for (const s of servers ?? []) if (s.role !== 'control') out.push({ id: `srv:${s.id}`, group: L("服务器"), label: s.name, hint: s.public_ipv4, icon: <Server size={15} />, to: `/servers/${s.id}` })
     for (const d of domains ?? []) {
       const s = svcPath.get(d.service_id)
-      out.push({ id: `d:${d.id}`, group: '域名', label: d.hostname, hint: s?.name, icon: <Globe size={15} />, to: s?.path ?? '/domains' })
+      out.push({ id: `d:${d.id}`, group: L("域名"), label: d.hostname, hint: s?.name, icon: <Globe size={15} />, to: s?.path ?? '/domains' })
     }
     return out
   }, [projects, servers, domains])
@@ -90,21 +91,21 @@ function Palette({ onClose }: { onClose: () => void }) {
     else if (e.key === 'Escape') onClose()
   }
 
-  if (restart) return <ConfirmDialog title="重新启动服务" action="重新启动" danger={false} onClose={onClose}
-    description={<>重启 {restart.name} 的容器，期间会短暂不可访问。</>}
-    onConfirm={() => run(() => api.action(restart.id, 'restart'), { ok: '正在重新启动', invalidate: [`deployments:${restart.id}`] })} />
+  if (restart) return <ConfirmDialog title={L("重新启动服务")} action={L("重新启动")} danger={false} onClose={onClose}
+    description={<>{L("重启")} {restart.name} {L("的容器，期间会短暂不可访问。")}</>}
+    onConfirm={() => run(() => api.action(restart.id, 'restart'), { ok: L("正在重新启动"), invalidate: [`deployments:${restart.id}`] })} />
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/65 flex items-start justify-center pt-[12vh]" onClick={onClose}>
-      <div role="dialog" aria-label="命令面板" className="rise surface bg-pop w-[600px] max-w-[calc(100vw-32px)] overflow-hidden flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
+      <div role="dialog" aria-label={L("命令面板")} className="rise surface bg-pop w-[600px] max-w-[calc(100vw-32px)] overflow-hidden flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-4 h-14 border-b-2 border-[var(--edge)] shrink-0">
           <Search size={17} className="text-muted" />
-          <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} onKeyDown={key} placeholder="搜索项目、服务、服务器、域名或操作…"
+          <input autoFocus value={q} onChange={e => { setQ(e.target.value); setSel(0) }} onKeyDown={key} placeholder={L("搜索项目、服务、服务器、域名或操作…")}
             className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-dim" />
           <span className="text-[11px] rounded border border-line2 px-1.5 py-0.5 text-dim">Esc</span>
         </div>
         <div ref={list} className="overflow-auto p-2">
-          {!shown.length && <div className="px-3 py-8 text-center text-[13px] text-dim">{projects ? '没有匹配的结果' : '正在加载…'}</div>}
+          {!shown.length && <div className="px-3 py-8 text-center text-[13px] text-dim">{projects ? L("没有匹配的结果") : L("正在加载…")}</div>}
           {shown.map((x, i) => {
             const head = x.group !== shown[i - 1]?.group
             return (

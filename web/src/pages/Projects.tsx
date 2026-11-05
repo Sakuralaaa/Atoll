@@ -17,7 +17,7 @@ import { FilterChips } from '../components/StatusFilter'
 import { projectFilters, useStatusFilter, type FilterDef } from '../api/filters'
 import { pinnedFirst, useProjectPrefs } from '../api/prefs'
 import { PinControls, StarButton } from '../components/ProjectPrefs'
-import { useT } from '../i18n'
+import { L, useT } from '../i18n'
 import { ServerGroupCards } from '../components/ServerGroups'
 import { groupByServer } from '../api/groups'
 import { providerOf } from '../api/providers'
@@ -37,7 +37,7 @@ export default function Projects() {
   // pinned projects always come first (in their pinned order), then the rest
   const all = pinnedFirst((q.data ?? []).slice().sort((a, b) => sort ? projName(a).localeCompare(projName(b)) : 0), prefs.prefs.pinned)
   const problems = (useProblems().data ?? []).filter(p => !p.resolved_at)
-  const defs: FilterDef<Project>[] = [{ id: 'fav', zh: '收藏', en: 'Favorites', test: p => prefs.isFav(p.id) }, ...projectFilters<Project>(problems)]
+  const defs: FilterDef<Project>[] = [{ id: 'fav', zh: L("收藏"), en: 'Favorites', test: p => prefs.isFav(p.id) }, ...projectFilters<Project>(problems)]
   const [sp, setSp] = useSearchParams()
   const sel = sp.get('server') // '_' = projects whose machine is unknown
   // one card per project by default; grouping by machine is opt-in (v0.1.27)
@@ -62,15 +62,15 @@ export default function Projects() {
             <button onClick={back} title={t('全部机器', 'All machines')} className="h-11 w-11 -ml-2 grid place-items-center text-fg2 shrink-0"><ArrowLeft size={18} /></button>
             <div className="min-w-0"><div className="text-[12px] text-muted">{t('我的项目', 'My projects')}</div>
               <h1 className="text-[22px] font-extrabold italic tracking-[-0.03em] truncate">{selServer?.name ?? t('未知机器', 'Unknown machine')}</h1></div>
-          </div> : <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">我的项目</h1>}
+          </div> : <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("我的项目")}</h1>}
           <div className="flex items-center gap-3">
             {!sel && machines > 1 && <button onClick={() => setGrouped(!grouped)} title={t('按机器分组', 'Group by machine')} className={cx('h-11 w-11 grid place-items-center', grouped ? 'text-accent' : 'text-fg2')}><ServerIcon size={18} /></button>}
-            <button onClick={() => setSort(v => !v)} title="按名称排序" className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
+            <button onClick={() => setSort(v => !v)} title={L("按名称排序")} className={cx('h-11 w-11 grid place-items-center', sort ? 'text-accent' : 'text-fg2')}><ArrowUpDown size={18} /></button>
             <div className="flex rounded-lg field p-0.5">
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
               <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
             </div>
-            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>创建项目</Button>
+            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>{L("创建项目")}</Button>
           </div>
         </div>
         <ProblemsBanner scope="projects" />
@@ -79,8 +79,8 @@ export default function Projects() {
         {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
         {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的项目`, `No projects match “${f.def.en}”`)}
           desc={f.def.id === 'fav' ? t('点项目卡片右上角的星标即可收藏，收藏会同步到你的所有设备。', 'Star a project (top right of its card) to add it here; favorites sync across your devices.') : t('项目里任一服务符合条件即会列出。', 'A project is listed when any of its services matches.')} action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
-        {q.data && !all.length && <Empty icon={<Package size={22} />} title="还没有项目" desc="项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。"
-          action={<div className="flex gap-2"><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />创建项目</Button><Link to="/import"><Button>从 Zeabur 迁移</Button></Link></div>} />}
+        {q.data && !all.length && <Empty icon={<Package size={22} />} title={L("还没有项目")} desc={L("项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。")}
+          action={<div className="flex gap-2"><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />{L("创建项目")}</Button><Link to="/import"><Button>{L("从 Zeabur 迁移")}</Button></Link></div>} />}
         {showGroups && pinned.length > 0 && <>
           <SectionLabel icon={<Pin size={12} />} text={t('置顶', 'Pinned')} />
           <ProjectGrid list={pinned} listView={listView} className="mb-7" {...cardProps} />
@@ -162,18 +162,18 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
   const submit = async () => {
     if (!name.trim() || !server) return
     setBusy(true)
-    const p = await run(() => api.createProject({ name: name.trim(), server_id: server, description: desc || undefined }), { ok: '项目已创建', invalidate: ['projects'] })
+    const p = await run(() => api.createProject({ name: name.trim(), server_id: server, description: desc || undefined }), { ok: L("项目已创建"), invalidate: ['projects'] })
     setBusy(false)
     if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
   }
   return (
-    <Modal title="创建项目" onClose={onClose} footer={<><Button size="sm" onClick={onClose}>取消</Button><Button size="sm" variant="primary" disabled={!name.trim() || !server || busy} onClick={submit}>创建</Button></>}>
-      <Label t="项目名称"><TextInput autoFocus className="w-full" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="my-app" /></Label>
-      <Label t="运行服务器" d="同一项目的服务都部署在这台服务器上，之后可以整体迁移">
-        {servers.length ? <Select className="w-full" value={server} onChange={e => setSid(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}{s.status !== 'online' ? '（离线）' : ''}</option>)}</Select>
-          : <div className="text-[13px] text-muted">还没有可用的服务器，请先到「服务器」页添加。</div>}
+    <Modal title={L("创建项目")} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!name.trim() || !server || busy} onClick={submit}>{L("创建")}</Button></>}>
+      <Label t={L("项目名称")}><TextInput autoFocus className="w-full" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="my-app" /></Label>
+      <Label t={L("运行服务器")} d={L("同一项目的服务都部署在这台服务器上，之后可以整体迁移")}>
+        {servers.length ? <Select className="w-full" value={server} onChange={e => setSid(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}{s.status !== 'online' ? L("（离线）") : ''}</option>)}</Select>
+          : <div className="text-[13px] text-muted">{L("还没有可用的服务器，请先到「服务器」页添加。")}</div>}
       </Label>
-      <Label t="描述（可选）"><TextInput className="w-full" value={desc} onChange={e => setDesc(e.target.value)} /></Label>
+      <Label t={L("描述（可选）")}><TextInput className="w-full" value={desc} onChange={e => setDesc(e.target.value)} /></Label>
     </Modal>
   )
 }
