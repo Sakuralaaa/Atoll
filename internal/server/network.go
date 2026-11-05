@@ -46,7 +46,9 @@ type netState struct {
 	opts       NetOptions
 	listenAddr string
 	listenErr  string
-	meshMu     sync.Mutex
+	meshMu     sync.Mutex        // serializes mesh planning (port allocation); never held across agent calls
+	pushMu     sync.Mutex        // one mesh push at a time, so an older payload never lands after a newer one
+	lastMu     sync.Mutex        // guards lastMesh only; taken briefly, also on the agent connect path
 	lastMesh   map[string]string // node -> hash of the last mesh sent
 }
 

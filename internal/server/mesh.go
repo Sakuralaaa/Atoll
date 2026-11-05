@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/Sakuralaaa/Atoll/internal/agent/tailnet"
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -120,11 +121,18 @@ func (s *Server) meshPlan(ctx context.Context) (map[string]*api.MeshPayload, []s
 // pushMeshAll recomputes the mesh and sends every connected node its payload when it changed
 // since the last successful push to that node (agents persist it, so this is not needed for
 // them to keep working while the control server is down).
+//
+// meshMu only covers planning. The agent calls happen after it is released and in parallel:
+// holding it across a call (up to 2x the request timeout) used to block reconnecting agents
+// (forgetMesh runs before their read loop), so their pongs went unread and they were dropped,
+// which reconnected them and started another push.
 func (s *Server) pushMeshAll(ctx context.Context) {
 	n := s.netst()
+	n.pushMu.Lock()
+	defer n.pushMu.Unlock()
 	n.meshMu.Lock()
-	defer n.meshMu.Unlock()
 	plan, warnings, err := s.meshPlan(ctx)
+	n.meshMu.Unlock()
 	if err != nil {
 		s.log.Error("mesh plan", "err", err)
 		return
@@ -137,6 +145,7 @@ func (s *Server) pushMeshAll(ctx context.Context) {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
+	var wg sync.WaitGroup
 	for _, id := range ids {
 		if !s.hub.Online(id) {
 			continue
@@ -145,26 +154,39 @@ func (s *Server) pushMeshAll(ctx context.Context) {
 		b, _ := json.Marshal(p)
 		sum := sha256.Sum256(b)
 		h := hex.EncodeToString(sum[:])
-		if n.lastMesh[id] == h {
+		n.lastMu.Lock()
+		same := n.lastMesh[id] == h
+		n.lastMu.Unlock()
+		if same {
 			continue
 		}
-		if _, err := s.hub.Call(ctx, id, api.MsgMesh, p, 2*s.cfg.RequestTimeout); err != nil {
-			s.log.Warn("mesh push", "node", id, "err", err)
-			if len(p.Exports)+len(p.Imports) == 0 {
-				n.lastMesh[id] = h // old agents without mesh support: do not retry empty payloads
+		wg.Add(1)
+		go func(id string, p *api.MeshPayload, h string) {
+			defer wg.Done()
+			if _, err := s.hub.Call(ctx, id, api.MsgMesh, p, 2*s.cfg.RequestTimeout); err != nil {
+				s.log.Warn("mesh push", "node", id, "err", err)
+				if len(p.Exports)+len(p.Imports) == 0 {
+					n.lastMu.Lock()
+					n.lastMesh[id] = h // old agents without mesh support: do not retry empty payloads
+					n.lastMu.Unlock()
+				}
+				return
 			}
-			continue
-		}
-		n.lastMesh[id] = h
+			n.lastMu.Lock()
+			n.lastMesh[id] = h
+			n.lastMu.Unlock()
+		}(id, p, h)
 	}
+	wg.Wait()
 }
 
 // forgetMesh makes the next pushMeshAll resend to nodeID (after it reconnected).
+// It runs on the agent connect path, so it must never wait on a mesh push.
 func (s *Server) forgetMesh(nodeID string) {
 	n := s.netst()
-	n.meshMu.Lock()
+	n.lastMu.Lock()
 	delete(n.lastMesh, nodeID)
-	n.meshMu.Unlock()
+	n.lastMu.Unlock()
 }
 
 // MeshPlan exposes the plan to tests.
