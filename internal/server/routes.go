@@ -66,6 +66,8 @@ func (s *Server) Handler() http.Handler {
 	a("POST "+v+"/projects", needDeployGlobal, s.handleCreateProject)
 	a("GET "+v+"/me/project-prefs", needReadList, s.handleGetProjectPrefs)
 	a("PUT "+v+"/me/project-prefs", needReadList, s.handlePutProjectPrefs)
+	a("PUT "+v+"/me/avatar", lvlSession, s.handlePutAvatar)
+	a("PUT "+v+"/me/nav-order", needReadList, s.handlePutNavOrder)
 	a("GET "+v+"/projects/{id}", lvlRead, s.handleGetProject)
 	a("PATCH "+v+"/projects/{id}", lvlDeploy, s.handlePatchProject)
 	a("DELETE "+v+"/projects/{id}", needDelete, s.handleDeleteProject)

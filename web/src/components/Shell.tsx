@@ -20,17 +20,53 @@ import { useFiringProblems } from '../api/problems'
 import { providerOf } from '../api/providers'
 import { openPalette } from './palette'
 import { SortableList } from './Sortable'
+import { toast } from './toast'
 import { BACK, backLabel, backTo } from '../api/backTo'
 
 const useMe = () => useQuery('me', api.me)
 const useServers = () => useQuery('servers', api.servers, { interval: 30000 })
 
-function Team() {
-  const me = useMe().data
+// Sidebar entries. Keys are stored per account (PUT /me/nav-order) when the user drags
+// them into another order; a key the account has not placed yet keeps its default spot.
+type NavDef = { key: string; to: string; icon: React.ReactNode; label: string }
+const NAV: NavDef[] = [
+  { key: 'projects', to: '/', icon: <Package size={16} />, label: '项目' },
+  { key: 'servers', to: '/servers', icon: <Server size={16} />, label: '服务器' },
+  { key: 'control', to: '/control', icon: <ServerCog size={16} />, label: '中控' },
+  { key: 'domains', to: '/domains', icon: <Globe size={16} />, label: '域名' },
+  { key: 'connect', to: '/developer', icon: <Terminal size={16} />, label: '连接' },
+  { key: 'approvals', to: '/confirmations', icon: <ShieldAlert size={16} />, label: '审批' },
+  { key: 'import', to: '/import', icon: <ArrowRightLeft size={16} />, label: '迁移' },
+  { key: 'settings', to: '/settings', icon: <SlidersHorizontal size={16} />, label: '设置' },
+]
+function orderedNav(saved?: string[]): NavDef[] {
+  if (!saved?.length) return NAV
+  const rank = new Map(saved.map((k, i) => [k, i]))
+  return NAV.map((d, i) => [d, i] as const)
+    .sort(([a, i], [b, j]) => (rank.get(a.key) ?? (rank.size + i)) - (rank.get(b.key) ?? (rank.size + j)))
+    .map(([d]) => d)
+}
+
+function NavList({ pending }: { pending: number }) {
+  const q = useMe()
+  const items = orderedNav(q.data?.nav_order)
+  const reorder = async (keys: string[]) => {
+    const before = q.data
+    if (before) q.set({ ...before, nav_order: keys })
+    try { await api.setNavOrder(keys) } catch (e) { if (before) q.set(before); toast((e as Error).message || '保存失败', 'error') }
+  }
   return (
-    <div className="w-full flex items-center gap-2.5 h-11 px-2">
-      <Avatar size={28} name={me?.username} /><span className="text-[13.5px] font-semibold truncate">{me?.username ?? '…'}</span>
-    </div>
+    <nav className="mt-4 shrink-0">
+      <SortableList items={items} id={d => d.key} enabled={!!q.data} onReorder={reorder} className="flex flex-col gap-0.5"
+        render={(d, grip, dragging) => {
+          const badge = d.key === 'approvals' ? pending : 0
+          return <NavLink to={d.to} end={d.to === '/'} draggable={false} className={({ isActive }) => cx('group flex items-center gap-3 h-9 pl-3 pr-1.5 rounded-lg text-[13.5px] font-medium',
+            isActive || dragging ? 'nav-active text-fg' : 'text-fg2 hover:bg-ov/5')}>{d.icon}<span className="flex-1 min-w-0 truncate">{d.label}</span>
+            {!!badge && <span className="min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono not-italic grid place-items-center tnum">{badge}</span>}
+            <span className={cx('transition-opacity', dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>{grip}</span>
+          </NavLink>
+        }} />
+    </nav>
   )
 }
 /** zh / en switch (only some screens are translated so far). */
@@ -75,7 +111,7 @@ function UserRow() {
   return (
     <div ref={ref} className="relative flex items-center gap-2.5 px-1">
       <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} title="账户" className="flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-ov/5 -mx-1 px-1 py-0.5">
-        <span className="tile h-8 w-8 shrink-0 rounded-lg bg-[#fde047] grid place-items-center text-[13px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>
+        {me?.avatar ? <Avatar size={32} src={me.avatar} className="rounded-lg" /> : <span className="tile h-8 w-8 shrink-0 rounded-lg bg-[#fde047] grid place-items-center text-[13px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
         <span className="min-w-0 leading-tight text-left"><span className="block text-[13px] font-medium truncate">{me?.username ?? '…'}</span><span className="block text-[11.5px] text-dim">{isDemo() ? '演示模式' : '管理员'}</span></span>
       </button>
       <div className="ml-auto"><ThemeToggle /></div>
@@ -161,26 +197,11 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   const workers = (servers ?? []).filter(s => s.role !== 'control')
   const online = workers.filter(s => s.status === 'online').length
   const problems = useFiringProblems().length
-  const item = (to: string, icon: React.ReactNode, l: string, badge?: number) => (
-    <NavLink to={to} end={to === '/'} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13.5px] font-medium',
-      isActive ? 'nav-active text-fg' : 'text-fg2 hover:bg-ov/5')}>{icon}{l}
-      {!!badge && <span className="ml-auto min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono not-italic grid place-items-center tnum">{badge}</span>}</NavLink>
-  )
   return (
-    <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title="待确认">{pending}</Link>}</>} side={<>
+    <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title="审批">{pending}</Link>}</>} side={<>
         <Link to="/" className="px-2 mb-4 shrink-0"><Logo /></Link>
-        <Team />
-        <div className="mt-2 shrink-0"><SearchBox /></div>
-        <nav className="mt-4 flex flex-col gap-0.5 shrink-0">
-          {item('/', <Package size={16} />, '项目')}
-          {item('/servers', <Server size={16} />, '服务器')}
-          {item('/control', <ServerCog size={16} />, '中控')}
-          {item('/domains', <Globe size={16} />, '域名')}
-          {item('/developer', <Terminal size={16} />, 'CLI 与 API')}
-          {item('/confirmations', <ShieldAlert size={16} />, '待确认', pending)}
-          {item('/import', <ArrowRightLeft size={16} />, '从 Zeabur 迁移')}
-          {item('/settings', <SlidersHorizontal size={16} />, '设置')}
-        </nav>
+        <div className="shrink-0"><SearchBox /></div>
+        <NavList pending={pending} />
         <Favorites />
         <div className="shrink-0 pt-3 border-t border-line flex flex-col gap-2.5">
           {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} 个异常需要处理</span></Link>}

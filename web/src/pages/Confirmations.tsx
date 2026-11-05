@@ -19,7 +19,7 @@ const ACTION: Record<string, [string, LucideIcon]> = {
   'domain.delete': ['解绑域名', Globe],
   'domain.proxy': ['切换域名代理', Globe],
 }
-const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: ['已批准', 'green'], rejected: ['已拒绝', 'red'], expired: ['已过期', 'zinc'], pending: ['待确认', 'amber'] }
+const STATUS: Record<string, [string, 'green' | 'red' | 'zinc' | 'amber']> = { approved: ['已批准', 'green'], rejected: ['已拒绝', 'red'], expired: ['已过期', 'zinc'], pending: ['待审批', 'amber'] }
 const danger = (a: string) => a.endsWith('.delete')
 
 export default function Confirmations() {
@@ -29,11 +29,11 @@ export default function Confirmations() {
   return (
     <MainShell>
       <div className="max-w-[1100px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">待确认<Hint>CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。</Hint>{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
+        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-3">审批<Hint>CLI 和 AI agent 用 API 令牌发起的删除、迁移、改 DNS 操作不会直接执行，会停在这里等你批准。在面板里直接操作不需要确认。</Hint>{pending.length > 0 && <Badge tone="red">{pending.length}</Badge>}</h1>
         <div className="mb-6" />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
-        {q.data && !pending.length && <Empty icon={<ShieldCheck size={22} />} title="没有待确认的操作" desc="agent 发起破坏性操作时会出现在这里，侧栏会显示数量。" />}
+        {q.data && !pending.length && <Empty icon={<ShieldCheck size={22} />} title="没有待审批的操作" desc="agent 发起破坏性操作时会出现在这里，侧栏会显示数量。" />}
         <div className="space-y-4">{pending.map(c => <PendingCard key={c.id} c={c} />)}</div>
         {done.length > 0 && <>
           <div className="text-[13px] font-semibold mt-12 mb-3">历史</div>

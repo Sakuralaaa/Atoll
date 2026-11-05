@@ -13,8 +13,8 @@ import { OPEN_PALETTE, score } from './palette'
 type Item = { id: string; group: string; label: string; hint?: string; icon: React.ReactNode; to?: string; restart?: { id: string; name: string } }
 
 const pages: [string, string][] = [
-  ['/', '项目'], ['/servers', '服务器'], ['/control', '中控'], ['/domains', '域名'], ['/developer', 'CLI 与 API'],
-  ['/confirmations', '待确认'], ['/import', '从 Zeabur 迁移'], ['/settings', '设置'], ['/settings/security', '账户与安全'],
+  ['/', '项目'], ['/servers', '服务器'], ['/control', '中控'], ['/domains', '域名'], ['/developer', '连接'],
+  ['/confirmations', '审批'], ['/import', '迁移'], ['/settings', '设置'], ['/settings/security', '账户与安全'],
 ]
 
 export function CommandPalette() {

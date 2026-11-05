@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
-import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound } from 'lucide-react'
+import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound, ImageUp, Trash2 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
-import { Badge, Button, Card } from '../components/ui'
+import { Avatar, Badge, Button, Card } from '../components/ui'
 import { ErrorState, Modal, Skeleton, TextInput } from '../components/feedback'
 import QRCode from '../components/QRCode'
 import { api, ApiError, isDemo } from '../api/client'
@@ -35,6 +35,7 @@ export default function Security() {
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
+        <AvatarCard />
         <UsernameCard twoFactor={q.data?.enabled} />
         <ChangePasswordCard twoFactor={q.data?.enabled} />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -60,6 +61,54 @@ function Section({ icon, title, right, children }: { icon: React.ReactNode; titl
       <div className="text-[15px] font-semibold flex flex-wrap items-center gap-2 mb-3"><span className="shrink-0">{icon}</span>{title}<span className="ml-auto">{right}</span></div>
       <Card>{children}</Card>
     </div>
+  )
+}
+
+/** Center-crop an image file to a 128x128 square and encode it small (WebP, PNG fallback). */
+async function squareAvatar(file: File): Promise<string> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error('无法读取这张图片')); i.src = url })
+    const side = Math.min(img.naturalWidth, img.naturalHeight)
+    const c = document.createElement('canvas'); c.width = c.height = 128
+    const g = c.getContext('2d')!
+    g.imageSmoothingQuality = 'high'
+    g.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 128, 128)
+    const webp = c.toDataURL('image/webp', 0.86)
+    return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/png')
+  } finally { URL.revokeObjectURL(url) }
+}
+
+function AvatarCard() {
+  const { t } = useT()
+  const q = useQuery('me', api.me)
+  const me = q.data
+  const file = useRef<HTMLInputElement>(null)
+  const [busy, wrap] = useBusy()
+  const save = (v: string) => wrap(async () => {
+    try { await api.setAvatar(v); if (me) q.set({ ...me, avatar: v || undefined }); toast(v ? t('头像已更新', 'Avatar updated') : t('已恢复默认头像', 'Avatar removed'), 'ok') }
+    catch (x) { toast(errText(t, x), 'error') }
+  })
+  const pick = async (f?: File) => {
+    if (!f) return
+    if (!/^image\//.test(f.type)) { toast(t('请选择图片文件', 'Choose an image file'), 'error'); return }
+    try { save(await squareAvatar(f)) } catch (x) { toast((x as Error).message, 'error') }
+  }
+  return (
+    <Section icon={<ImageUp size={17} />} title={t('头像', 'Avatar')}>
+      <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-4">
+        {me?.avatar ? <Avatar size={64} src={me.avatar} className="rounded-xl" />
+          : <span className="tile h-16 w-16 shrink-0 rounded-xl bg-[#fde047] grid place-items-center text-[26px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] text-muted leading-5">{t('支持 PNG、JPG、WebP，会自动裁成正方形并压缩，只显示在面板里。', 'PNG, JPG or WebP; cropped to a square and shrunk. Shown in the panel only.')}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" disabled={busy} onClick={() => file.current?.click()}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ImageUp size={14} />}{me?.avatar ? t('更换头像', 'Change') : t('上传头像', 'Upload')}</Button>
+            {me?.avatar && <Button size="sm" disabled={busy} onClick={() => save('')}><Trash2 size={14} />{t('恢复默认', 'Remove')}</Button>}
+          </div>
+        </div>
+        <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
+      </div>
+    </Section>
   )
 }
 

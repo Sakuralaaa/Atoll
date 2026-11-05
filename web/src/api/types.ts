@@ -282,7 +282,7 @@ export interface ZeaburCleanupRequest { confirm: string; keep_backup: boolean }
 
 // ---- shapes not spelled out in types.go (assumed; see docs/api.md) ----
 export interface AuthStatus { setup_required: boolean }
-export interface Me { id?: string; username: string }
+export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[] }
 /** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
 export interface Template { kind: string; name: string; description: string; image: string; command?: string[]; ports: Port[]; volumes: Volume[]; env: EnvVar[] }
 /** GET /services/{id}/env/references item; `service` (name of the exposing service) is optional. */

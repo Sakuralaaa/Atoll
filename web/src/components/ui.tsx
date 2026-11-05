@@ -27,7 +27,8 @@ export function Logo() {
 }
 
 /** The account's initial on a tile (colour derived from the name). */
-export function Avatar({ size = 24, name = '' }: { size?: number; name?: string }) {
+export function Avatar({ size = 24, name = '', src, className }: { size?: number; name?: string; src?: string; className?: string }) {
+  if (src) return <img src={src} alt="" width={size} height={size} style={{ width: size, height: size }} className={cx('rounded-md object-cover shrink-0 border-2 border-[var(--edge)] bg-sunk', className)} />
   return (
     <div style={{ width: size, height: size, background: colorFor(name || '?'), fontSize: Math.round(size * 0.46) }}
       className="rounded-md grid place-items-center font-extrabold font-mono text-[#141414] shrink-0 border-2 border-[var(--edge)]">

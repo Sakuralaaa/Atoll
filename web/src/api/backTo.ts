@@ -74,6 +74,6 @@ export function backLabel(path: string, names: { server?: (id: string) => string
   if (grouped) return (grouped !== '_' && names.server?.(grouped)) || '项目'
   const m = p.match(/^\/(projects|servers)\/([^/]+)/)
   if (m) return (m[1] === 'servers' ? names.server?.(m[2]) : names.project?.(m[2])) ?? (m[1] === 'servers' ? '服务器' : '项目')
-  const top: Record<string, string> = { '/': '项目', '/servers': '服务器', '/control': '中控', '/domains': '域名', '/developer': 'CLI 与 API', '/confirmations': '待确认', '/import': '迁移', '/settings': '设置' }
+  const top: Record<string, string> = { '/': '项目', '/servers': '服务器', '/control': '中控', '/domains': '域名', '/developer': '连接', '/confirmations': '审批', '/import': '迁移', '/settings': '设置' }
   return top[p] ?? (p.startsWith('/settings') ? '设置' : p.startsWith('/import') ? '迁移' : '返回')
 }

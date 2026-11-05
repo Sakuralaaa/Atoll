@@ -90,7 +90,7 @@ atoll docker cutover IMPORT_ID
 
 任何一步失败都会**自动回滚**：Atoll 服务停掉并改回不发布端口，旧容器按原来的重启策略重新启动。切换会短暂中断服务（旧容器停止到新容器启动之间）。
 
-需要 `migrate` 权限；`require_approval` 的令牌会得到待确认（面板「待确认」里批准后执行）。
+需要 `migrate` 权限；`require_approval` 的令牌会进入审批（面板「审批」里批准后执行）。
 
 ## 5. 回滚
 

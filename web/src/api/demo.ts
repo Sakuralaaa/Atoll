@@ -336,7 +336,7 @@ const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, '服务
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
-const demoUser = { name: 'demo' }
+const demoUser: { name: string; avatar: string; nav: string[] } = { name: 'demo', avatar: '', nav: [] }
 const demo2fa = { enabled: false, at: '', left: 10 }
 const demoProblems = makeDemoProblems(servers, now)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: () => demo2fa.enabled })
@@ -398,7 +398,10 @@ function route(method: string, path: string, body: any): unknown {
     if (!/^[A-Za-z0-9_.@-]{1,64}$/.test(n)) fail(400, 'username must be 1-64 characters: letters, digits, _ . @ -')
     demoUser.name = n; return { username: n, auth: 'session', scope: 'session', permissions: [] }
   }
-  if (m('auth/me') || m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: m('auth/me') ? demoUser.name : (demoUser.name = body?.username || demoUser.name) }
+  if (U && m('me/avatar')) { demoUser.avatar = String(body?.avatar ?? ''); return { avatar: demoUser.avatar } }
+  if (U && m('me/nav-order')) { demoUser.nav = (body?.order as string[]) ?? []; return { order: demoUser.nav } }
+  if (m('auth/me')) return { id: 'usr_demo', username: demoUser.name, avatar: demoUser.avatar || undefined, nav_order: demoUser.nav.length ? demoUser.nav : undefined }
+  if (m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: (demoUser.name = body?.username || demoUser.name) }
   if (m('auth/logout')) return {}
   if (G && m('auth/2fa')) return { enabled: demo2fa.enabled, enabled_at: demo2fa.enabled ? demo2fa.at : undefined, recovery_codes_left: demo2fa.enabled ? demo2fa.left : 0 }
   if (P && m('auth/2fa/enroll')) { if (!body?.password) fail(401, 'wrong password'); return { secret: DEMO_SECRET, otpauth_uri: `otpauth://totp/Atoll:demo@${location.host}?secret=${DEMO_SECRET}&issuer=Atoll&algorithm=SHA1&digits=6&period=30` } }

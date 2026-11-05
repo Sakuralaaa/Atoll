@@ -93,6 +93,8 @@ export const api = {
   logout: () => request<void>('POST', '/auth/logout', {}, { noRedirect: true }),
   // per-account project favorites and pins
   projectPrefs: () => get<ProjectPrefs>('/me/project-prefs'),
+  setAvatar: (avatar: string) => put<{ avatar: string }>('/me/avatar', { avatar }),
+  setNavOrder: (order: string[]) => put<{ order: string[] }>('/me/nav-order', { order }),
   setProjectPrefs: (b: Partial<ProjectPrefs>) => put<ProjectPrefs>('/me/project-prefs', b),
   // servers
   servers: () => get<Server[]>('/servers'),

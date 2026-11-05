@@ -45,7 +45,7 @@ export default function Developer() {
   return (
     <MainShell>
       <div className="max-w-[1180px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-16 @5xl:pt-14 @5xl:pb-16">
-        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-2">{t('CLI 与 API', 'CLI & API')}<Hint>{t('Atoll 本身不内置 AI。用 API 令牌把 CLI 或 MCP 交给 Claude Code、Codex 这类外部 agent，让它们替你部署和排错。', 'Atoll has no built-in AI. Give the CLI or MCP to an external agent such as Claude Code or Codex with an API token and let it deploy and debug for you.')}</Hint></h1>
+        <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em] flex items-center gap-2">{t('连接', 'Connect')}<Hint>{t('Atoll 本身不内置 AI。用 API 令牌把 CLI 或 MCP 交给 Claude Code、Codex 这类外部 agent，让它们替你部署和排错。', 'Atoll has no built-in AI. Give the CLI or MCP to an external agent such as Claude Code or Codex with an API token and let it deploy and debug for you.')}</Hint></h1>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 mb-3"><div className="text-[15px] font-semibold flex items-center gap-2"><KeyRound size={18} />{t('API 令牌', 'API tokens')}</div><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />{t('创建令牌', 'Create token')}</Button></div>
         {fresh?.token && (
@@ -100,7 +100,7 @@ atoll logs api -f
 atoll domain add api.example.com -s api`}</CodeBlock></Card>
         </div>
 
-        <div className="mt-10 text-[15px] font-semibold flex items-center gap-2 mb-3"><Bot size={18} />{t('接入 AI agent（MCP）', 'Connect an AI agent (MCP)')}<Hint>{t('agent 能做什么取决于令牌的权限：没有的权限直接拒绝（403）；开启「需要面板审批」的令牌，删除、迁移、改 DNS 这类操作会进入「待确认」，由你在面板里批准。', "What an agent can do follows its token's permissions: anything missing is refused (403). With \"require panel approval\" on, deletes, moves and DNS changes wait in Confirmations for you to approve.")}</Hint></div>
+        <div className="mt-10 text-[15px] font-semibold flex items-center gap-2 mb-3"><Bot size={18} />{t('接入 AI agent（MCP）', 'Connect an AI agent (MCP)')}<Hint>{t('agent 能做什么取决于令牌的权限：没有的权限直接拒绝（403）；开启「需要面板审批」的令牌，删除、迁移、改 DNS 这类操作会进入「审批」，由你在面板里批准。', "What an agent can do follows its token's permissions: anything missing is refused (403). With \"require panel approval\" on, deletes, moves and DNS changes wait in Confirmations for you to approve.")}</Hint></div>
         <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
           <Card className="p-5 flex flex-col"><div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold mb-3 min-h-6">Claude Code<Badge tone="zinc">{t('一行添加', 'one line')}</Badge></div><CodeBlock grow>{`claude mcp add atoll -- atoll mcp \\
   --url ${panel} --token ${tok}`}</CodeBlock></Card>
@@ -212,7 +212,7 @@ function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onClose: (
       <div className="flex items-start gap-4 rounded-lg border-2 border-dashed border-line2 px-3.5 py-3">
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-semibold">{t('即使有权限也需要面板审批', 'Require panel approval even with permission')}</div>
-          <div className="text-[12px] text-muted mt-0.5 leading-5">{t('开启后，删除、迁移、改 DNS、还原等操作会进入「待确认」，由你在面板里批准后才执行。', 'Deletes, moves, DNS changes and restores wait in Confirmations until you approve them in the panel.')}</div>
+          <div className="text-[12px] text-muted mt-0.5 leading-5">{t('开启后，删除、迁移、改 DNS、还原等操作会进入「审批」，由你在面板里批准后才执行。', 'Deletes, moves, DNS changes and restores wait in Confirmations until you approve them in the panel.')}</div>
         </div>
         <Toggle on={approval} onChange={setApproval} />
       </div>

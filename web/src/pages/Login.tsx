@@ -85,7 +85,7 @@ export default function Login() {
               {!status.data && !status.error ? <div className="space-y-4"><Skeleton className="h-7 w-40" /><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></div> : <>
                 <h1 className="text-[22px] font-extrabold italic tracking-[-0.03em] flex items-center gap-2">{setup ? <><Sparkles size={20} className="text-accent" />{t('创建管理员账号', 'Create the admin account')}</> : t('登录 Atoll', 'Sign in to Atoll')}</h1>
                 <p className="text-[13px] text-muted mt-1.5 leading-6">{setup
-                  ? t('这是第一次启动。创建的账号拥有全部权限，之后可以在「CLI 与 API」里给 agent 发令牌。', 'First start. This account has full access; later you can issue tokens for agents under "CLI & API".')
+                  ? t('这是第一次启动。创建的账号拥有全部权限，之后可以在「连接」里给 agent 发令牌。', 'First start. This account has full access; later you can issue tokens for agents under "CLI & API".')
                   : t('自托管的 PaaS 控制台：你的服务器，你的服务。', 'Self-hosted PaaS console: your servers, your services.')}</p>
                 {status.error && <div className="mt-4 text-[12.5px] text-[#ef4444] flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{t('无法获取服务器状态：', 'Cannot reach the server: ')}{status.error.message}</div>}
                 <label className="block mt-6"><div className="text-[13px] font-semibold mb-1.5">{t('用户名', 'Username')}</div><TextInput autoFocus autoComplete="username" className="w-full" value={u} onChange={e => setU(e.target.value)} placeholder="admin" /></label>

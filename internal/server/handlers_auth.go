@@ -31,6 +31,10 @@ type meResponse struct {
 	// Projects the token is limited to (empty = all projects).
 	Projects        []string `json:"projects,omitempty"`
 	RequireApproval bool     `json:"require_approval,omitempty"`
+	// Avatar is the account's uploaded picture as a data: URL ("" = initials).
+	Avatar string `json:"avatar,omitempty"`
+	// NavOrder is the account's sidebar order (panel entry keys); empty = default.
+	NavOrder []string `json:"nav_order,omitempty"`
 }
 
 var dummyHash = sync.OnceValue(func() string {
@@ -164,11 +168,15 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 	p := principalFrom(r.Context())
+	ui, err := s.st.UserUI(r.Context(), p.User.ID)
+	if err != nil {
+		return err
+	}
 	if p.Session {
-		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions)})
+		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions), Avatar: ui.Avatar, NavOrder: ui.NavOrder})
 		return nil
 	}
-	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval}
+	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval, NavOrder: ui.NavOrder}
 	for _, x := range api.AllPermissions {
 		if p.Perms[x] {
 			me.Permissions = append(me.Permissions, x)

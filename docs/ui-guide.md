@@ -129,7 +129,7 @@ Control server operations: [control.md](control.md).
 ## Account (账号与安全)
 
 - Username, password, two-factor authentication and sessions of the panel account. API tokens
-  (`atl_pat_…`) are separate and managed under CLI 与 API.
+  (`atl_pat_…`) are separate and managed under 连接 (Connect).
 - Changing the username (`POST /api/v1/auth/username`) or the password needs the current
   password, plus a TOTP code when 2FA is on. A username change keeps sessions and tokens; a
   password change signs out every other session.
@@ -141,4 +141,4 @@ Control server operations: [control.md](control.md).
 - Atoll has no built-in AI. Give the CLI or MCP server to an external agent with an API token.
 - A token can only do what its permissions allow (anything else answers 403). With
   "require panel approval" on, deletes, moves and DNS changes started with that token wait in
-  待确认 until approved in the panel. Actions taken in the panel itself are never queued.
+  审批 (Approvals) until approved in the panel. Actions taken in the panel itself are never queued.
