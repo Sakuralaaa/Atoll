@@ -47,6 +47,22 @@ func (e *RateLimitError) Error() string {
 }
 func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
 
+type freshKey struct{}
+
+// WithFresh marks ctx so Digest and Tags skip their caches and ask the registry,
+// storing the new answer back into the cache. Used for checks a person started
+// (panel button, CLI, MCP); background checks keep using the cache. The per-host
+// 429 backoff still applies.
+func WithFresh(ctx context.Context) context.Context {
+	return context.WithValue(ctx, freshKey{}, true)
+}
+
+// IsFresh reports whether ctx was marked with WithFresh.
+func IsFresh(ctx context.Context) bool {
+	v, _ := ctx.Value(freshKey{}).(bool)
+	return v
+}
+
 // ErrNotFound means the repository or tag does not exist (or is hidden without auth).
 var ErrNotFound = errors.New("manifest not found")
 
@@ -183,7 +199,7 @@ func (c *Client) Digest(ctx context.Context, ref Ref, auth Auth) (string, error)
 	}
 	key := ref.Key() + ":" + ref.Tag + "|" + auth.Username
 	c.mu.Lock()
-	if e, ok := c.digests[key]; ok && c.now().Sub(e.at) < c.DigestTTL {
+	if e, ok := c.digests[key]; ok && !IsFresh(ctx) && c.now().Sub(e.at) < c.DigestTTL {
 		c.mu.Unlock()
 		return e.val, nil
 	}
@@ -221,7 +237,7 @@ func (c *Client) Digest(ctx context.Context, ref Ref, auth Auth) (string, error)
 func (c *Client) Tags(ctx context.Context, ref Ref, auth Auth) ([]string, error) {
 	key := ref.Key() + "|" + auth.Username
 	c.mu.Lock()
-	if e, ok := c.tags[key]; ok && c.now().Sub(e.at) < c.TagsTTL {
+	if e, ok := c.tags[key]; ok && !IsFresh(ctx) && c.now().Sub(e.at) < c.TagsTTL {
 		c.mu.Unlock()
 		return e.val, nil
 	}

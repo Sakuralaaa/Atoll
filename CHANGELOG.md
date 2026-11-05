@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.40](docs/releases/v0.1.40.md)：手动「检查更新」（面板 / CLI / MCP）跳过 registry 缓存直接查询并回写缓存，推送新镜像后立刻能看到更新；部署更新时也重新取 digest；429 限流仍遵守退避并显示原因和下次可请求时间；新增 MCP 工具 `update_check`。只需升级中控（用 MCP 需同时升级 CLI）。
 - [v0.1.39](docs/releases/v0.1.39.md)：CPA 管理面板（CPA Manager Plus）登录密钥改为与 CPA 管理密钥相同，之前随机生成导致进不去。只需升级中控，已部署的需手动改 `CPA_MANAGER_ADMIN_KEY`。
 - [v0.1.38](docs/releases/v0.1.38.md)：CLIProxyAPI 配置改为持久卷，可在 CPA 面板修改并保留；创建 CLIProxyAPI 时可填 API 域名（模板第二域名 `domains`）；卷 `owner` 修复 n8n 非 root 写不了数据卷。升级中控和节点，v0.1.37 部署的 CPA 需重建或手动迁移配置。
 - [v0.1.37](docs/releases/v0.1.37.md)：新增 5 个一键应用（共 20 个），模板支持输入项和配置文件；文件页可编辑保存（配置文件保存后重新部署）；新的部署表单（私有镜像凭据、环境变量、多端口、卷、启动命令、配置文件）；应用模板域名改为前缀 + 根域名。升级中控和所有节点。

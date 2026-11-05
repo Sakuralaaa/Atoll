@@ -20,6 +20,7 @@ type miniRegistry struct {
 	digests map[string]string // tag -> digest (single repo)
 	tags    []string
 	heads   int
+	limit   int // answer the next N registry requests with 429 (Retry-After: 600)
 	srv     *httptest.Server
 }
 
@@ -30,6 +31,12 @@ func newMiniRegistry(t *testing.T) *miniRegistry {
 		defer m.mu.Unlock()
 		if r.URL.Path == "/token" {
 			fmt.Fprint(w, `{"token":"t1","expires_in":300}`)
+			return
+		}
+		if m.limit > 0 {
+			m.limit--
+			w.Header().Set("Retry-After", "600")
+			w.WriteHeader(429)
 			return
 		}
 		if r.Header.Get("Authorization") != "Bearer t1" {
@@ -365,4 +372,73 @@ func TestInWindow(t *testing.T) {
 	if _, _, err := parseWindow("03:00-03:00"); err == nil {
 		t.Fatal("empty window accepted")
 	}
+}
+
+// A check a person starts (POST .../image-update/check: panel, CLI, MCP) must not be
+// served from the registry client's digest cache; background checks still are.
+func TestImageUpdateManualCheckBypassesCache(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	reg := newMiniRegistry(t)
+	rc := registry.New()
+	rc.PlainHTTP = func(string) bool { return true }
+	e.srv.upd.reg = rc
+	_, nodeID := startFakeAgent(t, e, api.ZeaburInventory{})
+	var p api.Project
+	e.mustDo("POST", "/api/v1/projects", map[string]string{"name": "blog", "server_id": nodeID}, &p, 201)
+	reg.set("latest", "sha256:old")
+	var svc api.Service
+	e.mustDo("POST", "/api/v1/projects/"+p.ID+"/services", map[string]any{"name": "blog", "kind": "image", "image": reg.host() + "/acme/acme-api:latest"}, &svc, 201)
+
+	var iu api.ImageUpdate
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/image-update/check", nil, &iu, 200)
+	if iu.LatestDigest != "sha256:old" {
+		t.Fatalf("first check: %+v", iu)
+	}
+	reg.set("latest", "sha256:new") // the image is pushed after that check
+
+	// background check: within DigestTTL it is served from the cache
+	v, err := e.srv.checkImage(e.srv.bg, svc.ID)
+	if err != nil || v.LatestDigest != "sha256:old" {
+		t.Fatalf("background check should use the cache: %+v %v", v, err)
+	}
+	// manual check asks the registry
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/image-update/check", nil, &iu, 200)
+	if iu.LatestDigest != "sha256:new" {
+		t.Fatalf("manual check served a cached digest: %+v", iu)
+	}
+	// and wrote the new answer back to the cache
+	reg.mu.Lock()
+	heads := reg.heads
+	reg.mu.Unlock()
+	v, err = e.srv.checkImage(e.srv.bg, svc.ID)
+	if err != nil || v.LatestDigest != "sha256:new" {
+		t.Fatalf("background after manual: %+v %v", v, err)
+	}
+	reg.mu.Lock()
+	if reg.heads != heads {
+		t.Fatalf("background check after a manual one should hit the cache (%d -> %d HEADs)", heads, reg.heads)
+	}
+	reg.mu.Unlock()
+
+	// 429: a manual check honours the backoff and says why
+	reg.mu.Lock()
+	reg.limit = 1
+	reg.mu.Unlock()
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/image-update/check", nil, &iu, 200)
+	if iu.Status != "error" || !strings.Contains(iu.Error, "429") || !strings.Contains(iu.Error, "UTC") {
+		t.Fatalf("rate limited check: %+v", iu)
+	}
+	reg.mu.Lock()
+	heads = reg.heads
+	reg.mu.Unlock()
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/image-update/check", nil, &iu, 200)
+	if iu.Status != "error" || !strings.Contains(iu.Error, "rate limiting") {
+		t.Fatalf("check during backoff: %+v", iu)
+	}
+	reg.mu.Lock()
+	if reg.heads != heads || reg.limit != 0 {
+		t.Fatal("manual check reached the registry during its 429 backoff")
+	}
+	reg.mu.Unlock()
 }

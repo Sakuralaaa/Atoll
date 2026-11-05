@@ -62,6 +62,7 @@ var mcpToolPerm = map[string]string{
 	"zeabur_scan":           api.PermRead,
 	"zeabur_import_status":  api.PermRead,
 	"update_list":           api.PermRead,
+	"update_check":          api.PermDeploy,
 	"backup_list":           api.PermRead,
 	"backup_verify":         api.PermRead,
 	"template_list":         api.PermRead,
@@ -840,6 +841,14 @@ func mcpTools(app *App) []server.ServerTool {
 					list = kept
 				}
 				return list, nil
+			}),
+		t(tool("update_check", "Ask the registry now whether a service's image has an update (skips the server's registry cache, so a tag pushed a minute ago shows up). Returns the service's image update status; a 429 from the registry is reported in error with the time it may be asked again.", false, false, svcArgs()...),
+			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {
+				s, err := resolveSvc(ctx, c, r)
+				if err != nil {
+					return nil, err
+				}
+				return c.CheckImageUpdate(ctx, s.ID)
 			}),
 		t(tool("backup_list", "List a service's backups (newest first): id, status, snapshots, size. Restore one with backup_restore.", true, false, svcArgs()...),
 			func(ctx context.Context, c *client.Client, r mcp.CallToolRequest) (any, error) {

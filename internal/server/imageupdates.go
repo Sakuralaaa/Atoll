@@ -258,11 +258,14 @@ func (s *Server) lookupVersions(ctx context.Context, svc *api.Service, ref regis
 }
 
 func registryErrText(err error) string {
+	var rl *registry.RateLimitError
 	switch {
 	case errors.Is(err, registry.ErrNotFound):
 		return "tag not found in the registry (or the repository is private: set a registry credential)"
 	case errors.Is(err, registry.ErrUnauthorized):
 		return "registry denied access; check the service's registry credential"
+	case errors.As(err, &rl):
+		return fmt.Sprintf("registry %s is rate limiting requests (HTTP 429); Atoll waits until %s UTC before asking again", rl.Host, rl.Until.UTC().Format("2006-01-02 15:04:05"))
 	case errors.Is(err, context.DeadlineExceeded):
 		return "registry did not answer in time"
 	}
@@ -538,7 +541,9 @@ func (s *Server) handleCheckImageUpdate(w http.ResponseWriter, r *http.Request) 
 	if _, _, err := s.st.GetService(r.Context(), r.PathValue("id")); err != nil {
 		return err
 	}
-	v, err := s.checkImage(r.Context(), r.PathValue("id"))
+	// A person asked: skip the registry client's digest/tag caches (a tag pushed a
+	// minute ago must show up now). The 429 backoff still applies.
+	v, err := s.checkImage(registry.WithFresh(r.Context()), r.PathValue("id"))
 	if errors.Is(err, errBusy) {
 		return errf(409, "busy", "a check for this service is already running")
 	}
@@ -622,7 +627,8 @@ func (s *Server) handleApplyImageUpdate(w http.ResponseWriter, r *http.Request) 
 		}
 		ref = nref
 	}
-	cctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	// Deploy what the registry has now, not a cached digest of the tag.
+	cctx, cancel := context.WithTimeout(registry.WithFresh(ctx), 45*time.Second)
 	defer cancel()
 	digest, err := s.upd.reg.Digest(cctx, ref, s.registryAuthFor(ctx, svc))
 	if err != nil {

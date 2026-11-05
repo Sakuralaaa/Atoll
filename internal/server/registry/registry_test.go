@@ -320,3 +320,65 @@ func TestParseChallenge(t *testing.T) {
 		t.Fatal(s, p)
 	}
 }
+
+func TestFreshSkipsCacheAndRefillsIt(t *testing.T) {
+	f := newFakeRegistry(t)
+	f.digests["acme/blog:latest"] = "sha256:old"
+	f.tags["acme/blog"] = []string{"1.0.0"}
+	c := testClient(f)
+	ref, _ := ParseRef(f.host() + "/acme/blog:latest")
+	ctx := context.Background()
+	if dg, err := c.Digest(ctx, ref, Auth{}); err != nil || dg != "sha256:old" {
+		t.Fatalf("%q %v", dg, err)
+	}
+	if tags, err := c.Tags(ctx, ref, Auth{}); err != nil || len(tags) != 1 {
+		t.Fatalf("%v %v", tags, err)
+	}
+	f.mu.Lock()
+	f.digests["acme/blog:latest"] = "sha256:new"
+	f.tags["acme/blog"] = []string{"1.0.0", "1.1.0"}
+	f.mu.Unlock()
+	// cached
+	if dg, _ := c.Digest(ctx, ref, Auth{}); dg != "sha256:old" {
+		t.Fatalf("cached digest %q", dg)
+	}
+	if tags, _ := c.Tags(ctx, ref, Auth{}); len(tags) != 1 {
+		t.Fatalf("cached tags %v", tags)
+	}
+	// fresh asks the registry
+	fctx := WithFresh(ctx)
+	if !IsFresh(fctx) || IsFresh(ctx) {
+		t.Fatal("IsFresh")
+	}
+	if dg, err := c.Digest(fctx, ref, Auth{}); err != nil || dg != "sha256:new" {
+		t.Fatalf("fresh digest %q %v", dg, err)
+	}
+	if tags, err := c.Tags(fctx, ref, Auth{}); err != nil || len(tags) != 2 {
+		t.Fatalf("fresh tags %v %v", tags, err)
+	}
+	// and refilled the cache
+	f.mu.Lock()
+	heads := f.heads
+	f.mu.Unlock()
+	if dg, _ := c.Digest(ctx, ref, Auth{}); dg != "sha256:new" {
+		t.Fatalf("refilled digest %q", dg)
+	}
+	if tags, _ := c.Tags(ctx, ref, Auth{}); len(tags) != 2 {
+		t.Fatalf("refilled tags %v", tags)
+	}
+	f.mu.Lock()
+	if f.heads != heads {
+		t.Fatal("cached read sent a request")
+	}
+	f.mu.Unlock()
+	// fresh still respects the 429 backoff
+	c.strike(ref.apiHost(), time.Minute)
+	if _, err := c.Digest(fctx, ref, Auth{}); !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("fresh during backoff: %v", err)
+	}
+	f.mu.Lock()
+	if f.heads != heads {
+		t.Fatal("fresh request sent during backoff")
+	}
+	f.mu.Unlock()
+}
