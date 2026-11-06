@@ -73,8 +73,8 @@
 v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接手，每完成一小步就推送并更新本节。
 
 ### A. 第一阶段收尾（小）
-1. 在真实浏览器里目测：用 `VITE_DEMO=1` 预览，或连真实中控。demo 的 `auth/me` 没有 role，需要在 web/src/api/demo.ts 里加一个 member 演示账号。要看的页面：子账号页、member 侧栏、改密横幅、隐藏后的按钮。
-2. 剩余按钮按 `useCan` 隐藏（web/src/api/queries.ts）。还没处理的：备份页的恢复（restore）、部署类操作（deploy：重新部署、启停、改环境变量、新增服务、回滚、镜像更新）、服务设置里其他域名操作（domains）。
+1. [x] 目测（2026-11-06）：demo 加了子账号 alice（web/src/api/demo-users.ts；`?demo=1&member=1` 有 read+deploy，`member=ro` 只读，`member=0` 回到管理员），auth/me 带 role/permissions/servers/must_change_password，列表按她的服务器过滤。Playwright 截图看过：子账号页、member 侧栏、改密横幅、服务页各 tab、服务器页、域名页、项目设置。修了：横幅文案「账户」→「账号」；member 侧栏底部不再写「中控在线」；member 打开 /settings 直接跳到账号与安全（以前会请求 /settings）；域名页对 member 不再请求 /settings（以前骨架屏一直转）；服务器页对 member 隐藏中控卡片、添加服务器、Agent 升级；服务器详情对 member 隐藏 SSH 和设置 tab。demo.ts 拆出 demo-auth.ts、demo-exec.ts（<600 行）。
+2. [x] 按 useCan 隐藏（2026-11-06）：deploy（服务页头部重新部署/重启/启停、状态页启停与套用默认值、部署记录回滚（状态页和日志页）、环境变量增删改、新增服务（项目侧栏、空项目、?add=1）、创建项目、镜像更新卡片的策略/检查/更新、源码卡片的编辑/重建/改回镜像/轮换 webhook、网络页加端口、硬盘页挂载/卸载卷、服务设置和项目设置只读、备份策略只读与立即备份、恢复演练）；restore（快照「还原」）；domains（网络页绑定/解绑、域名页解绑）；exec（更多菜单「执行命令」、硬盘页文件入口）；仓库校验只给 admin。注意：`POST /services/{id}/webhook/rotate` 是 lvlSession，服务端对 member 未按 deploy 拦截（UI 已隐藏），可在第二阶段收紧。
 3. 一键应用模板 `POST /app-templates/{id}`：对 member 开放前，要先校验目标服务器（memberMayUse），并确认 `!p.Session` 分支的行为（app_templates.go:51）。
 4. `GET /root-domains` 是否对 member 只读开放（只返回名字，不含令牌）。
 5. 管理员页提示：把服务器分给 member 时，如果这台服务器上已有管理员的项目，要给出提示（那些项目会被 member 看到）。

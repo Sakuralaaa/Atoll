@@ -20,7 +20,7 @@ import { serverFilters, useStatusFilter } from '../api/filters'
 import { providerOf, countryOf, regionOf } from '../api/providers'
 import { Flag } from '../components/Flag'
 import { Latency } from '../components/Latency'
-import { useProblems } from '../api/queries'
+import { useAdmin, useProblems } from '../api/queries'
 
 export default function Servers() {
   const { t } = useT()
@@ -28,6 +28,7 @@ export default function Servers() {
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [add, setAdd] = useState(false)
+  const admin = useAdmin() // members: no control card, no joining servers
   // the control host has its own card above the list and the 中控 page (an agent on the same box is listed as a normal server)
   const all = (q.data ?? []).filter(s => s.role !== 'control').sort((a, b) => sort ? a.name.localeCompare(b.name) : 0)
   const defs = serverFilters((useProblems().data ?? []).filter(p => !p.resolved_at))
@@ -45,11 +46,11 @@ export default function Servers() {
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
               <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
             </div>
-            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>{t('添加服务器', 'Add server')}</Button>
+            {admin && <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setAdd(true)}>{t('添加服务器', 'Add server')}</Button>}
           </div>
         </div>
         <ProblemsBanner scope="servers" />
-        <ControlCard />
+        {admin && <ControlCard />}
         <AgentUpgradeAll servers={all} />
         <div className="mt-6">
           {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -57,7 +58,7 @@ export default function Servers() {
           {q.data && all.length > 0 && <FilterChips f={f} defs={defs} className="mb-5" />}
           {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的服务器`, `No servers match “${f.def.en}”`)}
             action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
-          {q.data && !all.length && <Empty icon={<Server size={22} />} title={t('还没有服务器', 'No servers yet')} desc={t('在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。', 'Run one install command on any VPS; the agent connects back to the control server, no extra ports to open.')} action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{t('添加服务器', 'Add server')}</Button>} />}
+          {q.data && !all.length && <Empty icon={<Server size={22} />} title={t('还没有服务器', 'No servers yet')} desc={admin ? t('在任意 VPS 上运行一行安装命令，Agent 会主动连回中控，无需开放额外端口。', 'Run one install command on any VPS; the agent connects back to the control server, no extra ports to open.') : t('管理员还没有给你分配服务器。', 'An admin has not assigned you a server yet.')} action={admin && <Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{t('添加服务器', 'Add server')}</Button>} />}
         </div>
         <div className={cx('grid gap-4', listView ? 'grid-cols-1' : 'grid-cols-1 @2xl:auto-rows-fr @2xl:grid-cols-2 @6xl:grid-cols-3')}>
           {list.map(s => {

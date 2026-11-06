@@ -12,6 +12,7 @@ import type { Backup, BackupPolicy, Project, RestoreJob, Server, Service } from 
 import { cx } from './ui-utils'
 import { useNow } from '../api/useNow'
 import BackupVerifyCard from './BackupVerifyCard'
+import { useCan } from '../api/queries'
 
 const PRESETS = [
   { l: L("每天 03:00"), v: '0 3 * * *' },
@@ -28,12 +29,13 @@ const SNAP_KEY = (sid: string) => [`backups:${sid}`, `backup-policy:${sid}`]
 /** Service → 备份还原 tab. */
 export default function BackupPanel({ p, s }: { p: Project; s: Service }) {
   const pol = useBackupPolicy(s.id)
+  const canSettings = useCan('settings') // never granted to members: they cannot open panel settings
   if (pol.error && !pol.data) return <ErrorState error={pol.error} onRetry={pol.refetch} />
   if (!pol.data) return <Card className="p-6 space-y-4"><Skeleton className="h-6 w-48" /><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></Card>
   if (!pol.data.repo_configured) return (
     <Empty icon={<ArchiveRestore size={22} />} title={L("还没有配置备份存储")}
       desc={L("备份由每台服务器上的 Agent 用 restic 直接加密上传到你的 S3 兼容存储（Cloudflare R2、Backblaze B2、AWS S3、MinIO），数据不经过中控。先在设置里填好存储桶，再回来开启这个服务的备份。")}
-      action={<Link to="/settings#backup"><Button variant="primary"><Cog size={15} />{L("前往设置 · 备份存储")}</Button></Link>} />
+      action={canSettings && <Link to="/settings#backup"><Button variant="primary"><Cog size={15} />{L("前往设置 · 备份存储")}</Button></Link>} />
   )
   return <Configured p={p} s={s} policy={pol.data} onPolicy={pol.set} />
 }
@@ -46,6 +48,8 @@ function Configured({ p, s, policy, onPolicy }: { p: Project; s: Service; policy
   if (running !== anyRunning) setAnyRunning(running)
   const [busy, wrap] = useBusy()
   const [restore, setRestore] = useState<Backup | undefined>()
+  // members (notes/subaccounts.md): run/policy need deploy, restore needs restore
+  const canDeploy = useCan('deploy'), canRestore = useCan('restore')
   const nothing = !policy.parts?.length
   const runNow = () => wrap(() => run(() => backupsApi.run(s.id), { ok: L("备份已开始，Agent 正在上传"), invalidate: SNAP_KEY(s.id) }))
   const refresh = () => wrap(async () => { const r = await run(() => backupsApi.list(s.id, true), { ok: L("已与存储桶同步") }); if (r) bq.set(r) })
@@ -61,15 +65,15 @@ function Configured({ p, s, policy, onPolicy }: { p: Project; s: Service; policy
         </div>
         <div className="flex gap-2 shrink-0">
           <Button size="sm" disabled={busy} onClick={refresh} title={L("从存储桶重新读取快照列表")}><RefreshCw size={14} />{L("同步")}</Button>
-          <Button variant="primary" disabled={busy || running || nothing} onClick={runNow} title={nothing ? L("这个服务没有卷，也不是数据库模板，没有可备份的内容") : undefined}>
+          {canDeploy && <Button variant="primary" disabled={busy || running || nothing} onClick={runNow} title={nothing ? L("这个服务没有卷，也不是数据库模板，没有可备份的内容") : undefined}>
             {running || busy ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}{running ? L("备份中…") : L("立即备份")}
-          </Button>
+          </Button>}
         </div>
       </div>
       {bq.error && !bq.data ? <ErrorState error={bq.error} onRetry={bq.refetch} />
         : !bq.data ? <RowsSkeleton n={4} />
           : !list.length ? <Empty icon={<ArchiveRestore size={22} />} title={L("还没有备份")} desc={nothing ? L("这个服务没有挂载卷，也不是数据库模板，没有需要备份的数据。") : policy.enabled ? L("第一次定时备份会在 {0} 运行，也可以现在手动备份。", policy.next_run_at ? dateTime(policy.next_run_at) : '下个计划时间') : L("开启上面的定时备份，或点「立即备份」手动备份一次。")} />
-            : <SnapshotTable list={list} onRestore={setRestore} />}
+            : <SnapshotTable list={list} onRestore={canRestore ? setRestore : undefined} />}
       {restore && <RestoreFlow p={p} s={s} list={list} initial={restore} onClose={() => setRestore(undefined)} />}
     </>
   )
@@ -80,6 +84,7 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
   const init: BackupPolicyInput = { enabled: policy.enabled, schedule: policy.schedule || '0 3 * * *', timezone: policy.timezone || 'Asia/Shanghai', keep: { ...policy.keep }, include_volumes: policy.include_volumes }
   const [v, setV] = useState(init)
   const [busy, wrap] = useBusy()
+  const canDeploy = useCan('deploy')
   const isDb = ['postgres', 'mysql', 'redis', 'mongo'].includes(s.kind)
   const cronOk = CRON_RE.test(v.schedule.trim())
   const keepOk = [v.keep.daily, v.keep.weekly, v.keep.monthly].every(n => Number.isInteger(n) && n >= 0 && n <= 1000) && v.keep.daily + v.keep.weekly + v.keep.monthly > 0
@@ -100,6 +105,7 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
         <span className="ml-auto flex items-center gap-1.5">{(policy.parts ?? []).map(x => <PartBadge key={x} part={x} />)}</span>
       </div>
       <div className="text-[13px] text-muted mt-1.5 leading-5">{L("计划由服务所在服务器的 Agent 自己执行，中控离线时也照常备份。")}</div>
+      <fieldset disabled={!canDeploy} className="contents">
       <div className="mt-5 grid grid-cols-1 @2xl:grid-cols-[150px_minmax(0,1fr)] gap-x-6 gap-y-2 @2xl:gap-y-5 items-center text-[13px] [&>span]:@max-2xl:mt-3 [&>*]:min-w-0">
         <span className="font-semibold">{L("启用")}</span>
         <div className="flex items-center gap-3 min-w-0"><Toggle on={v.enabled} onChange={on => setV(x => ({ ...x, enabled: on }))} /><span className="text-muted">{v.enabled ? L("按计划自动备份") : L("只在手动点击时备份")}</span></div>
@@ -139,11 +145,12 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
           <div className="flex items-center gap-3 min-w-0"><Toggle on={v.include_volumes} onChange={on => setV(x => ({ ...x, include_volumes: on }))} /><span className="text-muted">{L("数据库总是先做逻辑 dump；开启后再额外快照数据目录")}</span></div>
         </>}
       </div>
-      <div className="mt-6 pt-5 border-t-2 border-dashed border-line flex flex-wrap items-center justify-end gap-3">
+      </fieldset>
+      {canDeploy && <div className="mt-6 pt-5 border-t-2 border-dashed border-line flex flex-wrap items-center justify-end gap-3">
         {dirty && <span className="text-[12.5px] text-muted">{L("有未保存的修改")}</span>}
         {dirty && <Button size="sm" onClick={() => setV(init)}>{L("还原修改")}</Button>}
         <Button size="sm" variant="primary" disabled={!dirty || !cronOk || !keepOk || !v.timezone.trim() || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{L("保存策略")}</Button>
-      </div>
+      </div>}
     </Card>
   )
 }
@@ -151,7 +158,7 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
 const PartBadge = ({ part }: { part: string }) => <Badge tone={part === 'dump' ? 'violet' : 'zinc'}>{part === 'dump' ? <Database size={11} /> : <HardDrive size={11} />}{PART[part] ?? part}</Badge>
 
 // ---------- snapshots ----------
-function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore: (b: Backup) => void }) {
+function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore?: (b: Backup) => void }) {
   const [open, setOpen] = useState<string | undefined>()
   const live = (b: Backup) => b.snapshots.filter(x => !x.pruned)
   return (
@@ -183,7 +190,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore: (b: Bac
                   )) : <span className="text-dim">—</span>}
                 </div>
                 <div className="flex justify-end">
-                  <Button size="sm" disabled={!restorable} onClick={() => onRestore(b)} title={restorable ? undefined : L("只有成功且快照仍在仓库中的备份可以还原")}><RotateCcw size={13} />{L("还原")}</Button>
+                  {onRestore && <Button size="sm" disabled={!restorable} onClick={() => onRestore(b)} title={restorable ? undefined : L("只有成功且快照仍在仓库中的备份可以还原")}><RotateCcw size={13} />{L("还原")}</Button>}
                 </div>
               </div>
               {open === b.id && (b.error || b.warnings?.length) && (

@@ -35,7 +35,7 @@ export default function ProjectSettings() {
 }
 
 function Body({ p, servers }: { p: Project; servers: Server[] }) {
-  const canMigrate = useCan('migrate'), canDelete = useCan('delete')
+  const canMigrate = useCan('migrate'), canDelete = useCan('delete'), canDeploy = useCan('deploy')
   const nav = useNavigate()
   const srv = servers.find(s => s.id === p.server_id)
   const [name, setName] = useState(p.name)
@@ -52,6 +52,8 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
   return (
     <>
       <div className="text-[13px] font-semibold mb-3">{L("基本")}</div>
+      {/* members without deploy see the project read-only (PATCH /projects/{id} needs deploy) */}
+      <fieldset disabled={!canDeploy} className="contents">
       <Card className="divide-y divide-line mb-8">
         <Row t={L("显示名称")} d={L("只改面板里显示的名字，可以重复；留空则显示项目名称")}><TextInput className="w-[420px]" value={label} maxLength={64} onChange={e => setLabel(e.target.value)} placeholder={name.trim() || p.name} /></Row>
         <Row t={L("项目名称")} d={L("全局唯一，CLI 和 API 令牌按它指定项目")}><TextInput className="w-[420px]" value={name} onChange={e => setName(e.target.value)} /></Row>
@@ -63,8 +65,9 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
             {root && !roots.some(r => r.name === root) && <option value={root}>{root}{L("（已移除）")}</option>}
           </Select>
         </Row>}
-        <div className="px-6 py-4 flex justify-end"><Button variant="primary" size="sm" disabled={!changed || !name.trim() || busy} onClick={save}>{busy && <Loader2 size={13} className="animate-spin" />}{L("保存")}</Button></div>
+        {canDeploy && <div className="px-6 py-4 flex justify-end"><Button variant="primary" size="sm" disabled={!changed || !name.trim() || busy} onClick={save}>{busy && <Loader2 size={13} className="animate-spin" />}{L("保存")}</Button></div>}
       </Card>
+      </fieldset>
       <div className="text-[13px] font-semibold mb-3">{L("服务器与迁移")}</div>
       <Card className="divide-y divide-line mb-8">
         <Row t={L("运行服务器")} d={L("同一项目的服务都部署在这台服务器上，通过 Docker 内网互通")}>

@@ -13,7 +13,7 @@ import { day, svcIcon, svcName } from '../api/view'
 import type { Service } from '../api/types'
 import { L, useT } from '../i18n'
 import { cx, statusText } from '../components/ui-utils'
-import { placeholder, useProject } from '../api/queries'
+import { placeholder, useCan, useProject } from '../api/queries'
 import { StatusTab } from './service/StatusTab'
 import { EnvTab } from './service/EnvTab'
 import { DiskTab, NetworkTab, UsageTab } from './service/ResourceTabs'
@@ -42,6 +42,7 @@ export default function ServicePage() {
   const srv = useQuery('servers', api.servers).data?.find(x => x.id === (p?.services?.find(v => v.id === sid)?.server_id || p?.server_id))
   const tab = sp.get('tab') ?? 'status'
   const refresh = () => invalidate(`project:${pid}`, 'projects')
+  const canDeploy = useCan('deploy')
   return (
     <ProjectShell project={p ?? placeholder(pid)} active={sid}>
       <div className="max-w-[1320px] mx-auto px-4 @2xl:px-8 @5xl:px-10 @6xl:px-14 pt-6 @2xl:pt-10 pb-16">
@@ -63,7 +64,7 @@ export default function ServicePage() {
           </div>
         </>}
       </div>
-      {sp.get('add') && pid && <AddServiceModal projectId={pid} onCreated={x => nav(`/projects/${pid}/services/${x.id}`)} onClose={() => { const n = new URLSearchParams(sp); n.delete('add'); setSp(n) }} />}
+      {sp.get('add') && pid && canDeploy && <AddServiceModal projectId={pid} onCreated={x => nav(`/projects/${pid}/services/${x.id}`)} onClose={() => { const n = new URLSearchParams(sp); n.delete('add'); setSp(n) }} />}
     </ProjectShell>
   )
 }
@@ -79,6 +80,8 @@ function Header({ s, onChange, onTab }: { s: Service; onChange: () => void; onTa
   const act = (a: 'restart' | 'redeploy' | 'stop' | 'start') => wrap(() => run(() => api.action(s.id, a), { ok: { restart: L("正在重新启动"), stop: L("正在停止"), start: L("正在启动"), redeploy: git ? t('已开始构建最新提交', 'Building the latest commit') : L("已触发重新部署") }[a], invalidate: [`deployments:${s.id}`] }).then(onChange))
   const logs = `/projects/${s.project_id}/services/${s.id}/logs`
   const stopped = s.status === 'stopped'
+  // members without deploy/exec (notes/subaccounts.md): hide what the server would refuse with 403
+  const canDeploy = useCan('deploy'), canExec = useCan('exec')
   return (
     <div className="flex flex-wrap items-start gap-4">
       <ServiceIcon s={svcIcon(s)} size={52} />
@@ -87,14 +90,14 @@ function Header({ s, onChange, onTab }: { s: Service; onChange: () => void; onTa
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted"><CopyId v={s.id} /><span>{L("创建于")} {day(s.created_at)}</span></div>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={busy} onClick={() => setConfirm('restart')}><RotateCw size={15} />{L("重新启动")}</Button>
-        <Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />{L("重新部署")}</>}</Button>
+        {canDeploy && <Button disabled={busy} onClick={() => setConfirm('restart')}><RotateCw size={15} />{L("重新启动")}</Button>}
+        {canDeploy && <Button variant="primary" disabled={busy} onClick={() => act('redeploy')}>{git ? <><Hammer size={15} />{t('重新构建最新提交', 'Rebuild latest')}</> : <><Rocket size={15} />{L("重新部署")}</>}</Button>}
         <MoreMenu items={[
           { l: L("查看日志"), icon: <ScrollText size={14} />, run: () => nav(logs) },
           { l: L("部署记录"), icon: <History size={14} />, run: () => nav(`${logs}?view=deploys`) },
-          { l: L("执行命令"), icon: <Terminal size={14} />, run: () => nav(`${logs}?view=exec`) },
+          ...(canExec ? [{ l: L("执行命令"), icon: <Terminal size={14} />, run: () => nav(`${logs}?view=exec`) }] : []),
           { l: L("环境变量"), icon: <KeyRound size={14} />, run: () => onTab('env') },
-          stopped ? { l: L("启动服务"), icon: <Play size={14} />, run: () => act('start') } : { l: L("停止服务"), icon: <Square size={14} />, run: () => setConfirm('stop'), danger: true },
+          ...(!canDeploy ? [] : [stopped ? { l: L("启动服务"), icon: <Play size={14} />, run: () => act('start') } : { l: L("停止服务"), icon: <Square size={14} />, run: () => setConfirm('stop'), danger: true }]),
           { l: L("服务设置"), icon: <Settings size={14} />, run: () => onTab('settings') },
         ]} disabled={busy} />
       </div>

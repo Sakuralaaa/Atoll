@@ -21,7 +21,7 @@ import { HostnameInput, useHostnameInput } from '../../components/HostnameInput'
 import { ProxyChoice } from '../../components/ProxyChoice'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
-  const canExec = useCan('exec'), canBind = useCan('domains')
+  const canExec = useCan('exec'), canBind = useCan('domains'), canDeploy = useCan('deploy')
   const base = `/projects/${p.id}/services/${s.id}`
   const deps = useQuery(`deployments:${s.id}`, () => api.deployments(s.id))
   const m = useQuery(`svc-metrics:${s.id}:1h`, () => api.serviceMetrics(s.id, '1h'), { interval: 60000 })
@@ -56,7 +56,7 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">{L("镜像摘要")}</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">{L("服务器")}</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
-              <span className="text-muted">{L("资源")}</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? L("{0} 核", s.cpu_limit) : L("不限")} {L("· 内存")} {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} {L("· 进程数上限 4096 · 重启策略 unless-stopped")}</span>
+              <span className="text-muted">{L("资源")}</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? L("{0} 核", s.cpu_limit) : L("不限")} {L("· 内存")} {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && canDeploy && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} {L("· 进程数上限 4096 · 重启策略 unless-stopped")}</span>
             </div>
           </div>
           <div className="w-full @5xl:w-[380px] @5xl:shrink-0 grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @5xl:grid-cols-1 gap-3">
@@ -73,9 +73,9 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
         </div>
         <div className="mt-6 pt-5 border-t border-line flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setHist(true)}><History size={14} />{L("部署记录")}</Button>
-          {stopped ? <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'start'), { ok: L("正在启动"), invalidate: [`project:${p.id}`] }))}><Play size={13} />{L("启动")}</Button>
+          {!canDeploy ? null : stopped ? <Button size="sm" disabled={busy} onClick={() => wrap(() => run(() => api.action(s.id, 'start'), { ok: L("正在启动"), invalidate: [`project:${p.id}`] }))}><Play size={13} />{L("启动")}</Button>
             : <Button size="sm" disabled={busy} onClick={() => setStop(true)}><Square size={13} />{L("停止")}</Button>}
-          <span className="ml-auto text-[13px] text-dim @max-md:hidden">{L("回滚到任意历史镜像摘要")}</span>
+          {canDeploy && <span className="ml-auto text-[13px] text-dim @max-md:hidden">{L("回滚到任意历史镜像摘要")}</span>}
         </div>
       </Card>
 
@@ -145,6 +145,7 @@ function RecentDeploys({ deps }: { deps?: Deployment[] }) {
 function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; onClose: () => void }) {
   const [target, setTarget] = useState<Deployment>()
   const [logs, setLogs] = useState<Deployment>()
+  const canDeploy = useCan('deploy')
   return (
     <Modal title={<><History size={17} />{L("部署记录 ·")} {s.name}</>} width={760} onClose={onClose}>
       {!deps ? <RowsSkeleton n={3} /> : !deps.length ? <div className="text-[13px] text-muted">{L("还没有部署记录")}</div> : (
@@ -156,7 +157,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
                 <div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />{L("构建日志")}</Button>}
               <span className="text-muted tnum whitespace-nowrap max-sm:ml-[23px]">{dateTime(d.started_at)}</span>
-              {i > 0 && d.image_digest ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
+              {i > 0 && d.image_digest && canDeploy ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
         </div>

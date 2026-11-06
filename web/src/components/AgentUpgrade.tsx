@@ -8,12 +8,15 @@ import { Badge, Button } from './ui'
 import { CodeBlock, CopyButton, Modal } from './feedback'
 import { L, useT } from '../i18n'
 import { toast } from './toast'
+import { useAdmin } from '../api/queries'
 
 
 /** Status of the last upgrade, or "can upgrade" when outdated. */
 export function AgentUpgradeBadge({ s }: { s: Server }) {
   const { t } = useT()
+  const admin = useAdmin() // agent upgrades are admin-only (notes/subaccounts.md)
   const u = s.agent_upgrade
+  if (!admin) return null
   if (u?.state === 'upgrading') return <Badge tone="violet"><Loader2 size={12} className="animate-spin" />{t('升级中', 'Upgrading')}</Badge>
   if (u?.state === 'failed') return <span title={u.error}><Badge tone="red">{u.rolled_back ? t('升级失败，已回滚', 'Failed, rolled back') : t('升级失败', 'Upgrade failed')}</Badge></span>
   if (agentOutdated(s)) return <Badge>{t(`可升级到 ${s.agent_latest}`, `${s.agent_latest} available`)}</Badge>
@@ -25,7 +28,8 @@ export function AgentUpgradeAction({ s }: { s: Server }) {
   const { t } = useT()
   const [busy, setBusy] = useState(false)
   const [manual, setManual] = useState(false)
-  if (!agentOutdated(s) || s.status !== 'online' || s.agent_upgrade?.state === 'upgrading') return null
+  const admin = useAdmin()
+  if (!admin || !agentOutdated(s) || s.status !== 'online' || s.agent_upgrade?.state === 'upgrading') return null
   if (!s.agent_self_upgrade) return <>
     <Button size="sm" onClick={() => setManual(true)}><ArrowUpCircle size={14} />{t('升级 Agent', 'Upgrade agent')}</Button>
     {manual && <ManualUpgrade names={[s.name]} onClose={() => setManual(false)} />}
@@ -64,8 +68,9 @@ export function AgentUpgradeAll({ servers }: { servers: Server[] }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [rows, setRows] = useState<AgentUpgradeRow[]>()
+  const admin = useAdmin()
   const outdated = servers.filter(s => s.status === 'online' && agentOutdated(s) && s.agent_upgrade?.state !== 'upgrading')
-  if (!outdated.length && !rows) return null
+  if (!admin || (!outdated.length && !rows)) return null
   const auto = outdated.filter(s => s.agent_self_upgrade), manual = outdated.filter(s => !s.agent_self_upgrade)
   const name = (id: string) => servers.find(s => s.id === id)?.name ?? id
   const go = async () => {

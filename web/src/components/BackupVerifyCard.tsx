@@ -7,6 +7,7 @@ import { ago, bytes, dateTime } from '../api/view'
 import { backupsApi, duration, shortSnap, useVerifyStatus } from '../api/backups'
 import type { BackupPolicy, BackupVerification, Service } from '../api/types'
 import { useT } from '../i18n'
+import { useAdmin, useCan } from '../api/queries'
 
 type T = (zh: string, en: string) => string
 
@@ -104,6 +105,7 @@ export default function BackupVerifyCard({ s, policy }: { s: Service; policy: Ba
   const [busy, wrap] = useBusy()
   const key = [`backup-verify:${s.id}`]
   const nothing = !policy.parts?.length
+  const admin = useAdmin(), canDeploy = useCan('deploy') // the repository check is panel-wide (admin); a drill needs deploy
   const check = () => wrap(() => run(() => backupsApi.runCheck(), { ok: t('仓库校验已开始', 'Repository check started'), invalidate: key }))
   const drill = () => wrap(() => run(() => backupsApi.runDrill(s.id), { ok: t('恢复演练已开始', 'Restore drill started'), invalidate: key }))
   if (q.error && !st) return <div className="mt-6"><ErrorState error={q.error} onRetry={q.refetch} /></div>
@@ -122,13 +124,13 @@ export default function BackupVerifyCard({ s, policy }: { s: Service; policy: Ba
           <Row t={t} title={t('仓库校验', 'Repository check')} v={st.check} next={st.next_check_at} off={!st.check_schedule}
             desc={t(`每次读取约 ${st.check_subset} 的数据并校验，整个仓库共用、由一台服务器执行${st.check_server_id ? `（${st.check_server_id}）` : ''}。`,
               `Reads about ${st.check_subset} of the data each time; shared by the whole repository and run by one server${st.check_server_id ? ` (${st.check_server_id})` : ''}.`)}
-            action={<Button size="sm" disabled={busy || st.check?.status === 'running' || !st.repo_configured} onClick={check}>
+            action={admin && <Button size="sm" disabled={busy || st.check?.status === 'running' || !st.repo_configured} onClick={check}>
               {st.check?.status === 'running' ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}{t('立即校验', 'Check now')}</Button>} />
           <Row t={t} title={t('恢复演练', 'Restore drill')} v={st.drill} next={policy.enabled ? st.next_drill_at : undefined} off={!st.drill_schedule}
             desc={policy.enabled
               ? t('在服务所在服务器上恢复最新快照：卷需恢复出非空文件，数据库 dump 需导入同版本临时容器并能查询。', 'Restores the newest snapshots on the service\'s server: volumes must come back non-empty, dumps must load into a temporary container of the same version and answer a query.')
               : t('开启定时备份后每月自动演练；现在也可以手动演练。', 'Runs monthly once scheduled backups are on; you can also run one now.')}
-            action={<Button size="sm" disabled={busy || st.drill?.status === 'running' || nothing || !st.repo_configured} onClick={drill}
+            action={canDeploy && <Button size="sm" disabled={busy || st.drill?.status === 'running' || nothing || !st.repo_configured} onClick={drill}
               title={nothing ? t('这个服务没有可备份的内容', 'Nothing to back up for this service') : undefined}>
               {st.drill?.status === 'running' ? <Loader2 size={14} className="animate-spin" /> : <FlaskConical size={14} />}{t('立即演练', 'Drill now')}</Button>} />
         </div>

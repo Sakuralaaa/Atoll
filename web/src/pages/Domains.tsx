@@ -21,7 +21,9 @@ export default function Domains() {
   const q = useQuery('domains', api.domains, { interval: 15000 })
   const projects = useProjects().data
   const servers = useQuery('servers', api.servers).data
-  const settings = useQuery('settings', api.settings).data
+  // members (notes/subaccounts.md) cannot read panel settings: no Cloudflare card, no settings request
+  const canSettings = useCan('settings')
+  const settings = useQuery(canSettings ? 'settings' : null, api.settings).data
   const roots = useQuery('root-domains', api.rootDomains).data
   const [add, setAdd] = useState(false)
   const [del, setDel] = useState<Domain>()
@@ -37,7 +39,7 @@ export default function Domains() {
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("域名")}</h1>{canBind && <Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />{L("绑定域名")}</Button>}</div>
-        {!settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
+        {!canSettings ? null : !settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
           <Card className="mb-8 overflow-hidden">
             <div className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5">
               <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
@@ -70,7 +72,7 @@ export default function Domains() {
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">
                     <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title={L("打开")} className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
-                    <button title={L("解绑")} onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                    {canBind && <button title={L("解绑")} onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>}
                   </span>
                 </div>
               )

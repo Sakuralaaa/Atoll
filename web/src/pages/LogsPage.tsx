@@ -157,6 +157,7 @@ function Deploys({ s }: { s: Service }) {
   const q = useQuery(`deployments:${s.id}`, () => api.deployments(s.id), { interval: 10000 })
   const [target, setTarget] = useState<Deployment>()
   const [logs, setLogs] = useState<Deployment>()
+  const canDeploy = useCan('deploy')
   return (
     <div className="flex-1 overflow-auto px-4 md:px-10 py-6">
       {!q.data ? <RowsSkeleton n={4} /> : !q.data.length ? <div className="text-[13px] text-muted">{L("还没有部署记录")}</div> : (
@@ -167,7 +168,7 @@ function Deploys({ s }: { s: Service }) {
               <div className="flex-1 min-w-[calc(100%-32px)] sm:min-w-0"><div className="font-semibold flex flex-wrap items-center gap-x-2 gap-y-0.5">{deployStatusText[d.status] ?? d.status}<span className="text-muted font-normal"> · {triggerText[d.trigger] ?? d.trigger}</span><CommitLink s={s} d={d} /></div><div className="font-mono text-[12px] text-muted truncate mt-0.5" title={[d.image_digest ?? d.id, d.message].filter(Boolean).join(' · ')}>{shortDigests(d.image_digest) || d.id}{d.message ? ` · ${shortDigests(d.message)}` : ''}</div></div>
               {hasBuildLog(s, d) && <Button size="sm" variant="ghost" onClick={() => setLogs(d)}><ScrollText size={13} />{L("构建日志")}</Button>}
               <span className="text-muted tnum whitespace-nowrap max-sm:ml-[23px]">{dateTime(d.started_at)}</span>
-              {i > 0 && d.image_digest ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
+              {i > 0 && d.image_digest && canDeploy ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
         </div>

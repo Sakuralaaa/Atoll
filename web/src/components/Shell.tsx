@@ -11,7 +11,7 @@ import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from './ImageUpdateCard'
 import type { Project } from '../api/types'
 import { cx } from './ui-utils'
-import { usePending, useProblems, useProjects } from '../api/queries'
+import { useCan, usePending, useProblems, useProjects } from '../api/queries'
 import { useProjectPrefs } from '../api/prefs'
 import { StarButton } from './ProjectPrefs'
 import { FilterChips } from './StatusFilter'
@@ -222,10 +222,10 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         <Favorites />
         <div className="shrink-0 pt-3 border-t border-line flex flex-col gap-2.5">
           {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} {L("个异常需要处理")}</span></Link>}
-          <Link to={member ? '/servers' : '/control'} className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? L("中控在线 · {0}/{1} 服务器已连接", online, workers.length) : L("正在连接中控…")}</span></Link>
+          <Link to={member ? '/servers' : '/control'} className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? (member ? L("{0}/{1} 服务器已连接", online, workers.length) : L("中控在线 · {0}/{1} 服务器已连接", online, workers.length)) : L("正在连接中控…")}</span></Link>
           <UserRow />
         </div>
-    </>}>{me?.must_change_password && <Link to="/settings/security" className="block m-4 mb-0 rounded-xl surface !bg-[#fde047] text-[#141414] px-4 py-2.5 text-[13px] font-bold">{L("管理员为你设置了初始密码，请先在「账户与安全」里改一个自己的密码")}</Link>}{children}</Frame>
+    </>}>{me?.must_change_password && <Link to="/settings/security" className="block m-4 mb-0 rounded-xl surface !bg-[#fde047] text-[#141414] px-4 py-2.5 text-[13px] font-bold">{L("管理员为你设置了初始密码，请先在「账号与安全」改一个自己的密码")}</Link>}{children}</Frame>
   )
 }
 
@@ -245,6 +245,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
   const f = useStatusFilter(services, defs)
   // keep the chosen chip when moving between services, so a filtered view can be shared too
   const keep = f.active ? `?${FILTER_PARAM}=${f.active}` : ''
+  const canDeploy = useCan('deploy')
   const add = () => { const q = new URLSearchParams(active ? loc.search : ''); q.set('add', '1'); nav(`${active ? `/projects/${project.id}/services/${active}` : `/projects/${project.id}`}?${q}`) }
   return (
     <Frame pad="pt-6" top={<><Link to={back} state={BACK} title={backText} className="shrink-0 text-fg2 hover:text-fg"><ArrowLeft size={18} /></Link><span className="text-[15px] font-semibold tracking-tight truncate flex-1 min-w-0">{projName(project)}</span>{project.created_at && <StarButton id={project.id} prefs={prefs} />}</>} side={<>
@@ -256,7 +257,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         </div>
         <div className="mt-4 flex flex-col gap-0.5 shrink-0">
           <NavLink to={`/projects/${project.id}/settings`} className={({ isActive }) => cx('flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium', isActive ? 'nav-active' : 'text-fg2 hover:bg-ov/5')}><Settings size={16} />{L("项目设置")}</NavLink>
-          <button onClick={add} className="flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium text-accent hover:bg-ov/5"><Plus size={16} />{L("新建服务")}</button>
+          {canDeploy && <button onClick={add} className="flex items-center gap-3 h-9 px-3 rounded-lg text-[13px] font-medium text-accent hover:bg-ov/5"><Plus size={16} />{L("新建服务")}</button>}
         </div>
         <div className="mt-4 pt-3 border-t border-line flex-1 basis-0 min-h-[160px] flex flex-col">
         <div className="h-7 px-2 mb-1 flex items-center text-[12px] font-semibold text-dim tracking-wider">{L("服务")}<span className="ml-auto font-mono tnum text-[11.5px]">{services.length || ''}</span></div>

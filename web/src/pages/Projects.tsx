@@ -13,7 +13,7 @@ import { primaryDomain, projIcon, svcIcon, svcName, projName } from '../api/view
 import { useUpdatesByService } from '../api/updates'
 import { UpdateBadge } from '../components/ImageUpdateCard'
 import { cx } from '../components/ui-utils'
-import { useProblems, useProjects } from '../api/queries'
+import { useAdmin, useCan, useProblems, useProjects } from '../api/queries'
 import { FilterChips } from '../components/StatusFilter'
 import { projectFilters, useStatusFilter, type FilterDef } from '../api/filters'
 import { pinnedFirst, useProjectPrefs } from '../api/prefs'
@@ -33,6 +33,7 @@ export default function Projects() {
   const [sort, setSort] = useState(false)
   const [listView, setListView] = useState(false)
   const [create, setCreate] = useState(false)
+  const canDeploy = useCan('deploy'), admin = useAdmin()
   const { t } = useT()
   const prefs = useProjectPrefs()
   // pinned projects always come first (in their pinned order), then the rest
@@ -71,7 +72,7 @@ export default function Projects() {
               <button onClick={() => setListView(false)} className={cx('h-8 w-10 grid place-items-center rounded-md', !listView ? 'nav-active' : 'text-muted')}><LayoutGrid size={16} /></button>
               <button onClick={() => setListView(true)} className={cx('h-8 w-10 grid place-items-center rounded-md', listView ? 'nav-active' : 'text-muted')}><List size={16} /></button>
             </div>
-            <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>{L("创建项目")}</Button>
+            {canDeploy && <Button variant="primary" size="lg" className="@3xl:w-[200px]" onClick={() => setCreate(true)}>{L("创建项目")}</Button>}
           </div>
         </div>
         <ProblemsBanner scope="projects" />
@@ -81,7 +82,7 @@ export default function Projects() {
         {q.data && all.length > 0 && !list.length && f.def && <Empty icon={<SearchX size={22} />} title={t(`没有「${f.def.zh}」的项目`, `No projects match “${f.def.en}”`)}
           desc={f.def.id === 'fav' ? t('点项目卡片右上角的星标即可收藏，收藏会同步到你的所有设备。', 'Star a project (top right of its card) to add it here; favorites sync across your devices.') : t('项目里任一服务符合条件即会列出。', 'A project is listed when any of its services matches.')} action={<Button onClick={() => f.set('')}>{t('显示全部', 'Show all')}</Button>} />}
         {q.data && !all.length && <Empty icon={<Package size={22} />} title={L("还没有项目")} desc={L("项目是一组运行在同一台服务器上的服务，它们通过 Docker 内网互通。也可以从 Zeabur 直接迁移过来。")}
-          action={<div className="flex gap-2"><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />{L("创建项目")}</Button><Link to="/import"><Button>{L("从 Zeabur 迁移")}</Button></Link></div>} />}
+          action={<div className="flex gap-2">{canDeploy && <Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />{L("创建项目")}</Button>}{admin && <Link to="/import"><Button>{L("从 Zeabur 迁移")}</Button></Link>}</div>} />}
         {showGroups && pinned.length > 0 && <>
           <SectionLabel icon={<Pin size={12} />} text={t('置顶', 'Pinned')} />
           <ProjectGrid list={pinned} listView={listView} className="mb-7" {...cardProps} />

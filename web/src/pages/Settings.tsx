@@ -6,6 +6,8 @@ import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
+import { Navigate } from 'react-router-dom'
+import { useCan } from '../api/queries'
 import type { Settings as S } from '../api/types'
 import ImageCheckSettings from '../components/ImageCheckSettings'
 import ResourceDefaultsSettings from '../components/ResourceDefaultsSettings'
@@ -19,7 +21,10 @@ import { SettingsTabs } from './Security'
 import { cx } from '../components/ui-utils'
 
 export default function Settings() {
-  const q = useQuery('settings', api.settings)
+  const canSettings = useCan('settings')
+  const q = useQuery(canSettings ? 'settings' : null, api.settings)
+  // members only have the account tab (notes/subaccounts.md)
+  if (!canSettings) return <Navigate replace to="/settings/security" />
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">

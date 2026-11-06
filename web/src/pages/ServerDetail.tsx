@@ -15,7 +15,7 @@ import { Latency } from '../components/Latency'
 import { L, useT } from '../i18n'
 import { AgentUpgradeAction, AgentUpgradeBadge } from '../components/AgentUpgrade'
 import { statusText } from '../components/ui-utils'
-import { useProjects } from '../api/queries'
+import { useCan, useProjects } from '../api/queries'
 import { providerOf, countryOf, regionOf } from '../api/providers'
 import { Flag } from '../components/Flag'
 import { BACK, backLabel, backTo } from '../api/backTo'
@@ -38,14 +38,17 @@ export default function ServerDetail() {
   const [sp, setSp] = useSearchParams()
   const q = useServer(id)
   const s = q.data
-  const tab = sp.get('tab') ?? 'info'
+  // members (notes/subaccounts.md): no SSH or server settings, those routes are admin-only
+  const admin = useCan('servers') // true while /auth/me loads, so an admin's ?tab=settings link keeps its tab
+  const tabs = admin ? TABS : TABS.filter(x => x.k !== 'ssh' && x.k !== 'settings')
+  const tab = tabs.some(x => x.k === sp.get('tab')) ? sp.get('tab')! : 'info'
   return (
     <MainShell>
       <div className="max-w-[1480px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @6xl:px-20 @5xl:pb-16">
         <Link to={backTo(`/servers/${id}`, '/servers')} state={BACK} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo(`/servers/${id}`, '/servers'))}</Link>
         {s ? <h1 className="text-[22px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] mt-2 [overflow-wrap:anywhere]">{s.name}</h1> : <Skeleton className="h-8 w-80 mt-3" />}
         <div className="mt-1"><CopyId v={id} /></div>
-        <Tabs className="mt-6" items={TABS} value={tab} onChange={k => setSp({ tab: k })} />
+        <Tabs className="mt-6" items={tabs} value={tab} onChange={k => setSp({ tab: k })} />
         <div className="mt-6">
           {q.error && !s && <ErrorState error={q.error} onRetry={q.refetch} />}
           {!s && !q.error && <CardSkeleton n={3} h={240} />}

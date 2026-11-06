@@ -10,6 +10,7 @@ import { buildActive, commitUrl, gitApi, gitBody, gitFormError, gitFormFrom, rep
 import type { Deployment, GitWebhook, Service } from '../api/types'
 import { useT } from '../i18n'
 import { cx, si } from './ui-utils'
+import { useCan } from '../api/queries'
 
 /** GitHub mark (lucide has no brand icons); follows the text color so it works in both themes. */
 export const GithubIcon = ({ size = 16 }: { size?: number }) => <Brand icon={si.siGithub} size={size} color="currentColor" />
@@ -120,6 +121,7 @@ export function SourceCard({ s }: { s: Service }) {
   const [edit, setEdit] = useState(false)
   const [toImage, setToImage] = useState(false)
   const [logs, setLogs] = useState<Deployment>()
+  const canDeploy = useCan('deploy')
   if (!g) return null
   const rebuild = () => wrap(() => run(() => api.action(s.id, 'redeploy'), { ok: t('已开始构建最新提交', 'Building the latest commit'), invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] }))
   const building = last && buildActive(last.status) && last.status !== 'pulling' && last.status !== 'starting'
@@ -129,10 +131,10 @@ export function SourceCard({ s }: { s: Service }) {
         <GithubIcon size={18} />
         <span className="text-[15px] font-semibold tracking-tight">{t('源码构建', 'Build from source')}</span>
         {last?.status === 'building' ? <Badge tone="amber"><Loader2 size={11} className="animate-spin" />{t('构建中', 'Building')}</Badge> : last?.status === 'failed' ? <Badge tone="red">{t('上次失败', 'Last build failed')}</Badge> : null}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        {canDeploy && <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setEdit(true)}><Pencil size={13} />{t('编辑', 'Edit')}</Button>
           <Button size="sm" variant="primary" disabled={busy || !!building} onClick={rebuild}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}{t('重新构建最新提交', 'Rebuild latest')}</Button>
-        </div>
+        </div>}
       </div>
       <div className="mt-5 grid grid-cols-[84px_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
         <span className="text-muted">{t('仓库', 'Repository')}</span>
@@ -154,7 +156,7 @@ export function SourceCard({ s }: { s: Service }) {
       {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}
       <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-3 text-[12.5px] text-dim">
         <span>{t('构建在服务所在的服务器上进行，每台服务器同时只跑一个构建，超时 20 分钟。', "Builds run on the service's own server, one at a time per server, 20 min timeout.")}</span>
-        <Button className="ml-auto" size="sm" variant="ghost" onClick={() => setToImage(true)}><Box size={13} />{t('改回镜像部署', 'Switch back to image')}</Button>
+        {canDeploy && <Button className="ml-auto" size="sm" variant="ghost" onClick={() => setToImage(true)}><Box size={13} />{t('改回镜像部署', 'Switch back to image')}</Button>}
       </div>
     </Card>
   )
@@ -166,6 +168,7 @@ function WebhookSection({ s }: { s: Service }) {
   const [show, setShow] = useState(false)
   const [rot, setRot] = useState(false)
   const [setup, setSetup] = useState(false)
+  const canDeploy = useCan('deploy')
   const wh = q.data
   const secret = wh?.secret
   return (
@@ -183,7 +186,7 @@ function WebhookSection({ s }: { s: Service }) {
               <Button size="sm" variant="ghost" onClick={() => setShow(v => !v)}>{show ? <EyeOff size={14} /> : <Eye size={14} />}{show ? t('隐藏', 'Hide') : t('显示', 'Reveal')}</Button>
               <CopyButton text={secret} />
             </> : wh.has_secret && <span className="text-[12px] text-dim font-sans">{t('仅面板会话可查看', 'panel session only')}</span>}
-            <Button size="sm" onClick={() => setRot(true)}><RefreshCw size={13} />{t('轮换', 'Rotate')}</Button>
+            {canDeploy && <Button size="sm" onClick={() => setRot(true)}><RefreshCw size={13} />{t('轮换', 'Rotate')}</Button>}
           </div>
         </div>
       )}

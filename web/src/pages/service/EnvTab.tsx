@@ -9,11 +9,13 @@ import { cx } from '../../components/ui-utils'
 import { toast } from '../../components/toast'
 import { formatEnvText, parseEnvText, quoteEnvValue } from '../../api/dotenv'
 import { L, useT } from '../../i18n'
+import { useCan } from '../../api/queries'
 
 // ---------------- env ----------------
 export function EnvTab({ s }: { s: Service }) {
   const { t } = useT()
   const [reveal, setReveal] = useState(false)
+  const canDeploy = useCan('deploy')
   const q = useQuery(`env:${s.id}:${reveal ? 1 : 0}`, () => api.env(s.id, reveal))
   const refs = useQuery(`env-refs:${s.id}`, () => api.envRefs(s.id))
   const [edit, setEdit] = useState<{ i: number; v: EnvVar } | null>(null)
@@ -45,9 +47,9 @@ export function EnvTab({ s }: { s: Service }) {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">{L("用户变量")}</div><div className="text-[13px] text-muted mt-0.5">{L("修改后需重新部署生效。可用")} {L("${变量名}")} {L("引用同项目其他服务暴露的变量。")}</div></div>
-        <div className="flex flex-wrap gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? L("隐藏私有值") : L("显示私有值")}</Button><Button onClick={() => setRaw(true)}><Pencil size={14} />{L("编辑原始环境变量")}</Button><Button disabled={!rows.length} onClick={() => setExp(true)}><Download size={14} />{t('导出 .env', 'Export .env')}</Button><Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />{L("添加")}</Button></div>
+        <div className="flex flex-wrap gap-2"><Button onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff size={14} /> : <Eye size={14} />}{reveal ? L("隐藏私有值") : L("显示私有值")}</Button>{canDeploy && <Button onClick={() => setRaw(true)}><Pencil size={14} />{L("编辑原始环境变量")}</Button>}<Button disabled={!rows.length} onClick={() => setExp(true)}><Download size={14} />{t('导出 .env', 'Export .env')}</Button>{canDeploy && <Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />{L("添加")}</Button>}</div>
       </div>
-      {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.refetch} /> : !q.data ? <RowsSkeleton n={5} /> : !rows.length ? <Empty icon={<KeyRound size={22} />} title={L("还没有环境变量")} action={<Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />{L("添加")}</Button>} /> : (
+      {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.refetch} /> : !q.data ? <RowsSkeleton n={5} /> : !rows.length ? <Empty icon={<KeyRound size={22} />} title={L("还没有环境变量")} action={canDeploy && <Button variant="primary" onClick={() => setEdit({ i: -1, v: { key: '', value: '', secret: false, exposed: false } })}><Plus size={15} />{L("添加")}</Button>} /> : (
         <Card className="divide-y divide-line">
           {rows.map((v, i) => (
             <div key={v.key} className="px-4 @2xl:px-6 py-3 @3xl:py-0 @3xl:h-[52px] grid grid-cols-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_170px] items-center gap-x-6 gap-y-1 group hover:bg-ov/[0.02] transition-colors">
@@ -56,7 +58,7 @@ export function EnvTab({ s }: { s: Service }) {
               <span className="flex items-center justify-end gap-3 text-dim group-hover:text-muted transition-colors @max-3xl:row-start-1 @max-3xl:col-start-2">
                 {v.exposed && <span title={L("同项目其他服务可引用")} className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Share2 size={11} />{L("暴露")}</span>}
                 {v.secret && <span className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Lock size={11} />{L("私有")}</span>}
-                <button title={L("编辑")} onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title={L("删除")} onClick={() => remove(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                {canDeploy && <><button title={L("编辑")} onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title={L("删除")} onClick={() => remove(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></>}
               </span>
             </div>
           ))}
