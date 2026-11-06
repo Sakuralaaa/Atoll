@@ -328,6 +328,10 @@ func (s *Server) handleServiceVerifyStatus(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return err
 	}
+	if p := principalFrom(r.Context()); p != nil && p.Member {
+		// the repository check is panel-wide (and runs on a server it may not have): admin only
+		out.Check, out.CheckServerID, out.NextCheckAt, out.CheckSchedule, out.CheckSubset = nil, "", nil, "", ""
+	}
 	writeJSON(w, 200, out)
 	return nil
 }
@@ -360,10 +364,13 @@ func (s *Server) handleListVerifications(w http.ResponseWriter, r *http.Request)
 	out := list[:0]
 	proj := map[string]string{}
 	for _, v := range list { // a project-scoped token sees the drills of its projects only
+		if v.ServiceID == "" && pr.Member {
+			continue // repository checks are the admin's
+		}
 		if v.ServiceID != "" {
 			pid, seen := proj[v.ServiceID]
 			if !seen {
-				if svc, _, err := s.st.GetService(ctx, v.ServiceID); err == nil {
+				if svc, _, err := s.st.GetService(ctx, v.ServiceID); err == nil && memberSeesService(pr, svc) {
 					pid = svc.ProjectID
 				}
 				proj[v.ServiceID] = pid

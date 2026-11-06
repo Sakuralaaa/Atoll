@@ -32,10 +32,19 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
+	if req.TargetServerID != "" && !memberMayUse(r, req.TargetServerID) { // a member restores onto its own servers only
+		return badRequest("unknown target_server_id %q", req.TargetServerID)
+	}
 	if err := s.checkRestore(ctx, b, svc, req); err != nil {
 		return err
 	}
 	from, _ := s.serviceNode(ctx, svc)
+	if req.TargetServerID != "" && req.TargetServerID != from {
+		// the project moves there: the same quota check as a migration (quotas.go)
+		if err := s.checkMigrateQuota(ctx, svc.ProjectID, from, req.TargetServerID); err != nil {
+			return err
+		}
+	}
 	where := "in place"
 	if req.TargetServerID != "" && req.TargetServerID != from {
 		to, _ := s.st.GetNode(ctx, req.TargetServerID)

@@ -220,7 +220,11 @@ func (s *Server) refreshSnapshots(ctx context.Context, svc *api.Service) error {
 	if !s.hub.Online(node) {
 		node = ""
 		nodes, _ := s.st.ListNodes(ctx)
+		pr := principalFrom(ctx)
 		for _, n := range nodes {
+			if pr != nil && pr.Member && !pr.Servers[n.ID] {
+				continue // a member's request only runs on its own servers
+			}
 			if s.hub.Online(n.ID) {
 				node = n.ID
 				break

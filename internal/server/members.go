@@ -134,7 +134,7 @@ func (s *Server) checkMember(r *http.Request, p *principal, need access) error {
 	return errf(403, "admin_only", "only the panel admin can use %s", r.URL.Path)
 }
 
-// memberServiceOf names the service a services/domains/backups route touches ("" = none).
+// memberServiceOf names the service a services/domains/backups/restores route touches ("" = none).
 func (s *Server) memberServiceOf(r *http.Request, res string) string {
 	id := r.PathValue("id")
 	switch res {
@@ -148,8 +148,24 @@ func (s *Server) memberServiceOf(r *http.Request, res string) string {
 		if b, err := s.st.GetBackup(r.Context(), id); err == nil {
 			return b.ServiceID
 		}
+	case "restores":
+		if j, err := s.st.GetRestore(r.Context(), id); err == nil {
+			return j.ServiceID
+		}
 	}
 	return ""
+}
+
+// memberSeesService: the service is in one of p's projects and, for a member, runs on one of
+// its servers (or none yet). Admins and unscoped tokens see every service.
+func memberSeesService(p *principal, svc *api.Service) bool {
+	if p == nil || svc == nil {
+		return false
+	}
+	if !p.inProject(svc.ProjectID) {
+		return false
+	}
+	return !p.Member || svc.ServerID == "" || p.Servers[svc.ServerID]
 }
 
 // memberMayUse: false when the caller is a member and serverID is not assigned to it.
