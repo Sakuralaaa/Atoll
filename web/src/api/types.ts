@@ -283,10 +283,14 @@ export interface ZeaburCleanupRequest { confirm: string; keep_backup: boolean }
 
 // ---- shapes not spelled out in types.go (assumed; see docs/api.md) ----
 export interface AuthStatus { setup_required: boolean }
-export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[]; role?: 'admin' | 'member'; permissions?: string[]; servers?: string[]; must_change_password?: boolean }
+export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[]; role?: 'admin' | 'member'; permissions?: string[]; servers?: string[]; must_change_password?: boolean; quota?: MemberQuota; usage?: MemberUsage }
+/** A sub-account's resource quota (0/absent = no limit): sum of its services' CPU (cores) and memory (MB) limits, and how many services. */
+export interface MemberQuota { cpu?: number; mem_mb?: number; services?: number }
+/** What counts against a quota now; unlimited = services without a CPU or memory limit. */
+export interface MemberUsage { cpu: number; mem_mb: number; services: number; unlimited?: number }
 /** GET /users item (admin only): a panel account. Members see only `servers` (notes/subaccounts.md). */
-export interface PanelUser { id: number; username: string; role: 'admin' | 'member'; disabled?: boolean; permissions?: string[]; servers?: string[]; must_change_password?: boolean; created_at: string }
-export interface PanelUserInput { username?: string; password?: string; permissions?: string[]; servers?: string[]; disabled?: boolean }
+export interface PanelUser { id: number; username: string; role: 'admin' | 'member'; disabled?: boolean; permissions?: string[]; servers?: string[]; must_change_password?: boolean; created_at: string; quota?: MemberQuota; usage?: MemberUsage }
+export interface PanelUserInput { username?: string; password?: string; permissions?: string[]; servers?: string[]; disabled?: boolean; quota?: MemberQuota }
 /** GET /templates item. Create with POST /projects/{id}/services {name, kind} (assumed: server fills image/ports/volumes/env from the template). */
 /** GET /app-templates item: a one-click app (one or more services). */
 export interface AppTemplateService { name: string; template?: string; image?: string; command?: string[]; ports?: Port[]; volumes?: Volume[]; configs?: ConfigFile[]; env?: EnvVar[]; domain_env?: EnvVar[]; mem_limit_mb?: number; main?: boolean; domain?: boolean; domain_port?: string; domain_label?: string; domain_label_en?: string; domain_hint?: string; domain_hint_en?: string }

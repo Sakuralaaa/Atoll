@@ -7,6 +7,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/Sakuralaaa/Atoll/internal/api"
 )
 
 // openAt builds a database the way an older release left it: only the migrations up to
@@ -72,5 +74,43 @@ func TestUpgradeFromV0140(t *testing.T) {
 	}
 	if _, _, err := s.GetService(ctx, "svc_a"); err != nil {
 		t.Fatalf("service after upgrade: %v", err)
+	}
+}
+
+// A v0.1.41 database (members, migrations through 0024) upgrades: its member keeps its
+// servers and permissions and has no quota (0026), its audit rows stay readable (0025).
+func TestUpgradeFromV0141Members(t *testing.T) {
+	dir := t.TempDir()
+	now := TS(time.Now())
+	openAt(t, dir, "0024_members.sql", func(db *sql.DB) {
+		for _, q := range []string{
+			`INSERT INTO users(id, username, password_hash, created_at) VALUES(1,'admin','x','` + now + `')`,
+			`INSERT INTO users(id, username, password_hash, created_at, role, permissions) VALUES(2,'bob','x','` + now + `','member','read,deploy')`,
+			`INSERT INTO nodes(id, name, created_at) VALUES('srv_a','a','` + now + `')`,
+			`INSERT INTO server_assignments(server_id, user_id, created_at) VALUES('srv_a',2,'` + now + `')`,
+			`INSERT INTO projects(id, name, server_id, created_at) VALUES('prj_a','a','srv_a','` + now + `')`,
+			`INSERT INTO services(id, project_id, name, kind, image, created_at, cpu_limit, mem_limit_mb) VALUES('svc_a','prj_a','web','image','nginx','` + now + `',0.5,256)`,
+		} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+	})
+	s := openTest(t, dir)
+	defer s.Close()
+	ctx := context.Background()
+	u, err := s.UserByName(ctx, "bob")
+	if err != nil || !u.IsMember() || len(u.Permissions) != 2 {
+		t.Fatalf("member after upgrade %+v %v", u, err)
+	}
+	if q, err := s.MemberQuota(ctx, u.ID); err != nil || q != (api.MemberQuota{}) {
+		t.Fatalf("quota after upgrade %+v %v", q, err)
+	}
+	if us, err := s.MemberUsage(ctx, u.ID); err != nil || us.Services != 1 || us.CPU != 0.5 || us.MemMB != 256 {
+		t.Fatalf("usage after upgrade %+v %v", us, err)
+	}
+	sc, err := s.MemberScopeOf(ctx, u.ID)
+	if err != nil || !sc.Projects["prj_a"] {
+		t.Fatalf("scope after upgrade %+v %v", sc, err)
 	}
 }

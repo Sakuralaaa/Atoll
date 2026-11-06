@@ -33,6 +33,9 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {
 	if to.ID == p.ServerID {
 		return badRequest("project already runs on %s", to.Name)
 	}
+	if err := s.checkMigrateQuota(r.Context(), p.ID, p.ServerID, to.ID); err != nil { // quotas.go
+		return err
+	}
 	from, _ := s.st.GetNode(r.Context(), p.ServerID)
 	fromName := p.ServerID
 	if from != nil {

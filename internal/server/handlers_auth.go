@@ -38,6 +38,9 @@ type meResponse struct {
 	// and the Projects on them.
 	Role    string   `json:"role"`
 	Servers []string `json:"servers,omitempty"`
+	// A member's resource quota and what counts against it (B3); absent = no quota.
+	Quota *api.MemberQuota `json:"quota,omitempty"`
+	Usage *api.MemberUsage `json:"usage,omitempty"`
 	// MustChangePassword: the account was created or reset by an admin.
 	MustChangePassword bool `json:"must_change_password,omitempty"`
 }
@@ -195,6 +198,14 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 	}
 	for x := range p.Servers {
 		me.Servers = append(me.Servers, x)
+	}
+	if p.Member {
+		if q, err := s.st.MemberQuota(r.Context(), p.User.ID); err == nil && q != (api.MemberQuota{}) {
+			me.Quota = &q
+			if u, err := s.st.MemberUsage(r.Context(), p.User.ID); err == nil {
+				me.Usage = &u
+			}
+		}
 	}
 	slices.Sort(me.Servers)
 	for _, x := range api.AllPermissions {

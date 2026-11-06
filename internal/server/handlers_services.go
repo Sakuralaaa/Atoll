@@ -180,8 +180,15 @@ func (s *Server) createService(ctx context.Context, p *api.Project, v api.Servic
 		git, v.Git, v.Image, v.RegistryCredID = &g, &g, "", ""
 	}
 	v.Webhook, v.Source = nil, ""
-	s.withDefaultLimits(ctx, &v) // resource_defaults.go
+	noCPU, noMem := v.CPULimit == -1, v.MemLimitMB == -1
+	s.withDefaultLimits(ctx, &v)                               // resource_defaults.go
+	if err := s.quotaFill(ctx, &v, noCPU, noMem); err != nil { // quotas.go
+		return nil, err
+	}
 	if err := validateServiceSpec(&v); err != nil {
+		return nil, err
+	}
+	if err := s.checkQuota(ctx, api.MemberUsage{Services: 1, CPU: v.CPULimit, MemMB: v.MemLimitMB}, api.MemberUsage{}); err != nil {
 		return nil, err
 	}
 	if err := validateEnv(env); err != nil {
@@ -327,6 +334,14 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 	if err := validateServiceSpecKeeping(&next, svc.Ports); err != nil {
 		return err
 	}
+	if next.CPULimit != svc.CPULimit || next.MemLimitMB != svc.MemLimitMB { // quotas.go
+		if err := s.quotaLimits(r.Context(), next); err != nil {
+			return err
+		}
+		if err := s.checkQuota(r.Context(), api.MemberUsage{CPU: next.CPULimit, MemMB: next.MemLimitMB}, api.MemberUsage{CPU: svc.CPULimit, MemMB: svc.MemLimitMB}); err != nil {
+			return err
+		}
+	}
 	if err := s.st.UpdateServiceSpec(r.Context(), next); err != nil {
 		if strings.Contains(err.Error(), "already exists") {
 			return errf(409, "conflict", "a service named %q already exists in this project", next.Name)
@@ -450,6 +465,18 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) error {
 	}
 	if spec.Image == "" {
 		return badRequest("deployment %s has no image to roll back to (its build did not finish)", old.ID)
+	}
+	// A rollback restores the old limits too: under a member quota that must not raise them
+	// past it or take them away (quotas.go).
+	if spec.CPULimit != svc.CPULimit || spec.MemLimitMB != svc.MemLimitMB {
+		next := *svc
+		next.CPULimit, next.MemLimitMB = spec.CPULimit, spec.MemLimitMB
+		if err := s.quotaLimits(r.Context(), next); err != nil {
+			return err
+		}
+		if err := s.checkQuota(r.Context(), api.MemberUsage{CPU: next.CPULimit, MemMB: next.MemLimitMB}, api.MemberUsage{CPU: svc.CPULimit, MemMB: svc.MemLimitMB}); err != nil {
+			return err
+		}
 	}
 	// Restore the service's spec fields so later redeploys keep the rolled-back version.
 	svc.Image = spec.Image

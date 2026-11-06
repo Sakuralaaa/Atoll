@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/Sakuralaaa/Atoll/internal/server/store"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -24,6 +26,9 @@ type userView struct {
 	Servers            []string `json:"servers,omitempty"`
 	MustChangePassword bool     `json:"must_change_password,omitempty"`
 	CreatedAt          string   `json:"created_at"`
+	// members: resource quota (absent = none) and current usage (B3, quotas.go)
+	Quota *api.MemberQuota `json:"quota,omitempty"`
+	Usage *api.MemberUsage `json:"usage,omitempty"`
 }
 
 type userRequest struct {
@@ -32,6 +37,8 @@ type userRequest struct {
 	Permissions *[]string `json:"permissions"`
 	Servers     *[]string `json:"servers"`
 	Disabled    *bool     `json:"disabled"`
+	// Quota replaces the member's quota; 0 fields = no limit, {} clears it.
+	Quota *api.MemberQuota `json:"quota"`
 }
 
 func requireAdmin(r *http.Request) (*principal, error) {
@@ -51,6 +58,18 @@ func (s *Server) userView(r *http.Request, u store.User) (userView, error) {
 			return v, err
 		}
 		v.Servers = srv
+		q, err := s.st.MemberQuota(r.Context(), u.ID)
+		if err != nil {
+			return v, err
+		}
+		if q != (api.MemberQuota{}) {
+			v.Quota = &q
+		}
+		us, err := s.st.MemberUsage(r.Context(), u.ID)
+		if err != nil {
+			return v, err
+		}
+		v.Usage = &us
 	}
 	return v, nil
 }
@@ -146,6 +165,11 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
+	if req.Quota != nil {
+		if err := validateQuota(*req.Quota); err != nil {
+			return err
+		}
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -156,6 +180,11 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) error 
 	}
 	if err != nil {
 		return err
+	}
+	if req.Quota != nil {
+		if err := s.st.SetMemberQuota(r.Context(), u.ID, *req.Quota); err != nil {
+			return err
+		}
 	}
 	s.st.Audit(r.Context(), p.actor(), "user.create", u.Username, map[string]string{"permissions": strings.Join(perms, ","), "servers": strings.Join(servers, ",")})
 	v, err := s.userView(r, *u)
@@ -228,8 +257,19 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) error 
 		up.PasswordHash, up.MustChange = &h, &yes
 		meta["password"] = "reset"
 	}
+	if req.Quota != nil {
+		if err := validateQuota(*req.Quota); err != nil {
+			return err
+		}
+	}
 	if err := s.st.UpdateMember(r.Context(), u.ID, up); err != nil {
 		return err
+	}
+	if req.Quota != nil {
+		if err := s.st.SetMemberQuota(r.Context(), u.ID, *req.Quota); err != nil {
+			return err
+		}
+		meta["quota"] = fmt.Sprintf("cpu=%s mem_mb=%d services=%d", fmtCores(req.Quota.CPU), req.Quota.MemMB, req.Quota.Services)
 	}
 	s.st.Audit(r.Context(), p.actor(), "user.update", u.Username, meta)
 	// Disabling an account or taking servers back: recompute the mesh and push the nodes whose

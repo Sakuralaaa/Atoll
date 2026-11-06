@@ -10,6 +10,8 @@ import { useProjects } from '../api/queries'
 import { projName } from '../api/view'
 import { useT } from '../i18n'
 import { SettingsTabs } from './Security'
+import { QuotaEditor, QuotaUsage } from '../components/MemberQuota'
+import { quotaDraft, quotaDraftValid, quotaFromDraft } from '../api/quota'
 
 /** Permissions an admin may give a sub-account (servers/settings/tokens stay admin-only). */
 const PERMS: { k: string; zh: string; en: string }[] = [
@@ -55,6 +57,7 @@ export default function Users() {
                       {' · '}{(u.permissions ?? []).join(', ')}
                     </div>
                   )}
+                  {u.role === 'member' && u.quota && <div className="mt-2"><QuotaUsage quota={u.quota} usage={u.usage} compact /></div>}
                 </div>
                 {u.role === 'member' && <Button size="sm" onClick={() => setEdit(u)}>{t('编辑', 'Edit')}</Button>}
               </div>
@@ -76,11 +79,12 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
   const [password, setPassword] = useState('')
   const [perms, setPerms] = useState<string[]>(user?.permissions ?? ['read', 'deploy'])
   const [srv, setSrv] = useState<string[]>(user?.servers ?? [])
+  const [quota, setQuota] = useState(quotaDraft(user?.quota))
   const [busy, setBusy] = useState(false)
   const toggle = (list: string[], set: (v: string[]) => void, k: string) => set(list.includes(k) ? list.filter(x => x !== k) : [...list, k])
   const save = async () => {
     setBusy(true)
-    const body = { permissions: perms, servers: srv, ...(password ? { password } : {}) }
+    const body = { permissions: perms, servers: srv, quota: quotaFromDraft(quota), ...(password ? { password } : {}) }
     const r = await run(() => user ? api.updateUser(user.id, body) : api.createUser({ ...body, username, password }), { ok: t('已保存', 'Saved'), invalidate: ['users'] })
     setBusy(false)
     if (r) onClose()
@@ -99,7 +103,7 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
         {user && <Button variant="danger-outline" size="sm" disabled={busy} onClick={() => confirm(t(`删除 ${user.username}？它的会话和令牌会一并失效。`, `Delete ${user.username}? Its sessions and tokens stop working.`)) && act(() => api.deleteUser(user.id).then(() => true))}><Trash2 size={14} /></Button>}
         <div className="flex-1" />
         <Button onClick={onClose}>{t('取消', 'Cancel')}</Button>
-        <Button variant="primary" disabled={busy || (!user && (!username || password.length < 8))} onClick={save}>{t('保存', 'Save')}</Button>
+        <Button variant="primary" disabled={busy || !quotaDraftValid(quota) || (!user && (!username || password.length < 8))} onClick={save}>{t('保存', 'Save')}</Button>
       </div>}>
       <div className="flex flex-col gap-4">
         {!user && <TextInput placeholder={t('用户名', 'Username')} value={username} onChange={e => setUsername(e.target.value)} autoComplete="off" />}
@@ -125,6 +129,8 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
           <div className="text-[12px] font-bold text-muted mb-1">{t('权限（始终可查看）', 'Permissions (viewing is always allowed)')}</div>
           {PERMS.map(p => <label key={p.k} className={box}><input type="checkbox" checked={perms.includes(p.k)} onChange={() => toggle(perms, setPerms, p.k)} />{t(p.zh, p.en)}</label>)}
         </div>
+        <QuotaEditor value={quota} onChange={setQuota} />
+        {user?.usage && <div className="-mt-2"><div className="text-[12px] text-muted mb-1">{t('当前用量', 'Current usage')}</div><QuotaUsage quota={quotaFromDraft(quota)} usage={user.usage} /></div>}
       </div>
     </Modal>
   )
