@@ -66,3 +66,29 @@
 - [x] 5. 部署边界：已核实 2026-11-06，api.Service 本身没有 privileged、host 网络和 cap_add 字段，新的宿主路径挂载 API 一律拒绝（checkHostPaths）。Docker 接管与导入（/imports*）只对 admin 开放，因此不需要额外代码。以后若为 Service 新增这类字段，必须对 member 拒绝。
 - [~] 6. Web UI 进度：管理员子账号页 web/src/pages/Users.tsx（/settings/users，可新建、编辑服务器和权限、重置密码、停用、删除）已完成；member 侧栏只显示项目、服务器、域名；设置页中 member 只看到「账号与安全」。must_change_password：前端有顶部提示，后端也已强制（未改密前 member 会话只能访问 /auth/* 和 /me/*）；项目设置与服务设置里的「迁移」「删除」已按权限隐藏（useCan，web/src/api/queries.ts）；域名页的「绑定域名」也已按 domains 权限隐藏；日志页的「命令」（exec）也已按权限隐藏；服务状态页的「文件」「命令」入口和「绑定域名」按钮也已按权限隐藏；**还缺**：服务页其他位置的域名操作、备份恢复、部署类按钮也要按 useCan 隐藏（目前点击后服务端返回 403）；以上都尚未在真实浏览器中目测。
 - [~] 7. docs/api.md 已写；docs/releases/v0.1.41.md 草稿和 CHANGELOG 行已写（标注草稿）。发版前需真实浏览器目测，并取得用户确认；发版时去掉「草稿」字样
+
+
+## 接力：后续待办（2026-11-06 16:20 更新，v0.1.41 已发）
+
+v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接手，每完成一小步就推送并更新本节。
+
+### A. 第一阶段收尾（小）
+1. 在真实浏览器里目测：用 `VITE_DEMO=1` 预览，或连真实中控。demo 的 `auth/me` 没有 role，需要在 web/src/api/demo.ts 里加一个 member 演示账号。要看的页面：子账号页、member 侧栏、改密横幅、隐藏后的按钮。
+2. 剩余按钮按 `useCan` 隐藏（web/src/api/queries.ts）。还没处理的：备份页的恢复（restore）、部署类操作（deploy：重新部署、启停、改环境变量、新增服务、回滚、镜像更新）、服务设置里其他域名操作（domains）。
+3. 一键应用模板 `POST /app-templates/{id}`：对 member 开放前，要先校验目标服务器（memberMayUse），并确认 `!p.Session` 分支的行为（app_templates.go:51）。
+4. `GET /root-domains` 是否对 member 只读开放（只返回名字，不含令牌）。
+5. 管理员页提示：把服务器分给 member 时，如果这台服务器上已有管理员的项目，要给出提示（那些项目会被 member 看到）。
+6. 偶发失败的测试：`internal/agent TestWebSocketSession`（超时）、`internal/server TestTwoFactorFlow`（错误码被接受，第 86 行）。两者在 CI 中各失败过一次，查明原因或改得更稳。
+
+### B. 第二阶段（大，需要先和用户确认方案）
+1. mesh 隔离：member 的服务不应通过 tailnet 访问其他服务器上的服务。需要所有节点升级 Agent。
+2. member 自管 API 令牌（权限不超过自己，作用域与本人相同），以及 CLI/MCP 支持。
+3. 资源配额：CPU、内存、服务数。
+4. 备份按用户隔离（存储前缀或独立仓库）。
+5. `/problems` 对 member 过滤：服务器级告警只发给拥有该服务器的人。
+6. 审计日志记录操作者（admin 或 member）。
+
+### C. 与子账号无关、仍待用户决定的事项
+- 线上中控升级到 v0.1.41：包含 0019 至 0024 迁移，升级前先备份；按二进制替换流程操作，见 project 记录或 docs/control.md。
+- InstaBox 远程构建（v0.1.42 候选）：API key 只能由用户在面板里填写。
+- Oracle 迁移切换：由另一个 agent 执行，不要假设已经切换。
