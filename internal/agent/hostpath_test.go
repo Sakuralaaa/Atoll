@@ -2,7 +2,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,19 +79,4 @@ func TestVolumeTransferRefusesHostPath(t *testing.T) {
 func mustJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
-}
-
-func TestChownIfEmpty(t *testing.T) {
-	d := t.TempDir()
-	if err := chownIfEmpty(d, "abc"); err == nil {
-		t.Fatal("bad owner accepted")
-	}
-	uid, gid := os.Getuid(), os.Getgid()
-	if err := chownIfEmpty(d, fmt.Sprintf("%d:%d", uid, gid)); err != nil {
-		t.Fatal(err)
-	}
-	os.WriteFile(filepath.Join(d, "f"), nil, 0o644)
-	if err := chownIfEmpty(d, "abc"); err != nil { // not empty: left alone
-		t.Fatal(err)
-	}
 }

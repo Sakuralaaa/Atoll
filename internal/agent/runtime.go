@@ -30,6 +30,9 @@ type Runtime interface {
 	PullImage(ctx context.Context, ref string, auth *api.RegistryAuth) error
 	// ImageInfo returns the local image ID and repo digest of ref, ErrNotFound if absent.
 	ImageInfo(ctx context.Context, ref string) (ImageInfo, error)
+	// ImageFile reads one regular file from an image's filesystem (e.g. /etc/passwd) without
+	// running it. ErrNotFound when the image or the file is absent.
+	ImageFile(ctx context.Context, ref, path string) ([]byte, error)
 
 	// ListContainers returns all containers (running or not) carrying the given label key.
 	ListContainers(ctx context.Context, labelKey string) ([]ContainerInfo, error)
@@ -78,6 +81,7 @@ type ImageSummary struct {
 type ImageInfo struct {
 	ID     string // sha256:... local image id
 	Digest string // repo digest "sha256:..." when known
+	User   string // the image's USER ("" = root)
 }
 
 type NetworkAttach struct {

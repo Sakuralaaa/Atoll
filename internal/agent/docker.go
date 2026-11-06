@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"archive/tar"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -144,6 +145,9 @@ func (d *DockerRuntime) ImageInfo(ctx context.Context, ref string) (ImageInfo, e
 		return ImageInfo{}, mapErr(err)
 	}
 	info := ImageInfo{ID: ins.ID}
+	if ins.Config != nil {
+		info.User = ins.Config.User
+	}
 	for _, rd := range ins.RepoDigests {
 		if i := strings.Index(rd, "@"); i >= 0 {
 			info.Digest = rd[i+1:]
@@ -151,6 +155,36 @@ func (d *DockerRuntime) ImageInfo(ctx context.Context, ref string) (ImageInfo, e
 		}
 	}
 	return info, nil
+}
+
+// ImageFile creates (never starts) a throwaway container from ref and copies one file out.
+func (d *DockerRuntime) ImageFile(ctx context.Context, ref, path string) ([]byte, error) {
+	created, err := d.cli.ContainerCreate(ctx, &container.Config{Image: ref, Entrypoint: []string{"/nonexistent"}, Labels: map[string]string{"atoll.probe": "1"}},
+		&container.HostConfig{NetworkMode: "none"}, nil, nil, "")
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	defer func() {
+		_ = d.cli.ContainerRemove(context.Background(), created.ID, container.RemoveOptions{Force: true})
+	}()
+	rc, _, err := d.cli.CopyFromContainer(ctx, created.ID, path)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	defer rc.Close()
+	tr := tar.NewReader(rc)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil, ErrNotFound
+		}
+		if err != nil {
+			return nil, err
+		}
+		if hdr.Typeflag == tar.TypeReg {
+			return io.ReadAll(io.LimitReader(tr, 4<<20))
+		}
+	}
 }
 
 func (d *DockerRuntime) ListContainers(ctx context.Context, labelKey string) ([]ContainerInfo, error) {

@@ -43,6 +43,7 @@ type Fake struct {
 	Loaded          [][]byte // archives given to LoadImage
 	LoadRefs        []string // refs LoadImage reports
 	StatsFunc       func(name string) agent.ContainerStats
+	ImageFiles      map[string]string // "ref path" -> content (ImageFile)
 }
 
 func New() *Fake {
@@ -127,6 +128,16 @@ func (f *Fake) PullImage(_ context.Context, ref string, auth *api.RegistryAuth) 
 	f.seq++
 	f.Images[ref] = agent.ImageInfo{ID: fmt.Sprintf("sha256:img%04d", f.seq), Digest: fmt.Sprintf("sha256:digest-%s", strings.ReplaceAll(ref, ":", "-"))}
 	return nil
+}
+
+func (f *Fake) ImageFile(_ context.Context, ref, path string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.call("imagefile %s %s", ref, path)
+	if c, ok := f.ImageFiles[ref+" "+path]; ok {
+		return []byte(c), nil
+	}
+	return nil, agent.ErrNotFound
 }
 
 func (f *Fake) ImageInfo(_ context.Context, ref string) (agent.ImageInfo, error) {

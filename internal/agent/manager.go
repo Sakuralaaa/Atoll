@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +47,9 @@ type Manager struct {
 
 	digestMu sync.Mutex
 	digests  map[string]string // image id -> repo digest
+
+	ownerMu sync.Mutex
+	owners  map[string]uidGid // image id + " " + user -> resolved numeric owner
 }
 
 func NewManager(rt Runtime, p Paths, emit EmitFunc, log *slog.Logger) *Manager {
@@ -60,7 +62,7 @@ func NewManager(rt Runtime, p Paths, emit EmitFunc, log *slog.Logger) *Manager {
 	return &Manager{
 		rt: rt, paths: p, store: NewStateStore(p), emit: emit, log: log,
 		SettleTime: 5 * time.Second, HealthWait: 60 * time.Second, StopTimeout: 30 * time.Second,
-		locks: map[string]*sync.Mutex{}, digests: map[string]string{},
+		locks: map[string]*sync.Mutex{}, digests: map[string]string{}, owners: map[string]uidGid{},
 	}
 }
 
@@ -129,6 +131,13 @@ func (m *Manager) converge(ctx context.Context, spec api.ResolvedSpec) error {
 			}
 			return m.rt.StartContainer(ctx, name)
 		}
+		if !spec.Stopped && info.State == "restarting" {
+			// a crash loop may be a volume the container user cannot write: fix ownership,
+			// Docker's restart policy picks it up on the next attempt
+			if err := m.prepareHost(ctx, spec); err != nil {
+				m.log.Warn("prepare host for a restarting container", "service", spec.ServiceID, "err", err)
+			}
+		}
 		return nil
 	case err != nil && !errors.Is(err, ErrNotFound):
 		return err
@@ -158,9 +167,22 @@ func (m *Manager) prepareHost(ctx context.Context, spec api.ResolvedSpec) error 
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		if v.Owner != "" {
-			if err := chownIfEmpty(dir, v.Owner); err != nil {
+		owner, ok, err := m.volumeOwner(ctx, spec, v)
+		if err != nil {
+			if v.Owner != "" {
 				return fmt.Errorf("volume %s: owner: %w", v.Name, err)
+			}
+			// automatic ownership is best effort: never fail a deploy over it
+			m.log.Warn("volume owner", "service", spec.ServiceID, "volume", v.Name, "err", err)
+			continue
+		}
+		if ok {
+			changed, err := fixVolumeOwner(dir, owner)
+			if err != nil {
+				return fmt.Errorf("volume %s: owner: %w", v.Name, err)
+			}
+			if changed {
+				m.log.Info("volume handed to the container user", "service", spec.ServiceID, "volume", v.Name, "uid", owner.UID, "gid", owner.GID)
 			}
 		}
 	}
@@ -674,6 +696,11 @@ func (m *Manager) Action(ctx context.Context, serviceID, action string) error {
 		if err != nil {
 			return err
 		}
+		// dirs and volume ownership again: a restart is how a volume created before the
+		// automatic ownership fix (or by hand) gets repaired without a redeploy
+		if err := m.prepareHost(ctx, spec); err != nil {
+			return err
+		}
 		if action == "restart" && info.State == "running" {
 			return m.rt.RestartContainer(ctx, name, m.StopTimeout)
 		}
@@ -795,26 +822,4 @@ func (m *Manager) Status(ctx context.Context) ([]api.ContainerState, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ServiceID < out[j].ServiceID })
 	return out, nil
-}
-
-// chownIfEmpty hands an empty volume dir to owner ("uid" or "uid:gid") so images running as a
-// non-root user can write it. A dir with content is left alone: the app owns what it wrote.
-func chownIfEmpty(dir, owner string) error {
-	ents, err := os.ReadDir(dir)
-	if err != nil || len(ents) > 0 {
-		return err
-	}
-	uidS, gidS, ok := strings.Cut(owner, ":")
-	if !ok {
-		gidS = uidS
-	}
-	uid, err := strconv.Atoi(uidS)
-	if err != nil {
-		return err
-	}
-	gid, err := strconv.Atoi(gidS)
-	if err != nil {
-		return err
-	}
-	return os.Chown(dir, uid, gid)
 }
