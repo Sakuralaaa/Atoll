@@ -57,8 +57,8 @@ func TestMemberScope(t *testing.T) {
 		"GET /api/v1/projects/prj_b":      404,
 		"GET /api/v1/settings":            403,
 		"GET /api/v1/tokens":              403,
-		"GET /api/v1/servers":             403,
-		"GET /api/v1/servers/srv_b":       403,
+		"GET /api/v1/servers/srv_b":       404,
+		"GET /api/v1/servers/srv_a":       200,
 		"POST /api/v1/servers/join-token": 403,
 		"GET /api/v1/events":              403,
 	}
@@ -67,6 +67,16 @@ func TestMemberScope(t *testing.T) {
 		if got := e.doWith(mc, "", method, path, nil, nil); got != code {
 			t.Errorf("%s: %d, want %d", k, got, code)
 		}
+	}
+	var servers []api.Server
+	if code := e.doWith(mc, "", "GET", "/api/v1/servers", nil, &servers); code != 200 || len(servers) != 1 || servers[0].ID != "srv_a" {
+		t.Fatalf("servers %d %+v", code, servers)
+	}
+	if code := e.doWith(mc, "", "POST", "/api/v1/projects", map[string]string{"name": "c", "server_id": "srv_b"}, nil); code != 400 {
+		t.Fatalf("project on an unassigned server: %d", code)
+	}
+	if code := e.doWith(mc, "", "POST", "/api/v1/projects/prj_a/migrate", map[string]string{"server_id": "srv_b"}, nil); code == 200 || code == 202 {
+		t.Fatalf("migrate to an unassigned server: %d", code)
 	}
 	yes := true
 	if err := st.UpdateMember(ctx, m.ID, store.MemberUpdate{Disabled: &yes}); err != nil {

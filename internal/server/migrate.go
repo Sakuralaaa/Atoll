@@ -23,6 +23,9 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &req); err != nil {
 		return err
 	}
+	if !memberMayUse(r, req.ServerID) {
+		return badRequest("unknown target server_id %q", req.ServerID)
+	}
 	to, err := s.st.GetNode(r.Context(), req.ServerID)
 	if err != nil {
 		return badRequest("unknown target server_id %q", req.ServerID)
@@ -145,6 +148,9 @@ func (s *Server) handleServiceMigrate(w http.ResponseWriter, r *http.Request) er
 	var req api.ServiceMigrateRequest
 	if err := decode(r, &req); err != nil {
 		return err
+	}
+	if !memberMayUse(r, req.ServerID) {
+		return badRequest("unknown target server_id %q", req.ServerID)
 	}
 	to, err := s.st.GetNode(r.Context(), req.ServerID)
 	if err != nil {

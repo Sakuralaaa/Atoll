@@ -26,6 +26,15 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	if p := principalFrom(r.Context()); p != nil && p.Member { // only its assigned servers
+		kept := ns[:0]
+		for _, n := range ns {
+			if p.Servers[n.ID] {
+				kept = append(kept, n)
+			}
+		}
+		ns = kept
+	}
 	for i := range ns {
 		s.withUsage(r.Context(), &ns[i])
 	}
@@ -34,6 +43,9 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) error
 }
 
 func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) error {
+	if !memberMayUse(r, r.PathValue("id")) {
+		return errMemberHidden()
+	}
 	n, err := s.st.GetNode(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err

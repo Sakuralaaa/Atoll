@@ -51,6 +51,9 @@ var memberAllow = map[string]bool{
 	"PUT /me/project-prefs":             true,
 	"PUT /me/nav-order":                 true,
 	"GET /projects":                     true,
+	"POST /projects":                    true, // server_id checked (memberMayUse)
+	"GET /servers":                      true, // filtered to Servers
+	"GET /servers/{id}":                 true, // memberMayUse
 	"GET /image-updates":                true,
 	"GET /domains":                      true,
 	"GET /backup-verifications":         true,
@@ -119,4 +122,11 @@ func (s *Server) memberServiceOf(r *http.Request, res string) string {
 		}
 	}
 	return ""
+}
+
+// memberMayUse: false when the caller is a member and serverID is not assigned to it.
+// Use it wherever a request names a server to place, move or create something on.
+func memberMayUse(r *http.Request, serverID string) bool {
+	p := principalFrom(r.Context())
+	return p == nil || !p.Member || p.Servers[serverID]
 }

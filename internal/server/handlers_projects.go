@@ -70,6 +70,9 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
+	if !memberMayUse(r, req.ServerID) {
+		return badRequest("unknown server_id %q", req.ServerID)
+	}
 	p, err := s.createProject(r.Context(), req.Name, req.ServerID, req.Description, false)
 	if err != nil {
 		return err
@@ -324,6 +327,9 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 	}
 	placement := strings.TrimSpace(req.ServerID)
 	if placement != "" && placement != p.ServerID {
+		if !memberMayUse(r, placement) {
+			return badRequest("unknown server_id %q", placement)
+		}
 		if _, err := s.st.GetNode(r.Context(), placement); err != nil {
 			return badRequest("unknown server_id %q", placement)
 		}
