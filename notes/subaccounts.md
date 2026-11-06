@@ -92,6 +92,20 @@ A 段已全部完成（2026-11-06），说明写在 docs/releases/v0.1.42.md，�
 5. [x] B5 /problems 与告警按 member 过滤（2026-11-06，分支 mesh-token）：GET /problems 对 member 用 memberSeesProblem 过滤（项目在其范围且服务所在服务器已分配；node_offline/disk_high 只看自己的服务器；备份仓库校验只给 admin）；`problems` 事件帧（只有计数）放行给 member。member 自己的通知渠道 GET/PUT /me/notifications、POST /me/notifications/test（webhook/telegram，最多 5 个，存 settings 键 `notifications.user.<id>`，删除 member 时一并删除）；deliverNotifications 在标记已通知的同一轮给能看到该问题的 member 发一次（失败只记日志不重试；静默时段/恢复通知沿用 admin 设置）；member 的 webhook 走 MemberNotifyHTTP，只允许公网地址、不跟随重定向。admin 渠道照常收到全部。面板：member 的「账号与安全」底部有「通知」卡片（无邮件类型、无静默设置）。无迁移。测试：server.TestMemberProblemsAndNotifications、TestMemberWebhookRefusesPrivateAddresses、TestMemberSeesProblemsFrame。
 6. [x] B6 审计日志记录操作者（2026-11-06，分支 mesh-token）：迁移 0025_audit_user 给 audit_log 加 user_id/user_name/user_role（默认 0/''）。authed 把会话用户或令牌所属用户写进 AuditMeta（store.WithAuditUser），登录/初始化也记。GET /audit 返回 user_id/user_name/user_role（omitempty），新增 `?user=<名字>` 筛选（旧行按 actor `user:<名字>` 匹配，旧行 user_name 从 actor 推出）。中控审计日志页在操作者下显示「子账号 X / 账号 X」，点击只看该账号。审计日志仍只给 admin。测试：server.TestAuditRecordsUser，store.TestUpgradeFromV0140（v0.1.40 库升级）。
 
+### 剩余待办（2026-11-06 18:10，分支 mesh-token，下一位 agent 从这里接手）
+B1/B2/B3/B4/B5/B6 已提交。还要做：
+
+1. **B7 子账号域名限制**（用户要求「只允许用子域名」），设计：
+   - 迁移 0027（接现有最大号 0026）：`member_root_domains(user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, root TEXT, PRIMARY KEY(user_id, root))`。没有行 = 不能用任何已配置根域（升级后的 member 默认如此）。删除根域时一并删行或查询时忽略不存在的根域。
+   - API：POST/PATCH /users 加 `root_domains: [name]`（只能从已配置根域里选，否则 400）；GET /users 返回（omitempty）。GET /root-domains 对 member 只返回其允许的根域 `[{name, default}]`。
+   - 统一校验函数（如 `memberHostAllowed(ctx, p, host) error`），用在所有 member 可达的绑定入口：服务域名绑定（POST /services/{id}/domains 等）、POST /app-templates/{id} 的 hostname/domains、项目 default_domain（PATCH /projects/{id}），以及 grep 找到的其他入口（如 generate 子域、服务改名带域名等）。规则：主机名落在某个已配置根域下 → 该根域必须在 member 允许列表里，且必须是严格子域（禁止 apex 本身），禁止通配符 `*`；不属于任何已配置根域的外部域名照旧允许（pending，自己加 A 记录）；已被占用的主机名照旧 409。admin 不受限。已绑定的域名不动。
+   - 前端：设置 → 子账号编辑框加「允许的根域」勾选；member 的域名输入（useHostnameInput 等）只列允许根域、提示只能填子域前缀；demo 数据同步（alice 给一个根域）。
+   - 测试：每个入口的越权（未允许的根域、apex、通配符、占用）+ store 升级测试（v0.1.41 库升级后 member 无根域）。更新 docs/api.md 与本文件。
+2. **rebase**：`git fetch origin && git rebase origin/main`；冲突时本文件保留双方内容；迁移号若与上游冲突则顺延并修测试（store 升级测试里的文件名）。
+3. **全量验证**：`go vet ./...`、`gofmt -l .`、`CGO_ENABLED=1 go test -race ./...`（internal/server 按 -run 分批，2 核 120 秒上限；已知偶发 TestServiceMigrateUpdatesMesh、TestRestoreToAnotherServerAfterLoss 重跑即过），`cd web && npx tsc -b && npm run lint && npm run build`（lint 现有 4 条 only-export-components 警告，非新增）。本次只跑了相关测试（B3：TestMember*/TestUser*/TestService*/TestAppTemplate*/TestMigrat*/TestResource*、store 全部；B4：TestBackup*/TestRestore*/TestMember*/TestVerif*/TestDrill*），web 的 tsc/lint/build 在 B3 时通过，未跑 -race 全量。
+4. B4 的局限（共用 restic 仓库密码，见上面 B4 段）需要用户决定是否按 member 分仓库。
+5. 全部完成后再写 v0.1.42 发版说明（CHANGELOG、版本号由主 agent / 用户决定）。
+
 ### C. 与子账号无关、仍待用户决定的事项
 - 线上中控升级到 v0.1.41：包含 0019 至 0024 迁移，升级前先备份；按二进制替换流程操作，见 project 记录或 docs/control.md。
 - InstaBox 远程构建（v0.1.42 候选）：API key 只能由用户在面板里填写。
