@@ -206,6 +206,9 @@ func (s *Store) DeleteRootDomain(ctx context.Context, name string) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE projects SET root_domain='' WHERE root_domain=?`, name); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM member_root_domains WHERE root=?`, name); err != nil {
+		return err
+	}
 	if def == 1 {
 		var next string
 		err := tx.QueryRowContext(ctx, `SELECT name FROM root_domains ORDER BY created_at, name LIMIT 1`).Scan(&next)

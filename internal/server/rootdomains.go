@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -80,9 +81,16 @@ func (s *Server) handleListRootDomains(w http.ResponseWriter, r *http.Request) e
 	if p := principalFrom(ctx); p != nil && p.Member {
 		// members pick a root for their domains and project defaults: names only, no
 		// zone, certificate state or errors (notes/subaccounts.md)
-		out := make([]memberRootDomain, len(rs))
-		for i, x := range rs {
-			out[i] = memberRootDomain{Name: x.Name, Default: x.Default}
+		// and only the roots an admin allowed it (B7, member_domains.go)
+		allowed, err := s.memberRootsOf(ctx, p)
+		if err != nil {
+			return err
+		}
+		out := []memberRootDomain{}
+		for _, x := range rs {
+			if slices.Contains(allowed, x.Name) {
+				out = append(out, memberRootDomain{Name: x.Name, Default: x.Default})
+			}
 		}
 		writeJSON(w, 200, out)
 		return nil

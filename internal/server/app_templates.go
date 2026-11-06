@@ -61,6 +61,9 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 			return errf(403, "approval_required", "this token needs approval for domain changes; leave hostname empty and bind the domain separately")
 		}
 	}
+	if err := s.checkMemberTemplateHosts(ctx, req.Hostname, req.RootDomain, extra); err != nil {
+		return err // before the project exists, so a refused domain leaves nothing behind
+	}
 	inputs, err := templates.ResolveInputs(tpl, req.Inputs)
 	if err != nil {
 		return badRequest("%s", err.Error())

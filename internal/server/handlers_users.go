@@ -29,6 +29,8 @@ type userView struct {
 	// members: resource quota (absent = none) and current usage (B3, quotas.go)
 	Quota *api.MemberQuota `json:"quota,omitempty"`
 	Usage *api.MemberUsage `json:"usage,omitempty"`
+	// members: configured root domains it may put subdomains under (B7, absent = none)
+	RootDomains []string `json:"root_domains,omitempty"`
 }
 
 type userRequest struct {
@@ -39,6 +41,8 @@ type userRequest struct {
 	Disabled    *bool     `json:"disabled"`
 	// Quota replaces the member's quota; 0 fields = no limit, {} clears it.
 	Quota *api.MemberQuota `json:"quota"`
+	// RootDomains replaces the configured roots the member may use ([] = none).
+	RootDomains *[]string `json:"root_domains"`
 }
 
 func requireAdmin(r *http.Request) (*principal, error) {
@@ -70,6 +74,13 @@ func (s *Server) userView(r *http.Request, u store.User) (userView, error) {
 			return v, err
 		}
 		v.Usage = &us
+		rs, err := s.st.MemberRootDomains(r.Context(), u.ID)
+		if err != nil {
+			return v, err
+		}
+		if len(rs) > 0 {
+			v.RootDomains = rs
+		}
 	}
 	return v, nil
 }
@@ -170,6 +181,12 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 	}
+	var roots []string
+	if req.RootDomains != nil {
+		if roots, err = s.cleanMemberRoots(r.Context(), *req.RootDomains); err != nil {
+			return err
+		}
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -186,7 +203,12 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 	}
-	s.st.Audit(r.Context(), p.actor(), "user.create", u.Username, map[string]string{"permissions": strings.Join(perms, ","), "servers": strings.Join(servers, ",")})
+	if len(roots) > 0 {
+		if err := s.st.SetMemberRootDomains(r.Context(), u.ID, roots); err != nil {
+			return err
+		}
+	}
+	s.st.Audit(r.Context(), p.actor(), "user.create", u.Username, map[string]string{"permissions": strings.Join(perms, ","), "servers": strings.Join(servers, ","), "root_domains": strings.Join(roots, ",")})
 	v, err := s.userView(r, *u)
 	if err != nil {
 		return err
@@ -262,6 +284,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 	}
+	var roots []string
+	if req.RootDomains != nil {
+		if roots, err = s.cleanMemberRoots(r.Context(), *req.RootDomains); err != nil {
+			return err
+		}
+	}
 	if err := s.st.UpdateMember(r.Context(), u.ID, up); err != nil {
 		return err
 	}
@@ -270,6 +298,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 		meta["quota"] = fmt.Sprintf("cpu=%s mem_mb=%d services=%d", fmtCores(req.Quota.CPU), req.Quota.MemMB, req.Quota.Services)
+	}
+	if req.RootDomains != nil {
+		if err := s.st.SetMemberRootDomains(r.Context(), u.ID, roots); err != nil {
+			return err
+		}
+		meta["root_domains"] = strings.Join(roots, ",")
 	}
 	s.st.Audit(r.Context(), p.actor(), "user.update", u.Username, meta)
 	// Disabling an account or taking servers back: recompute the mesh and push the nodes whose

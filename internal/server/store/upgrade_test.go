@@ -90,6 +90,8 @@ func TestUpgradeFromV0141Members(t *testing.T) {
 			`INSERT INTO server_assignments(server_id, user_id, created_at) VALUES('srv_a',2,'` + now + `')`,
 			`INSERT INTO projects(id, name, server_id, created_at) VALUES('prj_a','a','srv_a','` + now + `')`,
 			`INSERT INTO services(id, project_id, name, kind, image, created_at, cpu_limit, mem_limit_mb) VALUES('svc_a','prj_a','web','image','nginx','` + now + `',0.5,256)`,
+			`INSERT INTO root_domains(name, created_at) VALUES('example.com','` + now + `')`,
+			`INSERT INTO domains(id, service_id, hostname, port_name, status, created_at) VALUES('dom_a','svc_a','example.com','web','active','` + now + `')`,
 		} {
 			if _, err := db.Exec(q); err != nil {
 				t.Fatalf("%s: %v", q, err)
@@ -112,5 +114,24 @@ func TestUpgradeFromV0141Members(t *testing.T) {
 	sc, err := s.MemberScopeOf(ctx, u.ID)
 	if err != nil || !sc.Projects["prj_a"] {
 		t.Fatalf("scope after upgrade %+v %v", sc, err)
+	}
+	// B7 (0027): an upgraded member may use no configured root, but keeps what it bound
+	if rs, err := s.MemberRootDomains(ctx, u.ID); err != nil || len(rs) != 0 {
+		t.Fatalf("root domains after upgrade %v %v", rs, err)
+	}
+	if ds, err := s.ListDomains(ctx, "svc_a", ""); err != nil || len(ds) != 1 || ds[0].Hostname != "example.com" {
+		t.Fatalf("domains after upgrade %+v %v", ds, err)
+	}
+	if err := s.SetMemberRootDomains(ctx, u.ID, []string{"example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if rs, _ := s.MemberRootDomains(ctx, u.ID); len(rs) != 1 {
+		t.Fatalf("set root domains %v", rs)
+	}
+	if err := s.DeleteRootDomain(ctx, "example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if rs, _ := s.MemberRootDomains(ctx, u.ID); len(rs) != 0 {
+		t.Fatalf("root domains after the root was deleted %v", rs)
 	}
 }

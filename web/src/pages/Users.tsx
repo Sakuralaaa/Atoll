@@ -12,6 +12,7 @@ import { useT } from '../i18n'
 import { SettingsTabs } from './Security'
 import { QuotaEditor, QuotaUsage } from '../components/MemberQuota'
 import { quotaDraft, quotaDraftValid, quotaFromDraft } from '../api/quota'
+import { useRootDomains } from '../components/RootDomainsSettings'
 
 /** Permissions an admin may give a sub-account (servers/settings/tokens stay admin-only). */
 const PERMS: { k: string; zh: string; en: string }[] = [
@@ -80,11 +81,13 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
   const [perms, setPerms] = useState<string[]>(user?.permissions ?? ['read', 'deploy'])
   const [srv, setSrv] = useState<string[]>(user?.servers ?? [])
   const [quota, setQuota] = useState(quotaDraft(user?.quota))
+  const [roots, setRoots] = useState<string[]>(user?.root_domains ?? [])
+  const allRoots = useRootDomains().data ?? []
   const [busy, setBusy] = useState(false)
   const toggle = (list: string[], set: (v: string[]) => void, k: string) => set(list.includes(k) ? list.filter(x => x !== k) : [...list, k])
   const save = async () => {
     setBusy(true)
-    const body = { permissions: perms, servers: srv, quota: quotaFromDraft(quota), ...(password ? { password } : {}) }
+    const body = { permissions: perms, servers: srv, quota: quotaFromDraft(quota), root_domains: roots, ...(password ? { password } : {}) }
     const r = await run(() => user ? api.updateUser(user.id, body) : api.createUser({ ...body, username, password }), { ok: t('已保存', 'Saved'), invalidate: ['users'] })
     setBusy(false)
     if (r) onClose()
@@ -128,6 +131,13 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
         <div>
           <div className="text-[12px] font-bold text-muted mb-1">{t('权限（始终可查看）', 'Permissions (viewing is always allowed)')}</div>
           {PERMS.map(p => <label key={p.k} className={box}><input type="checkbox" checked={perms.includes(p.k)} onChange={() => toggle(perms, setPerms, p.k)} />{t(p.zh, p.en)}</label>)}
+        </div>
+        <div>
+          <div className="text-[12px] font-bold text-muted mb-1">{t('允许的根域', 'Allowed root domains')}</div>
+          <p className="text-[12px] text-muted mb-1">{t('勾选的根域下只能绑定子域名（不能用根域本身或通配符）；不勾选则不能用任何已配置的根域。自己的外部域名不受影响。',
+            'Only subdomains of the checked roots (never the root itself or a wildcard); none checked = no configured root. Its own outside domains are not affected.')}</p>
+          {allRoots.length === 0 && <div className="text-[13px] text-muted">{t('还没有配置根域名', 'No root domains configured')}</div>}
+          {allRoots.map(r => <label key={r.name} className={box}><input type="checkbox" checked={roots.includes(r.name)} onChange={() => toggle(roots, setRoots, r.name)} /><span className="font-mono">{r.name}</span></label>)}
         </div>
         <QuotaEditor value={quota} onChange={setQuota} />
         {user?.usage && <div className="-mt-2"><div className="text-[12px] text-muted mb-1">{t('当前用量', 'Current usage')}</div><QuotaUsage quota={quotaFromDraft(quota)} usage={user.usage} /></div>}

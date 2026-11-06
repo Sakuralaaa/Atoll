@@ -68,6 +68,9 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
+	if err := s.checkMemberRoot(r.Context(), root); err != nil { // member_domains.go
+		return err
+	}
 	if !memberMayUse(r, req.ServerID) {
 		return badRequest("unknown server_id %q", req.ServerID)
 	}
@@ -166,8 +169,14 @@ func (s *Server) handlePatchProject(w http.ResponseWriter, r *http.Request) erro
 		p.Description = strings.TrimSpace(*req.Description)
 	}
 	if req.RootDomain != nil {
+		was := p.RootDomain
 		if p.RootDomain, err = s.checkProjectRoot(r.Context(), *req.RootDomain); err != nil {
 			return err
+		}
+		if p.RootDomain != was { // a member keeps a root an admin chose, but cannot pick one it was not given
+			if err := s.checkMemberRoot(r.Context(), p.RootDomain); err != nil {
+				return err
+			}
 		}
 	}
 	if err := s.st.UpdateProject(r.Context(), p.ID, p.Name, p.DisplayName, p.Description); err != nil {

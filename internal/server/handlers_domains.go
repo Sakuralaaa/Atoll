@@ -77,16 +77,14 @@ func (s *Server) handleAddDomain(w http.ResponseWriter, r *http.Request) error {
 		})
 }
 
-// prepareDomain validates a request without side effects.
-func (s *Server) prepareDomain(ctx context.Context, svc *api.Service, req domainRequest) (*api.Domain, error) {
-	base := s.projectRoot(ctx, svc.ProjectID) // rootdomains.go
-	h := req.Hostname
-	if req.RootDomain != "" {
-		root, err := s.checkProjectRoot(ctx, req.RootDomain)
+// domainHost completes and normalizes a requested hostname: a bare name goes under base,
+// or under rootDomain when one is given (then the hostname is the part in front of it).
+func (s *Server) domainHost(ctx context.Context, base, h, rootDomain string) (string, error) {
+	if rootDomain != "" {
+		root, err := s.checkProjectRoot(ctx, rootDomain)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		// With an explicit root the hostname is the part in front of it.
 		h = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(h)), ".")
 		if h == "" || h == "@" {
 			h = root
@@ -95,8 +93,16 @@ func (s *Server) prepareDomain(ctx context.Context, svc *api.Service, req domain
 		}
 		base = root
 	}
-	host, err := normalizeHostname(h, base)
+	return normalizeHostname(h, base)
+}
+
+// prepareDomain validates a request without side effects.
+func (s *Server) prepareDomain(ctx context.Context, svc *api.Service, req domainRequest) (*api.Domain, error) {
+	host, err := s.domainHost(ctx, s.projectRoot(ctx, svc.ProjectID), req.Hostname, req.RootDomain) // rootdomains.go
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkMemberHost(ctx, host); err != nil { // member_domains.go
 		return nil, err
 	}
 	port := ""

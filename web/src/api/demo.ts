@@ -131,7 +131,10 @@ function rootRoute(method: string, seg: string[], body: any): unknown {
     r.cert_error = undefined; r.cert_expires_at = undefined
     if (r.cert_mode === 'auto') { r.cert_status = 'origin'; r.cert_expires_at = new Date(now + 5475 * D).toISOString() } else r.cert_status = r.cert_mode
   }
-  if (seg.length === 1 && method === 'GET') return rootDomains
+  if (seg.length === 1 && method === 'GET') {
+    const u = demoUsers.member() // B7: a member sees only its allowed roots, names only
+    return u ? rootDomains.filter(r => u.root_domains?.includes(r.name)).map(r => ({ name: r.name, default: r.default })) : rootDomains
+  }
   if (seg.length === 1 && method === 'POST') {
     const name = String(body.name ?? '').trim().toLowerCase().replace(/\.$/, '')
     if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(name)) fail(400, `invalid root domain "${name}"`)
@@ -419,6 +422,7 @@ function route(method: string, path: string, body: any): unknown {
     if (body.root_domain && !rootDomains.some(r => r.name === body.root_domain)) fail(400, `unknown root domain "${body.root_domain}"`)
     if (body.root_domain) host = !host || host === '@' ? root : host === root || host.endsWith('.' + root) ? host : `${host}.${root}`
     else if (!host.includes('.') && root) host = `${host}.${root}`
+    demoUsers.checkHost(host, rootDomains.map(r => r.name))
     if (domains.some(d => d.hostname === host)) fail(409, `hostname ${host} is already bound`)
     const d: Domain = { id: nid('dom'), service_id: a[0], hostname: host, port_name: body.port_name, proxied: body.proxied, status: 'provisioning', created_at: new Date().toISOString() }
     domains.push(d); setTimeout(() => { d.status = 'active' }, 8000); return d

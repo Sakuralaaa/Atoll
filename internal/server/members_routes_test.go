@@ -83,6 +83,10 @@ func TestMemberRootDomainsNamesOnly(t *testing.T) {
 		t.Fatalf("admin view: %+v", admin)
 	}
 	mc := memberClient(t, e, "bob", []string{api.PermRead, api.PermDeploy}, []string{"srv_a"})
+	bob, _ := e.srv.st.UserByName(ctx, "bob")
+	if err := e.srv.st.SetMemberRootDomains(ctx, bob.ID, []string{"example.com"}); err != nil { // B7
+		t.Fatal(err)
+	}
 	var got []map[string]any
 	if code := e.doWith(mc, "", "GET", "/api/v1/root-domains", nil, &got); code != 200 || len(got) != 1 {
 		t.Fatalf("member root domains: %d %+v", code, got)
