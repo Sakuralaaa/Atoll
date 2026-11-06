@@ -17,6 +17,7 @@ const Import = lazyPage(() => import('./pages/Import'))
 const ImportDocker = lazyPage(() => import('./pages/ImportDocker'))
 const Settings = lazyPage(() => import('./pages/Settings'))
 const Security = lazyPage(() => import('./pages/Security'))
+const Users = lazyPage(() => import('./pages/Users'))
 const Confirmations = lazyPage(() => import('./pages/Confirmations'))
 const Control = lazyPage(() => import('./pages/Control'))
 
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/import/docker" element={<ImportDocker />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/security" element={<Security />} />
+        <Route path="/settings/users" element={<Users />} />
         <Route path="/projects" element={<Navigate replace to="/" />} />
         <Route path="/projects/:pid" element={<ProjectIndex />} />
         <Route path="/projects/:pid/settings" element={<ProjectSettings />} />

@@ -1,5 +1,5 @@
 import { L } from '../i18n'
-import type {
+import type { PanelUser, PanelUserInput,
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, AppTemplate, AppTemplateResult, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
 } from './types'
@@ -101,6 +101,10 @@ export const api = {
   setProjectPrefs: (b: Partial<ProjectPrefs>) => put<ProjectPrefs>('/me/project-prefs', b),
   // servers
   servers: () => get<Server[]>('/servers'),
+  users: () => get<PanelUser[]>('/users'),
+  createUser: (b: PanelUserInput) => post<PanelUser>('/users', b),
+  updateUser: (id: number, b: PanelUserInput) => patch<PanelUser>(`/users/${id}`, b),
+  deleteUser: (id: number) => del(`/users/${id}`),
   server: (id: string) => get<Server>(`/servers/${e(id)}`),
   updateServer: (id: string, b: Partial<Pick<Server, 'name' | 'provider' | 'region'>>) => patch<Server>(`/servers/${e(id)}`, b),
   deleteServer: (id: string) => del<Confirmation | void>(`/servers/${e(id)}`),

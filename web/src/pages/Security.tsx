@@ -16,11 +16,14 @@ import { toast } from '../components/toast'
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
   const { t } = useT()
+  const me = useQuery('me', api.me)
+  const admin = me.data?.role !== 'member'
   const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-[#fde047] text-[#141414]' : 'border-transparent text-muted hover:text-fg')
   return (
     <div className="flex flex-wrap gap-2 mt-5 mb-8">
-      <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>
+      {admin && <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>}
       <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
+      {admin && <NavLink to="/settings/users" className={tab}>{t('子账号', 'Sub-accounts')}</NavLink>}
     </div>
   )
 }

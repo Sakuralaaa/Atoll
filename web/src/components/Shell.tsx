@@ -39,6 +39,8 @@ const NAV: NavDef[] = [
   { key: 'import', to: '/import', icon: <ArrowRightLeft size={16} />, label: L("迁移") },
   { key: 'settings', to: '/settings', icon: <SlidersHorizontal size={16} />, label: L("设置") },
 ]
+const MEMBER_NAV = new Set(['projects', 'servers', 'domains'])
+
 function orderedNav(saved?: string[]): NavDef[] {
   if (!saved?.length) return NAV
   const rank = new Map(saved.map((k, i) => [k, i]))
@@ -49,7 +51,9 @@ function orderedNav(saved?: string[]): NavDef[] {
 
 function NavList({ pending }: { pending: number }) {
   const q = useMe()
-  const items = orderedNav(q.data?.nav_order)
+  const member = q.data?.role === 'member'
+  // members (notes/subaccounts.md): only their projects, servers and domains
+  const items = orderedNav(q.data?.nav_order).filter(d => !member || MEMBER_NAV.has(d.key))
   const reorder = async (keys: string[]) => {
     const before = q.data
     if (before) q.set({ ...before, nav_order: keys })
