@@ -16,11 +16,12 @@ import { DomainBadge } from '../../components/DomainStatus'
 import { cx, statusText } from '../../components/ui-utils'
 import { providerOf } from '../../api/providers'
 import { L, useT } from '../../i18n'
-import { useProject } from '../../api/queries'
+import { useCan, useProject } from '../../api/queries'
 import { HostnameInput, useHostnameInput } from '../../components/HostnameInput'
 import { ProxyChoice } from '../../components/ProxyChoice'
 
 export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server }) {
+  const canExec = useCan('exec'), canBind = useCan('domains')
   const base = `/projects/${p.id}/services/${s.id}`
   const deps = useQuery(`deployments:${s.id}`, () => api.deployments(s.id))
   const m = useQuery(`svc-metrics:${s.id}:1h`, () => api.serviceMetrics(s.id, '1h'), { interval: 60000 })
@@ -96,14 +97,14 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
           <DomainBadge d={d} />
           <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[13px] text-muted">{d.proxied ? <><Cloud size={14} className="text-[#f6821f]" />{L("Cloudflare 代理")}</> : L("仅 DNS")} → <IP v={srv?.public_ipv4} /></span>
         </Card>
-      ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex flex-wrap gap-3 items-center justify-between">{L("此服务未公开访问，仅项目内网可达")}<Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />{L("绑定域名")}</Button></Card>}
+      ))}</div> : <Card className="px-6 py-5 text-[13px] text-muted flex flex-wrap gap-3 items-center justify-between">{L("此服务未公开访问，仅项目内网可达")}{canBind && <Button size="sm" disabled={!s.ports?.some(x => x.protocol === 'http')} onClick={() => setBind(true)}><Plus size={14} />{L("绑定域名")}</Button>}</Card>}
 
       <div className="mt-6 grid grid-cols-1 @4xl:grid-cols-3 gap-5">
         {([
           [FolderOpen, L("文件"), L("浏览容器与卷中的文件"), `${base}/files`],
           [ScrollText, L("日志"), L("实时运行日志"), `${base}/logs`],
           [SquareTerminal, L("命令"), L("在容器内执行命令"), `${base}/logs?view=exec`],
-        ] as const).map(([Icon, t, d, to]) => (
+        ] as const).filter(([, , , to]) => canExec || !(to.endsWith('/files') || to.endsWith('view=exec'))).map(([Icon, t, d, to]) => (
           <Link key={t} to={to} className="rounded-2xl surface surface-hover px-5 @2xl:px-6 py-5 flex items-center gap-4 min-w-0">
             <div className="h-11 w-11 shrink-0 rounded-lg bg-card2 ring-1 ring-line2 grid place-items-center text-fg"><Icon size={22} /></div>
             <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[13px] text-muted mt-0.5">{d}</div></div>
