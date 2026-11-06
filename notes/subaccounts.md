@@ -60,7 +60,7 @@
 
 ## 进度
 - [x] 1. 迁移 0024 + store（store/members.go，测试 store.TestMembersAndScope）
-- [x] 2. principal/member 认证（auth.go applyMember）+ checkMember（server/members.go，fail closed）；登录拒绝已停用账号；/auth/me 返回 role/servers。**还缺 server 层越权测试**（下一步先补）。memberAllow 暂未包含 GET /servers、GET /servers/{id}、POST /projects、POST /app-templates/{id}、GET /root-domains、GET /events，等 handler 加上过滤或校验后再放开
+- [x] 2. principal/member 认证（auth.go applyMember）+ checkMember（server/members.go，fail closed）；登录拒绝已停用账号；/auth/me 返回 role/servers。server 层测试 server.TestMemberScope。memberAllow 暂未包含 GET /servers、GET /servers/{id}、POST /projects、POST /app-templates/{id}、GET /root-domains、GET /events，等 handler 加上过滤或校验后再放开
 - [ ] 3. 用户管理 API + 测试
 - [ ] 4. 逐个核实 resList handler 和 `.Session` 的使用点；/servers 过滤；POST /projects 与 app-templates 的服务器校验
 - [ ] 5. 部署边界（privileged 等）

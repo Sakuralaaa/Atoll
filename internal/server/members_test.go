@@ -1,0 +1,93 @@
+package server
+
+import (
+	"context"
+	"net/http"
+	"net/http/cookiejar"
+	"testing"
+
+	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
+	"golang.org/x/crypto/bcrypt"
+)
+
+// A member sees only projects on its servers; panel-wide routes are refused; disabling
+// it ends its session at once (notes/subaccounts.md).
+func TestMemberScope(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	ctx := context.Background()
+	st := e.srv.st
+	for _, id := range []string{"srv_a", "srv_b"} {
+		if err := st.CreateNode(ctx, api.Server{ID: id, Name: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []api.Project{{ID: "prj_a", Name: "a", ServerID: "srv_a"}, {ID: "prj_b", Name: "b", ServerID: "srv_b"}} {
+		if err := st.CreateProject(ctx, p, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte("member-pass"), bcrypt.MinCost)
+	m, err := st.CreateMember(ctx, "bob", string(hash), []string{api.PermRead, api.PermDeploy, api.PermSettings}, []string{"srv_a"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar, _ := cookiejar.New(nil)
+	mc := &http.Client{Jar: jar}
+	if code := e.doWith(mc, "", "POST", "/api/v1/auth/login", map[string]string{"username": "bob", "password": "member-pass"}, nil); code != 200 {
+		t.Fatalf("login %d", code)
+	}
+	var me meResponse
+	if code := e.doWith(mc, "", "GET", "/api/v1/auth/me", nil, &me); code != 200 || me.Role != "member" || len(me.Servers) != 1 {
+		t.Fatalf("me %d %+v", code, me)
+	}
+	for _, x := range me.Permissions {
+		if x == api.PermSettings {
+			t.Fatal("settings permission must never reach a member")
+		}
+	}
+	var projects []api.Project
+	if code := e.doWith(mc, "", "GET", "/api/v1/projects", nil, &projects); code != 200 || len(projects) != 1 || projects[0].ID != "prj_a" {
+		t.Fatalf("projects %d %+v", code, projects)
+	}
+	want := map[string]int{
+		"GET /api/v1/projects/prj_a":      200,
+		"GET /api/v1/projects/prj_b":      404,
+		"GET /api/v1/settings":            403,
+		"GET /api/v1/tokens":              403,
+		"GET /api/v1/servers":             403,
+		"GET /api/v1/servers/srv_b":       403,
+		"POST /api/v1/servers/join-token": 403,
+		"GET /api/v1/events":              403,
+	}
+	for k, code := range want {
+		method, path, _ := cutSpace(k)
+		if got := e.doWith(mc, "", method, path, nil, nil); got != code {
+			t.Errorf("%s: %d, want %d", k, got, code)
+		}
+	}
+	yes := true
+	if err := st.UpdateMember(ctx, m.ID, store.MemberUpdate{Disabled: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if code := e.doWith(mc, "", "GET", "/api/v1/auth/me", nil, nil); code != 401 {
+		t.Fatalf("disabled member still signed in: %d", code)
+	}
+	if code := e.doWith(mc, "", "POST", "/api/v1/auth/login", map[string]string{"username": "bob", "password": "member-pass"}, nil); code != 403 {
+		t.Fatalf("disabled login %d", code)
+	}
+	// the admin is unaffected
+	if code := e.do("GET", "/api/v1/settings", nil, nil); code != 200 {
+		t.Fatalf("admin settings %d", code)
+	}
+}
+
+func cutSpace(s string) (string, string, bool) {
+	for i := range s {
+		if s[i] == ' ' {
+			return s[:i], s[i+1:], true
+		}
+	}
+	return s, "", false
+}
