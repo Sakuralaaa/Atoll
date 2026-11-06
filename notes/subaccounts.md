@@ -77,7 +77,7 @@ v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接�
 2. [x] 按 useCan 隐藏（2026-11-06）：deploy（服务页头部重新部署/重启/启停、状态页启停与套用默认值、部署记录回滚（状态页和日志页）、环境变量增删改、新增服务（项目侧栏、空项目、?add=1）、创建项目、镜像更新卡片的策略/检查/更新、源码卡片的编辑/重建/改回镜像/轮换 webhook、网络页加端口、硬盘页挂载/卸载卷、服务设置和项目设置只读、备份策略只读与立即备份、恢复演练）；restore（快照「还原」）；domains（网络页绑定/解绑、域名页解绑）；exec（更多菜单「执行命令」、硬盘页文件入口）；仓库校验只给 admin。注意：`POST /services/{id}/webhook/rotate` 是 lvlSession，服务端对 member 未按 deploy 拦截（UI 已隐藏），可在第二阶段收紧。
 3. [x] `POST /app-templates/{id}` 已对 member 开放（2026-11-06）：先 memberMayUse 校验 server_id（不属于自己的返回 400，与 POST /projects 一致）；`!p.Session` 分支改为 `!p.Session || p.Member`，以前 member 会话会绕过 domains 权限直接绑定域名，现在带 hostname/domains 必须有 domains 权限。测试 server.TestMemberAppTemplates。
 4. [x] `GET /root-domains` 对 member 只读开放（2026-11-06），只返回 `[{name, default}]`，不含 zone、证书状态和错误；写操作仍只限 admin。测试 server.TestMemberRootDomainsNamesOnly。
-5. 管理员页提示：把服务器分给 member 时，如果这台服务器上已有管理员的项目，要给出提示（那些项目会被 member 看到）。
+5. [x] 管理员页提示（2026-11-06）：子账号编辑框里每台服务器旁显示上面有几个项目；新勾选一台已有项目的服务器时，黄色提示会列出项目名，并说明分配后该子账号能按权限看到和操作这些项目，建议先迁走不想共享的项目。项目没有记录创建者，因此这里统计服务器上的全部项目，前端实现（web/src/pages/Users.tsx）。
 6. 偶发失败的测试：`internal/agent TestWebSocketSession`（超时）、`internal/server TestTwoFactorFlow`（错误码被接受，第 86 行）。两者在 CI 中各失败过一次，查明原因或改得更稳。
 
 ### B. 第二阶段（大，需要先和用户确认方案）

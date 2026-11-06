@@ -5,7 +5,9 @@ import { Badge, Button, Card } from '../components/ui'
 import { ErrorState, Modal, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useQuery } from '../api/hooks'
-import type { PanelUser, Server } from '../api/types'
+import type { PanelUser, Project, Server } from '../api/types'
+import { useProjects } from '../api/queries'
+import { projName } from '../api/view'
 import { useT } from '../i18n'
 import { SettingsTabs } from './Security'
 
@@ -25,6 +27,7 @@ export default function Users() {
   const q = useQuery('users', api.users)
   const servers = useQuery('servers', api.servers)
   const [edit, setEdit] = useState<PanelUser | 'new' | null>(null)
+  const projects = useProjects().data ?? []
   const workers = (servers.data ?? []).filter(s => s.role !== 'control')
   const name = (id: string) => servers.data?.find(s => s.id === id)?.name ?? id
   return (
@@ -58,13 +61,16 @@ export default function Users() {
             ))}
           </Card>
         )}
-        {edit && <UserModal user={edit === 'new' ? undefined : edit} servers={workers} onClose={() => setEdit(null)} />}
+        {edit && <UserModal user={edit === 'new' ? undefined : edit} servers={workers} projects={projects} onClose={() => setEdit(null)} />}
       </div>
     </MainShell>
   )
 }
 
-function UserModal({ user, servers, onClose }: { user?: PanelUser; servers: Server[]; onClose: () => void }) {
+/** Projects already on a server: a member given that server sees and runs them (notes/subaccounts.md). */
+function sharedProjects(projects: Project[], serverId: string) { return projects.filter(p => p.server_id === serverId) }
+
+function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; servers: Server[]; projects: Project[]; onClose: () => void }) {
   const { t } = useT()
   const [username, setUsername] = useState(user?.username ?? '')
   const [password, setPassword] = useState('')
@@ -101,7 +107,19 @@ function UserModal({ user, servers, onClose }: { user?: PanelUser; servers: Serv
         <div>
           <div className="text-[12px] font-bold text-muted mb-1">{t('服务器', 'Servers')}</div>
           {servers.length === 0 && <div className="text-[13px] text-muted">{t('还没有可分配的工作机', 'No worker servers yet')}</div>}
-          {servers.map(s => <label key={s.id} className={box}><input type="checkbox" checked={srv.includes(s.id)} onChange={() => toggle(srv, setSrv, s.id)} />{s.name}</label>)}
+          {servers.map(s => {
+            const shared = sharedProjects(projects, s.id)
+            // warn when a server is newly given to this member and already runs projects
+            const warn = srv.includes(s.id) && !user?.servers?.includes(s.id) && shared.length > 0
+            return <div key={s.id}>
+              <label className={box}><input type="checkbox" checked={srv.includes(s.id)} onChange={() => toggle(srv, setSrv, s.id)} />{s.name}
+                {shared.length > 0 && <span className="text-[12px] text-muted">{t(`· ${shared.length} 个项目`, `· ${shared.length} project(s)`)}</span>}</label>
+              {warn && <div role="alert" className="ml-6 mb-1 rounded-lg bg-[#fde047]/30 px-3 py-2 text-[12.5px] leading-5">
+                {t(`这台服务器上已有 ${shared.length} 个项目（${shared.slice(0, 3).map(projName).join('、')}${shared.length > 3 ? ' 等' : ''}），分配后该子账号能看到并按权限操作它们。不想共享的话，先把它们迁到别的服务器。`,
+                  `This server already runs ${shared.length} project(s) (${shared.slice(0, 3).map(projName).join(', ')}${shared.length > 3 ? ', …' : ''}). Once assigned, this sub-account sees them and can act on them within its permissions. Move them to another server first if they should stay private.`)}
+              </div>}
+            </div>
+          })}
         </div>
         <div>
           <div className="text-[12px] font-bold text-muted mb-1">{t('权限（始终可查看）', 'Permissions (viewing is always allowed)')}</div>
