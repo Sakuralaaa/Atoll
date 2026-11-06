@@ -63,6 +63,6 @@
 - [x] 2. principal/member 认证（auth.go applyMember）+ checkMember（server/members.go，fail closed）；登录拒绝已停用账号；/auth/me 返回 role/servers。server 层测试 server.TestMemberScope。memberAllow 暂未包含 GET /servers、GET /servers/{id}、POST /projects、POST /app-templates/{id}、GET /root-domains、GET /events，等 handler 加上过滤或校验后再放开
 - [x] 3. 用户管理 API（handlers_users.go：GET/POST /users，PATCH/DELETE /users/{id}，只限 admin 会话；不能把中控分给 member；新建或重置密码后 must_change_password=1，本人改密后清零）+ 测试 server.TestUserManagementAPI。**还没做**：must_change_password 只是一个标记，尚未强制（前端或后端拦截可放到第 6 步）
 - [~] 4. 已完成：GET /servers 过滤、GET /servers/{id}、POST /projects、创建服务时的放置位置、项目和服务迁移的目标服务器都按 memberMayUse 校验（members.go），并有测试覆盖。**仍需处理**：逐个核实 resList handler（/projects 已验证）以及 `.Session` 的使用点；POST /app-templates/{id} 的服务器校验；/root-domains；/events 过滤。
-- [ ] 5. 部署边界（privileged 等）
+- [x] 5. 部署边界：已核实 2026-11-06，api.Service 本身没有 privileged、host 网络和 cap_add 字段，新的宿主路径挂载 API 一律拒绝（checkHostPaths）。Docker 接管与导入（/imports*）只对 admin 开放，因此不需要额外代码。以后若为 Service 新增这类字段，必须对 member 拒绝。
 - [ ] 6. Web UI（用户页、member 侧栏）
 - [ ] 7. 文档 docs/api.md、release notes、CHANGELOG，发版（需用户确认）
