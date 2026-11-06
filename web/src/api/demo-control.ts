@@ -228,3 +228,16 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
     return fail(404, L("demo: 未实现 {0} /{1}", method, seg.join('/')))
   }
 }
+
+/** Demo agent upgrade: "upgrading" for a few seconds, then done on the new version. */
+export function demoAgentUpgrade(servers: Server[], id: string) {
+  const fail = (status: number, msg: string): never => { throw new ApiError(status, msg) }
+  const s = servers.find(x => x.id === id) ?? fail(404, 'server not found')
+  if (s.status !== 'online') fail(409, `${s.name} is offline`)
+  if (!s.agent_self_upgrade) fail(409, `the agent on ${s.name} (${s.agent_version}) cannot upgrade itself; run install-agent.sh once on that server`)
+  if (s.agent_version === s.agent_latest) fail(409, `${s.name} already runs ${s.agent_latest}`)
+  const u = { state: 'upgrading', from: s.agent_version, to: s.agent_latest!, started_at: new Date().toISOString() }
+  s.agent_upgrade = u
+  setTimeout(() => { s.agent_version = u.to; s.agent_upgrade = { ...u, state: 'done', finished_at: new Date().toISOString() } }, 6000)
+  return u
+}

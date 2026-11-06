@@ -7,12 +7,15 @@ import { ApiError } from './client'
 import { makeDemoUpdates } from './demo-updates'
 import { makeDemoBackups } from './demo-backups'
 import { makeDemoGit } from './demo-git'
-import { makeDemoControl } from './demo-control'
+import { demoAgentUpgrade, makeDemoControl } from './demo-control'
 import { makeDemoProblems } from './demo-problems'
+import { makeDemoUsers } from './demo-users'
+import { CONFIG, exec } from './demo-exec'
+import { makeDemoAuth } from './demo-auth'
 import { addStressData, stressEnabled } from './demo-stress'
 import type {
   APIToken, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, EnvReference, EnvVar, ImportJob, ImportPlan,
-  LogLine, NodeMetrics, Project, ProjectPrefs, RootDomain, Server, Service, SessionInfo, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
+  LogLine, NodeMetrics, Project, ProjectPrefs, RootDomain, Server, Service, Settings, Template, ZeaburInventory, DockerInventory, ImportStep, ImportVerify,
 } from './types'
 import { series } from '../components/ui-utils'
 
@@ -277,45 +280,8 @@ imports.unshift(
   localJob('imp_zl_live', 'live', localSteps(10), VERIFY, 2 * H),
 )
 
-// ---------- fake container filesystem for exec ----------
-const CONFIG = L("# mail-relay 配置\nserver:\n  host: 0.0.0.0\n  port: 5000\n  public_url: https://mail.example.com\n\ndatabase:\n  path: /app/data/mail.db\n\nscheduler:\n  forward_interval: 300   # 秒\n  timezone: Asia/Shanghai\n\nforward:\n  channels: []            # telegram / webhook\n\nlog:\n  level: INFO\n  dir: /app/logs")
-const FS: Record<string, string[] | string> = {
-  '/': ['app/', 'bin/', 'etc/', 'tmp/', 'usr/'],
-  '/app': ['.env.example', '.github/', 'VERSION', 'data/', 'docker-compose.yml', 'docs/', 'static/', 'main.py', 'config.yaml', 'requirements.txt', 'scripts/', 'start.sh', 'templates/', 'logs/'],
-  '/app/data': ['mail.db', 'accounts.json'], '/app/logs': ['app.log'], '/app/.github': ['workflows/'], '/app/docs': ['README.md'],
-  '/app/static': ['app.js', 'style.css'], '/app/scripts': ['migrate.sh'], '/app/templates': ['index.html', 'login.html'],
-  '/app/config.yaml': CONFIG, '/app/VERSION': 'v2.3.1\n', '/app/.env.example': 'SECRET_KEY=\nADMIN_PASSWORD=\n', '/app/start.sh': '#!/bin/sh\nexec python main.py\n',
-  '/app/requirements.txt': 'flask==3.1.0\napscheduler==3.11.0\nrequests==2.32.3\n', '/app/main.py': 'from app import create_app\n\napp = create_app()\n',
-}
-// mail-relay's config.yaml is an Atoll config-file mount (read-only in the container, edited through the spec)
+// mail-relay's config.yaml is an Atoll config-file mount (read-only in the container, edited through the spec); exec runs against demo-exec.ts
 services.filter(s => s.project_id === 'mailrelay' && s.kind === 'image').forEach(s => { s.configs = [{ path: '/app/config.yaml', content: CONFIG }] })
-function exec(cmd: string[]): { ok: boolean; output?: string; error?: string } {
-  const script = cmd[0] === 'sh' && cmd[1] === '-c' ? cmd[2] : cmd.join(' ')
-  if (script === 'pwd') return { ok: true, output: '/app\n' }
-  const target = cmd[cmd.length - 1]
-  if (script.startsWith('ls')) {
-    const d = FS[target.replace(/\/$/, '') || '/']
-    return Array.isArray(d) ? { ok: true, output: d.join('\n') + '\n' } : Array.isArray(FS[target]) ? { ok: true, output: (FS[target] as string[]).join('\n') } : { ok: true, output: '' }
-  }
-  if (script.startsWith('cat') || script.startsWith('head')) {
-    const f = FS[target]
-    return typeof f === 'string' ? { ok: true, output: f } : { ok: true, output: `# ${target}\n` }
-  }
-  if (script.startsWith('wc')) { const f = FS[target]; return { ok: true, output: `${typeof f === 'string' ? new TextEncoder().encode(f).length : 0}\n` } }
-  if (script.startsWith('cat "$1" >')) { FS[cmd[5]] = String(FS[cmd[4]] ?? ''); delete FS[cmd[4]]; return { ok: true, output: '' } }
-  if (script.startsWith('printf "%s" "$1" >>')) { const path = cmd[5]; FS[path] = String(FS[path] ?? '') + cmd[4]; return { ok: true, output: '' } }
-  if (script.startsWith('printf')) {
-    const path = cmd[5], dir = path.replace(/\/[^/]+$/, '') || '/', name = path.slice(dir.length + (dir === '/' ? 0 : 1))
-    if (!(path in FS) && Array.isArray(FS[dir])) (FS[dir] as string[]).push(name)
-    FS[path] = cmd[4]; return { ok: true, output: '' }
-  }
-  if (cmd[0] === 'mkdir') {
-    const path = target.replace(/\/$/, ''), dir = path.replace(/\/[^/]+$/, '') || '/', name = path.slice(dir.length + (dir === '/' ? 0 : 1))
-    if (!(path in FS)) { FS[path] = []; if (Array.isArray(FS[dir])) (FS[dir] as string[]).push(name + '/') }
-    return { ok: true, output: '' }
-  }
-  return { ok: true, output: `$ ${cmd.join(' ')}\n(demo) ok\n` }
-}
 
 // ---------- router ----------
 const demoGit = makeDemoGit(services, deployments, nid)
@@ -324,16 +290,10 @@ const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p =>
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("服务不存在"))
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
-const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
-const demoUser: { name: string; avatar: string; nav: string[] } = { name: 'demo', avatar: '', nav: [] }
-const demo2fa = { enabled: false, at: '', left: 10 }
 const demoProblems = makeDemoProblems(servers, now)
-const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: () => demo2fa.enabled })
-const demoCodes = () => ['k7m2q-x9tpw', 'h4rcz-m8vne', 'p3dqs-w7kua', 'y9bft-c2hrm', 'n6gxe-t4jqp', 'r2wmk-z8cdv', 'e5ujn-q3fyb', 'a8tpc-v6sgh', 'w4hzr-k9nem', 'f7qdy-b3xut']
-const demoSessions: SessionInfo[] = [
-  { id: '3f9a1c0d7e2b4a65', ip: '203.0.113.24', user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 Safari/605.1.15', current: true, created_at: iso(2 * H), expires_at: new Date(now + 30 * D).toISOString() },
-  { id: 'b81e4f2a90c37d16', ip: '198.51.100.7', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148', current: false, created_at: iso(3 * D), expires_at: new Date(now + 27 * D).toISOString() },
-]
+const demoUsers = makeDemoUsers(servers, now)
+const demoAuth = makeDemoAuth(demoUsers)
+const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: demoAuth.twoFactor })
 const ALL = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
 /** mirrors the server: read always on, global perms rejected with a project scope, legacy scope summary */
 function tokenPerms(b: { scope?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }) {
@@ -346,17 +306,6 @@ function tokenPerms(b: { scope?: string; permissions?: string[]; projects?: stri
 }
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
 
-/** Demo agent upgrade: "upgrading" for a few seconds, then done on the new version. */
-function demoAgentUpgrade(id: string) {
-  const s = servers.find(x => x.id === id) ?? fail(404, 'server not found')
-  if (s.status !== 'online') fail(409, `${s.name} is offline`)
-  if (!s.agent_self_upgrade) fail(409, `the agent on ${s.name} (${s.agent_version}) cannot upgrade itself; run install-agent.sh once on that server`)
-  if (s.agent_version === s.agent_latest) fail(409, `${s.name} already runs ${s.agent_latest}`)
-  const u = { state: 'upgrading', from: s.agent_version, to: s.agent_latest!, started_at: new Date().toISOString() }
-  s.agent_upgrade = u
-  setTimeout(() => { s.agent_version = u.to; s.agent_upgrade = { ...u, state: 'done', finished_at: new Date().toISOString() } }, 6000)
-  return u
-}
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 
 function metrics(seed: number, base: number, amp: number, range: string) {
@@ -377,40 +326,11 @@ function route(method: string, path: string, body: any): unknown {
   const G = method === 'GET', P = method === 'POST', U = method === 'PUT', X = method === 'PATCH', DEL = method === 'DELETE'
   let a: string[] | null
 
-  if (m('auth/status')) return { setup_required: location.hash.includes('setup=1') }
-  // demo 2FA: `#/login?demo=1&2fa=1` (or enabling it in Settings → Security) makes login ask for a code; any 6 digits pass
-  if (P && m('auth/login') && (demo2fa.enabled || location.hash.includes('2fa=1'))) return { two_factor_required: true, pending_token: 'demo-pending', expires_at: new Date(now + 5 * 60e3).toISOString() }
-  if (P && m('auth/login/2fa')) { if (!/^\d{6}$|^[a-z2-9]{5}-?[a-z2-9]{5}$/i.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); return { id: 'usr_demo', username: 'demo' } }
-  if (P && m('auth/username')) {
-    if (!body?.current_password) throw new ApiError(401, 'current password is wrong', 'invalid_credentials')
-    const n = String(body?.username ?? '').trim()
-    if (!/^[A-Za-z0-9_.@-]{1,64}$/.test(n)) fail(400, 'username must be 1-64 characters: letters, digits, _ . @ -')
-    demoUser.name = n; return { username: n, auth: 'session', scope: 'session', permissions: [] }
-  }
-  if (U && m('me/avatar')) { demoUser.avatar = String(body?.avatar ?? ''); return { avatar: demoUser.avatar } }
-  if (U && m('me/nav-order')) { demoUser.nav = (body?.order as string[]) ?? []; return { order: demoUser.nav } }
-  if (m('auth/me')) return { id: 'usr_demo', username: demoUser.name, avatar: demoUser.avatar || undefined, nav_order: demoUser.nav.length ? demoUser.nav : undefined }
-  if (m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: (demoUser.name = body?.username || demoUser.name) }
-  if (m('auth/logout')) return {}
-  if (G && m('auth/2fa')) return { enabled: demo2fa.enabled, enabled_at: demo2fa.enabled ? demo2fa.at : undefined, recovery_codes_left: demo2fa.enabled ? demo2fa.left : 0 }
-  if (P && m('auth/2fa/enroll')) { if (!body?.password) fail(401, 'wrong password'); return { secret: DEMO_SECRET, otpauth_uri: `otpauth://totp/Atoll:demo@${location.host}?secret=${DEMO_SECRET}&issuer=Atoll&algorithm=SHA1&digits=6&period=30` } }
-  if (P && m('auth/2fa/enable')) { if (!/^\d{6}$/.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); Object.assign(demo2fa, { enabled: true, at: new Date().toISOString(), left: 10 }); return { recovery_codes: demoCodes() } }
-  if (P && m('auth/2fa/disable')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.enabled = false; return {} }
-  if (P && m('auth/2fa/recovery-codes')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.left = 10; return { recovery_codes: demoCodes() } }
-  if (P && m('auth/password')) {
-    if (!body?.current_password) throw new ApiError(401, 'invalid credentials', 'invalid_credentials')
-    if (demo2fa.enabled && !/^\d{6}$/.test(String(body?.code ?? ''))) throw new ApiError(400, 'two-factor code required', 'code_required')
-    const np = String(body?.new_password ?? '')
-    if (np.length < 8 || np.length > 72) fail(400, 'new password must be 8-72 characters')
-    if (np === body.current_password) fail(400, 'new password must differ from the current one')
-    const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked_sessions: n }
-  }
-  if (G && m('auth/sessions')) return demoSessions
-  if (P && m('auth/sessions/revoke-others')) { const n = demoSessions.length - 1; demoSessions.splice(0, demoSessions.length, ...demoSessions.filter(x => x.current)); return { revoked: n } }
-  if (DEL && (a = m('auth/sessions/*'))) { const i = demoSessions.findIndex(x => x.id === a![0]); if (i >= 0) demoSessions.splice(i, 1); return {} }
+  { const r = demoAuth.route(method, m, body); if (r !== undefined) return r }
 
+  { const r = demoUsers.route(method, m, body); if (r !== undefined) return r }
   { const r = demoProblems.route(method, m, body); if (r !== undefined) return r }
-  if (G && m('servers')) return servers
+  if (G && m('servers')) return demoUsers.servers(servers)
   if (G && m('me/project-prefs')) return projectPrefs
   if (U && m('me/project-prefs')) {
     const known = (ids: unknown) => Array.isArray(ids) ? [...new Set(ids.map(String))].filter(id => projects.some(p => p.id === id)) : undefined
@@ -422,9 +342,9 @@ function route(method: string, path: string, body: any): unknown {
   if (G && m('servers/agent-install-command')) return { command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --sha256-amd64 3f9a…c21e --sha256-arm64 8b04…77d0 --version ${servers[0]?.agent_latest ?? 'v0.1.7'}`, version: servers[0]?.agent_latest ?? 'v0.1.7' }
   if (P && m('servers/agent-upgrade')) {
     const ids: string[] = body?.ids?.length ? body.ids : servers.filter(s => s.status === 'online' && s.agent_version !== s.agent_latest).map(s => s.id)
-    return ids.map(id => { try { return { id, upgrade: demoAgentUpgrade(id) } } catch (e) { return { id, code: 'agent_too_old', error: (e as Error).message } } })
+    return ids.map(id => { try { return { id, upgrade: demoAgentUpgrade(servers, id) } } catch (e) { return { id, code: 'agent_too_old', error: (e as Error).message } } })
   }
-  if (P && (a = m('servers/*/agent-upgrade'))) return demoAgentUpgrade(a[0])
+  if (P && (a = m('servers/*/agent-upgrade'))) return demoAgentUpgrade(servers, a[0])
   if (P && m('servers/join-token')) return { token: 'atl_join_7Hq2xV9mK4pR', command: `curl -fsSL ${settings.public_url}/install-agent.sh | sudo sh -s -- --server ${settings.public_url} --token atl_join_7Hq2xV9mK4pR`, expires_at: new Date(now + H).toISOString() }
   if ((a = m('servers/*/metrics'))) {
     const s = servers.find(x => x.id === a![0])!; const u = s.usage!
@@ -453,7 +373,7 @@ function route(method: string, path: string, body: any): unknown {
     return servers[i]
   }
 
-  if (G && m('projects')) return projects.map(fullProject)
+  if (G && m('projects')) return demoUsers.projects(projects).map(fullProject)
   if (P && m('projects')) { const pr: Project = { id: nid('prj'), name: body.name, server_id: body.server_id, description: body.description, created_at: new Date().toISOString() }; projects.push(pr); return fullProject(pr) }
   if ((a = m('projects/*/services'))) {
     if (G) return services.filter(s => s.project_id === a![0]).map(withSvc)
@@ -530,7 +450,7 @@ function route(method: string, path: string, body: any): unknown {
     if (DEL) { services.splice(services.indexOf(s), 1); return {} }
     return withSvc(s)
   }
-  if (G && m('domains')) return domains.map(withCert)
+  if (G && m('domains')) { const vis = new Set(demoUsers.projects(projects).map(p => p.id)); return domains.filter(d => vis.has(services.find(x => x.id === d.service_id)?.project_id ?? '') || !demoUsers.member()).map(withCert) }
   if (G && m('cloudflare/token-check')) {
     const ssl_roots = rootDomains.filter(r => r.cert_mode === 'auto').map(r => r.name)
     return { configured: settings.has_cloudflare_token, dns: settings.has_cloudflare_token ? 'ok' : 'missing', checked_at: new Date().toISOString(),

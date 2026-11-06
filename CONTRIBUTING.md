@@ -27,7 +27,7 @@ CI also runs `go test -race` (needs cgo locally: `CGO_ENABLED=1 go test -race ./
 | `internal/agent` | Node daemon: Docker runtime, Caddy ingress, builds, backups, tailnet |
 | `internal/api` | Types shared by server, agent and CLI. `protocol.go` is the agent WebSocket protocol |
 | `internal/cli` | `atoll` CLI and the MCP server |
-| `web/src` | Panel. `api/client.ts` is the only transport; `?demo=1` runs it against built-in demo data |
+| `web/src` | Panel. `api/client.ts` is the only transport; `?demo=1` runs it against built-in demo data (`&member=1` or `&member=ro` shows a sub-account, `&member=0` the admin) |
 | `install/`, `deploy/` | Install scripts and systemd units |
 | `docs/` | API contract and operator guides; update them with the code |
 
