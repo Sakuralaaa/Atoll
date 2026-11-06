@@ -62,7 +62,7 @@
 - [x] 1. 迁移 0024 + store（store/members.go，测试 store.TestMembersAndScope）
 - [x] 2. principal/member 认证（auth.go applyMember）+ checkMember（server/members.go，fail closed）；登录拒绝已停用账号；/auth/me 返回 role/servers。server 层测试 server.TestMemberScope。（GET /servers、/servers/{id}、POST /projects、/events 已在第 4 步放开）
 - [x] 3. 用户管理 API（handlers_users.go：GET/POST /users，PATCH/DELETE /users/{id}，只限 admin 会话；不能把中控分给 member；新建或重置密码后 must_change_password=1，本人改密后清零）+ 测试 server.TestUserManagementAPI。must_change_password 已强制（见第 6 步）
-- [~] 4. 已完成：GET /servers 过滤、GET /servers/{id}、POST /projects、创建服务时的放置位置、项目和服务迁移的目标服务器都按 memberMayUse 校验（members.go），并有测试覆盖。/events 已放开：按 memberSeesEvent 过滤（无法归属的帧一律丢弃，confirmation 帧不发），每 30 秒重新鉴权一次，停用或改权限在 30 秒内生效。白名单里的 resList handler 都已核实走 inProject，`.Session` 的其余用法只出现在 member 本来就拿不到的路由里，或者限定在它自己的项目内（env 明文）。**仍需处理**：POST /app-templates/{id}（暂不允许 member 使用）和 GET /root-domains（暂不允许，member 建项目时 root_domain 只能留空或由 admin 设置），按需放开。
+- [x] 4. 已完成：GET /servers 过滤、GET /servers/{id}、POST /projects、创建服务时的放置位置、项目和服务迁移的目标服务器都按 memberMayUse 校验（members.go），并有测试覆盖。/events 已放开：按 memberSeesEvent 过滤（无法归属的帧一律丢弃，confirmation 帧不发），每 30 秒重新鉴权一次，停用或改权限在 30 秒内生效。白名单里的 resList handler 都已核实走 inProject，`.Session` 的其余用法只出现在 member 本来就拿不到的路由里，或者限定在它自己的项目内（env 明文）。POST /app-templates/{id} 和 GET /root-domains（只返回名字）已在接力 A3、A4 放开。
 - [x] 5. 部署边界：已核实 2026-11-06，api.Service 本身没有 privileged、host 网络和 cap_add 字段，新的宿主路径挂载 API 一律拒绝（checkHostPaths）。Docker 接管与导入（/imports*）只对 admin 开放，因此不需要额外代码。以后若为 Service 新增这类字段，必须对 member 拒绝。
 - [~] 6. Web UI 进度：管理员子账号页 web/src/pages/Users.tsx（/settings/users，可新建、编辑服务器和权限、重置密码、停用、删除）已完成；member 侧栏只显示项目、服务器、域名；设置页中 member 只看到「账号与安全」。must_change_password：前端有顶部提示，后端也已强制（未改密前 member 会话只能访问 /auth/* 和 /me/*）；项目设置与服务设置里的「迁移」「删除」已按权限隐藏（useCan，web/src/api/queries.ts）；域名页的「绑定域名」也已按 domains 权限隐藏；日志页的「命令」（exec）也已按权限隐藏；服务状态页的「文件」「命令」入口和「绑定域名」按钮也已按权限隐藏；**还缺**：服务页其他位置的域名操作、备份恢复、部署类按钮也要按 useCan 隐藏（目前点击后服务端返回 403）；以上都尚未在真实浏览器中目测。
 - [~] 7. docs/api.md 已写；docs/releases/v0.1.41.md 草稿和 CHANGELOG 行已写（标注草稿）。发版前需真实浏览器目测，并取得用户确认；发版时去掉「草稿」字样
@@ -75,8 +75,8 @@ v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接�
 ### A. 第一阶段收尾（小）
 1. [x] 目测（2026-11-06）：demo 加了子账号 alice（web/src/api/demo-users.ts；`?demo=1&member=1` 有 read+deploy，`member=ro` 只读，`member=0` 回到管理员），auth/me 带 role/permissions/servers/must_change_password，列表按她的服务器过滤。Playwright 截图看过：子账号页、member 侧栏、改密横幅、服务页各 tab、服务器页、域名页、项目设置。修了：横幅文案「账户」→「账号」；member 侧栏底部不再写「中控在线」；member 打开 /settings 直接跳到账号与安全（以前会请求 /settings）；域名页对 member 不再请求 /settings（以前骨架屏一直转）；服务器页对 member 隐藏中控卡片、添加服务器、Agent 升级；服务器详情对 member 隐藏 SSH 和设置 tab。demo.ts 拆出 demo-auth.ts、demo-exec.ts（<600 行）。
 2. [x] 按 useCan 隐藏（2026-11-06）：deploy（服务页头部重新部署/重启/启停、状态页启停与套用默认值、部署记录回滚（状态页和日志页）、环境变量增删改、新增服务（项目侧栏、空项目、?add=1）、创建项目、镜像更新卡片的策略/检查/更新、源码卡片的编辑/重建/改回镜像/轮换 webhook、网络页加端口、硬盘页挂载/卸载卷、服务设置和项目设置只读、备份策略只读与立即备份、恢复演练）；restore（快照「还原」）；domains（网络页绑定/解绑、域名页解绑）；exec（更多菜单「执行命令」、硬盘页文件入口）；仓库校验只给 admin。注意：`POST /services/{id}/webhook/rotate` 是 lvlSession，服务端对 member 未按 deploy 拦截（UI 已隐藏），可在第二阶段收紧。
-3. 一键应用模板 `POST /app-templates/{id}`：对 member 开放前，要先校验目标服务器（memberMayUse），并确认 `!p.Session` 分支的行为（app_templates.go:51）。
-4. `GET /root-domains` 是否对 member 只读开放（只返回名字，不含令牌）。
+3. [x] `POST /app-templates/{id}` 已对 member 开放（2026-11-06）：先 memberMayUse 校验 server_id（不属于自己的返回 400，与 POST /projects 一致）；`!p.Session` 分支改为 `!p.Session || p.Member`，以前 member 会话会绕过 domains 权限直接绑定域名，现在带 hostname/domains 必须有 domains 权限。测试 server.TestMemberAppTemplates。
+4. [x] `GET /root-domains` 对 member 只读开放（2026-11-06），只返回 `[{name, default}]`，不含 zone、证书状态和错误；写操作仍只限 admin。测试 server.TestMemberRootDomainsNamesOnly。
 5. 管理员页提示：把服务器分给 member 时，如果这台服务器上已有管理员的项目，要给出提示（那些项目会被 member 看到）。
 6. 偶发失败的测试：`internal/agent TestWebSocketSession`（超时）、`internal/server TestTwoFactorFlow`（错误码被接受，第 86 行）。两者在 CI 中各失败过一次，查明原因或改得更稳。
 

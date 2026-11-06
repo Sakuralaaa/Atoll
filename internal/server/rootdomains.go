@@ -77,6 +77,16 @@ func (s *Server) handleListRootDomains(w http.ResponseWriter, r *http.Request) e
 	if err != nil {
 		return err
 	}
+	if p := principalFrom(ctx); p != nil && p.Member {
+		// members pick a root for their domains and project defaults: names only, no
+		// zone, certificate state or errors (notes/subaccounts.md)
+		out := make([]memberRootDomain, len(rs))
+		for i, x := range rs {
+			out[i] = memberRootDomain{Name: x.Name, Default: x.Default}
+		}
+		writeJSON(w, 200, out)
+		return nil
+	}
 	// the root carried over from base_domain (migration 0019) keeps resolving its zone
 	// the old way (Settings zone id, else a lookup at DNS time) and never stores it:
 	// show it as that zone rather than "no zone found". Display only, no Cloudflare call.
@@ -93,6 +103,12 @@ func (s *Server) handleListRootDomains(w http.ResponseWriter, r *http.Request) e
 	}
 	writeJSON(w, 200, out)
 	return nil
+}
+
+// memberRootDomain is what GET /root-domains answers a member.
+type memberRootDomain struct {
+	Name    string `json:"name"`
+	Default bool   `json:"default"`
 }
 
 func (s *Server) handleCreateRootDomain(w http.ResponseWriter, r *http.Request) error {

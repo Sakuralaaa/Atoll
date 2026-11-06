@@ -349,6 +349,8 @@ Design and status: `notes/subaccounts.md`. Every existing account is an `admin`;
 - `permissions`: `read` always, plus any of `deploy exec domains delete restore migrate` (default `deploy`). `servers`, `settings`, `tokens` are never given to a member. `servers` are worker ids; the control host cannot be assigned.
 - A member reaches only its servers and the projects whose `server_id` is one of them (a service on an unassigned server is hidden even inside a visible project). Lists, `GET /servers`, and `/events` are filtered; naming another server (project create, service placement, migration target) answers 400 "unknown server". Every other panel-wide route answers 403 `admin_only` (fail closed: new routes are admin-only until listed in `memberAllow`, `internal/server/members.go`).
 - `GET /auth/me` returns `role` (`admin`/`member`), and for members `permissions`, `servers`, `must_change_password`.
+- One-click apps: `POST /app-templates/{id}` is open to a member with `deploy`, on one of its servers only (400 "unknown server" otherwise). A `hostname` or `domains` in the same request needs the member's `domains` permission (403 `missing_permission`; leave them empty and bind later).
+- `GET /root-domains` answers a member with `[{name, default}]` only: no zone, certificate state or errors. Creating, changing and deleting roots stay admin-only.
 - Scope is read from the database on every request (and every 30 s on an open `/events` socket), so admin changes apply at once.
 
 ## CLI & MCP permissions
