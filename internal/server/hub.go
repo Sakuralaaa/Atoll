@@ -256,7 +256,8 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("hello", "err", err)
 		return
 	}
-	s.kickGeo() // geoip.go: a new or moved node gets its flag
+	s.setMeshCap(ctx, nodeID, hello.MeshToken) // mesh_token.go: before any mesh push to or about it
+	s.kickGeo()                                // geoip.go: a new or moved node gets its flag
 	s.hub.mu.Lock()
 	if old := s.hub.conns[nodeID]; old != nil {
 		old.ws.Close(websocket.StatusPolicyViolation, "replaced by new connection")
@@ -361,6 +362,7 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		var hello api.HelloPayload
 		if json.Unmarshal(env.Payload, &hello) == nil {
 			s.st.UpdateNodeHello(ctx, c.nodeID, hello)
+			s.setMeshCap(ctx, c.nodeID, hello.MeshToken)
 			s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 		}
 	default:

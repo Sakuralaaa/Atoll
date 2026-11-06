@@ -85,7 +85,7 @@ v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接�
 A 段已全部完成（2026-11-06），说明写在 docs/releases/v0.1.42.md，标注为草稿。按用户要求暂不打 tag、不发版、不改 web 版本号，等第二阶段做完后一起发布。
 
 ### B. 第二阶段（大，需要先和用户确认方案）
-1. mesh 隔离：member 的服务不应通过 tailnet 访问其他服务器上的服务。需要所有节点升级 Agent。
+1. [x] B1 mesh 隔离（2026-11-06，分支 mesh-token，待主 agent 合并发版）：每项目 mesh 令牌。中控用 master.key 派生的密钥 HMAC 项目 id 得到令牌（不加迁移）；入口转发器每条 TCP 连接先发 22 字节握手（"ATMH"+版本 1+长度 16+令牌），UDP 每个报文加同样前缀；出口转发器 require 模式校验，accept 模式（过渡期）剥离正确握手、拒绝错误握手、放行无魔数的旧连接。按 hello 里的 mesh_token 能力 + 推送确认分阶段下发（出口带令牌 → 入口带令牌 → require），任一节点降级立即关闭校验；进度存在 settings 的 mesh_token_state（只有指纹）。停用/改 member 后重推 mesh。管理员全局权限不变。细节见 docs/api.md「Cross-server service mesh and per-project tokens」。测试：internal/agent/mesh/auth_test.go、mesh_test.go（TestMeshToken*），internal/server/mesh_token_test.go。**未做**：令牌轮换（需换 master.key，不支持）；member 和 admin 同一项目内仍互通（隔离单位是项目）。
 2. member 自管 API 令牌（权限不超过自己，作用域与本人相同），以及 CLI/MCP 支持。
 3. 资源配额：CPU、内存、服务数。
 4. 备份按用户隔离（存储前缀或独立仓库）。

@@ -1,6 +1,7 @@
 package mesh
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -54,6 +55,11 @@ type Forwarder struct {
 	DialTimeout time.Duration // default 10s
 	UDPIdle     time.Duration // per-client UDP flow idle timeout, default 2m
 	Dial        func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	// Auth and Token: per-project mesh token handling (auth.go). Auth "" forwards plainly.
+	Auth             string
+	Token            []byte
+	HandshakeTimeout time.Duration // require: how long a client has to send the header (default 10s)
 }
 
 func (f *Forwarder) log() *slog.Logger {
@@ -154,7 +160,7 @@ func (f *Forwarder) Run(ctx context.Context, rules []Rule) error {
 		return err
 	}
 	for _, l := range ls {
-		f.log().Info("forwarding", "proto", l.Rule.Proto, "listen", l.Addr.String(), "target", l.Rule.Target)
+		f.log().Info("forwarding", "proto", l.Rule.Proto, "listen", l.Addr.String(), "target", l.Rule.Target, "auth", authLabel(f.Auth))
 	}
 	return f.Serve(ctx, ls)
 }
@@ -174,16 +180,39 @@ func (f *Forwarder) serveTCP(ctx context.Context, ln net.Listener, target string
 	}
 }
 
+func authLabel(a string) string {
+	if a == AuthNone {
+		return "none"
+	}
+	return a // never the token
+}
+
 func (f *Forwarder) pipeTCP(ctx context.Context, in net.Conn, target string) {
 	defer in.Close()
+	if f.Auth == AuthRequire {
+		to := f.HandshakeTimeout
+		if to <= 0 {
+			to = 10 * time.Second
+		}
+		if _, err := readHeader(in, f.Token, true, to); err != nil {
+			f.log().Warn("mesh: connection rejected (missing or invalid token)", "from", in.RemoteAddr().String())
+			return
+		}
+	}
 	out, err := f.dial(ctx, "tcp", target)
 	if err != nil {
 		f.log().Warn("dial target", "target", target, "err", err)
 		return
 	}
 	defer out.Close()
+	if f.Auth == AuthSend {
+		if _, err := out.Write(Header(f.Token)); err != nil {
+			f.log().Warn("mesh: send token", "target", target, "err", err)
+			return
+		}
+	}
 	done := make(chan struct{}, 2)
-	cp := func(dst, src net.Conn) {
+	cp := func(dst net.Conn, src io.Reader) {
 		_, _ = io.Copy(dst, src)
 		if cw, ok := dst.(interface{ CloseWrite() error }); ok {
 			_ = cw.CloseWrite() // half-close: let the other side finish its reply
@@ -192,8 +221,22 @@ func (f *Forwarder) pipeTCP(ctx context.Context, in net.Conn, target string) {
 		}
 		done <- struct{}{}
 	}
-	go cp(out, in)
-	go cp(in, out)
+	go cp(in, out) // target -> client first, so a server-first protocol is never held up
+	var src io.Reader = in
+	if f.Auth == AuthAccept {
+		pre, err := readHeader(in, f.Token, false, 0)
+		if err != nil && !errors.Is(err, io.EOF) {
+			if errors.Is(err, errBadHeader) {
+				f.log().Warn("mesh: connection rejected (invalid token)", "from", in.RemoteAddr().String())
+			}
+			in.Close()
+			out.Close()
+			<-done
+			return
+		}
+		src = io.MultiReader(bytes.NewReader(pre), in)
+	}
+	go cp(out, src)
 	select {
 	case <-done:
 		<-done
@@ -247,6 +290,13 @@ func (f *Forwarder) serveUDP(ctx context.Context, pc net.PacketConn, target stri
 			}
 			continue
 		}
+		data, ok := udpIn(buf[:n], f.Auth, f.Token)
+		if !ok {
+			continue
+		}
+		if f.Auth == AuthSend {
+			data = append(Header(f.Token), data...)
+		}
 		key := src.String()
 		mu.Lock()
 		fl := flows[key]
@@ -280,7 +330,7 @@ func (f *Forwarder) serveUDP(ctx context.Context, pc net.PacketConn, target stri
 		fl.last = time.Now()
 		c := fl.conn
 		mu.Unlock()
-		_, _ = c.Write(buf[:n])
+		_, _ = c.Write(data)
 	}
 }
 

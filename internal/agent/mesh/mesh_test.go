@@ -271,3 +271,102 @@ func TestMeshOffersNetworkForPruning(t *testing.T) {
 		t.Fatalf("offered %v", offered)
 	}
 }
+
+func TestMeshTokenSpecs(t *testing.T) {
+	tok := strings.Repeat("0f", 16)
+	p := payload()
+	// payloads without tokens (old control servers) keep the exact earlier specs and hashes
+	oldJSON := `{"tailnet_ip":"100.70.1.2","exports":[{"service_id":"svc_db","project_id":"prj_1","network":"atoll-prj_1","name":"postgres","ports":[{"port":5432,"protocol":"tcp","host_port":41000}]}],"imports":[]}`
+	var old api.MeshPayload
+	if err := json.Unmarshal([]byte(oldJSON), &old); err != nil || mesh.Validate(old) != nil {
+		t.Fatalf("old payload: %v", err)
+	}
+	plain := mesh.ExportSpec(img, p.TailnetIP, p.Exports[0], 64)
+	if len(plain.Env) != 0 || !reflect.DeepEqual(plain, mesh.ExportSpec(img, old.TailnetIP, old.Exports[0], 64)) {
+		t.Fatalf("plain export spec changed: %+v", plain.Env)
+	}
+	impPlain := mesh.ImportSpec(img, p.Imports[0], 64)
+	if len(impPlain.Env) != 0 {
+		t.Fatal("plain import has env")
+	}
+
+	e := p.Exports[0]
+	e.Token = tok
+	acc := mesh.ExportSpec(img, p.TailnetIP, e, 64)
+	if !reflect.DeepEqual(acc.Env, []string{"ATOLL_MESH_AUTH=accept", "ATOLL_MESH_TOKEN=" + tok}) {
+		t.Fatalf("accept env %v", acc.Env)
+	}
+	e.RequireToken = true
+	req := mesh.ExportSpec(img, p.TailnetIP, e, 64)
+	if req.Env[0] != "ATOLL_MESH_AUTH=require" {
+		t.Fatalf("require env %v", req.Env)
+	}
+	// the token never lands on the command line; mode changes only re-create the forwarder
+	for _, cs := range []agent.ContainerSpec{acc, req} {
+		if strings.Contains(strings.Join(cs.Cmd, " "), tok) {
+			t.Fatal("token on the command line")
+		}
+		if !reflect.DeepEqual(cs.Cmd, plain.Cmd) || !reflect.DeepEqual(cs.Ports, plain.Ports) {
+			t.Fatal("token changed rules or ports")
+		}
+	}
+	hashes := map[string]bool{plain.Labels[mesh.LabelMesh]: true, acc.Labels[mesh.LabelMesh]: true, req.Labels[mesh.LabelMesh]: true}
+	if len(hashes) != 3 {
+		t.Fatal("token mode must change the forwarder spec hash")
+	}
+	i := p.Imports[0]
+	i.Token = tok
+	if imp := mesh.ImportSpec(img, i, 64); !reflect.DeepEqual(imp.Env, []string{"ATOLL_MESH_AUTH=send", "ATOLL_MESH_TOKEN=" + tok}) {
+		t.Fatalf("import env %v", imp.Env)
+	}
+}
+
+func TestMeshTokenValidationAndApply(t *testing.T) {
+	tok := strings.Repeat("0f", 16)
+	bad := payload()
+	bad.Exports[0].RequireToken = true
+	if err := mesh.Validate(bad); err == nil {
+		t.Fatal("require_token without a token accepted")
+	}
+	bad = payload()
+	bad.Imports[0].Token = "secret-but-not-hex"
+	err := mesh.Validate(bad)
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("bad token: %v", err)
+	}
+
+	f := agenttest.New()
+	f.Images[img] = agent.ImageInfo{ID: "sha256:fwd"}
+	up := true
+	dir := t.TempDir()
+	m := newMesh(t, f, dir, &up)
+	if err := send(t, m, payload()); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := f.Get("atoll-mx-svc_db")
+	beforeImp, _ := f.Get("atoll-mi-svc_cache")
+	p := payload()
+	p.Exports[0].Token, p.Exports[0].RequireToken = tok, true
+	b, _ := json.Marshal(p)
+	out, err := m.Handle(context.Background(), api.MsgMesh, b)
+	if err != nil || strings.Contains(out, tok) {
+		t.Fatalf("handle %q %v", out, err)
+	}
+	after, _ := f.Get("atoll-mx-svc_db")
+	if after.Spec.Labels[mesh.LabelMesh] == before.Spec.Labels[mesh.LabelMesh] || after.Spec.Env[0] != "ATOLL_MESH_AUTH=require" {
+		t.Fatal("exporter not re-created with the token")
+	}
+	afterImp, _ := f.Get("atoll-mi-svc_cache")
+	if afterImp.Spec.Labels[mesh.LabelMesh] != beforeImp.Spec.Labels[mesh.LabelMesh] {
+		t.Fatal("unrelated importer re-created")
+	}
+	// persisted for reboots (0600 file, read back by a fresh mesh)
+	m2 := newMesh(t, f, dir, &up)
+	if cur := m2.Current(); cur.Exports[0].Token != tok || !cur.Exports[0].RequireToken {
+		t.Fatalf("persisted %+v", cur.Exports[0])
+	}
+	st, err := os.Stat(filepath.Join(dir, "mesh", "mesh.json"))
+	if err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("mesh state %v %v", st, err)
+	}
+}

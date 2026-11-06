@@ -237,6 +237,9 @@ func Validate(p api.MeshPayload) error {
 		if err := checkPorts(e.ServiceID, e.Ports, true); err != nil {
 			return err
 		}
+		if err := checkToken(e.ServiceID, e.Token, e.RequireToken); err != nil {
+			return err
+		}
 	}
 	for _, i := range p.Imports {
 		if !idRe.MatchString(i.ServiceID) || !idRe.MatchString(i.ProjectID) || !nameRe.MatchString(i.Name) {
@@ -254,8 +257,33 @@ func Validate(p api.MeshPayload) error {
 		if err := checkPorts(i.ServiceID, i.Ports, false); err != nil {
 			return err
 		}
+		if err := checkToken(i.ServiceID, i.Token, false); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func checkToken(sid, tok string, require bool) error {
+	if tok == "" {
+		if require {
+			return fmt.Errorf("mesh: %s: require_token without a token", sid)
+		}
+		return nil
+	}
+	if _, err := ParseToken(tok); err != nil {
+		return fmt.Errorf("mesh: %s: %w", sid, err) // the message never carries the token
+	}
+	return nil
+}
+
+// authEnv is the forwarder environment for a token mode. No token: no environment at all, so
+// payloads without tokens produce exactly the specs (and spec hashes) of earlier agents.
+func authEnv(mode, tok string) []string {
+	if tok == "" {
+		return nil
+	}
+	return []string{EnvAuth + "=" + mode, EnvToken + "=" + tok}
 }
 
 func network(projectID, nw string) string {
@@ -281,6 +309,11 @@ func ExportSpec(image, tailnetIP string, e api.MeshExport, memMB int) agent.Cont
 			Target: fmt.Sprintf("%s:%d", e.Name, p.Port)}.String())
 		cs.Ports = append(cs.Ports, agent.PortBinding{ContainerPort: p.HostPort, HostPort: p.HostPort, Protocol: p.Protocol, HostIP: tailnetIP})
 	}
+	mode := AuthAccept
+	if e.RequireToken {
+		mode = AuthRequire
+	}
+	cs.Env = authEnv(mode, e.Token)
 	cs.Labels = labels(e.ProjectID, e.ServiceID, cs)
 	return cs
 }
@@ -300,6 +333,7 @@ func ImportSpec(image string, i api.MeshImport, memMB int) agent.ContainerSpec {
 		cs.Cmd = append(cs.Cmd, Rule{Proto: p.Protocol, Listen: fmt.Sprintf(":%d", p.Port), Target: p.Target}.String())
 		cs.ExposedPorts = append(cs.ExposedPorts, agent.PortBinding{ContainerPort: p.Port, Protocol: p.Protocol})
 	}
+	cs.Env = authEnv(AuthSend, i.Token)
 	cs.Labels = labels(i.ProjectID, i.ServiceID, cs)
 	return cs
 }

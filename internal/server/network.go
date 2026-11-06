@@ -50,6 +50,8 @@ type netState struct {
 	pushMu     sync.Mutex        // one mesh push at a time, so an older payload never lands after a newer one
 	lastMu     sync.Mutex        // guards lastMesh only; taken briefly, also on the agent connect path
 	lastMesh   map[string]string // node -> hash of the last mesh sent
+	tokMu      sync.Mutex        // guards tok (mesh_token.go); never held across agent calls
+	tok        *meshTokenState   // loaded lazily from settings
 }
 
 var netInitMu sync.Mutex

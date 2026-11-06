@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"strconv"
@@ -231,6 +232,9 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	s.st.Audit(r.Context(), p.actor(), "user.update", u.Username, meta)
+	// Disabling an account or taking servers back: recompute the mesh and push the nodes whose
+	// payload changed (mesh tokens are per project, so this is normally a no-op push-wise).
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	u, err = s.st.UserByID(r.Context(), u.ID)
 	if err != nil {
 		return err
@@ -256,6 +260,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	s.st.Audit(r.Context(), p.actor(), "user.delete", u.Username, nil)
+	s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 	w.WriteHeader(204)
 	return nil
 }

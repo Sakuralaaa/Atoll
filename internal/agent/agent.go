@@ -36,7 +36,9 @@ type Agent struct {
 	Volumes  *VolumeTransfer
 	Builds   *Builder  // builds from source (MsgBuild)
 	Upgrades *Upgrader // self-upgrade from the panel (MsgUpgrade); nil = unsupported
-	Firewall interface {
+	// MeshToken: the mesh extension handles per-project tokens (announced in the hello).
+	MeshToken bool
+	Firewall  interface {
 		Firewall
 		Loop(ctx context.Context)
 	}
@@ -416,6 +418,7 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 	}
 	hcancel()
 	hello.SelfUpgrade = a.Upgrades != nil
+	hello.MeshToken = a.MeshToken
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
 		return false, err
 	}

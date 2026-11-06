@@ -93,6 +93,7 @@ type Config struct {
 
 // Server is the control plane.
 type Server struct {
+	meshKey []byte // mesh_token.go: derives per-project mesh tokens; never logged
 	cfg     Config
 	st      *store.Store
 	hub     *Hub
@@ -194,7 +195,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}, geoKick: make(chan struct{}, 1)}
+	s := &Server{meshKey: deriveMeshKey(key), cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}, geoKick: make(chan struct{}, 1)}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
 	s.ctl = newControlState()

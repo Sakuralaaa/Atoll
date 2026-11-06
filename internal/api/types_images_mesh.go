@@ -145,6 +145,12 @@ type MeshExport struct {
 	Network   string     `json:"network"`
 	Name      string     `json:"name"` // service DNS name in the project network
 	Ports     []MeshPort `json:"ports"`
+	// Token is the project's mesh token (32 hex chars). Set: the forwarder strips and checks
+	// the importers' handshake; RequireToken: traffic without a valid one is dropped, otherwise
+	// plain traffic from importers that do not send it yet still passes. Older agents ignore
+	// both. Never logged or returned by the HTTP API.
+	Token        string `json:"token,omitempty"`
+	RequireToken bool   `json:"require_token,omitempty"`
 }
 
 // MeshImport: a service of a local project that runs on another server. The agent runs a
@@ -158,6 +164,9 @@ type MeshImport struct {
 	Aliases   []string   `json:"aliases,omitempty"`
 	ServerID  string     `json:"server_id"` // node the service runs on
 	Ports     []MeshPort `json:"ports"`
+	// Token: send the project's mesh handshake on every connection/datagram to the exporter.
+	// Only set once the exporting node runs a forwarder that understands it.
+	Token string `json:"token,omitempty"`
 }
 
 // MeshPayload is the full mesh of one node (MsgMesh). Empty lists remove every forwarder.

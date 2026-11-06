@@ -19,19 +19,37 @@ const testAuthKey = "tskey-auth-kTEST1CNTRL-0123456789abcdef"
 
 // startNetAgent joins and connects a fake agent with the given hostname and tailnet state.
 func startNetAgent(t *testing.T, e *testEnv, hostname, tailnetIP string, nn *api.NodeNetwork) (*fakeAgent, string) {
+	a, id, _ := startNetAgentHello(t, e, netHello(hostname, tailnetIP, nn))
+	return a, id
+}
+
+func netHello(hostname, tailnetIP string, nn *api.NodeNetwork) api.HelloPayload {
+	return api.HelloPayload{AgentVersion: "test", Hostname: hostname, OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 2048, DiskGB: 20,
+		PublicIPv4: "203.0.113.10", TailnetIP: tailnetIP, Network: nn}
+}
+
+// startNetAgentHello joins a fake agent and returns its node token for reconnects.
+func startNetAgentHello(t *testing.T, e *testEnv, hello api.HelloPayload) (*fakeAgent, string, string) {
 	t.Helper()
 	var jt api.JoinToken
 	e.mustDo("POST", "/api/v1/servers/join-token", nil, &jt, 201)
-	hello := api.HelloPayload{AgentVersion: "test", Hostname: hostname, OS: "linux", Arch: "amd64", CPUCores: 2, MemMB: 2048, DiskGB: 20,
-		PublicIPv4: "203.0.113.10", TailnetIP: tailnetIP, Network: nn}
 	var jr api.JoinResponse
 	if code := e.doWith(http.DefaultClient, "", "POST", "/agent/v1/join", api.JoinRequest{JoinToken: jt.Token, Hello: hello}, &jr); code != 201 {
 		t.Fatalf("join: %d", code)
 	}
+	return connectNetAgent(t, e, jr.NodeID, jr.NodeToken, hello), jr.NodeID, jr.NodeToken
+}
+
+// connectNetAgent (re)connects a joined node, e.g. after an agent upgrade or downgrade.
+func connectNetAgent(t *testing.T, e *testEnv, nodeID, nodeToken string, hello api.HelloPayload) *fakeAgent {
+	t.Helper()
+	e.srv.hub.mu.Lock()
+	prev := e.srv.hub.conns[nodeID]
+	e.srv.hub.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	wsURL := "ws" + strings.TrimPrefix(e.ts.URL, "http") + "/agent/v1/connect"
-	ws, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + jr.NodeToken}}})
+	ws, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + nodeToken}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,13 +58,19 @@ func startNetAgent(t *testing.T, e *testEnv, hostname, tailnetIP string, nn *api
 	a.send(ctx, api.Envelope{Type: api.MsgHello, Payload: hello})
 	go a.loop(ctx)
 	deadline := time.Now().Add(5 * time.Second)
-	for !e.srv.hub.Online(jr.NodeID) {
+	for {
+		e.srv.hub.mu.Lock()
+		c := e.srv.hub.conns[nodeID]
+		e.srv.hub.mu.Unlock()
+		if c != nil && c != prev && e.srv.hub.Online(nodeID) {
+			break
+		}
 		if time.Now().After(deadline) {
 			t.Fatal("agent never came online")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	return a, jr.NodeID
+	return a
 }
 
 func waitFor(t *testing.T, what string, cond func() bool) {

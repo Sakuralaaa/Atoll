@@ -188,6 +188,9 @@ type HelloPayload struct {
 	Network       *NodeNetwork `json:"network,omitempty"`
 	// SelfUpgrade: this agent handles MsgUpgrade (v0.1.6+).
 	SelfUpgrade bool `json:"self_upgrade,omitempty"`
+	// MeshToken: this agent's mesh forwarders understand per-project tokens
+	// (MeshExport.Token/RequireToken, MeshImport.Token).
+	MeshToken bool `json:"mesh_token,omitempty"`
 }
 
 type ContainerState struct {

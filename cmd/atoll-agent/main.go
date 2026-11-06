@@ -90,9 +90,14 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
+		auth, token, err := mesh.AuthFromEnv(os.Getenv)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(2)
+		}
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
-		if err := (&mesh.Forwarder{Log: log}).Run(ctx, rules); err != nil {
+		if err := (&mesh.Forwarder{Log: log, Auth: auth, Token: token}).Run(ctx, rules); err != nil {
 			log.Error("forward", "err", err)
 			os.Exit(1)
 		}
@@ -160,6 +165,7 @@ func run(cfgPath string, log *slog.Logger) error {
 
 	// Cross-server service mesh: forwarders over the tailnet, state kept locally.
 	mk := mesh.New(rt, paths, log)
+	a.MeshToken = true
 	mk.PruneNetwork = a.Mgr.PruneProjectNetwork
 	a.Ext = append(a.Ext, mk)
 	a.MeshErr = mk.Err

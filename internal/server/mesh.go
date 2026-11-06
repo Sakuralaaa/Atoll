@@ -115,6 +115,7 @@ func (s *Server) meshPlan(ctx context.Context) (map[string]*api.MeshPayload, []s
 	if err := s.st.PruneMeshPorts(ctx, keep); err != nil {
 		return nil, warnings, err
 	}
+	s.applyMeshTokens(ctx, plan) // mesh_token.go
 	return plan, warnings, nil
 }
 
@@ -126,16 +127,32 @@ func (s *Server) meshPlan(ctx context.Context) (map[string]*api.MeshPayload, []s
 // holding it across a call (up to 2x the request timeout) used to block reconnecting agents
 // (forgetMesh runs before their read loop), so their pongs went unread and they were dropped,
 // which reconnected them and started another push.
+//
+// Token rollout (mesh_token.go) advances one stage per acknowledged push, so a push round
+// whose acknowledgements changed the plan is followed by another (at most meshTokenRounds).
 func (s *Server) pushMeshAll(ctx context.Context) {
 	n := s.netst()
 	n.pushMu.Lock()
 	defer n.pushMu.Unlock()
+	for round := 0; round < meshTokenRounds; round++ {
+		if !s.pushMeshRound(ctx) {
+			return
+		}
+	}
+}
+
+const meshTokenRounds = 4
+
+// pushMeshRound pushes changed payloads once; it reports whether an acknowledgement changed
+// the token state (the plan may have moved on).
+func (s *Server) pushMeshRound(ctx context.Context) bool {
+	n := s.netst()
 	n.meshMu.Lock()
 	plan, warnings, err := s.meshPlan(ctx)
 	n.meshMu.Unlock()
 	if err != nil {
 		s.log.Error("mesh plan", "err", err)
-		return
+		return false
 	}
 	for _, w := range warnings {
 		s.log.Debug("mesh", "warning", w)
@@ -146,6 +163,8 @@ func (s *Server) pushMeshAll(ctx context.Context) {
 	}
 	sort.Strings(ids)
 	var wg sync.WaitGroup
+	var advMu sync.Mutex
+	advanced := false
 	for _, id := range ids {
 		if !s.hub.Online(id) {
 			continue
@@ -164,7 +183,7 @@ func (s *Server) pushMeshAll(ctx context.Context) {
 		go func(id string, p *api.MeshPayload, h string) {
 			defer wg.Done()
 			if _, err := s.hub.Call(ctx, id, api.MsgMesh, p, 2*s.cfg.RequestTimeout); err != nil {
-				s.log.Warn("mesh push", "node", id, "err", err)
+				s.log.Warn("mesh push", "node", id, "err", err) // agent errors name containers, never tokens
 				if len(p.Exports)+len(p.Imports) == 0 {
 					n.lastMu.Lock()
 					n.lastMesh[id] = h // old agents without mesh support: do not retry empty payloads
@@ -175,9 +194,15 @@ func (s *Server) pushMeshAll(ctx context.Context) {
 			n.lastMu.Lock()
 			n.lastMesh[id] = h
 			n.lastMu.Unlock()
+			if s.recordMeshAck(ctx, id, p) {
+				advMu.Lock()
+				advanced = true
+				advMu.Unlock()
+			}
 		}(id, p, h)
 	}
 	wg.Wait()
+	return advanced
 }
 
 // forgetMesh makes the next pushMeshAll resend to nodeID (after it reconnected).
