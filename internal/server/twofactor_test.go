@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/base32"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -47,6 +48,18 @@ func pinClock(t *testing.T, at time.Time) *time.Time {
 	return &cur
 }
 
+// wrongTOTP is a six-digit code that secret does not accept at now. A fixed "000000"
+// matches one of the three accepted steps about once in 333,000 runs, which made
+// TestTwoFactorFlow fail in CI ("enable wrong code: 200").
+func wrongTOTP(secret string, now time.Time) string {
+	for n := 0; ; n++ {
+		c := fmt.Sprintf("%06d", n)
+		if _, ok := verifyTOTP(secret, c, now); !ok {
+			return c
+		}
+	}
+}
+
 func newJarClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{Jar: jar, Timeout: 20 * time.Second}
@@ -82,7 +95,7 @@ func TestTwoFactorFlow(t *testing.T) {
 	if raw == "" || strings.Contains(raw, en.Secret) {
 		t.Fatalf("pending secret not encrypted: %q", raw)
 	}
-	if c := e.do("POST", "/api/v1/auth/2fa/enable", api.TwoFactorRequest{Code: "000000"}, nil); c != 401 {
+	if c := e.do("POST", "/api/v1/auth/2fa/enable", api.TwoFactorRequest{Code: wrongTOTP(en.Secret, *clock)}, nil); c != 401 {
 		t.Fatalf("enable wrong code: %d", c)
 	}
 	// a second browser session gets signed out when 2FA is enabled
@@ -118,7 +131,7 @@ func TestTwoFactorFlow(t *testing.T) {
 	if c := e.doWith(hc, "", "GET", "/api/v1/auth/me", nil, nil); c != 401 {
 		t.Fatalf("session before second factor: %d", c)
 	}
-	if c := e.doWith(hc, "", "POST", "/api/v1/auth/login/2fa", api.LoginTwoFactorRequest{PendingToken: ch.PendingToken, Code: "123456"}, nil); c != 401 {
+	if c := e.doWith(hc, "", "POST", "/api/v1/auth/login/2fa", api.LoginTwoFactorRequest{PendingToken: ch.PendingToken, Code: wrongTOTP(en.Secret, *clock)}, nil); c != 401 {
 		t.Fatalf("wrong code: %d", c)
 	}
 	// the code used to enable is spent (same step): replay rejected
@@ -194,7 +207,7 @@ func TestTwoFactorFlow(t *testing.T) {
 	}
 
 	// disable needs password + code (a recovery code is accepted)
-	if c := e.do("POST", "/api/v1/auth/2fa/disable", api.TwoFactorRequest{Password: "correct-horse", Code: "111111"}, nil); c != 401 {
+	if c := e.do("POST", "/api/v1/auth/2fa/disable", api.TwoFactorRequest{Password: "correct-horse", Code: wrongTOTP(en.Secret, *clock)}, nil); c != 401 {
 		t.Fatalf("disable wrong code: %d", c)
 	}
 	e.mustDo("POST", "/api/v1/auth/2fa/disable", api.TwoFactorRequest{Password: "correct-horse", Code: rc2.Codes[0]}, nil, 204)

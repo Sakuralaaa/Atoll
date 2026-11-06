@@ -281,19 +281,34 @@ func TestWebSocketSession(t *testing.T) {
 		t.Fatal("missing payload accepted")
 	}
 
-	// action stop -> status shows exited
+	// action stop -> status shows exited. The status frame is change-driven and can come
+	// before the action's result; fs.result would drop it and the wait below would then
+	// time out (seen in CI), so watch for both in one loop.
 	fs.send(api.MsgAction, "r9", api.ActionPayload{ServiceID: "svc_web", Action: "stop"})
-	if r := fs.result("r9"); !r.OK {
-		t.Fatalf("stop %+v", r)
-	}
-	fs.wait("status exited", func(f frame) bool {
+	exited := func(f frame) bool {
 		if f.Type != api.MsgStatus {
 			return false
 		}
 		var st api.StatusPayload
 		json.Unmarshal(f.Payload, &st)
 		return len(st.Containers) == 1 && st.Containers[0].State == "exited"
-	})
+	}
+	gotResult, gotExited := false, false
+	for !gotResult || !gotExited {
+		fr := fs.wait("stop result / status exited", func(f frame) bool {
+			return (!gotResult && f.Type == api.MsgResult && f.ID == "r9") || (!gotExited && exited(f))
+		})
+		if fr.Type == api.MsgResult {
+			var r api.ResultPayload
+			json.Unmarshal(fr.Payload, &r)
+			if !r.OK {
+				t.Fatalf("stop %+v", r)
+			}
+			gotResult = true
+			continue
+		}
+		gotExited = true
+	}
 }
 
 func TestSessionRejectedTokenRetries(t *testing.T) {

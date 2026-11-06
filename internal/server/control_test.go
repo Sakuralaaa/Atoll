@@ -150,7 +150,7 @@ func TestControlReauthGating(t *testing.T) {
 	if code, b := e.rawDo("POST", "/api/v1/control/reauth", api.ReauthFields{Password: testPass}); code != 401 || errCode(b) != "code_required" {
 		t.Fatalf("2fa without code: %d %s", code, b)
 	}
-	if code, b := e.rawDo("POST", "/api/v1/control/reauth", api.ReauthFields{Password: testPass, Code: "000000"}); code != 401 || errCode(b) != "invalid_code" {
+	if code, b := e.rawDo("POST", "/api/v1/control/reauth", api.ReauthFields{Password: testPass, Code: wrongTOTP(en.Secret, *clock)}); code != 401 || errCode(b) != "invalid_code" {
 		t.Fatalf("2fa wrong code: %d %s", code, b)
 	}
 	c, _ = totpCode(en.Secret, *clock)

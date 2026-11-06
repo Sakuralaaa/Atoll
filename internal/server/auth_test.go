@@ -181,7 +181,7 @@ func TestChangePasswordRequires2FA(t *testing.T) {
 	if c := e.do("POST", path, req, nil); c != 401 {
 		t.Fatalf("missing code: %d", c)
 	}
-	req.Code = "000000"
+	req.Code = wrongTOTP(en.Secret, *clock)
 	if c := e.do("POST", path, req, nil); c != 401 {
 		t.Fatalf("wrong code: %d", c)
 	}

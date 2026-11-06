@@ -78,7 +78,9 @@ v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接�
 3. [x] `POST /app-templates/{id}` 已对 member 开放（2026-11-06）：先 memberMayUse 校验 server_id（不属于自己的返回 400，与 POST /projects 一致）；`!p.Session` 分支改为 `!p.Session || p.Member`，以前 member 会话会绕过 domains 权限直接绑定域名，现在带 hostname/domains 必须有 domains 权限。测试 server.TestMemberAppTemplates。
 4. [x] `GET /root-domains` 对 member 只读开放（2026-11-06），只返回 `[{name, default}]`，不含 zone、证书状态和错误；写操作仍只限 admin。测试 server.TestMemberRootDomainsNamesOnly。
 5. [x] 管理员页提示（2026-11-06）：子账号编辑框里每台服务器旁显示上面有几个项目；新勾选一台已有项目的服务器时，黄色提示会列出项目名，并说明分配后该子账号能按权限看到和操作这些项目，建议先迁走不想共享的项目。项目没有记录创建者，因此这里统计服务器上的全部项目，前端实现（web/src/pages/Users.tsx）。
-6. 偶发失败的测试：`internal/agent TestWebSocketSession`（超时）、`internal/server TestTwoFactorFlow`（错误码被接受，第 86 行）。两者在 CI 中各失败过一次，查明原因或改得更稳。
+6. [x] 偶发测试（2026-11-06）：
+   - `internal/agent TestWebSocketSession`：stop 之后的状态帧是变化驱动的，可能先于 action 的 result 到达；`fs.result` 会丢弃它，后面再等 exited 就一直等到 10 秒超时（CI 日志 session_test.go:289）。现在在同一个循环里同时等 result 和 exited 状态。
+   - `internal/server TestTwoFactorFlow`：CI 日志是 `enable wrong code: 200`，固定的错误码 "000000" 恰好命中了当前 ±1 步之一（每次约 1/333000）。改为 `wrongTOTP(secret, now)` 现算一个确定不被接受的码；auth_test、control_test 里同类的固定码一并替换。
 
 ### B. 第二阶段（大，需要先和用户确认方案）
 1. mesh 隔离：member 的服务不应通过 tailnet 访问其他服务器上的服务。需要所有节点升级 Agent。
