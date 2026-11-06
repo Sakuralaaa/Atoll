@@ -35,6 +35,12 @@ type meResponse struct {
 	Avatar string `json:"avatar,omitempty"`
 	// NavOrder is the account's sidebar order (panel entry keys); empty = default.
 	NavOrder []string `json:"nav_order,omitempty"`
+	// Role is "admin" or "member" (notes/subaccounts.md). A member sees only Servers
+	// and the Projects on them.
+	Role    string   `json:"role"`
+	Servers []string `json:"servers,omitempty"`
+	// MustChangePassword: the account was created or reset by an admin.
+	MustChangePassword bool `json:"must_change_password,omitempty"`
 }
 
 var dummyHash = sync.OnceValue(func() string {
@@ -143,6 +149,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		s.loginFailed(ip, name, "password")
 		return errf(401, "invalid_credentials", "invalid username or password")
 	}
+	if u.Disabled {
+		s.loginFailed(ip, name, "disabled")
+		return errf(403, "account_disabled", "this account is disabled; ask the panel admin")
+	}
 	tf, err := s.st.TOTPState(r.Context(), u.ID)
 	if err != nil {
 		return err
@@ -172,11 +182,22 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if p.Session {
-		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions), Avatar: ui.Avatar, NavOrder: ui.NavOrder})
+	role := store.RoleAdmin
+	if p.Member {
+		role = store.RoleMember
+	}
+	if p.Session && !p.Member {
+		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions), Avatar: ui.Avatar, NavOrder: ui.NavOrder, Role: role})
 		return nil
 	}
-	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval, NavOrder: ui.NavOrder}
+	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval, NavOrder: ui.NavOrder, Role: role}
+	if p.Session {
+		me.Auth, me.Scope, me.Avatar, me.MustChangePassword = "session", "session", ui.Avatar, p.User.MustChangePassword
+	}
+	for x := range p.Servers {
+		me.Servers = append(me.Servers, x)
+	}
+	slices.Sort(me.Servers)
 	for _, x := range api.AllPermissions {
 		if p.Perms[x] {
 			me.Permissions = append(me.Permissions, x)

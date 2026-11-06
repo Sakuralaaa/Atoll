@@ -149,7 +149,7 @@ func (s *Store) ResetTOTPByName(ctx context.Context, username string) (*User, er
 	var u *User
 	var err error
 	if username == "" {
-		u, err = scanUser(s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, created_at FROM users ORDER BY id LIMIT 1`))
+		u, err = scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users ORDER BY id LIMIT 1`))
 	} else {
 		u, err = s.UserByName(ctx, username)
 	}

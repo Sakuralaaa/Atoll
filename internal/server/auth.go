@@ -28,6 +28,11 @@ type principal struct {
 	Perms           map[string]bool
 	Projects        map[string]bool // nil = every project
 	RequireApproval bool
+
+	// Member: a sub-account (session or one of its tokens). Perms and Projects then hold
+	// what it may do and see (projects on its Servers), re-read on every request.
+	Member  bool
+	Servers map[string]bool
 }
 
 func (p *principal) actor() string {
@@ -39,7 +44,7 @@ func (p *principal) actor() string {
 
 // inProject reports whether p may touch projectID.
 func (p *principal) inProject(projectID string) bool {
-	return p.Session || p.Projects == nil || p.Projects[projectID]
+	return (p.Session && !p.Member) || p.Projects == nil || p.Projects[projectID]
 }
 
 type ctxKey struct{}
@@ -65,6 +70,9 @@ func (s *Server) authenticate(r *http.Request) *principal {
 						p.Projects[x] = true
 					}
 				}
+				if ta.User.IsMember() && !s.applyMember(r.Context(), p) {
+					return nil
+				}
 				return p
 			}
 		}
@@ -74,7 +82,11 @@ func (s *Server) authenticate(r *http.Request) *principal {
 		h := hashToken(c.Value)
 		u, err := s.st.SessionUser(r.Context(), h)
 		if err == nil {
-			return &principal{User: u, Session: true, Scope: "session", SessionHash: h}
+			p := &principal{User: u, Session: true, Scope: "session", SessionHash: h}
+			if u.IsMember() && !s.applyMember(r.Context(), p) {
+				return nil
+			}
+			return p
 		}
 	}
 	return nil
@@ -89,6 +101,11 @@ func (s *Server) authed(need access, fn handlerFunc) http.HandlerFunc {
 		}
 		if p.Session && r.Method != http.MethodGet && r.Method != http.MethodHead && !sameOrigin(r) {
 			return errf(403, "csrf", "cross-origin request rejected")
+		}
+		if p.Member {
+			if err := s.checkMember(r, p, need); err != nil {
+				return err
+			}
 		}
 		if !p.Session {
 			if err := s.checkToken(r, p, need); err != nil {
@@ -183,4 +200,33 @@ func (s *Server) requireConfirm(w http.ResponseWriter, r *http.Request, action, 
 	s.publish("confirmation", c)
 	writeJSON(w, http.StatusAccepted, c)
 	return nil
+}
+
+// applyMember narrows p to what member p.User may reach (notes/subaccounts.md): its own
+// permissions (intersected with a token's) and the projects on its assigned servers
+// (intersected with a token's project list). false = the scope could not be read.
+func (s *Server) applyMember(ctx context.Context, p *principal) bool {
+	sc, err := s.st.MemberScopeOf(ctx, p.User.ID)
+	if err != nil {
+		s.log.Warn("member scope", "user", p.User.Username, "err", err)
+		return false
+	}
+	perms := map[string]bool{}
+	for _, x := range p.User.Permissions {
+		if memberPermAllowed(x) && (p.Session || p.Perms[x]) {
+			perms[x] = true
+		}
+	}
+	perms[api.PermRead] = true
+	projects := sc.Projects
+	if p.Projects != nil {
+		projects = map[string]bool{}
+		for id := range p.Projects {
+			if sc.Projects[id] {
+				projects[id] = true
+			}
+		}
+	}
+	p.Member, p.Perms, p.Projects, p.Servers = true, perms, projects, sc.Servers
+	return true
 }

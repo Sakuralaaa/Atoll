@@ -15,7 +15,28 @@ type User struct {
 	Username     string
 	PasswordHash string
 	CreatedAt    time.Time
+	// Role is RoleAdmin or RoleMember (notes/subaccounts.md).
+	Role     string
+	Disabled bool
+	// Permissions are a member's api.Perm* (admins hold every permission; ignored for them).
+	Permissions        []string
+	MustChangePassword bool
 }
+
+// User roles.
+const (
+	RoleAdmin  = "admin"
+	RoleMember = "member"
+)
+
+// IsMember reports whether u is a restricted sub-account.
+func (u *User) IsMember() bool { return u != nil && u.Role == RoleMember }
+
+// userCols are the columns scanUser reads, in order.
+const userCols = "id, username, password_hash, created_at, role, disabled, permissions, must_change_password"
+
+// userColsU is userCols prefixed with the alias u.
+const userColsU = "u.id, u.username, u.password_hash, u.created_at, u.role, u.disabled, u.permissions, u.must_change_password"
 
 // CountUsers returns the number of users.
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
@@ -53,27 +74,33 @@ func (s *Store) CreateOwner(ctx context.Context, username, hash string) (*User, 
 	if _, err := tx.ExecContext(ctx, `INSERT INTO team_members(team_id, user_id, role) VALUES(?,?, 'owner')`, tid, uid); err != nil {
 		return nil, err
 	}
-	return &User{ID: uid, Username: username, PasswordHash: hash, CreatedAt: now}, tx.Commit()
+	return &User{ID: uid, Username: username, PasswordHash: hash, CreatedAt: now, Role: RoleAdmin}, tx.Commit()
 }
 
 func scanUser(row interface{ Scan(...any) error }, extra ...any) (*User, error) {
 	var u User
-	var c string
-	if err := row.Scan(append([]any{&u.ID, &u.Username, &u.PasswordHash, &c}, extra...)...); err != nil {
+	var c, perms string
+	var dis, mcp int
+	if err := row.Scan(append([]any{&u.ID, &u.Username, &u.PasswordHash, &c, &u.Role, &dis, &perms, &mcp}, extra...)...); err != nil {
 		return nil, mapErr(err)
 	}
 	u.CreatedAt = parseTS(c)
+	u.Disabled, u.MustChangePassword = dis == 1, mcp == 1
+	u.Permissions = splitList(perms)
+	if u.Role == "" {
+		u.Role = RoleAdmin
+	}
 	return &u, nil
 }
 
 // UserByName looks a user up by username.
 func (s *Store) UserByName(ctx context.Context, name string) (*User, error) {
-	return scanUser(s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, created_at FROM users WHERE username=?`, name))
+	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE username=?`, name))
 }
 
 // UserByID looks a user up by id.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
-	return scanUser(s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, created_at FROM users WHERE id=?`, id))
+	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE id=?`, id))
 }
 
 // CreateSession stores a session token hash.
@@ -95,8 +122,8 @@ const sessionTouchEvery = 5 * time.Minute
 func (s *Store) SessionUser(ctx context.Context, hash string) (*User, error) {
 	now := time.Now()
 	var lastSeen string
-	u, err := scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.username, u.password_hash, u.created_at, s.last_seen_at
-		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash=? AND s.expires_at > ?`, hash, TS(now)), &lastSeen)
+	u, err := scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userColsU+`, s.last_seen_at
+		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash=? AND s.expires_at > ? AND u.disabled = 0`, hash, TS(now)), &lastSeen)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +259,9 @@ func (s *Store) AuthAPIToken(ctx context.Context, hash string) (*TokenAuth, erro
 	if err != nil {
 		return nil, err
 	}
+	if u.Disabled {
+		return nil, ErrNotFound
+	}
 	ta.User = u
 	s.DB.ExecContext(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=?`, TS(time.Now()), ta.TokenID)
 	return &ta, nil
@@ -277,7 +307,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string) (*User, 
 	var u *User
 	var err error
 	if username == "" {
-		u, err = scanUser(s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, created_at FROM users ORDER BY id LIMIT 1`))
+		u, err = scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users ORDER BY id LIMIT 1`))
 	} else {
 		u, err = s.UserByName(ctx, username)
 	}
