@@ -184,7 +184,7 @@ function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
     try {
       await api.changePassword({ current_password: cur, new_password: pw, ...(twoFactor ? { code: code6 } : {}) })
       setCur(''); setPw(''); setPw2(''); setCode('')
-      invalidate('auth:sessions')
+      invalidate('auth:sessions', 'me')
       toast(t('密码已修改，其他设备已退出', 'Password changed; other devices were signed out'), 'ok')
     } catch (x) {
       const e = x as ApiError

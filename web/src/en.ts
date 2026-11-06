@@ -622,6 +622,7 @@ const en: Record<string, string> = {
  "关闭菜单": "Close menu",
  "打开菜单": "Open menu",
  "个异常需要处理": " problems need attention",
+ "管理员为你设置了初始密码，请先在「账户与安全」里改一个自己的密码": "An admin set your initial password. Please change it under Account & security first.",
  "中控在线 · {0}/{1} 服务器已连接": "Control online · {0}/{1} servers connected",
  "正在连接中控…": "Connecting to control…",
  "项目设置": "Project settings",

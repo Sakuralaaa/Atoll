@@ -212,6 +212,8 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   const workers = (servers ?? []).filter(s => s.role !== 'control')
   const online = workers.filter(s => s.status === 'online').length
   const problems = useFiringProblems().length
+  const me = useMe().data
+  const member = me?.role === 'member'
   return (
     <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title={L("审批")}>{pending}</Link>}</>} side={<>
         <Link to="/" className="px-2 mb-4 shrink-0"><Logo /></Link>
@@ -220,10 +222,10 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         <Favorites />
         <div className="shrink-0 pt-3 border-t border-line flex flex-col gap-2.5">
           {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} {L("个异常需要处理")}</span></Link>}
-          <Link to="/control" className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? L("中控在线 · {0}/{1} 服务器已连接", online, workers.length) : L("正在连接中控…")}</span></Link>
+          <Link to={member ? '/servers' : '/control'} className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? L("中控在线 · {0}/{1} 服务器已连接", online, workers.length) : L("正在连接中控…")}</span></Link>
           <UserRow />
         </div>
-    </>}>{children}</Frame>
+    </>}>{me?.must_change_password && <Link to="/settings/security" className="block m-4 mb-0 rounded-xl surface !bg-[#fde047] text-[#141414] px-4 py-2.5 text-[13px] font-bold">{L("管理员为你设置了初始密码，请先在「账户与安全」里改一个自己的密码")}</Link>}{children}</Frame>
   )
 }
 
