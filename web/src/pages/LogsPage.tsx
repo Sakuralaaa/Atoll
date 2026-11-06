@@ -12,7 +12,7 @@ import type { Deployment, LogLine, Service } from '../api/types'
 import { BuildLogModal, CommitLink } from '../components/GitSource'
 import { hasBuildLog } from '../api/git'
 import { cx } from '../components/ui-utils'
-import { useProject } from '../api/queries'
+import { useCan, useProject } from '../api/queries'
 import { useNow } from '../api/useNow'
 import { L, useT } from '../i18n'
 
@@ -38,6 +38,7 @@ function Mark({ text, q }: { text: string; q: string }) {
 const WINDOWS = [{ k: 0, l: L("全部时间") }, { k: 15, l: L("最近 15 分钟") }, { k: 60, l: L("最近 1 小时") }, { k: 360, l: L("最近 6 小时") }]
 
 export default function LogsPage() {
+  const canExec = useCan('exec')
   const { pid, sid } = useParams()
   const { t } = useT()
   const [sp, setSp] = useSearchParams()
@@ -54,7 +55,7 @@ export default function LogsPage() {
           <h1 className="mt-3 text-[22px] md:text-[24px] font-extrabold italic tracking-[-0.03em] leading-tight [overflow-wrap:anywhere]">{s ? svcName(s) : '…'}</h1>
           <div className="mt-1 flex items-center gap-2 text-[12.5px] text-muted">{t('服务 ID', 'Service ID')}<CopyId v={sid ?? ''} /></div>
           <div className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg field p-0.5 gap-1">
-            {[['logs', L("运行日志")], ['deploys', L("部署记录")], ['exec', L("命令")]].map(([k, l]) => (
+            {([['logs', L("运行日志")], ['deploys', L("部署记录")], ['exec', L("命令")]] as const).filter(([k]) => k !== 'exec' || canExec).map(([k, l]) => (
               <button key={k} onClick={() => setSp(k === 'logs' ? {} : { view: k })} className={cx('h-9 px-3 md:px-4 rounded-md inline-flex items-center whitespace-nowrap text-[13.5px]', view === k ? 'nav-active font-semibold' : 'text-muted hover:text-fg')}>{l}</button>
             ))}
           </div>
@@ -63,7 +64,7 @@ export default function LogsPage() {
       </div>
       {view === 'logs' && <Logs sid={sid} name={s?.name} actions={actions} />}
       {view === 'deploys' && s && <Deploys s={s} />}
-      {view === 'exec' && sid && <Exec sid={sid} />}
+      {view === 'exec' && canExec && sid && <Exec sid={sid} />}
     </div>
   )
 }
