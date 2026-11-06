@@ -38,6 +38,8 @@ var (
 	lvlRead    = access{perm: api.PermRead}
 	lvlDeploy  = access{perm: api.PermDeploy}
 	lvlSession = access{session: true}
+	// panel session only, and a member also needs deploy (an admin session holds everything)
+	needDeploySession = access{perm: api.PermDeploy, session: true}
 
 	needDeployGlobal = access{perm: api.PermDeploy, res: resGlobal}
 	needReadGlobal   = access{perm: api.PermRead, res: resGlobalRead}

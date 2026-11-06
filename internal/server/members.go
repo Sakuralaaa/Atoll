@@ -82,7 +82,7 @@ func errMemberHidden() error { return errf(404, "not_found", "not found") }
 
 // checkMember applies the member rules to a request (p.Member is true).
 func (s *Server) checkMember(r *http.Request, p *principal, need access) error {
-	if !need.session && need.perm != "" && !p.Perms[need.perm] {
+	if need.perm != "" && !p.Perms[need.perm] { // session-only routes too (needDeploySession)
 		return errf(403, "missing_permission", "your account lacks the %q permission; ask the panel admin", permLabel[need.perm])
 	}
 	if p.Session && p.User.MustChangePassword {

@@ -319,7 +319,7 @@ func (s *Server) handleDeploymentLogs(w http.ResponseWriter, r *http.Request) er
 }
 
 // GET /services/{id}/webhook: URL for anyone who can read the service; the secret only for
-// a panel session.
+// a panel session that may deploy (the secret starts builds; a read-only member gets none).
 func (s *Server) handleGetWebhook(w http.ResponseWriter, r *http.Request) error {
 	svc, _, err := s.st.GetService(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -332,7 +332,8 @@ func (s *Server) handleGetWebhook(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	writeJSON(w, 200, s.webhookInfo(r.Context(), r, svc.ID, g, principalFrom(r.Context()).Session))
+	p := principalFrom(r.Context())
+	writeJSON(w, 200, s.webhookInfo(r.Context(), r, svc.ID, g, p.Session && (!p.Member || p.Perms[api.PermDeploy])))
 	return nil
 }
 
