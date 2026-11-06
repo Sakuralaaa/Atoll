@@ -134,6 +134,16 @@ func TestUserManagementAPI(t *testing.T) {
 	if code := e.doWith(mc, "", "GET", "/api/v1/users", nil, nil); code != 403 {
 		t.Fatalf("member list users %d", code)
 	}
+	var er struct{ Code string }
+	if code := e.doWith(mc, "", "GET", "/api/v1/projects", nil, &er); code != 403 || er.Code != "must_change_password" {
+		t.Fatalf("must change password first: %d %+v", code, er)
+	}
+	if code := e.doWith(mc, "", "POST", "/api/v1/auth/password", map[string]string{"current_password": "member-pass", "new_password": "member-pass-2"}, nil); code != 200 && code != 204 {
+		t.Fatalf("change password %d", code)
+	}
+	if code := e.doWith(mc, "", "GET", "/api/v1/projects", nil, nil); code != 200 {
+		t.Fatalf("after password change %d", code)
+	}
 	var pu userView
 	e.mustDo("PATCH", "/api/v1/users/"+i64s(u.ID), map[string]any{"servers": []string{}, "permissions": []string{"exec"}}, &pu, 200)
 	if len(pu.Servers) != 0 || len(pu.Permissions) != 2 {

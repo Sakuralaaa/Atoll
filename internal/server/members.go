@@ -79,6 +79,13 @@ func (s *Server) checkMember(r *http.Request, p *principal, need access) error {
 	if !need.session && need.perm != "" && !p.Perms[need.perm] {
 		return errf(403, "missing_permission", "your account lacks the %q permission; ask the panel admin", permLabel[need.perm])
 	}
+	if p.Session && p.User.MustChangePassword {
+		route := memberRoute(r.Pattern)
+		_, path, _ := strings.Cut(route, " ")
+		if !strings.HasPrefix(path, "/auth/") && !strings.HasPrefix(path, "/me/") {
+			return errf(403, "must_change_password", "change the initial password first (Account & security)")
+		}
+	}
 	if res := routeResource(r.Pattern); res != "" {
 		pid, err := s.projectOf(r.Context(), res, r.PathValue("id"))
 		if err != nil {
