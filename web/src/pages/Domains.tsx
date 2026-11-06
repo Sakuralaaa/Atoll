@@ -11,7 +11,7 @@ import { run, useBusy, useQuery } from '../api/hooks'
 import type { CloudflareTokenCheck, Domain, Project, RootDomain, Service } from '../api/types'
 import { DomainBadge, DomainNote } from '../components/DomainStatus'
 import { providerOf } from '../api/providers'
-import { useProjects } from '../api/queries'
+import { useCan, useProjects } from '../api/queries'
 import { HostnameInput, useHostnameInput } from '../components/HostnameInput'
 import { L, useT } from '../i18n'
 import { ProxyChoice } from '../components/ProxyChoice'
@@ -25,6 +25,7 @@ export default function Domains() {
   const roots = useQuery('root-domains', api.rootDomains).data
   const [add, setAdd] = useState(false)
   const [del, setDel] = useState<Domain>()
+  const canBind = useCan('domains')
   const [flip, setFlip] = useState<Domain>()
   const svcOf = (d: Domain) => {
     for (const p of projects ?? []) { const s = p.services?.find(x => x.id === d.service_id); if (s) return { p, s } }
@@ -35,7 +36,7 @@ export default function Domains() {
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("域名")}</h1><Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />{L("绑定域名")}</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8"><h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("域名")}</h1>{canBind && <Button variant="primary" size="lg" onClick={() => setAdd(true)}><Plus size={16} />{L("绑定域名")}</Button>}</div>
         {!settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
           <Card className="mb-8 overflow-hidden">
             <div className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5">
@@ -52,7 +53,7 @@ export default function Domains() {
         )}
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={4} />}
-        {q.data && !q.data.length && <Empty icon={<Globe size={22} />} title={L("还没有绑定域名")} desc={L("给有 HTTP 端口的服务绑定域名后，atoll-caddy 会自动签发证书并反代到容器。")} action={<Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{L("绑定域名")}</Button>} />}
+        {q.data && !q.data.length && <Empty icon={<Globe size={22} />} title={L("还没有绑定域名")} desc={L("给有 HTTP 端口的服务绑定域名后，atoll-caddy 会自动签发证书并反代到容器。")} action={canBind ? <Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{L("绑定域名")}</Button> : undefined} />}
         {q.data && q.data.length > 0 && (
           <Card className="overflow-hidden">
             <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>{L("域名")}</span><span>{L("服务")}</span><span>{L("指向服务器")}</span><span>{L("记录")}</span><span>{L("状态")}</span><span /></div>
