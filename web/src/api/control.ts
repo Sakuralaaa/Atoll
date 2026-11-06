@@ -37,12 +37,13 @@ export const controlApi = {
   runBackup: () => ctl<ControlBackup>('POST', '/control/backups', {}),
   /** Without a passphrase: reveal the current one. With one (min 12): replace it. */
   passphrase: (passphrase?: string) => ctl<ControlPassphrase>('POST', '/control/backups/passphrase', passphrase ? { passphrase } : {}),
-  audit: (o: { limit?: number; before?: number; actor?: string; action?: string }) => {
+  audit: (o: { limit?: number; before?: number; actor?: string; action?: string; user?: string }) => {
     const q = new URLSearchParams()
     if (o.limit) q.set('limit', String(o.limit))
     if (o.before) q.set('before', String(o.before))
     if (o.actor) q.set('actor', o.actor)
     if (o.action) q.set('action', o.action)
+    if (o.user) q.set('user', o.user)
     return ctl<AuditPage>('GET', `/audit${q.size ? `?${q}` : ''}`)
   },
 }

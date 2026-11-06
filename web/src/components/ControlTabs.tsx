@@ -63,7 +63,7 @@ const PAGE = 50
 
 export function AuditTab() {
   const [actor, setActor] = useState(''); const [action, setAction] = useState('')
-  const [f, setF] = useState({ actor: '', action: '' })
+  const [f, setF] = useState({ actor: '', action: '', user: '' })
   const [rows, setRows] = useState<AuditEntry[]>()
   const [next, setNext] = useState<number>()
   const [err, setErr] = useState<Error>()
@@ -74,7 +74,7 @@ export function AuditTab() {
   const fetchPage = useCallback(async (before?: number) => {
     const my = ++seq.current
     try {
-      const p = await controlApi.audit({ limit: PAGE, before, actor: f.actor || undefined, action: f.action || undefined })
+      const p = await controlApi.audit({ limit: PAGE, before, actor: f.actor || undefined, action: f.action || undefined, user: f.user || undefined })
       if (my !== seq.current) return
       setRows(r => before ? [...(r ?? []), ...p.entries] : p.entries); setNext(p.next_before)
     } catch (x) { if (my === seq.current) setErr(x as Error) } finally { if (my === seq.current) setLoading(false) }
@@ -84,9 +84,9 @@ export function AuditTab() {
   useEffect(() => { fetchPage() }, [fetchPage])
   const load = (before?: number) => { setLoading(true); setErr(undefined); fetchPage(before) }
   const refilter = (nf: typeof f) => { setLoading(true); setErr(undefined); setF(nf) }
-  const apply = () => refilter({ actor: actor.trim(), action: action.trim() })
-  const clear = () => { setActor(''); setAction(''); refilter({ actor: '', action: '' }) }
-  const filterBy = (k: 'actor' | 'action', v: string) => { if (k === 'actor') setActor(v); else setAction(v); refilter({ ...f, [k]: v }) }
+  const apply = () => refilter({ actor: actor.trim(), action: action.trim(), user: f.user })
+  const clear = () => { setActor(''); setAction(''); refilter({ actor: '', action: '', user: '' }) }
+  const filterBy = (k: 'actor' | 'action' | 'user', v: string) => { if (k === 'actor') setActor(v); else if (k === 'action') setAction(v); refilter({ ...f, [k]: v }) }
   const COLS = '@4xl:grid-cols-[150px_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)]'
   return (
     <div>
@@ -97,13 +97,14 @@ export function AuditTab() {
       <form onSubmit={e => { e.preventDefault(); apply() }} className="grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 mb-4">
         <label className="min-w-0"><div className="text-[12.5px] text-muted mb-1">{L("操作者（精确，或以 : 结尾的前缀）")}</div><TextInput list="audit-actors" className="w-full font-mono" value={actor} onChange={e => setActor(e.target.value)} placeholder={L("user:admin、token:、cli、system")} /></label>
         <label className="min-w-0"><div className="text-[12.5px] text-muted mb-1">{L("操作（精确，或以 . 结尾的前缀）")}</div><TextInput list="audit-actions" className="w-full font-mono" value={action} onChange={e => setAction(e.target.value)} placeholder={L("control.、auth.、api.")} /></label>
-        <div className="flex items-end gap-2"><Button type="submit" variant="primary" className="!h-11"><Search size={15} />{L("筛选")}</Button>{(f.actor || f.action) && <Button type="button" className="!h-11" onClick={clear}><X size={15} />{L("清除")}</Button>}</div>
+        <div className="flex items-end gap-2"><Button type="submit" variant="primary" className="!h-11"><Search size={15} />{L("筛选")}</Button>{(f.actor || f.action || f.user) && <Button type="button" className="!h-11" onClick={clear}><X size={15} />{L("清除")}</Button>}</div>
         <datalist id="audit-actors"><option value="user:" /><option value="token:" /><option value="cli" /><option value="system" /></datalist>
         <datalist id="audit-actions"><option value="control." /><option value="auth." /><option value="api." /><option value="service." /><option value="settings." /></datalist>
       </form>
+      {f.user && <div className="mb-3 flex items-center gap-2 text-[13px] text-fg2">{L("只看账号")} <Badge tone="violet">{f.user}</Badge><button onClick={() => filterBy('user', '')} className="text-muted hover:text-fg" title={L("清除")}><X size={14} /></button></div>}
       {err && !rows && <ErrorState error={err} onRetry={() => load()} />}
       {!rows && !err && <RowsSkeleton n={6} />}
-      {rows && !rows.length && <Empty icon={<ShieldCheck size={22} />} title={L("没有匹配的审计记录")} desc={f.actor || f.action ? L("换个筛选条件试试。") : L("中控的每个操作都会记录在这里。")} />}
+      {rows && !rows.length && <Empty icon={<ShieldCheck size={22} />} title={L("没有匹配的审计记录")} desc={f.actor || f.action || f.user ? L("换个筛选条件试试。") : L("中控的每个操作都会记录在这里。")} />}
       {rows && rows.length > 0 && (
         <Card className="overflow-hidden">
           <div className={cx('hidden @4xl:grid gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]', COLS)}><span>{L("时间")}</span><span>{L("操作者")}</span><span>{L("操作")}</span><span>{L("对象")}</span><span>IP</span><span>{L("令牌 / 会话")}</span></div>
@@ -115,7 +116,7 @@ export function AuditTab() {
               <div key={r.id} className="border-b border-line last:border-0">
                 <div className={cx('grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 px-4 @2xl:px-6 py-3 items-center text-[13px]', COLS)}>
                   <span className="text-fg2 tnum @max-4xl:order-1 @max-4xl:col-start-2 @max-4xl:row-start-1 @max-4xl:text-right @max-4xl:text-[12px] whitespace-nowrap" title={dateTime(r.created_at)}>{dateTime(r.created_at)}<span className="@4xl:hidden text-dim"> · {ago(r.created_at)}</span></span>
-                  <span className="flex items-center gap-2 min-w-0 @max-4xl:col-span-2 @max-4xl:order-2"><Badge tone={k[1]}>{k[0]}</Badge><button onClick={() => filterBy('actor', r.actor)} className="font-mono text-[12.5px] truncate hover:underline min-w-0" title={L("只看 {0}", r.actor)}>{r.actor}</button></span>
+                  <span className="flex items-center gap-2 min-w-0 @max-4xl:col-span-2 @max-4xl:order-2"><Badge tone={k[1]}>{k[0]}</Badge><span className="min-w-0 flex flex-col"><button onClick={() => filterBy('actor', r.actor)} className="font-mono text-[12.5px] truncate hover:underline min-w-0 text-left" title={L("只看 {0}", r.actor)}>{r.actor}</button>{r.user_name && (r.actor !== `user:${r.user_name}` || r.user_role === 'member') && <button onClick={() => filterBy('user', r.user_name!)} className="text-[12px] text-muted truncate hover:underline text-left" title={L("只看账号 {0} 的操作", r.user_name)}>{r.user_role === 'member' ? L("子账号 {0}", r.user_name) : L("账号 {0}", r.user_name)}</button>}</span></span>
                   <span className="min-w-0 @max-4xl:order-0 @max-4xl:col-start-1 @max-4xl:row-start-1 flex items-center gap-1.5">
                     {hasDetail ? <button onClick={() => setOpen(open === r.id ? undefined : r.id)} className="text-muted hover:text-fg shrink-0" title={L("详情")}>{open === r.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button> : <span className="w-[14px] shrink-0" />}
                     <button onClick={() => filterBy('action', r.action)} className={cx('font-mono text-[12.5px] font-semibold truncate hover:underline min-w-0', /failed|denied/.test(r.action) && 'text-[#ef4444]')} title={L("只看 {0}", r.action)}>{r.action}</button>

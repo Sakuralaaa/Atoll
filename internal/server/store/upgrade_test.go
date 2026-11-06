@@ -1,0 +1,76 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"path/filepath"
+	"sort"
+	"testing"
+	"time"
+)
+
+// openAt builds a database the way an older release left it: only the migrations up to
+// and including upto ("0023_user_ui.sql" = v0.1.40). seed then writes rows through raw
+// SQL, as that release would have, before the current Open migrates the rest.
+func openAt(t *testing.T, dir, upto string, seed func(db *sql.DB)) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "atoll.db")+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := migrationFS.ReadDir("migrations")
+	names := []string{}
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		if n > upto {
+			break
+		}
+		body, _ := migrationFS.ReadFile("migrations/" + n)
+		if _, err := db.Exec(string(body)); err != nil {
+			t.Fatalf("%s: %v", n, err)
+		}
+		db.Exec(`INSERT INTO schema_migrations VALUES(?,?)`, n, TS(time.Now()))
+	}
+	seed(db)
+}
+
+// A v0.1.40 database (migrations through 0023) upgrades in place: existing users stay
+// admins, its audit rows, projects and services stay readable.
+func TestUpgradeFromV0140(t *testing.T) {
+	dir := t.TempDir()
+	now := TS(time.Now())
+	openAt(t, dir, "0023_user_ui.sql", func(db *sql.DB) {
+		for _, q := range []string{
+			`INSERT INTO users(id, username, password_hash, created_at) VALUES(1,'admin','x','` + now + `')`,
+			`INSERT INTO nodes(id, name, created_at) VALUES('srv_a','a','` + now + `')`,
+			`INSERT INTO projects(id, name, server_id, created_at) VALUES('prj_a','a','srv_a','` + now + `')`,
+			`INSERT INTO services(id, project_id, name, kind, image, created_at) VALUES('svc_a','prj_a','web','app','nginx','` + now + `')`,
+			`INSERT INTO audit_log(actor, action, target, created_at, ip) VALUES('user:admin','project.create','prj_a','` + now + `','203.0.113.1')`,
+		} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+	})
+	s := openTest(t, dir)
+	defer s.Close()
+	ctx := context.Background()
+	u, err := s.UserByName(ctx, "admin")
+	if err != nil || u.IsMember() || u.Disabled {
+		t.Fatalf("admin after upgrade %+v %v", u, err)
+	}
+	rows, err := s.ListAudit(ctx, AuditFilter{Limit: 10, User: "admin"})
+	if err != nil || len(rows) != 1 || rows[0].UserID != 0 || rows[0].UserName != "" || rows[0].IP != "203.0.113.1" {
+		t.Fatalf("old audit row %+v %v", rows, err)
+	}
+	if _, _, err := s.GetService(ctx, "svc_a"); err != nil {
+		t.Fatalf("service after upgrade: %v", err)
+	}
+}

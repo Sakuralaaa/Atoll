@@ -410,6 +410,8 @@ export interface ControlPassphrase { passphrase: string; from: string }
 export interface AuditEntry {
   id: number; actor: string; actor_kind: 'session' | 'token' | 'cli' | 'system' | string; action: string; target: string
   ip?: string; token_id?: string; session_id?: string; detail: unknown; created_at: string
+  /** the account behind it (session user or token owner); older rows carry only user_name */
+  user_id?: number; user_name?: string; user_role?: 'admin' | 'member' | string
 }
 export interface AuditPage { entries: AuditEntry[]; next_before?: number }
 

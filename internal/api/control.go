@@ -189,14 +189,19 @@ type ControlBundleManifest struct {
 
 // AuditEntry is one row of GET /api/v1/audit.
 type AuditEntry struct {
-	ID        int64           `json:"id"`
-	Actor     string          `json:"actor"`      // "user:<name>" | "token:<id>" | "cli" | "system" | ...
-	ActorKind string          `json:"actor_kind"` // "session" | "token" | "cli" | "system"
-	Action    string          `json:"action"`
-	Target    string          `json:"target"`
-	IP        string          `json:"ip,omitempty"`
-	TokenID   string          `json:"token_id,omitempty"`
-	SessionID string          `json:"session_id,omitempty"` // first 16 hex chars of the session hash (as in /auth/sessions)
+	ID        int64  `json:"id"`
+	Actor     string `json:"actor"`      // "user:<name>" | "token:<id>" | "cli" | "system" | ...
+	ActorKind string `json:"actor_kind"` // "session" | "token" | "cli" | "system"
+	Action    string `json:"action"`
+	Target    string `json:"target"`
+	IP        string `json:"ip,omitempty"`
+	TokenID   string `json:"token_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // first 16 hex chars of the session hash (as in /auth/sessions)
+	// The account behind the entry (session user or token owner), admin or member. Rows
+	// written before v0.1.42 carry only the name, derived from actor "user:<name>".
+	UserID    int64           `json:"user_id,omitempty"`
+	UserName  string          `json:"user_name,omitempty"`
+	UserRole  string          `json:"user_role,omitempty"` // "admin" | "member"
 	Detail    json.RawMessage `json:"detail"`
 	CreatedAt time.Time       `json:"created_at"`
 }

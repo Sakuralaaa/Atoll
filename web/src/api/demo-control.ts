@@ -144,7 +144,10 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
       ['cli', 'cli', 'control.export', ''], ['user:admin', 'session', 'auth.login', ''], ['user:admin', 'session', 'control.reauth_failed', 'update'],
       ['token:tok_demo3', 'token', 'api.servers', 'denied: token lacks the servers permission'], ['system', 'system', 'control.dns_adopt', 'panel.example.com'],
       ['user:admin', 'session', 'control.update', 'v0.2.0'], ['user:admin', 'session', 'settings.update', 'backup'],
+      ['user:alice', 'session', 'service.redeploy', 'alice-blog'], ['token:tok_alice_ci', 'token', 'api.deploy', 'alice-blog'],
     ]
+    // who stands behind each actor (B6); the oldest rows predate it and carry only the name
+    const owner = (actor: string): [string, string] | undefined => actor === 'user:alice' || actor === 'token:tok_alice_ci' ? ['alice', 'member'] : actor.startsWith('user:') || actor.startsWith('token:') ? ['admin', 'admin'] : undefined
     for (let i = 0; i < (stress ? 260 : 140); i++) {
       const [actor, kind, action, target] = A[i % A.length]
       const longT = stress && i % 7 === 0
@@ -153,15 +156,16 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
         ip: kind === 'system' || kind === 'cli' ? undefined : longT ? '2001:db8:85a3:0000:0000:8a2e:0370:7334' : i % 3 ? '203.0.113.24' : '198.51.100.7',
         token_id: kind === 'token' ? actor.slice(6) : undefined, session_id: kind === 'session' ? (i % 3 ? '3f9a1c0d7e2b4a65' : 'b81e4f2a90c37d16') : undefined,
         detail: action === 'control.reauth_failed' ? { reason: 'invalid_credentials' } : action === 'control.backup' ? { trigger: 'scheduled', size: 9400000, remote: true } : action.startsWith('api.') ? { result: target?.startsWith('denied') ? target : 'ok' } : null,
+        ...(() => { const o = owner(actor); return !o ? {} : i > 120 ? (actor.startsWith('user:') ? { user_name: o[0] } : {}) : { user_id: o[0] === 'alice' ? 2 : 1, user_name: o[0], user_role: o[1] } })(),
         created_at: iso(i * 37 * 60e3 + 4 * 60e3) })
     }
   }
-  const log = (action: string, target = '', detail: unknown = null) => audit.unshift({ id: (audit[0]?.id ?? 5000) + 1, actor: 'user:demo', actor_kind: 'session', action, target, ip: '203.0.113.24', session_id: '3f9a1c0d7e2b4a65', detail, created_at: new Date().toISOString() })
+  const log = (action: string, target = '', detail: unknown = null) => audit.unshift({ id: (audit[0]?.id ?? 5000) + 1, actor: 'user:demo', actor_kind: 'session', action, target, ip: '203.0.113.24', session_id: '3f9a1c0d7e2b4a65', detail, user_id: 1, user_name: 'demo', user_role: 'admin', created_at: new Date().toISOString() })
   function auditPage(q: URLSearchParams) {
     const limit = Math.min(500, Number(q.get('limit')) || 100), before = Number(q.get('before')) || 0
-    const actor = q.get('actor') ?? '', action = q.get('action') ?? ''
+    const actor = q.get('actor') ?? '', action = q.get('action') ?? '', user = q.get('user') ?? ''
     const match = (v: string, f: string, sep: string) => !f || (f.endsWith(sep) || f.endsWith('*') ? v.startsWith(f.replace(/\*$/, '')) : v === f)
-    const rows = audit.filter(x => (!before || x.id < before) && match(x.actor, actor, ':') && match(x.action, action, '.'))
+    const rows = audit.filter(x => (!before || x.id < before) && match(x.actor, actor, ':') && match(x.action, action, '.') && (!user || x.user_name === user))
     const page = rows.slice(0, limit)
     return { entries: page, next_before: rows.length > limit ? page[page.length - 1].id : undefined }
   }

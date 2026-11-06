@@ -85,7 +85,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.st.Audit(r.Context(), "user:"+u.Username, "auth.setup", u.Username, nil)
+	s.st.Audit(store.WithAuditUser(r.Context(), u), "user:"+u.Username, "auth.setup", u.Username, nil)
 	return s.startSession(w, r, u)
 }
 
@@ -163,7 +163,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 	s.lock.reset(ipKey(ip), accountKey(name))
-	s.st.Audit(r.Context(), "user:"+u.Username, "auth.login", ip, nil)
+	s.st.Audit(store.WithAuditUser(r.Context(), u), "user:"+u.Username, "auth.login", ip, nil)
 	return s.startSession(w, r, u)
 }
 

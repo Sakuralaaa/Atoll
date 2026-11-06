@@ -175,7 +175,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) error {
 	}
 	s.mfa.done(req.PendingToken)
 	s.lock.reset(ipKey(ip), accountKey(u.Username))
-	s.st.Audit(r.Context(), "user:"+u.Username, "auth.login", ip, map[string]string{"second_factor": method})
+	s.st.Audit(store.WithAuditUser(r.Context(), u), "user:"+u.Username, "auth.login", ip, map[string]string{"second_factor": method})
 	if method == "recovery" {
 		left, _ := s.st.RecoveryCodesLeft(r.Context(), u.ID)
 		s.log.Warn("login with a recovery code", "user", u.Username, "ip", ip, "codes_left", left)

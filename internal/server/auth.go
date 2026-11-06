@@ -120,7 +120,7 @@ func (s *Server) authed(need access, fn handlerFunc) http.HandlerFunc {
 		if p.Session && len(p.SessionHash) >= sessionIDLen {
 			meta.SessionID = p.SessionHash[:sessionIDLen]
 		}
-		ctx := store.WithAuditMeta(context.WithValue(r.Context(), ctxKey{}, p), meta)
+		ctx := store.WithAuditUser(store.WithAuditMeta(context.WithValue(r.Context(), ctxKey{}, p), meta), p.User)
 		err := fn(w, r.WithContext(ctx))
 		// "api.<perm>" (not "token.<perm>", which would read like "token.delete" = a revoked token)
 		if !p.Session && destructivePerm[need.perm] {

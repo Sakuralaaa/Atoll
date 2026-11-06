@@ -90,7 +90,7 @@ A 段已全部完成（2026-11-06），说明写在 docs/releases/v0.1.42.md，�
 3. 资源配额：CPU、内存、服务数。
 4. 备份按用户隔离（存储前缀或独立仓库）。
 5. `/problems` 对 member 过滤：服务器级告警只发给拥有该服务器的人。
-6. 审计日志记录操作者（admin 或 member）。
+6. [x] B6 审计日志记录操作者（2026-11-06，分支 mesh-token）：迁移 0025_audit_user 给 audit_log 加 user_id/user_name/user_role（默认 0/''）。authed 把会话用户或令牌所属用户写进 AuditMeta（store.WithAuditUser），登录/初始化也记。GET /audit 返回 user_id/user_name/user_role（omitempty），新增 `?user=<名字>` 筛选（旧行按 actor `user:<名字>` 匹配，旧行 user_name 从 actor 推出）。中控审计日志页在操作者下显示「子账号 X / 账号 X」，点击只看该账号。审计日志仍只给 admin。测试：server.TestAuditRecordsUser，store.TestUpgradeFromV0140（v0.1.40 库升级）。
 
 ### C. 与子账号无关、仍待用户决定的事项
 - 线上中控升级到 v0.1.41：包含 0019 至 0024 迁移，升级前先备份；按二进制替换流程操作，见 project 记录或 docs/control.md。
