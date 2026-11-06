@@ -341,6 +341,16 @@ Backups are only proven by restores, so two jobs test them. Like backups, both a
 
 **Agent messages.** server → agent: `backup.verify` (BackupVerifyPayload `{id, kind, trigger, repo, subset?, target?}`; result Output `queued` | `busy`), and `backup.config` carries `verify` (BackupVerifyConfig `{run_check, check_schedule, check_subset, drill_schedule, timezone}`). agent → server: `backup_verify` (BackupVerifyEvent: `running`, then `done` | `failed` | `skipped`).
 
+## Sub-accounts (members)
+
+Design and status: `notes/subaccounts.md`. Every existing account is an `admin`; nothing changes until an admin creates a member.
+
+- `GET /users`, `POST /users {username, password, permissions?, servers?}`, `PATCH /users/{id} {permissions?, servers?, disabled?, password?}`, `DELETE /users/{id}`: admin panel session only. Members only; admins are not edited here. A new member or reset password sets `must_change_password` (cleared when the member changes it). Disabling, a password reset or deleting drops the member's sessions and API tokens.
+- `permissions`: `read` always, plus any of `deploy exec domains delete restore migrate` (default `deploy`). `servers`, `settings`, `tokens` are never given to a member. `servers` are worker ids; the control host cannot be assigned.
+- A member reaches only its servers and the projects whose `server_id` is one of them (a service on an unassigned server is hidden even inside a visible project). Lists, `GET /servers`, and `/events` are filtered; naming another server (project create, service placement, migration target) answers 400 "unknown server". Every other panel-wide route answers 403 `admin_only` (fail closed: new routes are admin-only until listed in `memberAllow`, `internal/server/members.go`).
+- `GET /auth/me` returns `role` (`admin`/`member`), and for members `permissions`, `servers`, `must_change_password`.
+- Scope is read from the database on every request (and every 30 s on an open `/events` socket), so admin changes apply at once.
+
 ## CLI & MCP permissions
 The CLI and `atoll mcp` act with the API token from `atoll login` (or `$ATOLL_URL` / `$ATOLL_TOKEN`). What they may do is the token's permission set (`read`, `deploy`, `exec`, `delete`, `migrate`, `domains`, `restore`, `servers`, `settings`, `tokens`), optionally limited to projects. Without a permission the server answers `403 missing_permission` and the CLI names the permission to grant (`atoll token edit TOKEN --add-perm PERM`); with it the operation runs directly. Only a token created with `require_approval` gets `202 Confirmation` for destructive operations (CLI exit code 3, `--wait` waits for the panel approval). `403 escalation` means a token tried to hand out more than it holds; `403 project_scope` that the token is limited to other projects.
 
