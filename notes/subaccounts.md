@@ -68,7 +68,7 @@
 - [~] 7. docs/api.md 已写；docs/releases/v0.1.41.md 草稿和 CHANGELOG 行已写（标注草稿）。发版前需真实浏览器目测，并取得用户确认；发版时去掉「草稿」字样
 
 
-## 接力：后续待办（2026-11-06 16:20 更新，v0.1.41 已发）
+## 接力：后续待办（2026-11-06 17:10 更新，v0.1.41 已发，A 段完成）
 
 v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接手，每完成一小步就推送并更新本节。
 
@@ -81,6 +81,8 @@ v0.1.41 包含第一阶段（第 1 至 7 步）。下一位 agent 从这里接�
 6. [x] 偶发测试（2026-11-06）：
    - `internal/agent TestWebSocketSession`：stop 之后的状态帧是变化驱动的，可能先于 action 的 result 到达；`fs.result` 会丢弃它，后面再等 exited 就一直等到 10 秒超时（CI 日志 session_test.go:289）。现在在同一个循环里同时等 result 和 exited 状态。
    - `internal/server TestTwoFactorFlow`：CI 日志是 `enable wrong code: 200`，固定的错误码 "000000" 恰好命中了当前 ±1 步之一（每次约 1/333000）。改为 `wrongTOTP(secret, now)` 现算一个确定不被接受的码；auth_test、control_test 里同类的固定码一并替换。
+
+A 段已全部完成（2026-11-06），说明写在 docs/releases/v0.1.42.md，标注为草稿。按用户要求暂不打 tag、不发版、不改 web 版本号，等第二阶段做完后一起发布。
 
 ### B. 第二阶段（大，需要先和用户确认方案）
 1. mesh 隔离：member 的服务不应通过 tailnet 访问其他服务器上的服务。需要所有节点升级 Agent。
