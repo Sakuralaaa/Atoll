@@ -10,7 +10,7 @@ import { api, isConfirmation } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
 import type { Project, Server } from '../api/types'
 import { providerOf } from '../api/providers'
-import { placeholder, useProject } from '../api/queries'
+import { placeholder, useCan, useProject } from '../api/queries'
 import { backTo } from '../api/backTo'
 
 const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => (
@@ -35,6 +35,7 @@ export default function ProjectSettings() {
 }
 
 function Body({ p, servers }: { p: Project; servers: Server[] }) {
+  const canMigrate = useCan('migrate'), canDelete = useCan('delete')
   const nav = useNavigate()
   const srv = servers.find(s => s.id === p.server_id)
   const [name, setName] = useState(p.name)
@@ -69,12 +70,12 @@ function Body({ p, servers }: { p: Project; servers: Server[] }) {
         <Row t={L("运行服务器")} d={L("同一项目的服务都部署在这台服务器上，通过 Docker 内网互通")}>
           {srv ? <Link to={`/servers/${srv.id}`} className="flex items-center gap-2 text-[13px] hover:text-accent"><Mini provider={providerOf(srv)} />{srv.name}<Dot status={srv.status} /></Link> : <Skeleton className="h-4 w-48" />}
         </Row>
-        <Row t={L("迁移到其他服务器")} d={L("先同步一次卷数据，停机后再增量同步并导出导入数据库，最后自动切换 DNS。停机通常在一分钟内。")}><Button variant="primary" size="sm" onClick={() => setMigrate(true)}>{L("选择目标服务器")}</Button></Row>
+        {canMigrate && <Row t={L("迁移到其他服务器")} d={L("先同步一次卷数据，停机后再增量同步并导出导入数据库，最后自动切换 DNS。停机通常在一分钟内。")}><Button variant="primary" size="sm" onClick={() => setMigrate(true)}>{L("选择目标服务器")}</Button></Row>}
       </Card>
-      <div className="text-[13px] font-semibold mb-3">{L("危险区域")}</div>
+      {canDelete && <><div className="text-[13px] font-semibold mb-3">{L("危险区域")}</div>
       <Card className="divide-y divide-line">
         <Row t={L("删除项目")} d={L("删除项目下全部 {0} 个服务、卷和域名记录，不可恢复", n)}><Button variant="danger" size="sm" onClick={() => setDel(true)}>{L("删除项目")}</Button></Row>
-      </Card>
+      </Card></>}
       {migrate && <Migrate p={p} servers={servers} onClose={() => setMigrate(false)} />}
       {del && <ConfirmDialog title={L("删除项目")} name={p.name} onClose={() => setDel(false)}
         description={<>{L("将删除")} <b>{p.name}</b> {L("下的")} {n} {L("个服务、它们的数据卷和 Atoll 创建的 DNS 记录。此操作不可恢复。")}</>}

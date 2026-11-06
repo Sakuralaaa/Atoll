@@ -10,3 +10,5 @@ export const useProblems = () => useQuery(useAdmin() ? 'problems' : null, () => 
 export const useProjects = () => useQuery('projects', api.projectsFull)
 export const useProject = (pid?: string) => useQuery(pid ? `project:${pid}` : null, () => api.project(pid!))
 export const placeholder = (id = ''): Project => ({ id, name: '…', server_id: '', created_at: '' })
+/** Whether the signed-in account may use `perm` (admins: always; members: as granted). */
+export const useCan = (perm: string) => { const me = useQuery('me', api.me).data; return !me || me.role !== 'member' || !!me.permissions?.includes(perm) }

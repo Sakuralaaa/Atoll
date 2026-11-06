@@ -1,3 +1,4 @@
+import { useCan } from '../../api/queries'
 import { useState } from 'react'
 import { useMask } from '../../api/privacy'
 import { Link } from 'react-router-dom'
@@ -16,6 +17,7 @@ export const Row = ({ t, d, children }: { t: string; d?: string; children: React
 export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div className="mb-8"><div className="text-[13px] font-semibold mb-3">{t}</div><Card className="divide-y divide-line">{children}</Card></div>
 
 export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
+  const canMigrate = useCan('migrate'), canDelete = useCan('delete')
   const upd = useImageUpdate(s.id).data
   const pinnedHint = splitImage(s.image ?? '').digest ? L("已固定到 {0}；改回 :latest 即跟随最新", imageVersionLabel(s.image, upd?.current_version)) : undefined
   const [f, setF] = useState({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
@@ -48,13 +50,13 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
         <Row t={L("内存")} d={L("MB，超出后容器会被 OOM 重启。建议填写：不限时一个服务泄漏内存可能拖垮整台机器")}><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder={L("不限")} /></Row>
       </Sec>
       {dirty && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">{onlyLabel ? L("有未保存的修改") : L("有未保存的修改，保存后会重新部署")}</span><Button size="sm" onClick={() => setF({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />{L("放弃")}</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}{onlyLabel ? L("保存") : L("保存并部署")}</Button></div>}
-      <Sec t={L("危险区域")}>
-        <Row t={t('迁移到其他服务器', 'Move to another server')} d={t('只搬这个服务（容器与卷），项目其他服务经 tailnet 用同一个服务名访问它；迁移期间服务会停止。', 'Moves only this service (container and volumes); the rest of the project reaches it over the tailnet under the same name. It stops during the copy.')}>
+      {(canMigrate || canDelete) && <Sec t={L("危险区域")}>
+        {canMigrate && <Row t={t('迁移到其他服务器', 'Move to another server')} d={t('只搬这个服务（容器与卷），项目其他服务经 tailnet 用同一个服务名访问它；迁移期间服务会停止。', 'Moves only this service (container and volumes); the rest of the project reaches it over the tailnet under the same name. It stops during the copy.')}>
           <Link to={`/projects/${p.id}/settings`}><Button variant="ghost" size="sm">{t('迁移整个项目', 'Move whole project')}</Button></Link>
           <Button variant="danger-outline" size="sm" onClick={() => setMove(true)}>{t('迁移服务', 'Move service')}</Button>
-        </Row>
-        <Row t={L("删除服务")} d={L("容器、卷与域名记录都会被删除")}><Button variant="danger" size="sm" onClick={() => setDel(true)}>{L("删除服务")}</Button></Row>
-      </Sec>
+        </Row>}
+        {canDelete && <Row t={L("删除服务")} d={L("容器、卷与域名记录都会被删除")}><Button variant="danger" size="sm" onClick={() => setDel(true)}>{L("删除服务")}</Button></Row>}
+      </Sec>}
       {move && <MigrateService p={p} s={s} onClose={() => setMove(false)} />}
       {gitEdit && <EditGitModal s={s} onClose={() => setGitEdit(false)} />}
       {del && <ConfirmDialog title={L("删除服务")} name={s.name} onClose={() => setDel(false)}
