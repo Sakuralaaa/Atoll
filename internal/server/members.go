@@ -53,6 +53,7 @@ var memberAllow = map[string]bool{
 	"GET /projects":                     true,
 	"POST /projects":                    true, // server_id checked (memberMayUse)
 	"GET /servers":                      true, // filtered to Servers
+	"GET /events":                       true, // frames filtered (memberSeesEvent)
 	"GET /servers/{id}":                 true, // memberMayUse
 	"GET /image-updates":                true,
 	"GET /domains":                      true,

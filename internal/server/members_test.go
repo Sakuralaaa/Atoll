@@ -60,7 +60,6 @@ func TestMemberScope(t *testing.T) {
 		"GET /api/v1/servers/srv_b":       404,
 		"GET /api/v1/servers/srv_a":       200,
 		"POST /api/v1/servers/join-token": 403,
-		"GET /api/v1/events":              403,
 	}
 	for k, code := range want {
 		method, path, _ := cutSpace(k)
@@ -147,3 +146,24 @@ func TestUserManagementAPI(t *testing.T) {
 }
 
 func i64s(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestMemberSeesEvent(t *testing.T) {
+	e := newTestEnv(t)
+	p := &principal{Member: true, Servers: map[string]bool{"srv_a": true}, Projects: map[string]bool{"prj_a": true}}
+	cases := map[string]bool{
+		`{"type":"server","payload":{"id":"srv_a"}}`:                                           true,
+		`{"type":"server","payload":{"id":"srv_b"}}`:                                           false,
+		`{"type":"project","payload":{"id":"prj_a"}}`:                                          true,
+		`{"type":"project","payload":{"id":"prj_b"}}`:                                          false,
+		`{"type":"service","payload":{"id":"svc_1","project_id":"prj_a"}}`:                     true,
+		`{"type":"service","payload":{"id":"svc_1","project_id":"prj_a","server_id":"srv_b"}}`: false,
+		`{"type":"deployment","payload":{"service_id":"svc_missing"}}`:                         false,
+		`{"type":"confirmation","payload":{"project_id":"prj_a"}}`:                             false,
+		`{"type":"whatever","payload":{}}`:                                                     false,
+	}
+	for msg, want := range cases {
+		if got := e.srv.memberSeesEvent(context.Background(), p, []byte(msg)); got != want {
+			t.Errorf("%s: %v, want %v", msg, got, want)
+		}
+	}
+}
