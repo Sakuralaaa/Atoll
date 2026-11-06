@@ -332,7 +332,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID int64, hash, keepHash
 		return 0, err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hash, userID)
+	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?`, hash, userID)
 	if err != nil {
 		return 0, err
 	}

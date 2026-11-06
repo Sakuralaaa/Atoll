@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/cookiejar"
+	"strconv"
 	"testing"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -91,3 +92,48 @@ func cutSpace(s string) (string, string, bool) {
 	}
 	return s, "", false
 }
+
+// Admin creates, changes and deletes a member through the API; a member cannot.
+func TestUserManagementAPI(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	ctx := context.Background()
+	if err := e.srv.st.CreateNode(ctx, api.Server{ID: "srv_a", Name: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	var u userView
+	e.mustDo("POST", "/api/v1/users", map[string]any{"username": "bob", "password": "member-pass", "servers": []string{"srv_a"}}, &u, 201)
+	if u.Role != "member" || len(u.Servers) != 1 || !u.MustChangePassword || len(u.Permissions) != 2 {
+		t.Fatalf("created %+v", u)
+	}
+	e.mustDo("POST", "/api/v1/users", map[string]any{"username": "eve", "password": "member-pass", "permissions": []string{"servers"}}, nil, 400)
+	e.mustDo("POST", "/api/v1/users", map[string]any{"username": "eve", "password": "member-pass", "servers": []string{"srv_nope"}}, nil, 400)
+	e.mustDo("POST", "/api/v1/users", map[string]any{"username": "bob", "password": "member-pass"}, nil, 409)
+	var list []userView
+	e.mustDo("GET", "/api/v1/users", nil, &list, 200)
+	if len(list) != 2 || list[0].Role != "admin" {
+		t.Fatalf("list %+v", list)
+	}
+	// admin accounts are not editable here
+	e.mustDo("PATCH", "/api/v1/users/"+i64s(list[0].ID), map[string]any{"disabled": true}, nil, 409)
+	// a member cannot manage accounts
+	jar, _ := cookiejar.New(nil)
+	mc := &http.Client{Jar: jar}
+	if code := e.doWith(mc, "", "POST", "/api/v1/auth/login", map[string]string{"username": "bob", "password": "member-pass"}, nil); code != 200 {
+		t.Fatalf("login %d", code)
+	}
+	if code := e.doWith(mc, "", "GET", "/api/v1/users", nil, nil); code != 403 {
+		t.Fatalf("member list users %d", code)
+	}
+	var pu userView
+	e.mustDo("PATCH", "/api/v1/users/"+i64s(u.ID), map[string]any{"servers": []string{}, "permissions": []string{"exec"}}, &pu, 200)
+	if len(pu.Servers) != 0 || len(pu.Permissions) != 2 {
+		t.Fatalf("patched %+v", pu)
+	}
+	e.mustDo("DELETE", "/api/v1/users/"+i64s(u.ID), nil, nil, 204)
+	if code := e.doWith(mc, "", "GET", "/api/v1/auth/me", nil, nil); code != 401 {
+		t.Fatalf("deleted member still signed in: %d", code)
+	}
+}
+
+func i64s(n int64) string { return strconv.FormatInt(n, 10) }

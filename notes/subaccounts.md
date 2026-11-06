@@ -61,7 +61,7 @@
 ## 进度
 - [x] 1. 迁移 0024 + store（store/members.go，测试 store.TestMembersAndScope）
 - [x] 2. principal/member 认证（auth.go applyMember）+ checkMember（server/members.go，fail closed）；登录拒绝已停用账号；/auth/me 返回 role/servers。server 层测试 server.TestMemberScope。memberAllow 暂未包含 GET /servers、GET /servers/{id}、POST /projects、POST /app-templates/{id}、GET /root-domains、GET /events，等 handler 加上过滤或校验后再放开
-- [ ] 3. 用户管理 API + 测试
+- [x] 3. 用户管理 API（handlers_users.go：GET/POST /users，PATCH/DELETE /users/{id}，只限 admin 会话；不能把中控分给 member；新建或重置密码后 must_change_password=1，本人改密后清零）+ 测试 server.TestUserManagementAPI。**还没做**：must_change_password 只是一个标记，尚未强制（前端或后端拦截可放到第 6 步）
 - [ ] 4. 逐个核实 resList handler 和 `.Session` 的使用点；/servers 过滤；POST /projects 与 app-templates 的服务器校验
 - [ ] 5. 部署边界（privileged 等）
 - [ ] 6. Web UI（用户页、member 侧栏）
