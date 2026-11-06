@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -140,7 +141,9 @@ func (s *Store) DeleteMember(ctx context.Context, id int64) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	// its own settings (notification channels, B5)
+	_, err = s.DB.ExecContext(ctx, `DELETE FROM settings WHERE key=?`, fmt.Sprintf("notifications.user.%d", id))
+	return err
 }
 
 // AssignedServers returns the server ids assigned to user id.

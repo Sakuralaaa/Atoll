@@ -82,6 +82,12 @@ type NotificationSettings struct {
 	Timezone   string `json:"timezone,omitempty"`
 }
 
+// MemberNotifications is GET/PUT /me/notifications: a sub-account's own channels (webhook or
+// telegram), which get the problems it can see. Secrets are write-only as in NotificationSettings.
+type MemberNotifications struct {
+	Channels []NotificationChannel `json:"channels"`
+}
+
 // NotificationTestRequest: POST /settings/notifications/test. Channel is tested as given
 // (unsaved edits work); an empty secret falls back to the stored channel with the same ID.
 type NotificationTestRequest struct {

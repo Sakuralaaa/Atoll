@@ -84,6 +84,8 @@ type Config struct {
 	ProblemsTick time.Duration // how often conditions are evaluated (30s)
 	TelegramAPI  string        // default https://api.telegram.org (tests)
 	NotifyHTTP   *http.Client  // client for webhooks and Telegram (default 15s timeout)
+	// MemberNotifyHTTP posts sub-accounts' webhooks (default: public addresses only; tests)
+	MemberNotifyHTTP *http.Client
 	// Retention of history (audit log, decided confirmations, finished imports, old
 	// deployments). Nil means store.DefaultRetention.
 	Retention        *store.Retention
@@ -161,6 +163,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.NotifyHTTP == nil {
 		cfg.NotifyHTTP = &http.Client{Timeout: 15 * time.Second}
+	}
+	if cfg.MemberNotifyHTTP == nil {
+		cfg.MemberNotifyHTTP = publicOnlyHTTP()
 	}
 	if cfg.BuildKeep <= 0 {
 		cfg.BuildKeep = 3

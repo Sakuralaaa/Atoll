@@ -1,8 +1,8 @@
 import { L } from '../i18n'
-import type { NotificationSettings, Problem, Server } from './types'
+import type { NotificationChannel, NotificationSettings, Problem, Server } from './types'
 
 /** Demo data for problems and notification settings (GET /problems, /settings/notifications). */
-export function makeDemoProblems(servers: Server[], now: number) {
+export function makeDemoProblems(servers: Server[], now: number, memberServers: () => string[] | undefined) {
   const off = servers.find(s => s.status === 'offline')
   const busy = servers.find(s => s.status === 'online')
   const problems: Problem[] = []
@@ -12,9 +12,19 @@ export function makeDemoProblems(servers: Server[], now: number) {
     notify_resolved: true, quiet_start: '23:00', quiet_end: '08:00', timezone: 'Asia/Shanghai',
     channels: [{ id: 'nch_demo1', type: 'telegram', name: L("运维群"), enabled: true, has_bot_token: true, chat_id: '-1001234567890' }],
   }
+  let mine: NotificationChannel[] = [{ id: 'nch_me1', type: 'webhook', name: L("我的告警"), enabled: true, has_url: true }]
   return {
     route(method: string, m: (p: string) => string[] | null, body: any): unknown {
-      if (method === 'GET' && m('problems')) return problems
+      // a member sees the problems of its servers only (memberSeesProblem on the server)
+      if (method === 'GET' && m('problems')) { const ms = memberServers(); return ms ? problems.filter(p => p.server_id && ms.includes(p.server_id) && p.subject_id !== 'backup_repo') : problems }
+      if (method === 'GET' && m('me/notifications')) return { channels: mine }
+      if (method === 'PUT' && m('me/notifications')) {
+        mine = ((body?.channels ?? []) as NotificationChannel[]).map((c, i) => ({ ...c, id: c.id || `nch_me${Date.now()}${i}`,
+          has_url: !!(c.url || mine.find(o => o.id === c.id)?.has_url), url: undefined,
+          has_bot_token: !!(c.bot_token || mine.find(o => o.id === c.id)?.has_bot_token), bot_token: undefined }))
+        return { channels: mine }
+      }
+      if (method === 'POST' && m('me/notifications/test')) return { ok: true }
       if (method === 'GET' && m('settings/notifications')) return notif
       if (method === 'PUT' && m('settings/notifications')) {
         const n = body as NotificationSettings

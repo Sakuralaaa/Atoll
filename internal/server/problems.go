@@ -70,10 +70,16 @@ func (s *Server) handleListProblems(w http.ResponseWriter, r *http.Request) erro
 	}
 	pr := principalFrom(r.Context())
 	out := list[:0]
-	for _, p := range list { // a project-scoped token sees the problems of its projects only
-		if p.ProjectID == "" || pr.inProject(p.ProjectID) {
-			out = append(out, p)
+	for _, p := range list {
+		switch {
+		case pr.Member:
+			if !memberSeesProblem(pr.Servers, pr.Projects, p) {
+				continue
+			}
+		case p.ProjectID != "" && !pr.inProject(p.ProjectID):
+			continue // a project-scoped token sees the problems of its projects only
 		}
+		out = append(out, p)
 	}
 	writeJSON(w, 200, out)
 	return nil
@@ -97,4 +103,17 @@ func problemKindText(kind string) string {
 		return "备份校验失败"
 	}
 	return kind
+}
+
+// memberSeesProblem: a member (servers and projects in its scope) sees problems of its own
+// projects whose service runs on one of its servers, and server-level problems (offline,
+// disk) of its servers. Panel-wide ones (the backup repository check) stay with admins.
+func memberSeesProblem(servers, projects map[string]bool, p api.Problem) bool {
+	if p.ProjectID != "" {
+		return projects[p.ProjectID] && (p.ServerID == "" || servers[p.ServerID])
+	}
+	if p.SubjectID == api.BackupRepoSubjectID {
+		return false
+	}
+	return p.ServerID != "" && servers[p.ServerID]
 }

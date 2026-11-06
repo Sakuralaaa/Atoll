@@ -290,8 +290,8 @@ const demoBackups = makeDemoBackups(services, servers, pid => projects.find(p =>
 const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("服务不存在"))
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
-const demoProblems = makeDemoProblems(servers, now)
 const demoUsers = makeDemoUsers(servers, now)
+const demoProblems = makeDemoProblems(servers, now, () => demoUsers.member()?.servers)
 const demoAuth = makeDemoAuth(demoUsers)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: demoAuth.twoFactor })
 const ALL = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']

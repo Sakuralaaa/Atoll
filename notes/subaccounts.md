@@ -89,7 +89,7 @@ A 段已全部完成（2026-11-06），说明写在 docs/releases/v0.1.42.md，�
 2. member 自管 API 令牌（权限不超过自己，作用域与本人相同），以及 CLI/MCP 支持。
 3. 资源配额：CPU、内存、服务数。
 4. 备份按用户隔离（存储前缀或独立仓库）。
-5. `/problems` 对 member 过滤：服务器级告警只发给拥有该服务器的人。
+5. [x] B5 /problems 与告警按 member 过滤（2026-11-06，分支 mesh-token）：GET /problems 对 member 用 memberSeesProblem 过滤（项目在其范围且服务所在服务器已分配；node_offline/disk_high 只看自己的服务器；备份仓库校验只给 admin）；`problems` 事件帧（只有计数）放行给 member。member 自己的通知渠道 GET/PUT /me/notifications、POST /me/notifications/test（webhook/telegram，最多 5 个，存 settings 键 `notifications.user.<id>`，删除 member 时一并删除）；deliverNotifications 在标记已通知的同一轮给能看到该问题的 member 发一次（失败只记日志不重试；静默时段/恢复通知沿用 admin 设置）；member 的 webhook 走 MemberNotifyHTTP，只允许公网地址、不跟随重定向。admin 渠道照常收到全部。面板：member 的「账号与安全」底部有「通知」卡片（无邮件类型、无静默设置）。无迁移。测试：server.TestMemberProblemsAndNotifications、TestMemberWebhookRefusesPrivateAddresses、TestMemberSeesProblemsFrame。
 6. [x] B6 审计日志记录操作者（2026-11-06，分支 mesh-token）：迁移 0025_audit_user 给 audit_log 加 user_id/user_name/user_role（默认 0/''）。authed 把会话用户或令牌所属用户写进 AuditMeta（store.WithAuditUser），登录/初始化也记。GET /audit 返回 user_id/user_name/user_role（omitempty），新增 `?user=<名字>` 筛选（旧行按 actor `user:<名字>` 匹配，旧行 user_name 从 actor 推出）。中控审计日志页在操作者下显示「子账号 X / 账号 X」，点击只看该账号。审计日志仍只给 admin。测试：server.TestAuditRecordsUser，store.TestUpgradeFromV0140（v0.1.40 库升级）。
 
 ### C. 与子账号无关、仍待用户决定的事项

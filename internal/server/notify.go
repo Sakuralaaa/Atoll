@@ -56,6 +56,8 @@ func (s *Server) deliverNotifications(ctx context.Context, now time.Time) {
 	}
 	quiet := inQuietHours(ns, now)
 	base := s.publicURL(ctx, nil)
+	var members []memberRecipient
+	membersRead := false
 	for _, c := range todo {
 		p := c.Problem
 		if c.Resolved && !ns.NotifyResolved {
@@ -82,6 +84,10 @@ func (s *Server) deliverNotifications(ctx context.Context, now time.Time) {
 		}
 		if ok {
 			s.st.MarkProblemNotified(ctx, p.ID, c.Resolved, now)
+			if !membersRead {
+				members, membersRead = s.memberRecipients(ctx), true
+			}
+			s.notifyMembers(ctx, members, p, msg)
 		}
 	}
 }
@@ -183,13 +189,22 @@ func (s *Server) sendNotification(ctx context.Context, ch api.NotificationChanne
 }
 
 func (s *Server) postJSON(ctx context.Context, url string, body []byte) error {
+	return s.postJSONWith(ctx, s.cfg.NotifyHTTP, url, body)
+}
+
+func mustJSONBytes(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+func (s *Server) postJSONWith(ctx context.Context, hc *http.Client, url string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "atoll/"+Version)
-	resp, err := s.cfg.NotifyHTTP.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return redactURLError(err)
 	}

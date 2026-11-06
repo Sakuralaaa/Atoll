@@ -123,6 +123,8 @@ func (s *Server) memberSeesEvent(ctx context.Context, p *principal, msg []byte) 
 		return p.Projects[str("id")]
 	case "confirmation":
 		return false // approvals are the admin's
+	case "problems":
+		return true // only a change count: the panel refetches GET /problems, which filters
 	}
 	if sid := str("server_id"); sid != "" && !p.Servers[sid] {
 		return false

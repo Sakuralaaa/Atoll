@@ -50,6 +50,10 @@ var memberAllow = map[string]bool{
 	"GET /me/project-prefs":             true,
 	"PUT /me/project-prefs":             true,
 	"PUT /me/nav-order":                 true,
+	"GET /me/notifications":             true, // its own channels (notify_members.go)
+	"PUT /me/notifications":             true,
+	"POST /me/notifications/test":       true,
+	"GET /problems":                     true, // filtered (memberSeesProblem)
 	"GET /projects":                     true,
 	"POST /projects":                    true, // server_id checked (memberMayUse)
 	"GET /servers":                      true, // filtered to Servers

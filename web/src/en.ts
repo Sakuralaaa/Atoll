@@ -425,6 +425,8 @@ const en: Record<string, string> = {
  "会话 {0}": "Session {0}",
  "只看 {0}": "Only {0}",
  "只看账号": "Only account",
+ "你的服务器离线或磁盘快满、你的项目里服务异常、部署或备份失败、域名配置失败时发到这里；恢复后再发一条。管理员的通知渠道照常收到全部异常。": "Sent here when one of your servers goes offline or fills its disk, or a service in your projects fails, a deploy or backup fails or a domain cannot be set up; again when it recovers. The admin's channels still get every problem.",
+ "我的告警": "My alerts",
  "只看账号 {0} 的操作": "Only what {0} did",
  "子账号 {0}": "Sub-account {0}",
  "账号 {0}": "Account {0}",

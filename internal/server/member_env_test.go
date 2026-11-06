@@ -21,7 +21,12 @@ type memberEnv struct {
 
 func newMemberEnv(t *testing.T, perms ...string) *memberEnv {
 	t.Helper()
-	e := newTestEnv(t)
+	return newMemberEnvWith(t, nil, perms...)
+}
+
+func newMemberEnvWith(t *testing.T, mod func(*Config), perms ...string) *memberEnv {
+	t.Helper()
+	e := newTestEnvWith(t, mod)
 	e.setup()
 	ctx := context.Background()
 	st := e.srv.st
@@ -55,3 +60,5 @@ func newMemberEnv(t *testing.T, perms ...string) *memberEnv {
 func (e *memberEnv) mdo(method, path string, body, out any) int {
 	return e.doWith(e.mc, "", method, path, body, out)
 }
+
+func storeMemberDisabled(v bool) store.MemberUpdate { return store.MemberUpdate{Disabled: &v} }

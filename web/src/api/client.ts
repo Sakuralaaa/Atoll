@@ -172,6 +172,10 @@ export const api = {
   notifications: () => get<NotificationSettings>('/settings/notifications'),
   putNotifications: (n: NotificationSettings) => put<NotificationSettings>('/settings/notifications', n),
   testNotification: (channel: NotificationChannel) => post<{ ok: boolean }>('/settings/notifications/test', { channel }),
+  /** a sub-account's own channels (webhook / telegram); it gets the problems it can see */
+  myNotifications: () => get<{ channels: NotificationChannel[] }>('/me/notifications'),
+  putMyNotifications: (n: { channels: NotificationChannel[] }) => put<{ channels: NotificationChannel[] }>('/me/notifications', { channels: n.channels }),
+  testMyNotification: (channel: NotificationChannel) => post<{ ok: boolean }>('/me/notifications/test', { channel }),
   putSettings: (s: Partial<Settings>) => put<Settings>('/settings', s),
   // import / templates
   imports: () => get<ImportJob[]>('/imports'),
