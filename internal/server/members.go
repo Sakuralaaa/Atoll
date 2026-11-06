@@ -60,6 +60,8 @@ var memberAllow = map[string]bool{
 	"GET /backup-verifications":         true,
 	"GET /templates":                    true,
 	"GET /app-templates":                true,
+	"POST /app-templates/{id}":          true, // server_id checked (memberMayUse); a domain needs the domains permission
+	"GET /root-domains":                 true, // names only (handleListRootDomains)
 }
 
 // memberRoute is r.Pattern without the /api/v1 prefix ("GET /services/{id}").

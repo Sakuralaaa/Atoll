@@ -27,6 +27,9 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 	req.Hostname = strings.TrimSpace(req.Hostname)
+	if !memberMayUse(r, req.ServerID) {
+		return badRequest("unknown server_id %q", req.ServerID) // same answer as POST /projects
+	}
 	if req.Name == "" {
 		req.Name = tpl.ID
 	}
@@ -48,7 +51,9 @@ func (s *Server) handleCreateFromAppTemplate(w http.ResponseWriter, r *http.Requ
 		extra[name] = h
 	}
 	p := principalFrom(ctx)
-	if (req.Hostname != "" || len(extra) > 0) && !p.Session {
+	// an admin session may bind; a member session and every token need the domains
+	// permission (a member's own permissions, notes/subaccounts.md)
+	if (req.Hostname != "" || len(extra) > 0) && (!p.Session || p.Member) {
 		if !p.Perms[api.PermDomains] {
 			return errf(403, "missing_permission", "binding a domain needs the \"domains\" permission; leave hostname empty and bind it later")
 		}
