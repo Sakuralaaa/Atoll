@@ -13,6 +13,7 @@ import { L, useT } from '../i18n'
 import { cx } from '../components/ui-utils'
 import { toast } from '../components/toast'
 import NotificationSettings from '../components/NotificationSettings'
+import MemberTokens from '../components/MemberTokens'
 
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
@@ -47,6 +48,7 @@ export default function Security() {
         {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
         {q.data && <TwoFactorCard st={q.data} />}
         <Sessions />
+        {me.data?.role === 'member' && <MemberTokens />}
         {me.data?.role === 'member' && <NotificationSettings mine />}
         <Card className="p-5 mt-8 flex gap-3 items-start [overflow-wrap:anywhere]">
           <Terminal size={17} className="text-muted mt-0.5 shrink-0" />

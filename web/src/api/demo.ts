@@ -9,6 +9,7 @@ import { makeDemoBackups } from './demo-backups'
 import { makeDemoGit } from './demo-git'
 import { demoAgentUpgrade, makeDemoControl } from './demo-control'
 import { makeDemoProblems } from './demo-problems'
+import { makeDemoTokens } from './demo-tokens'
 import { makeDemoUsers } from './demo-users'
 import { CONFIG, exec } from './demo-exec'
 import { makeDemoAuth } from './demo-auth'
@@ -291,19 +292,10 @@ const svc = (id: string) => services.find(s => s.id === id) ?? fail(404, L("æœå
 const withSvc = (s: Service): Service => ({ ...s, domains: domains.filter(d => d.service_id === s.id).map(withCert) })
 const fullProject = (p: Project): Project => ({ ...p, services: services.filter(s => s.project_id === p.id).map(withSvc) })
 const demoUsers = makeDemoUsers(servers, now)
+const demoTokens = makeDemoTokens(tokens, demoUsers, nid)
 const demoProblems = makeDemoProblems(servers, now, () => demoUsers.member()?.servers)
 const demoAuth = makeDemoAuth(demoUsers)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: demoAuth.twoFactor })
-const ALL = ['read', 'deploy', 'delete', 'migrate', 'domains', 'restore', 'servers', 'settings', 'tokens']
-/** mirrors the server: read always on, global perms rejected with a project scope, legacy scope summary */
-function tokenPerms(b: { scope?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }) {
-  let perms = b.permissions?.length ? b.permissions : b.scope === 'admin' ? ALL : b.scope === 'deploy' ? ['read', 'deploy'] : ['read']
-  perms = ALL.filter(p => p === 'read' || perms.includes(p))
-  const projects = b.projects ?? []
-  if (projects.length && perms.some(p => ['servers', 'settings', 'tokens'].includes(p))) fail(400, 'servers/settings/tokens permissions cannot be combined with a project-scoped token')
-  const scope = perms.length === ALL.length ? 'admin' : perms.includes('deploy') ? 'deploy' : 'read'
-  return { permissions: perms, projects, require_approval: !!b.require_approval, scope }
-}
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
@@ -459,10 +451,7 @@ function route(method: string, path: string, body: any): unknown {
   if (X && (a = m('domains/*'))) { const d = domains.find(x => x.id === a![0]) ?? fail(404, 'domain not found'); d.proxied = !!body.proxied; d.status = 'provisioning'; setTimeout(() => { d.status = 'active' }, 6000); return withCert(d) }
   if ((a = m('domains/*'))) { const i = domains.findIndex(d => d.id === a![0]); if (i >= 0) domains.splice(i, 1); return {} }
 
-  if (G && m('tokens')) return tokens
-  if (P && m('tokens')) { const t: APIToken = { id: nid('tok'), name: body.name, ...tokenPerms(body), prefix: 'atl_pat_' + Math.random().toString(36).slice(2, 6), created_at: new Date().toISOString() }; tokens.unshift(t); return { ...t, token: t.prefix + 'Xk2Vb8NqR4mZt7Lw1PcY9sHd' } }
-  if (X && (a = m('tokens/*'))) { const t = tokens.find(x => x.id === a![0]) ?? fail(404, 'token not found'); Object.assign(t, tokenPerms({ ...t, ...body })); if (body.name) t.name = body.name; return t }
-  if ((a = m('tokens/*'))) { const i = tokens.findIndex(t => t.id === a![0]); tokens.splice(i, 1); return {} }
+  { const r = demoTokens.route(method, m, body); if (r !== undefined) return r }
 
   if (G && m('confirmations')) return confirmations.filter(c => !q.get('status') || c.status === q.get('status'))
   if ((a = m('confirmations/*/approve')) || (a = m('confirmations/*/reject'))) { const c = confirmations.find(x => x.id === a![0])!; c.status = seg[2] === 'approve' ? 'approved' : 'rejected'; return {} }

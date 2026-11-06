@@ -56,7 +56,7 @@ func TestMemberScope(t *testing.T) {
 		"GET /api/v1/projects/prj_a":      200,
 		"GET /api/v1/projects/prj_b":      404,
 		"GET /api/v1/settings":            403,
-		"GET /api/v1/tokens":              403,
+		"GET /api/v1/tokens":              200, // its own tokens only (B2)
 		"GET /api/v1/servers/srv_b":       404,
 		"GET /api/v1/servers/srv_a":       200,
 		"POST /api/v1/servers/join-token": 403,

@@ -318,6 +318,11 @@ type APIToken struct {
 	Token           string     `json:"token,omitempty"` // only returned once at creation
 	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
+	// Owner is the account the token acts as (v0.1.42+); a member's token never exceeds
+	// what the member may do at the time of each request.
+	Owner     string `json:"owner,omitempty"`
+	OwnerRole string `json:"owner_role,omitempty"` // "admin" | "member"
+	OwnerID   int64  `json:"-"`
 }
 
 // ---------- API token permissions ----------

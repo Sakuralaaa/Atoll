@@ -152,6 +152,7 @@ export interface APIToken {
   /** project ids; empty = all projects */ projects?: string[]
   /** allowed destructive ops still wait for approval in the panel */ require_approval?: boolean
   prefix: string; token?: string; last_used_at?: string; created_at: string
+  /** the account it acts as; a member's token never exceeds the member (v0.1.42+) */ owner?: string; owner_role?: 'admin' | 'member' | string
 }
 /** POST /tokens */
 export interface TokenRequest { name: string; scope?: string; permissions?: string[]; projects?: string[]; require_approval?: boolean }

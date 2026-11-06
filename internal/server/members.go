@@ -68,6 +68,15 @@ var memberAllow = map[string]bool{
 	"GET /root-domains":                 true, // names only (handleListRootDomains)
 }
 
+// memberTokenRoutes: a member manages the API tokens it owns through these, from its panel
+// session (its tokens never hold the tokens permission, so a token cannot mint another).
+var memberTokenRoutes = map[string]bool{
+	"GET /tokens":         true,
+	"POST /tokens":        true,
+	"PATCH /tokens/{id}":  true,
+	"DELETE /tokens/{id}": true,
+}
+
 // memberRoute is r.Pattern without the /api/v1 prefix ("GET /services/{id}").
 func memberRoute(pattern string) string {
 	m, path, ok := strings.Cut(pattern, " ")
@@ -82,7 +91,9 @@ func errMemberHidden() error { return errf(404, "not_found", "not found") }
 
 // checkMember applies the member rules to a request (p.Member is true).
 func (s *Server) checkMember(r *http.Request, p *principal, need access) error {
-	if need.perm != "" && !p.Perms[need.perm] { // session-only routes too (needDeploySession)
+	// its own API tokens, from its panel session only (handlers_tokens.go filters by owner)
+	selfTokens := p.Session && memberTokenRoutes[memberRoute(r.Pattern)]
+	if !selfTokens && need.perm != "" && !p.Perms[need.perm] { // session-only routes too (needDeploySession)
 		return errf(403, "missing_permission", "your account lacks the %q permission; ask the panel admin", permLabel[need.perm])
 	}
 	if p.Session && p.User.MustChangePassword {
@@ -91,6 +102,9 @@ func (s *Server) checkMember(r *http.Request, p *principal, need access) error {
 		if !strings.HasPrefix(path, "/auth/") && !strings.HasPrefix(path, "/me/") {
 			return errf(403, "must_change_password", "change the initial password first (Account & security)")
 		}
+	}
+	if selfTokens {
+		return nil
 	}
 	if res := routeResource(r.Pattern); res != "" {
 		pid, err := s.projectOf(r.Context(), res, r.PathValue("id"))

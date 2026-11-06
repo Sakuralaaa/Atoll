@@ -177,14 +177,17 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID int64, t api.APIToken
 	return mapErr(err)
 }
 
-const tokenCols = `id, name, scope, prefix, last_used_at, created_at, permissions, projects, require_approval`
+const tokenCols = `t.id, t.name, t.scope, t.prefix, t.last_used_at, t.created_at, t.permissions, t.projects, t.require_approval,
+	t.user_id, COALESCE(u.username, ''), COALESCE(u.role, 'admin')`
+
+const tokenFrom = ` FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id`
 
 func scanToken(row interface{ Scan(...any) error }) (*api.APIToken, error) {
 	var t api.APIToken
 	var last sql.NullString
 	var c, perms, projects string
 	var ra int
-	if err := row.Scan(&t.ID, &t.Name, &t.Scope, &t.Prefix, &last, &c, &perms, &projects, &ra); err != nil {
+	if err := row.Scan(&t.ID, &t.Name, &t.Scope, &t.Prefix, &last, &c, &perms, &projects, &ra, &t.OwnerID, &t.Owner, &t.OwnerRole); err != nil {
 		return nil, mapErr(err)
 	}
 	t.LastUsedAt = parseTSPtr(last)
@@ -197,7 +200,7 @@ func scanToken(row interface{ Scan(...any) error }) (*api.APIToken, error) {
 
 // ListAPITokens lists PATs (never the secret).
 func (s *Store) ListAPITokens(ctx context.Context) ([]api.APIToken, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+tokenCols+` FROM api_tokens ORDER BY created_at DESC`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+tokenCols+tokenFrom+` ORDER BY t.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +218,7 @@ func (s *Store) ListAPITokens(ctx context.Context) ([]api.APIToken, error) {
 
 // GetAPIToken returns one PAT (never the secret).
 func (s *Store) GetAPIToken(ctx context.Context, id string) (*api.APIToken, error) {
-	return scanToken(s.DB.QueryRowContext(ctx, `SELECT `+tokenCols+` FROM api_tokens WHERE id=?`, id))
+	return scanToken(s.DB.QueryRowContext(ctx, `SELECT `+tokenCols+tokenFrom+` WHERE t.id=?`, id))
 }
 
 // UpdateAPIToken stores a token's name, scope summary, permissions, projects and approval flag.
