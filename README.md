@@ -306,6 +306,10 @@ git tag v0.1.0 && git push --tags
 - [docs/ui-guide.md](docs/ui-guide.md)：面板界面约定
 - [CHANGELOG.md](CHANGELOG.md)：版本记录
 
+## 社区
+
+欢迎来 [LINUX DO](https://linux.do) 交流和反馈。
+
 ## License
 
 [AGPL-3.0](LICENSE)。部分 Kubernetes 投影规则移植自 [zeabur-oss/zeabur](https://github.com/zeabur-oss/zeabur)（Apache-2.0），见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

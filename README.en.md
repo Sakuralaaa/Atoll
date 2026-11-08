@@ -308,6 +308,10 @@ git tag v0.1.0 && git push --tags
 
 Most docs are written in Chinese.
 
+## Community
+
+Come chat and share feedback on [LINUX DO](https://linux.do).
+
 ## License
 
 [AGPL-3.0](LICENSE). Some Kubernetes projection rules are ported from [zeabur-oss/zeabur](https://github.com/zeabur-oss/zeabur) (Apache-2.0); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
