@@ -35,7 +35,7 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) erro
 	if _, err := s.st.GetProject(r.Context(), r.PathValue("id")); err != nil {
 		return err
 	}
-	svcs, err := s.servicesWithDomains(r.Context(), r.PathValue("id"))
+	svcs, err := s.servicesWithDomainsFor(r.Context(), r.PathValue("id"), principalFrom(r.Context()))
 	if err != nil {
 		return err
 	}
@@ -531,6 +531,9 @@ func (s *Server) handleServiceOrder(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
+	if err := s.memberProjectServicesVisible(r.Context(), principalFrom(r.Context()), p.ID); err != nil {
+		return err
+	}
 	var req struct {
 		Services []string `json:"services"`
 	}
@@ -558,7 +561,7 @@ func (s *Server) handleServiceOrder(w http.ResponseWriter, r *http.Request) erro
 	if err := s.st.SetServiceOrder(r.Context(), p.ID, req.Services); err != nil {
 		return err
 	}
-	if p.Services, err = s.servicesWithDomains(r.Context(), p.ID); err != nil {
+	if p.Services, err = s.servicesWithDomainsFor(r.Context(), p.ID, principalFrom(r.Context())); err != nil {
 		return err
 	}
 	s.publish("project", p)

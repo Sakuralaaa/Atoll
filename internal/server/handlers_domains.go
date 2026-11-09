@@ -27,10 +27,10 @@ func (s *Server) handleListAllDomains(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	if p := principalFrom(r.Context()); p.Projects != nil {
+	if p := principalFrom(r.Context()); p != nil {
 		ds = slices.DeleteFunc(ds, func(d store.DomainRow) bool {
-			pid, err := s.projectOf(r.Context(), "services", d.ServiceID)
-			return err != nil || !p.inProject(pid)
+			svc, _, err := s.st.GetService(r.Context(), d.ServiceID)
+			return err != nil || !memberSeesService(p, svc)
 		})
 	}
 	writeJSON(w, 200, s.domainsWithCert(r.Context(), ds))

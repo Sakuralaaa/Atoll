@@ -520,7 +520,7 @@ func (s *Server) handleListImageUpdates(w http.ResponseWriter, r *http.Request) 
 	out := []api.ImageUpdate{}
 	for _, t := range targets {
 		svc, _, err := s.st.GetService(ctx, t[0])
-		if err != nil || !pr.inProject(svc.ProjectID) {
+		if err != nil || !memberSeesService(pr, svc) {
 			continue
 		}
 		row := rows[svc.ID]

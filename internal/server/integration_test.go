@@ -197,8 +197,9 @@ type fakeAgent struct {
 	inv   api.ZeaburInventory
 	dbBad bool // answer zeabur.db with match:false
 	// hook, when set, answers a request instead of the defaults (ok=false falls through).
-	hook func(env inEnvelope) (api.ResultPayload, bool)
-	wmu  sync.Mutex
+	hook     func(env inEnvelope) (api.ResultPayload, bool)
+	wmu      sync.Mutex
+	loopDone chan struct{}
 }
 
 func startFakeAgent(t *testing.T, e *testEnv, inv api.ZeaburInventory) (*fakeAgent, string) {
@@ -230,7 +231,7 @@ func startFakeAgentHello(t *testing.T, e *testEnv, inv api.ZeaburInventory, hell
 		t.Fatal(err)
 	}
 	ws.SetReadLimit(64 << 20)
-	a := &fakeAgent{t: t, ws: ws, ctrs: map[string]api.ContainerState{}, inv: inv}
+	a := &fakeAgent{t: t, ws: ws, ctrs: map[string]api.ContainerState{}, inv: inv, loopDone: make(chan struct{})}
 	a.send(ctx, api.Envelope{Type: api.MsgHello, Payload: hello})
 	go a.loop(ctx)
 	go func() { // periodic status, like the real agent
@@ -285,7 +286,27 @@ func (a *fakeAgent) received(typ string) []json.RawMessage {
 	return out
 }
 
+// closeAndWait shuts down a fake agent and waits for both client-side and hub-side cleanup.
+// A closed WebSocket alone does not mean the server has finished removing the connection.
+func (a *fakeAgent) closeAndWait(e *testEnv, nodeID string) {
+	a.t.Helper()
+	_ = a.ws.Close(websocket.StatusNormalClosure, "test agent stopped")
+	select {
+	case <-a.loopDone:
+	case <-time.After(5 * time.Second):
+		a.t.Fatal("fake agent read loop did not stop")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for e.srv.hub.Online(nodeID) {
+		if time.Now().After(deadline) {
+			a.t.Fatal("hub did not finish disconnect cleanup")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func (a *fakeAgent) loop(ctx context.Context) {
+	defer close(a.loopDone)
 	for {
 		_, data, err := a.ws.Read(ctx)
 		if err != nil {

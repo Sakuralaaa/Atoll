@@ -39,6 +39,12 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 	from, _ := s.serviceNode(ctx, svc)
+	pr := principalFrom(ctx)
+	if req.TargetServerID != "" && req.TargetServerID != from {
+		if err := s.memberProjectServicesVisible(ctx, pr, svc.ProjectID); err != nil {
+			return err
+		}
+	}
 	if req.TargetServerID != "" && req.TargetServerID != from {
 		// the project moves there: the same quota check as a migration (quotas.go)
 		if err := s.checkMigrateQuota(ctx, svc.ProjectID, from, req.TargetServerID); err != nil {
@@ -52,7 +58,12 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) err
 	}
 	summary := fmt.Sprintf("Restore %s from backup %s (%s) %s — current data is replaced", svc.Name, b.ID, b.StartedAt.Format("2006-01-02 15:04 MST"), where)
 	return s.requireConfirm(w, r, "backup.restore", b.ID, summary, req, func(ctx context.Context) (int, any, error) {
-		job, err := s.startRestore(ctx, b.ID, req, principalFrom(r.Context()).actor())
+		if req.TargetServerID != "" && req.TargetServerID != from {
+			if err := s.memberProjectServicesVisible(ctx, pr, svc.ProjectID); err != nil {
+				return 0, nil, err
+			}
+		}
+		job, err := s.startRestore(ctx, b.ID, req, pr.actor())
 		return 200, job, err
 	})
 }
@@ -286,12 +297,16 @@ func (s *Server) runRestore(ctx context.Context, job *api.RestoreJob, b *api.Bac
 		return msg, nil
 	})
 	releaseHosts()
-	st.do("Update ingress", func() (string, error) {
+	ingressErr := st.do("Update ingress", func() (string, error) {
 		if err := s.pushIngressSync(ctx, job.ToServer); err != nil {
 			return "", err
 		}
 		return "routes now served by target", nil
 	})
+	if ingressErr != nil {
+		finish(errors.Join(dnsErr, ingressErr))
+		return
+	}
 	for _, d := range provisioning {
 		d := d
 		s.goBG(func(bg context.Context) { s.confirmHTTPS(bg, d) })

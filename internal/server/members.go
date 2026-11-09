@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -173,4 +174,34 @@ func memberSeesService(p *principal, svc *api.Service) bool {
 func memberMayUse(r *http.Request, serverID string) bool {
 	p := principalFrom(r.Context())
 	return p == nil || !p.Member || p.Servers[serverID]
+}
+
+// memberProjectServicesVisible guards operations that read or change every service in a
+// project. Project membership is based on the project's home server, but individual services
+// may have been placed elsewhere.
+func (s *Server) memberProjectServicesVisible(ctx context.Context, p *principal, projectID string) error {
+	if p == nil || !p.Member {
+		return nil
+	}
+	if !p.inProject(projectID) {
+		return errMemberHidden()
+	}
+	project, err := s.st.GetProject(ctx, projectID)
+	if err != nil {
+		return errMemberHidden()
+	}
+	svcs, err := s.st.ListServices(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, svc := range svcs {
+		node := svc.ServerID
+		if node == "" {
+			node = project.ServerID
+		}
+		if node != "" && !p.Servers[node] {
+			return errMemberHidden()
+		}
+	}
+	return nil
 }

@@ -54,7 +54,7 @@ func connectNetAgent(t *testing.T, e *testEnv, nodeID, nodeToken string, hello a
 		t.Fatal(err)
 	}
 	ws.SetReadLimit(64 << 20)
-	a := &fakeAgent{t: t, ws: ws, ctrs: map[string]api.ContainerState{}}
+	a := &fakeAgent{t: t, ws: ws, ctrs: map[string]api.ContainerState{}, loopDone: make(chan struct{})}
 	a.send(ctx, api.Envelope{Type: api.MsgHello, Payload: hello})
 	go a.loop(ctx)
 	deadline := time.Now().Add(5 * time.Second)
@@ -528,7 +528,8 @@ func TestServiceMigrateUpdatesMesh(t *testing.T) {
 	if job.Status != "done" {
 		t.Fatalf("migrate back: %s", job.Error)
 	}
-	waitFor(t, "mesh empty", func() bool { m := lastMesh(a); return m != nil && len(m.Imports)+len(m.Exports) == 0 })
+	waitFor(t, "mesh empty on A", func() bool { m := lastMesh(a); return m != nil && len(m.Imports)+len(m.Exports) == 0 })
+	waitFor(t, "mesh empty on B", func() bool { m := lastMesh(b); return m != nil && len(m.Imports)+len(m.Exports) == 0 })
 }
 
 func TestAgentURLRewrite(t *testing.T) {

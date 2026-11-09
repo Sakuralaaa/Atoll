@@ -17,6 +17,10 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	pr := principalFrom(r.Context())
+	if err := s.memberProjectServicesVisible(r.Context(), pr, p.ID); err != nil {
+		return err
+	}
 	var req struct {
 		ServerID string `json:"server_id"`
 	}
@@ -44,7 +48,10 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) error {
 	base := s.publicURL(r.Context(), r)
 	return s.requireConfirm(w, r, "project.migrate", p.ID, fmt.Sprintf("Move project %s from %s to %s (services stop during data copy; DNS switches)", p.Name, fromName, to.Name),
 		req, func(ctx context.Context) (int, any, error) {
-			job, err := s.startMigration(ctx, p.ID, req.ServerID, base, principalFrom(r.Context()).actor())
+			if err := s.memberProjectServicesVisible(ctx, pr, p.ID); err != nil {
+				return 0, nil, err
+			}
+			job, err := s.startMigration(ctx, p.ID, req.ServerID, base, pr.actor())
 			return 200, job, err
 		})
 }

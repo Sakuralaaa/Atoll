@@ -22,7 +22,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) erro
 	pr := principalFrom(r.Context())
 	ps = slices.DeleteFunc(ps, func(x api.Project) bool { return !pr.inProject(x.ID) })
 	for i := range ps {
-		if ps[i].Services, err = s.servicesWithDomains(r.Context(), ps[i].ID); err != nil {
+		if ps[i].Services, err = s.servicesWithDomainsFor(r.Context(), ps[i].ID, pr); err != nil {
 			return err
 		}
 	}
@@ -31,9 +31,18 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) erro
 }
 
 func (s *Server) servicesWithDomains(ctx context.Context, projectID string) ([]api.Service, error) {
+	return s.servicesWithDomainsFor(ctx, projectID, nil)
+}
+
+// servicesWithDomainsFor filters nested services and domains to the caller's actual server
+// assignments. A project can contain services placed on different servers.
+func (s *Server) servicesWithDomainsFor(ctx context.Context, projectID string, pr *principal) ([]api.Service, error) {
 	svcs, err := s.st.ListServices(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+	if pr != nil && pr.Member {
+		svcs = slices.DeleteFunc(svcs, func(v api.Service) bool { return !memberSeesService(pr, &v) })
 	}
 	doms, err := s.st.ListDomains(ctx, "", projectID)
 	if err != nil {
@@ -129,7 +138,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	if p.Services, err = s.servicesWithDomains(r.Context(), p.ID); err != nil {
+	if p.Services, err = s.servicesWithDomainsFor(r.Context(), p.ID, principalFrom(r.Context())); err != nil {
 		return err
 	}
 	writeJSON(w, 200, p)
@@ -200,11 +209,21 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
-	svcs, _ := s.st.ListServices(r.Context(), p.ID)
+	pr := principalFrom(r.Context())
+	if err := s.memberProjectServicesVisible(r.Context(), pr, p.ID); err != nil {
+		return err
+	}
+	svcs, err := s.st.ListServices(r.Context(), p.ID)
+	if err != nil {
+		return err
+	}
 	return s.requireConfirm(w, r, "project.delete", p.ID,
 		fmt.Sprintf("Delete project %s and its %d service(s), volumes and DNS records", p.Name, len(svcs)), nil,
 		func(ctx context.Context) (int, any, error) {
-			return 204, nil, s.execDeleteProject(ctx, p.ID, principalFrom(r.Context()).actor())
+			if err := s.memberProjectServicesVisible(ctx, pr, p.ID); err != nil {
+				return 0, nil, err
+			}
+			return 204, nil, s.execDeleteProject(ctx, p.ID, pr.actor())
 		})
 }
 

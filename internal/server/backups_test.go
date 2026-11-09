@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -340,9 +341,8 @@ func TestRestoreToAnotherServerAfterLoss(t *testing.T) {
 	if code := e.do("POST", "/api/v1/backups/bak_drtest00001/restore", req, nil); code != 409 {
 		t.Fatalf("cross-server restore while source online: %d", code)
 	}
-	// the VPS is gone
-	agentA.ws.Close(websocket.StatusNormalClosure, "vps lost")
-	waitUntil(t, "A offline", func() bool { return !e.srv.hub.Online(nodeA) })
+	// the VPS is gone; wait for both WebSocket readers and hub cleanup before restoring.
+	agentA.closeAndWait(e, nodeA)
 
 	var job api.RestoreJob
 	e.mustDo("POST", "/api/v1/backups/bak_drtest00001/restore", req, &job, 200)
@@ -414,3 +414,48 @@ func TestBackupTestEndpoint(t *testing.T) {
 }
 
 var _ = io.Discard
+
+func TestRestoreToAnotherServerReportsIngressFailure(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	agentA, nodeA := startFakeAgent(t, e, api.ZeaburInventory{})
+	agentB, nodeB := startFakeAgent(t, e, api.ZeaburInventory{})
+	_, db, _ := backupProject(t, e, nodeA)
+	e.mustDo("PUT", "/api/v1/settings", backupSettings(), nil, 200)
+	e.mustDo("PUT", "/api/v1/services/"+db.ID+"/backup-policy", map[string]any{"enabled": true}, nil, 200)
+	doneBackup(t, e, db.ID, nodeA, "bak_ingressfail0001")
+	agentA.closeAndWait(e, nodeA)
+
+	// Fail only after the target has received the restore request; unrelated setup ingress
+	// messages still succeed.
+	failIngress := atomic.Bool{}
+	agentB.mu.Lock()
+	agentB.hook = func(env inEnvelope) (api.ResultPayload, bool) {
+		if env.Type == api.MsgBackupRestore {
+			failIngress.Store(true)
+			return api.ResultPayload{}, false
+		}
+		if env.Type == api.MsgIngress && failIngress.Load() {
+			return api.ResultPayload{OK: false, Error: "route push rejected"}, true
+		}
+		return api.ResultPayload{}, false
+	}
+	agentB.mu.Unlock()
+
+	var job api.RestoreJob
+	e.mustDo("POST", "/api/v1/backups/bak_ingressfail0001/restore", api.BackupRestoreRequest{TargetServerID: nodeB}, &job, 200)
+	job = waitRestore(t, e, job.ID)
+	if job.Status != "failed" || !strings.Contains(job.Error, "route push rejected") {
+		t.Fatalf("restore should report failed ingress push: %+v", job)
+	}
+	var ingress *api.ImportStep
+	for i := range job.Steps {
+		if job.Steps[i].Name == "Update ingress" {
+			ingress = &job.Steps[i]
+			break
+		}
+	}
+	if ingress == nil || ingress.Status != "failed" || !strings.Contains(ingress.Detail, "route push rejected") {
+		t.Fatalf("ingress failure step not recorded: %+v", job.Steps)
+	}
+}
