@@ -273,6 +273,8 @@ The APK is attached to every [GitHub Release](https://github.com/Sakuralaaa/Atol
 ```bash
 # panel (npm run dev while developing; VITE_DEMO=1 uses the built-in demo data)
 (cd web && npm ci && npm run lint && npm run build) && internal/server/webui/sync.sh
+# panel E2E in demo mode (Playwright)
+(cd web && npx playwright install chromium && npm run test:e2e)
 # backend
 go build ./cmd/atoll-server ./cmd/atoll-agent ./cmd/atoll
 go vet ./... && gofmt -l . && go test ./...
@@ -280,7 +282,7 @@ go vet ./... && gofmt -l . && go test ./...
 sh scripts/test-installers.sh
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs gofmt, vet, `go test -race`, oxlint, the panel build, install script tests and govulncheck (warn only). Every action is pinned to a commit SHA. govulncheck currently reports only GO-2026-4887 and GO-2026-4883 in `github.com/docker/docker`, both daemon-side issues (AuthZ plugins, plugin privilege checks). Atoll only uses the client and isn't affected; both go away once it moves to `github.com/moby/moby/client`.
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs gofmt, vet, `go test -race`, oxlint, the panel build, demo-mode Playwright E2E, install script tests and govulncheck (warn only). Every action is pinned to a commit SHA. govulncheck currently reports only GO-2026-4887 and GO-2026-4883 in `github.com/docker/docker`, both daemon-side issues (AuthZ plugins, plugin privilege checks). Atoll only uses the client and isn't affected; both go away once it moves to `github.com/moby/moby/client`.
 
 | Component | Path |
 | --- | --- |
@@ -299,18 +301,24 @@ git tag v0.1.0 && git push --tags
 
 ## Documentation
 
+- [docs/README.md](docs/README.md): docs overview; [quick start](docs/quick-start.md) · [features](docs/features.md) · [operations](docs/operations.md) · [troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
 - [docs/api.md](docs/api.md): REST API, agent protocol, scopes, backups, builds
 - [docs/control.md](docs/control.md): control plane backups, self-update, migration, disaster recovery
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md): migrating from Zeabur
 - [docs/adopt-docker.md](docs/adopt-docker.md): adopting containers you started with Docker
 - [docs/ui-guide.md](docs/ui-guide.md): panel UI conventions
 - [CHANGELOG.md](CHANGELOG.md): release history
+- [ROADMAP.md](ROADMAP.md): roadmap
 
 Most docs are written in Chinese.
 
 ## Community
 
 Come chat and share feedback on [LINUX DO](https://linux.do).
+
+- Bugs and feature requests: use the [bug form](https://github.com/Sakuralaaa/Atoll/issues/new?template=bug_report.yml) or the [feature request form](https://github.com/Sakuralaaa/Atoll/issues/new?template=feature_request.yml)
+- Security issues: report privately as described in [SECURITY.md](SECURITY.md); don't post vulnerability details publicly
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## License
 
