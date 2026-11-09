@@ -4,7 +4,7 @@
 
 Please use GitHub's [private vulnerability reporting form](https://github.com/Sakuralaaa/Atoll/security/advisories/new). Private vulnerability reporting is enabled for this repository. **Do not open a public issue or discussion containing exploit details, credentials, tokens, or user data.**
 
-If the private report form is unavailable, use the repository's documented maintainer contact method to request a private channel; include no vulnerability details in a public post.
+If the private report form is unavailable, open an issue that only asks for a private contact path; do not include vulnerability details, indicators, credentials, or user data in public.
 
 A useful report includes the affected release or commit, deployment type and environment, security impact, minimal reproduction steps, and any relevant logs after secrets and personal data have been removed. Please avoid testing against infrastructure you do not own or have permission to test.
 
