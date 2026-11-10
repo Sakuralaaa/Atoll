@@ -15,6 +15,7 @@ import { toast } from '../components/toast'
 import NotificationSettings from '../components/NotificationSettings'
 import MemberTokens from '../components/MemberTokens'
 import { MyQuotaCard } from '../components/MemberQuota'
+import AppearanceSettings from '../components/AppearanceSettings'
 
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
@@ -43,6 +44,7 @@ export default function Security() {
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
         <AvatarCard />
+        <AppearanceSettings />
         <UsernameCard twoFactor={q.data?.enabled} />
         <ChangePasswordCard twoFactor={q.data?.enabled} />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}

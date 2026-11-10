@@ -283,7 +283,7 @@ export interface ZeaburCleanupRequest { confirm: string; keep_backup: boolean }
 
 // ---- shapes not spelled out in types.go (assumed; see docs/api.md) ----
 export interface AuthStatus { setup_required: boolean }
-export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[]; role?: 'admin' | 'member'; permissions?: string[]; servers?: string[]; must_change_password?: boolean; quota?: MemberQuota; usage?: MemberUsage }
+export interface Me { id?: string; username: string; avatar?: string; nav_order?: string[]; theme?: string; role?: 'admin' | 'member'; permissions?: string[]; servers?: string[]; must_change_password?: boolean; quota?: MemberQuota; usage?: MemberUsage }
 /** A sub-account's resource quota (0/absent = no limit): sum of its services' CPU (cores) and memory (MB) limits, and how many services. */
 export interface MemberQuota { cpu?: number; mem_mb?: number; services?: number }
 /** What counts against a quota now; unlimited = services without a CPU or memory limit. */

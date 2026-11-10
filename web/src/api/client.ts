@@ -1,4 +1,5 @@
 import { L } from '../i18n'
+import { applyAccountStyle } from '../theme'
 import type { PanelUser, PanelUserInput,
   AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, AppTemplate, AppTemplateResult, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
@@ -76,7 +77,7 @@ export type NewService = Partial<Service> & { name: string; kind: string; image?
 export const api = {
   // auth
   authStatus: () => get<AuthStatus>('/auth/status', { noRedirect: true }),
-  me: () => get<Me>('/auth/me'),
+  me: () => get<Me>('/auth/me').then(m => { applyAccountStyle(m.theme); return m }),
   /** Answers Me (session started) or a LoginChallenge when the account has 2FA on. */
   login: (username: string, password: string) => request<Me | LoginChallenge>('POST', '/auth/login', { username, password }, { noRedirect: true }),
   login2fa: (pending_token: string, code: string) => request<Me>('POST', '/auth/login/2fa', { pending_token, code }, { noRedirect: true }),
@@ -98,6 +99,7 @@ export const api = {
   projectPrefs: () => get<ProjectPrefs>('/me/project-prefs'),
   setAvatar: (avatar: string) => put<{ avatar: string }>('/me/avatar', { avatar }),
   setNavOrder: (order: string[]) => put<{ order: string[] }>('/me/nav-order', { order }),
+  setTheme: (theme: string) => put<{ theme: string }>('/me/theme', { theme }),
   setProjectPrefs: (b: Partial<ProjectPrefs>) => put<ProjectPrefs>('/me/project-prefs', b),
   // servers
   servers: () => get<Server[]>('/servers'),

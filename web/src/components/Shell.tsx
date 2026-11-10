@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog } from 'lucide-react'
+import { Menu, X, Search, Star, Package, Server, Globe, ArrowLeft, Settings, Plus, Copy, Terminal, Sun, Moon, ShieldAlert, ArrowRightLeft, LogOut, SlidersHorizontal, KeyRound, AlertTriangle, ServerCog, Palette } from 'lucide-react'
 import { L, setLang, useT, type Lang } from '../i18n'
-import { applyTheme, currentTheme, type Theme } from '../theme'
+import { applyTheme, useLook, type Theme } from '../theme'
 import { Avatar, Logo, ServiceIcon, Mini, Dot } from './ui'
 import { api, isDemo } from '../api/client'
 import { run, useQuery } from '../api/hooks'
@@ -98,8 +98,8 @@ export function LangButton() {
   )
 }
 export function ThemeToggle() {
-  const [t, setT] = useState<Theme>(currentTheme())
-  const set = (v: Theme) => { applyTheme(v); setT(v) }
+  const t = useLook().mode
+  const set = (v: Theme) => applyTheme(v)
   return (
     <div className="inline-flex rounded-lg field p-[3px] gap-0.5">
       {(['light', 'dark'] as Theme[]).map(v => (
@@ -133,6 +133,7 @@ function UserRow() {
       {open && (
         <div role="menu" className="rise surface bg-pop absolute left-0 bottom-full mb-2 w-[220px] p-1.5 z-50">
           <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />{L("账户与安全")}</Link>
+          <Link role="menuitem" to={{ pathname: '/settings/security', hash: '#appearance' }} onClick={() => setOpen(false)} className={row}><Palette size={15} />{L("外观")}</Link>
           <Link role="menuitem" to="/settings" onClick={() => setOpen(false)} className={row}><SlidersHorizontal size={15} />{L("设置")}</Link>
           <div className="h-px bg-line my-1" />
           <button role="menuitem" onClick={logout} className={cx(row, 'text-danger')}><LogOut size={15} />{L("退出登录")}</button>
