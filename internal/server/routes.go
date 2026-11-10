@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	a("PUT "+v+"/me/project-prefs", needReadList, s.handlePutProjectPrefs)
 	a("PUT "+v+"/me/avatar", lvlSession, s.handlePutAvatar)
 	a("PUT "+v+"/me/nav-order", needReadList, s.handlePutNavOrder)
+	a("PUT "+v+"/me/theme", needReadList, s.handlePutTheme)
 	a("GET "+v+"/me/notifications", lvlSession, s.handleGetMyNotifications)
 	a("PUT "+v+"/me/notifications", lvlSession, s.handlePutMyNotifications)
 	a("POST "+v+"/me/notifications/test", lvlSession, s.handleTestMyNotification)

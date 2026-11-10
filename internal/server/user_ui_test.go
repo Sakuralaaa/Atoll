@@ -54,3 +54,35 @@ func TestUserUIAPI(t *testing.T) {
 		t.Fatalf("cleared: %+v", m)
 	}
 }
+
+func TestUserThemeAPI(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	var m struct {
+		Theme *string `json:"theme"`
+	}
+	e.mustDo("GET", "/api/v1/auth/me", nil, &m, 200)
+	if m.Theme != nil {
+		t.Fatalf("fresh theme should be omitted: %q", *m.Theme)
+	}
+	e.mustDo("PUT", "/api/v1/me/theme", map[string]string{"theme": "minimal"}, nil, 200)
+	e.mustDo("GET", "/api/v1/auth/me", nil, &m, 200)
+	if m.Theme == nil || *m.Theme != "minimal" {
+		t.Fatalf("saved: %v", m.Theme)
+	}
+	// an id this control server does not know is kept (a newer panel's theme)
+	e.mustDo("PUT", "/api/v1/me/theme", map[string]string{"theme": "future-theme-2"}, nil, 200)
+	e.mustDo("GET", "/api/v1/auth/me", nil, &m, 200)
+	if m.Theme == nil || *m.Theme != "future-theme-2" {
+		t.Fatalf("unknown id: %v", m.Theme)
+	}
+	for _, bad := range []string{"Minimal", "1abc", "a b", "-x", strings.Repeat("a", 33), "<script>"} {
+		e.mustDo("PUT", "/api/v1/me/theme", map[string]string{"theme": bad}, nil, 400)
+	}
+	e.mustDo("PUT", "/api/v1/me/theme", map[string]string{"theme": ""}, nil, 200)
+	m.Theme = nil
+	e.mustDo("GET", "/api/v1/auth/me", nil, &m, 200)
+	if m.Theme != nil {
+		t.Fatalf("reset: %q", *m.Theme)
+	}
+}
