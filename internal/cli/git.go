@@ -24,17 +24,31 @@ type GitFlags struct {
 	// The token itself is never accepted as a flag value (it would end up in shell history
 	// and process listings).
 	TokenEnv string
+
+	// Other forges, SSH, polling and builds without a Dockerfile (git_sources.go).
+	Provider   string
+	Username   string
+	SSHKeyFile string
+	KnownHosts string // file
+	Poll       string // seconds or a duration ("5m"); "0" turns polling off
+	Builder    string
+	Stack      string
+	InstallCmd string
+	BuildCmd   string
+	StartCmd   string
 }
 
-var gitBuildFlagNames = []string{"branch", "context", "dockerfile", "build-arg", "git-token-env"}
+var gitBuildFlagNames = []string{"branch", "context", "dockerfile", "build-arg", "git-token-env", "provider", "git-username",
+	"ssh-key-file", "known-hosts-file", "poll", "builder", "stack", "install-cmd", "build-cmd", "start-cmd"}
 
 func (g *GitFlags) register(f *pflag.FlagSet) {
-	f.StringVar(&g.Repo, "git", "", "build from this GitHub repository (https://github.com/OWNER/REPO) instead of pulling an image")
+	f.StringVar(&g.Repo, "git", "", "build from this git repository (https://host/OWNER/REPO or SSH git@host:OWNER/REPO; GitHub, GitLab, Gitea/Forgejo or any git server) instead of pulling an image")
 	f.StringVar(&g.Branch, "branch", "", "git branch to build (default main)")
 	f.StringVar(&g.Context, "context", "", "build context: subdirectory of the repository (default: root)")
 	f.StringVar(&g.Dockerfile, "dockerfile", "", "Dockerfile path inside the context (default Dockerfile)")
 	f.StringArrayVar(&g.BuildArgs, "build-arg", nil, "docker build-arg KEY=VALUE, repeatable (not secret: visible in the image history)")
-	f.StringVar(&g.TokenEnv, "git-token-env", "", "name of an environment variable holding a GitHub token for a private repository")
+	f.StringVar(&g.TokenEnv, "git-token-env", "", "name of an environment variable holding an access token for a private https repository")
+	g.registerSources(f) // git_sources.go
 }
 
 // set reports whether any build flag other than --git was given.
@@ -53,11 +67,8 @@ func (g *GitFlags) Source(getenv func(string) string) (*api.GitSource, error) {
 	if repo == "" {
 		return nil, fmt.Errorf("--git URL is required")
 	}
-	if !strings.HasPrefix(repo, "https://github.com/") {
-		return nil, fmt.Errorf("--git must be https://github.com/OWNER/REPO")
-	}
-	if strings.Contains(strings.TrimPrefix(repo, "https://"), "@") {
-		return nil, fmt.Errorf("--git must not contain credentials; use --git-token-env VAR for a private repository")
+	if err := checkGitURL(repo); err != nil { // git_sources.go
+		return nil, err
 	}
 	src := &api.GitSource{Repo: repo, Branch: strings.TrimSpace(g.Branch), Context: strings.TrimSpace(g.Context), Dockerfile: strings.TrimSpace(g.Dockerfile)}
 	if len(g.BuildArgs) > 0 {
@@ -77,6 +88,9 @@ func (g *GitFlags) Source(getenv func(string) string) (*api.GitSource, error) {
 		}
 		src.Token = tok
 	}
+	if err := g.applySources(src); err != nil { // git_sources.go
+		return nil, err
+	}
 	return src, nil
 }
 
@@ -84,7 +98,7 @@ func (g *GitFlags) Source(getenv func(string) string) (*api.GitSource, error) {
 func repoName(repo string) string {
 	r := strings.TrimRight(strings.TrimSpace(repo), "/")
 	r = strings.TrimSuffix(r, ".git")
-	if i := strings.LastIndex(r, "/"); i >= 0 {
+	if i := strings.LastIndexAny(r, "/:"); i >= 0 {
 		r = r[i+1:]
 	}
 	r = strings.ToLower(r)
@@ -122,6 +136,9 @@ func gitChanged(cur, want *api.GitSource) bool {
 	if want.Dockerfile != "" && want.Dockerfile != orDefault(cur.Dockerfile, "Dockerfile") {
 		return true
 	}
+	if sourcesChanged(cur, want) { // git_sources.go
+		return true
+	}
 	if want.BuildArgs != nil {
 		if len(want.BuildArgs) != len(cur.BuildArgs) {
 			return true
@@ -153,6 +170,7 @@ func gitPatch(g *api.GitSource) map[string]any {
 	if g.Token != "" {
 		m["token"] = g.Token
 	}
+	sourcesPatch(g, m) // git_sources.go
 	return m
 }
 
@@ -162,19 +180,30 @@ func printGitDeploy(app *App, res *DeployResult, git *api.GitSource) {
 	if wh := res.Service.Webhook; wh != nil {
 		printWebhook(app, wh)
 		if wh.Secret != "" {
-			fmt.Fprintln(app.Out, "The secret is shown only this once; store it in the GitHub webhook now.")
+			fmt.Fprintln(app.Out, "The secret is shown only this once; store it in the webhook now.")
 		}
 	}
 	fmt.Fprintf(app.Out, "Follow the build: atoll logs %s --build -f\n", res.Service.Name)
 }
 
 func printWebhook(app *App, wh *api.GitWebhook) {
-	fmt.Fprintln(app.Out, "GitHub push webhook (repo → Settings → Webhooks → Add webhook):")
+	secretLabel := "Secret"
+	switch wh.Provider {
+	case "gitlab":
+		fmt.Fprintln(app.Out, "GitLab push webhook (project → Settings → Webhooks → Add new webhook, trigger: Push events):")
+		secretLabel = "Secret token"
+	case "gitea":
+		fmt.Fprintln(app.Out, "Gitea / Forgejo push webhook (repo → Settings → Webhooks → Add webhook → Gitea/Forgejo):")
+	case "", "github":
+		fmt.Fprintln(app.Out, "GitHub push webhook (repo → Settings → Webhooks → Add webhook):")
+	default:
+		fmt.Fprintln(app.Out, "Push webhook (GitHub-style X-Hub-Signature-256; or use --poll if your server cannot send one):")
+	}
 	tw := app.table()
 	fmt.Fprintf(tw, "  Payload URL\t%s\n", wh.URL)
 	fmt.Fprintf(tw, "  Content type\t%s\n", orDefault(wh.ContentType, "application/json"))
 	if wh.Secret != "" {
-		fmt.Fprintf(tw, "  Secret\t%s\n", wh.Secret)
+		fmt.Fprintf(tw, "  %s\t%s\n", secretLabel, wh.Secret)
 	}
 	fmt.Fprintf(tw, "  Events\t%s\n", orDefault(wh.Events, "push"))
 	if wh.Branch != "" {
@@ -189,8 +218,8 @@ func newServiceWebhookCmd(app *App) *cobra.Command {
 	var project string
 	cmd := &cobra.Command{
 		Use:   "webhook SERVICE [-p PROJECT]",
-		Short: "Show the GitHub push webhook of a service built from git",
-		Long: "Shows the webhook URL, branch and events to configure on GitHub. The secret is printed once\n" +
+		Short: "Show the push webhook of a service built from git",
+		Long: "Shows the webhook URL, branch and events to configure on GitHub, GitLab or Gitea/Forgejo. The secret is printed once\n" +
 			"when the git service is created; afterwards only a panel session can see or rotate it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

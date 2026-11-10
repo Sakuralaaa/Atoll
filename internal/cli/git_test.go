@@ -100,7 +100,11 @@ func TestGitFlagsSource(t *testing.T) {
 		t.Fatalf("source %+v", src)
 	}
 	for _, bad := range []GitFlags{
-		{Repo: "https://gitlab.com/me/app"},
+		{Repo: "http://gitlab.com/me/app"},
+		{Repo: "ftp://gitlab.com/me/app"},
+		{Repo: "ssh://git:pw@gitlab.com/me/app"},
+		{Repo: "https://gitlab.com/me/app", Poll: "10s"},
+		{Repo: "https://gitlab.com/me/app", SSHKeyFile: "/nonexistent/key"},
 		{Repo: "https://user:pw@github.com/me/app"},
 		{Repo: "https://github.com/me/app", TokenEnv: "MISSING"},
 		{Repo: "https://github.com/me/app", TokenEnv: "ghp_literaltoken"},
