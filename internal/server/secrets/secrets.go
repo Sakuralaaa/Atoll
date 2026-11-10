@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -25,6 +26,7 @@ func LoadOrCreateKey(path string) ([]byte, error) {
 		if len(b) != 32 {
 			return nil, fmt.Errorf("master key %s: want 32 bytes, got %d", path, len(b))
 		}
+		tightenKeyPerm(path)
 		return b, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
@@ -43,6 +45,23 @@ func LoadOrCreateKey(path string) ([]byte, error) {
 		return nil, err
 	}
 	return key, f.Sync()
+}
+
+// tightenKeyPerm narrows an existing key file to 0600 when group/other bits
+// are set (e.g. restored from a backup or copied with a loose umask). Failure
+// is logged, not fatal: the key is still usable and the server must start.
+func tightenKeyPerm(path string) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	if mode := st.Mode().Perm(); mode&0o077 != 0 {
+		if err := os.Chmod(path, 0o600); err != nil {
+			log.Printf("warning: master key %s has mode %#o and could not be tightened to 0600: %v", path, mode, err)
+			return
+		}
+		log.Printf("warning: master key %s had mode %#o; tightened to 0600", path, mode)
+	}
 }
 
 // New builds a Box from a 32-byte key.

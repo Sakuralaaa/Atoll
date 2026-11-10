@@ -36,3 +36,20 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatal("tamper not detected")
 	}
 }
+
+func TestLoadTightensLooseKeyPerm(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "master.key")
+	if _, err := LoadOrCreateKey(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(p, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreateKey(p); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := os.Stat(p)
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("mode not tightened: %v", st.Mode())
+	}
+}
