@@ -1,0 +1,15 @@
+# Caddy in front of atoll-server (docker compose --profile https). ATOLL_DOMAIN comes from .env;
+# its DNS record must point at this host before the first request (Let's Encrypt HTTP/TLS check).
+{$ATOLL_DOMAIN} {
+	encode zstd gzip
+
+	# With ATOLL_AGENT_TAILNET_ONLY=1, agents talk to the tailnet listener; answer /agent/* with 404
+	# publicly except the bootstrap new nodes need. Uncomment to match install-server.sh.
+	# @agent {
+	# 	path /agent/*
+	# 	not path /agent/v1/bootstrap
+	# }
+	# respond @agent 404
+
+	reverse_proxy server:7300
+}

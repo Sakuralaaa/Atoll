@@ -65,7 +65,7 @@ API 细节见 [api.md → Control](api.md#control-中控)。
 
 辅助进程是在新版本启动**之后**才写入结果的，所以新的 atoll-server 启动时以及之后 10 分钟内每隔几秒检查一次结果，拿到后在审计日志里记一条 `control.update_result`（只记一次）。
 
-自更新要求 atoll-server 以 systemd 服务运行（`install-server.sh` 安装的就是）。其他方式运行时，请用 `install-server.sh --version vX.Y.Z` 升级。
+自更新要求 atoll-server 以 systemd 服务运行（`install-server.sh` 安装的就是）。其他方式运行时，请用 `install-server.sh --version vX.Y.Z` 升级。用官方 Docker 镜像运行时（`ATOLL_DEPLOYMENT=docker`），自更新和回滚接口返回 `409 self_update_unsupported`，请在宿主机执行 `docker compose pull && docker compose up -d`，见[用 Docker 安装中控](install-docker.md#升级)。
 
 更新期间面板和 API 会中断几秒；agent 会自动重连，**业务不受影响**。
 
