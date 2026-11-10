@@ -162,7 +162,10 @@ func New(cfg Config) (*Server, error) {
 		cfg.TelegramAPI = "https://api.telegram.org"
 	}
 	if cfg.NotifyHTTP == nil {
-		cfg.NotifyHTTP = &http.Client{Timeout: 15 * time.Second}
+		cfg.NotifyHTTP = adminNotifyHTTP() // outbound.go
+	}
+	if cfg.S3HTTP == nil {
+		cfg.S3HTTP = adminEndpointHTTP(30 * time.Minute)
 	}
 	if cfg.MemberNotifyHTTP == nil {
 		cfg.MemberNotifyHTTP = publicOnlyHTTP()

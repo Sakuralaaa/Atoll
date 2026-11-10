@@ -129,7 +129,7 @@ func TestMemberWebhookRefusesPrivateAddresses(t *testing.T) {
 		resp.Body.Close()
 		t.Fatal("loopback webhook was reached")
 	}
-	if !strings.Contains(err.Error(), "not public") {
+	if !strings.Contains(err.Error(), "address not allowed") {
 		t.Fatalf("err %v", err)
 	}
 }

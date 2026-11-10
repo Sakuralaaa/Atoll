@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
@@ -109,29 +107,6 @@ func (s *Server) sendMemberNotification(ctx context.Context, ch api.Notification
 		return s.postJSONWith(ctx, s.cfg.MemberNotifyHTTP, ch.URL, mustJSONBytes(msg))
 	}
 	return s.sendNotification(ctx, ch, msg)
-}
-
-// publicOnlyHTTP is the default MemberNotifyHTTP: it dials public unicast addresses only.
-func publicOnlyHTTP() *http.Client {
-	d := &net.Dialer{Timeout: 10 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return err
-		}
-		ip := net.ParseIP(host)
-		if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-			return fmt.Errorf("address %s is not public", host)
-		}
-		if ip4 := ip.To4(); ip4 != nil && ip4[0] == 100 && ip4[1]&0xc0 == 64 {
-			return fmt.Errorf("address %s is not public", host) // 100.64/10: tailnet / CGNAT
-		}
-		return nil
-	}}
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.Proxy = nil
-	tr.DialContext = d.DialContext
-	return &http.Client{Timeout: 15 * time.Second, Transport: tr,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
 
 // ---------- API: /me/notifications (members) ----------

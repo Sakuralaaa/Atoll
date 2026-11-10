@@ -42,7 +42,10 @@ func newTestEnvWith(t *testing.T, mod func(*Config)) *testEnv {
 		ResolvePublic: cf.resolve, ProbeHTTPS: func(context.Context, string) error { return nil },
 		ProvisionPoll: 10 * time.Millisecond, DNSWaitTimeout: 3 * time.Second, CertWaitTimeout: 3 * time.Second,
 		// never read the host's real config files or GitHub in tests
-		ServerEnvPath: "/nonexistent/server.env", CaddyfilePath: "/nonexistent/Caddyfile", GitHubAPI: "http://127.0.0.1:1"}
+		ServerEnvPath: "/nonexistent/server.env", CaddyfilePath: "/nonexistent/Caddyfile", GitHubAPI: "http://127.0.0.1:1",
+		// test webhook sinks listen on loopback, which the default admin client refuses
+		// (TestOutboundClientsGuarded covers the default)
+		NotifyHTTP: &http.Client{Timeout: 15 * time.Second}}
 	if mod != nil {
 		mod(&cfg)
 	}

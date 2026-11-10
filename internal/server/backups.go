@@ -12,6 +12,7 @@ import (
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
 	"github.com/Sakuralaaa/Atoll/internal/cronexpr"
+	"github.com/Sakuralaaa/Atoll/internal/netguard"
 )
 
 // Backups: the control server stores policies, the repository settings and run records.
@@ -120,6 +121,13 @@ func (s *Server) applyBackupSettings(ctx context.Context, req api.Settings) (gen
 	req.BackupRegion = strings.TrimSpace(req.BackupRegion)
 	if req.BackupEndpoint != "" && !endpointRe.MatchString(req.BackupEndpoint) {
 		return "", false, badRequest("backup_endpoint must be a host or http(s) URL without a path, e.g. https://<account>.r2.cloudflarestorage.com")
+	}
+	if req.BackupEndpoint != "" {
+		host := strings.TrimRight(strings.TrimPrefix(strings.TrimPrefix(req.BackupEndpoint, "https://"), "http://"), "/")
+		// private / same-host S3 (MinIO) is fine; the cloud metadata service never is (internal/netguard)
+		if err := netguard.CheckMetadataHost(host); err != nil {
+			return "", false, badRequest("backup_endpoint: %v", err)
+		}
 	}
 	if req.BackupBucket != "" && !bucketRe.MatchString(req.BackupBucket) {
 		return "", false, badRequest("invalid backup_bucket %q", req.BackupBucket)

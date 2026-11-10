@@ -33,7 +33,9 @@ type updater struct {
 }
 
 func newUpdater() *updater {
-	return &updater{reg: registry.New(), now: time.Now, tick: time.Minute, busy: map[string]bool{}}
+	reg := registry.New()
+	reg.HTTP = adminEndpointHTTP(20 * time.Second) // registries may be private; never cloud metadata (outbound.go)
+	return &updater{reg: reg, now: time.Now, tick: time.Minute, busy: map[string]bool{}}
 }
 
 func (u *updater) lock(id string) bool {
