@@ -64,7 +64,11 @@ func TestGitPollDeploysNewCommit(t *testing.T) {
 	// head unchanged: nothing to do
 	e.srv.runDueGitPolls(ctx, now)
 	pollWait(t, "first poll", func() bool { return len(agent.received(api.MsgGitHead)) == 1 })
-	pollWait(t, "poll done", func() bool { e.srv.gitPoll.mu.Lock(); defer e.srv.gitPoll.mu.Unlock(); return len(e.srv.gitPoll.inflight) == 0 })
+	pollWait(t, "poll done", func() bool {
+		e.srv.gitPoll.mu.Lock()
+		defer e.srv.gitPoll.mu.Unlock()
+		return len(e.srv.gitPoll.inflight) == 0
+	})
 	if n := len(agent.builds()); n != 1 {
 		t.Fatalf("builds after unchanged poll: %d", n)
 	}
