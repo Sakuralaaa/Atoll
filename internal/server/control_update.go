@@ -210,6 +210,9 @@ func (s *Server) handleControlUpdate(w http.ResponseWriter, r *http.Request) err
 	if rel.TagName == Version {
 		return errf(409, "already_current", "atoll-server %s is already running", Version)
 	}
+	if err := checkUpdateTarget(rel, req.Version != ""); err != nil {
+		return err
+	}
 	s.ctl.setPhase("update", rel.TagName, "downloading")
 	s.st.Audit(ctx, actor, "control.update", rel.TagName, map[string]string{"from": Version})
 	s.goBG(func(bg context.Context) {
@@ -257,6 +260,26 @@ func (s *Server) handleControlRollback(w http.ResponseWriter, r *http.Request) e
 	}
 	writeJSON(w, 202, api.ControlUpdateResponse{Mode: "rollback", Version: prevVer, Phase: "restarting", Message: "atoll-server restarts in a few seconds"})
 	return nil
+}
+
+// checkUpdateTarget enforces docs/compatibility.md: without an explicit version only a stable
+// release is installed (a pre-release, -beta.N, is opt-in by tag), and the control server is
+// never moved to an older version (migrations only go forward; rollback restores the previous
+// binary instead). Development builds (non-semver Version) may install anything.
+func checkUpdateTarget(rel *ghRelease, explicit bool) error {
+	if !explicit && (rel.Prerelease || isPrereleaseTag(rel.TagName)) {
+		return errf(409, "prerelease", "the latest release %s is a pre-release; name it explicitly (version) to install it", rel.TagName)
+	}
+	if _, _, ok := parseSemver(Version); ok && versionLess(rel.TagName, Version) {
+		return errf(409, "downgrade_unsupported", "%s is older than the running %s: the control server is not downgraded (use rollback right after an update, or restore a control backup)", rel.TagName, Version)
+	}
+	return nil
+}
+
+// isPrereleaseTag: vX.Y.Z-anything is a pre-release (stable tags carry no suffix).
+func isPrereleaseTag(tag string) bool {
+	_, pre, ok := parseSemver(tag)
+	return ok && pre != ""
 }
 
 // performUpdate downloads + verifies the release and hands over to the helper.

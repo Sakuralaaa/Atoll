@@ -38,6 +38,8 @@
 #                      --domain, the domain of its https public URL is used. See docs/control.md
 #   --restore-passphrase-file FILE  file whose first line is the bundle passphrase
 #   --restore-force    replace an existing database here (it is kept in DATA/pre-restore-*)
+#   --allow-downgrade  install a --version older than the installed atoll-server (unsupported:
+#                      database migrations only go forward; see docs/compatibility.md)
 #   --adopt-public-ip  on its first start, atoll-server points the panel's DNS record (public URL
 #                      host inside the Cloudflare zone from Settings) at this host's public IPv4
 set -eu
@@ -56,6 +58,7 @@ AGENT_LISTEN_DEFAULT="tailscale:7301"
 RESTORE=""
 RESTORE_PASS_FILE=""
 RESTORE_FORCE=0
+ALLOW_DOWNGRADE=0
 ADOPT_PUBLIC_IP=0
 
 BIN=${ATOLL_SERVER_BIN:-/usr/local/bin/atoll-server}
@@ -74,6 +77,26 @@ die() {
 usage() {
 	sed -n '2,/^set -eu/p' "$0" 2>/dev/null | grep '^#' | sed 's/^# \{0,1\}//' >&2 || true
 	exit 2
+}
+
+# version_lt A B: true when release A (vX.Y.Z[-pre]) is older than B; false when either is not
+# such a version (e.g. "dev"). A pre-release is older than its release.
+version_lt() {
+	awk -v a="$1" -v b="$2" '
+	function parse(v, n) {
+		sub(/^v/, "", v); sub(/\+.*/, "", v); pre = ""
+		p = index(v, "-"); if (p) { pre = substr(v, p + 1); v = substr(v, 1, p - 1) }
+		if (v !~ /^[0-9]+\.[0-9]+\.[0-9]+$/) return 0
+		split(v, n, "."); return 1
+	}
+	BEGIN {
+		if (!parse(a, x)) exit 1; pa = pre
+		if (!parse(b, y)) exit 1; pb = pre
+		for (i = 1; i <= 3; i++) { if (x[i] + 0 < y[i] + 0) exit 0; if (x[i] + 0 > y[i] + 0) exit 1 }
+		if (pa == pb || pa == "") exit 1
+		if (pb == "") exit 0
+		exit (pa < pb) ? 0 : 1
+	}'
 }
 
 need_arg() { if [ $# -lt 2 ] || [ -z "$2" ]; then die "$1 needs a value"; fi; }
@@ -101,6 +124,7 @@ while [ $# -gt 0 ]; do
 	--restore-passphrase-file) need_arg "$@"; RESTORE_PASS_FILE=$2; shift 2 ;;
 	--restore-passphrase-file=*) RESTORE_PASS_FILE=${1#*=}; shift ;;
 	--restore-force) RESTORE_FORCE=1; shift ;;
+	--allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
 	--adopt-public-ip) ADOPT_PUBLIC_IP=1; shift ;;
 	-h | --help) usage ;;
 	*) die "unknown option: $1" ;;
@@ -374,6 +398,13 @@ else
 fi
 chmod 0755 "$TMP/atoll-server"
 "$TMP/atoll-server" version >/dev/null 2>&1 || die "downloaded atoll-server does not run on this host"
+if [ -x "$BIN" ] && [ "$ALLOW_DOWNGRADE" = 0 ]; then
+	cur=$("$BIN" version 2>/dev/null || true)
+	new=$("$TMP/atoll-server" version 2>/dev/null || true)
+	if version_lt "$new" "$cur"; then
+		die "$new is older than the installed $cur: the control server is not downgraded (migrations only go forward). Roll back in the panel right after an update, restore a control backup, or pass --allow-downgrade"
+	fi
+fi
 install -m 0755 "$TMP/atoll-server" "$BIN"
 log "installed $BIN ($("$BIN" version))"
 

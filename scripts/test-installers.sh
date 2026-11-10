@@ -70,6 +70,16 @@ sed -n '/^log()/,/^need_arg/p;/^CADDYFILE=/,/^TMP=\$(mktemp -d)/p' install/insta
 cat >>"$T/f.sh" <<'EOF'
 set -e
 TMP=$(mktemp -d)
+# downgrade guard (docs/compatibility.md)
+version_lt v0.1.44 v0.1.45
+version_lt v0.2.0-beta.1 v0.2.0
+version_lt v0.2.0-beta.1 v0.2.0-beta.2
+version_lt v0.1.9 v0.1.10
+if version_lt v0.1.45 v0.1.45; then exit 1; fi
+if version_lt v0.2.0 v0.2.0-beta.1; then exit 1; fi
+if version_lt v0.1.46 v0.1.45; then exit 1; fi
+if version_lt dev v0.1.45; then exit 1; fi
+if version_lt v0.1.45 dev; then exit 1; fi
 # stock Debian Caddyfile is replaced
 printf 'example.com {\n\troot * /usr/share/caddy\n\tfile_server\n}\n' >"$CADDYFILE"
 setup_caddy a.example.com 127.0.0.1:7300
