@@ -399,7 +399,7 @@ export interface ControlStatus {
   public_url: string; tailnet?: ControlTailnet; agents_connected: number; agents_total: number
   last_backup?: ControlBackup
   latest_release?: ReleaseInfo; update_available: boolean; release_error?: string
-  self_update_supported: boolean; update_in_progress: boolean; update_phase?: string; update_target?: string
+  self_update_supported: boolean; deployment?: 'docker' | 'systemd' | string; update_in_progress: boolean; update_phase?: string; update_target?: string
   last_update_result?: UpdateResult; rollback_version?: string
 }
 export interface ReauthFields { password?: string; code?: string }

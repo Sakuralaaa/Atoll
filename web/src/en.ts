@@ -742,6 +742,8 @@ const en: Record<string, string> = {
  "检查更新": "Check for updates",
  "上次检查": "Last checked",
  "· 每 6 小时自动检查": "· checked automatically every 6 hours",
+ "atoll-server 运行在 Docker 容器里，二进制随镜像更新，面板里不能自更新或回滚。请在中控主机的 compose 目录里执行：": "atoll-server runs in a Docker container and its binary ships with the image, so it can't update or roll back from the panel. In the compose directory on the control host, run:",
+ "固定版本时把 .env 里的 ATOLL_VERSION 改成 {0} 再执行。数据在卷里，重建容器不会丢。": "To pin a version, set ATOLL_VERSION in .env to {0} first. Data lives in the volume, so recreating the container keeps it.",
  "atoll-server 不是以 systemd 服务运行，无法在面板里自更新。请在中控主机上用安装脚本升级：": "atoll-server isn't running as a systemd service, so it can't update itself from the panel. Upgrade with the install script on the control host:",
  "升级期间各服务器上的服务照常运行。": "Services on your servers keep running during the upgrade.",
  "中控重启时面板和 API 会中断几秒，agent 会自动重连；业务容器、对外域名和 HTTPS 都在各 worker 上，不受影响。\n          升级前会自动做一份": "The panel and API drop for a few seconds while the control plane restarts, and agents reconnect on their own; service containers, public domains and HTTPS live on the workers and aren't affected.\n          A ",

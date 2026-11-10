@@ -72,6 +72,10 @@ type Config struct {
 	BinaryPath    string // default os.Executable() (tests)
 	// SpawnHelper starts the detached self-update helper (default systemd-run); tests stub it.
 	SpawnHelper func(ctx context.Context, args []string) error
+	// Container: atoll-server runs inside a container image (ATOLL_DEPLOYMENT=docker or
+	// /.dockerenv). The binary is part of the image, so self-update and rollback are off and
+	// the panel shows the compose upgrade instead.
+	Container bool
 	// GeoLookup replaces the ipinfo.io / ip-api.com lookup of a public IP (tests).
 	GeoLookup func(ctx context.Context, ip string) (*api.NodeGeo, error)
 	// Journalctl runs journalctl with args (default exec); tests stub it.

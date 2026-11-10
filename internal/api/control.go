@@ -46,7 +46,10 @@ type ControlStatus struct {
 	UpdateAvailable bool         `json:"update_available"`
 	ReleaseError    string       `json:"release_error,omitempty"`
 
-	SelfUpdate       bool   `json:"self_update_supported"` // running under systemd with systemd-run
+	SelfUpdate bool `json:"self_update_supported"` // running under systemd with systemd-run
+	// Deployment is how atoll-server runs: "docker" (container image; update with
+	// docker compose pull && docker compose up -d), "systemd", or "" (started by hand).
+	Deployment       string `json:"deployment,omitempty"`
 	UpdateInProgress bool   `json:"update_in_progress"`
 	UpdatePhase      string `json:"update_phase,omitempty"`
 	// UpdateTarget is the version being installed while UpdateInProgress. Version == UpdateTarget
