@@ -44,7 +44,7 @@ type agentConn struct {
 	// selfUpgrade: the agent said in its hello that it handles MsgUpgrade.
 	selfUpgrade bool
 	// buildSources: the agent said in its hello that it builds any git source (git_source.go).
-	buildSources bool
+	buildSources atomic.Bool
 	// latency: round-trip times of control→agent pings (latency.go).
 	latency latencyRing
 }
@@ -254,7 +254,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	var hello api.HelloPayload
 	json.Unmarshal(env.Payload, &hello)
 	c.selfUpgrade = hello.SelfUpgrade
-	c.buildSources = hello.BuildSources
+	c.buildSources.Store(hello.BuildSources)
 	if err := s.st.UpdateNodeHello(ctx, nodeID, hello); err != nil {
 		s.log.Error("hello", "err", err)
 		return
@@ -365,6 +365,7 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		var hello api.HelloPayload
 		if json.Unmarshal(env.Payload, &hello) == nil {
 			s.st.UpdateNodeHello(ctx, c.nodeID, hello)
+			c.buildSources.Store(hello.BuildSources)
 			s.setMeshCap(ctx, c.nodeID, hello.MeshToken)
 			s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 		}

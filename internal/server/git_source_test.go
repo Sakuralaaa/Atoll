@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -157,3 +158,45 @@ func TestAgentUpgradeHint(t *testing.T) {
 }
 
 func mustMarshal(v any) []byte { b, _ := json.Marshal(v); return b }
+
+// A source that needs BuildSources fails its build with an upgrade hint when the agent that
+// runs it turns out older (downgraded or replaced after the service was saved).
+func TestGitBuildNeedsNewAgentFallback(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	agent, nodeID := capableAgent(t, e)
+	gitBuilds(agent)
+	var p api.Project
+	e.mustDo("POST", "/api/v1/projects", map[string]string{"name": "lab", "server_id": nodeID}, &p, 201)
+	var svc api.Service
+	e.mustDo("POST", "/api/v1/projects/"+p.ID+"/services", map[string]any{"name": "app", "kind": "image",
+		"git": map[string]any{"repo": "https://codeberg.org/me/app"}}, &svc, 201)
+	waitDepStatus(t, e, latestDep(t, e, svc.ID).ID, "running")
+	if svc.Git.Provider != "gitea" || !strings.Contains(svc.Webhook.URL, "/hooks/gitea/") {
+		t.Fatalf("codeberg: %+v %+v", svc.Git, svc.Webhook)
+	}
+	e.srv.hub.get(nodeID).buildSources.Store(false)
+	n := len(agent.builds())
+	var redep api.Deployment
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/actions", map[string]string{"action": "redeploy"}, &redep, 200)
+	waitDepStatus(t, e, redep.ID, "failed")
+	d, _ := e.srv.st.GetDeployment(context.Background(), redep.ID)
+	if !strings.Contains(d.Message, "upgrade the atoll-agent") || len(agent.builds()) != n {
+		t.Fatalf("message %q builds %d->%d", d.Message, n, len(agent.builds()))
+	}
+}
+
+// An older agent without a Dockerfile in the repo: the failure says to upgrade the agent.
+func TestOldAgentNoDockerfileHint(t *testing.T) {
+	e, agent, fb, svc := newGitService(t)
+	agent.mu.Lock()
+	fb.failMsg = "no Dockerfile at Dockerfile in https://github.com/example/app@111111111111. Builds without a Dockerfile (automatic detection such as Railpack/Nixpacks) are not supported yet: add a Dockerfile"
+	agent.mu.Unlock()
+	var redep api.Deployment
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/actions", map[string]string{"action": "redeploy"}, &redep, 200)
+	waitDepStatus(t, e, redep.ID, "failed")
+	d, _ := e.srv.st.GetDeployment(context.Background(), redep.ID)
+	if !strings.Contains(d.Message, "upgrade the atoll-agent") {
+		t.Fatalf("message %q", d.Message)
+	}
+}

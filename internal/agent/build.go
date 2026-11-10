@@ -200,6 +200,7 @@ func validateBuild(p *api.BuildPayload) error {
 // buildLog batches output lines to the server and keeps the tail for error messages.
 type buildLog struct {
 	b      *Builder
+	quiet  bool // keep lines for errors only (MsgGitHead), never emit them
 	p      api.BuildPayload
 	redact func(string) string
 	mu     sync.Mutex
@@ -249,12 +250,15 @@ func (l *buildLog) flush() {
 	lines := l.buf
 	l.buf = nil
 	l.mu.Unlock()
-	if len(lines) > 0 {
+	if len(lines) > 0 && !l.quiet {
 		l.b.Emit(api.MsgBuildLog, api.BuildLogEvent{DeploymentID: l.p.DeploymentID, ServiceID: l.p.ServiceID, Lines: lines})
 	}
 }
 
 func (l *buildLog) close() {
+	if l.quiet {
+		return
+	}
 	close(l.stop)
 	<-l.done
 }

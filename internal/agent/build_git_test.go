@@ -154,3 +154,25 @@ func TestBuildOldServerPayloadStillGitHubOnly(t *testing.T) {
 	}
 	_ = api.BuildPayload{}
 }
+
+func TestGitHeadLsRemote(t *testing.T) {
+	b, _, c, ev, _ := newBuilder(t)
+	b.LookupHost = lookupTo("192.0.2.20")
+	c.lsRemoteOut = []string{testSHA + "\trefs/heads/main"}
+	res, err := b.Head(context.Background(), api.GitHeadPayload{ServiceID: "svc_app", Repo: "https://gitea.example.com/me/app.git",
+		Branch: "main", Provider: "gitea", Token: "gtea-SECRET-TOKEN-1"})
+	if err != nil || res.Commit != testSHA {
+		t.Fatalf("head %+v %v", res, err)
+	}
+	ls := c.callsOf("git", "ls-remote")
+	if len(ls) != 1 || gitConfig(ls[0].env)["http.curloptResolve"] != "gitea.example.com:443:192.0.2.20" {
+		t.Fatalf("ls-remote %+v", ls)
+	}
+	if ev.all() != "" {
+		t.Fatalf("head emitted build log: %q", ev.all())
+	}
+	c.lsRemoteOut = nil
+	if _, err := b.Head(context.Background(), api.GitHeadPayload{ServiceID: "svc_app", Repo: "https://gitea.example.com/me/app.git", Branch: "gone"}); err == nil {
+		t.Fatal("missing branch not reported")
+	}
+}

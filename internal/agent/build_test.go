@@ -27,18 +27,19 @@ type cmdCall struct {
 // fakeCmd stands in for git and docker: checkout writes the repository files, rev-parse
 // prints the commit, docker build tags an image in the fake runtime.
 type fakeCmd struct {
-	rt         *agenttest.Fake
-	sha        string
-	files      map[string]string // written into the checkout
-	fetchOut   []string
-	fetchErr   error
-	fetchHook  func(env []string) // called during git fetch (build_git_test.go)
-	buildBlock chan struct{}      // docker build waits for it (or ctx) when set
-	started    chan string        // receives the tag of every docker build that starts
-	inspectErr error              // docker buildx inspect (dedicated builder exists?)
-	createErr  error              // docker buildx create
-	pullErr    error              // docker pull
-	lsOut      []string           // docker buildx ls output
+	rt          *agenttest.Fake
+	sha         string
+	files       map[string]string // written into the checkout
+	fetchOut    []string
+	fetchErr    error
+	fetchHook   func(env []string) // called during git fetch (build_git_test.go)
+	lsRemoteOut []string           // git ls-remote output
+	buildBlock  chan struct{}      // docker build waits for it (or ctx) when set
+	started     chan string        // receives the tag of every docker build that starts
+	inspectErr  error              // docker buildx inspect (dedicated builder exists?)
+	createErr   error              // docker buildx create
+	pullErr     error              // docker pull
+	lsOut       []string           // docker buildx ls output
 
 	mu         sync.Mutex
 	calls      []cmdCall
@@ -70,6 +71,10 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 		out("Status: Downloaded newer image for " + args[1])
 		c.rt.AddImage(args[1], time.Now())
 		return c.pullErr
+	case name == "git" && args[0] == "ls-remote":
+		for _, l := range c.lsRemoteOut {
+			out(l)
+		}
 	case name == "git" && args[0] == "fetch":
 		if c.fetchHook != nil {
 			c.fetchHook(env)

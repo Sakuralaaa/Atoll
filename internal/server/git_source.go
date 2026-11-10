@@ -216,7 +216,7 @@ func gitNeedsSources(g api.GitSource, hasSSHKey bool) bool {
 // agentBuildSources reports whether the node's connected agent announced BuildSources.
 func (s *Server) agentBuildSources(nodeID string) bool {
 	c := s.hub.get(nodeID)
-	return c != nil && c.buildSources
+	return c != nil && c.buildSources.Load()
 }
 
 const agentTooOldBuildMsg = "upgrade the atoll-agent on this server (Servers → Upgrade agent) to build from GitLab/Gitea/any git server, over SSH, with polling or without a Dockerfile"
