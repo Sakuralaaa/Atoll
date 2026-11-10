@@ -503,6 +503,10 @@ func (s *Server) handleBackupVerifyEvent(ctx context.Context, nodeID string, ev 
 	v := api.BackupVerification{ID: ev.ID, Kind: ev.Kind, ServiceID: ev.ServiceID, ServerID: nodeID, Trigger: ev.Trigger, Status: ev.Status,
 		Subset: ev.Subset, Steps: ev.Steps, Error: ev.Error, Warnings: ev.Warnings, DurationMs: ev.DurationMs, StartedAt: ev.StartedAt, FinishedAt: ev.FinishedAt}
 	if old, err := s.st.GetVerification(ctx, ev.ID); err == nil {
+		if old.ServerID != nodeID { // an agent reports only the verifications it was asked to run
+			s.log.Warn("backup verification event from another server ignored", "id", ev.ID, "node", nodeID)
+			return
+		}
 		v.Kind, v.ServiceID, v.Trigger = old.Kind, old.ServiceID, old.Trigger
 		if v.StartedAt.IsZero() {
 			v.StartedAt = old.StartedAt

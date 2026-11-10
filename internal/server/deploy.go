@@ -298,6 +298,10 @@ func (s *Server) handleDeployEvent(ctx context.Context, nodeID string, ev api.De
 		s.log.Warn("deploy event for unknown deployment", "deployment", ev.DeploymentID, "node", nodeID)
 		return
 	}
+	if d.ServerID != "" && d.ServerID != nodeID { // an agent reports only its own deployments
+		s.log.Warn("deploy event from another server ignored", "deployment", d.ID, "node", nodeID, "deployment_node", d.ServerID)
+		return
+	}
 	switch ev.Status {
 	case "queued", "building", "pulling", "starting", "running", "failed":
 	default:
@@ -344,6 +348,9 @@ func (s *Server) handleStatus(ctx context.Context, nodeID string, st api.StatusP
 		svc, stopped, err := s.st.GetService(ctx, c.ServiceID)
 		if err != nil {
 			continue
+		}
+		if svc.ServerID != "" && svc.ServerID != nodeID {
+			continue // a leftover container on a former server (or a rogue agent) does not set the status
 		}
 		if d, err := s.st.LatestDeployment(ctx, svc.ID); err == nil && inProgress(d.Status) {
 			continue // deploy events own the status while a deployment runs

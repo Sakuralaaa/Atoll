@@ -161,7 +161,12 @@ func (s *Server) handleBackupEvent(ctx context.Context, nodeID string, ev api.Ba
 	b := api.Backup{ID: ev.BackupID, ServiceID: ev.ServiceID, ServerID: nodeID, Trigger: ev.Trigger, Status: ev.Status,
 		Snapshots: ev.Snapshots, Bytes: ev.Bytes, Added: ev.Added, DurationMs: ev.DurationMs, Error: ev.Error,
 		Warnings: ev.Warnings, StartedAt: ev.StartedAt, FinishedAt: ev.FinishedAt}
-	if old, err := s.st.GetBackup(ctx, ev.BackupID); err == nil && old.ID == ev.BackupID {
+	old, oldErr := s.st.GetBackup(ctx, ev.BackupID)
+	if !s.agentOwnsBackup(ctx, nodeID, ev, old, oldErr) {
+		s.log.Warn("backup event from another server ignored", "backup", ev.BackupID, "service", ev.ServiceID, "node", nodeID)
+		return
+	}
+	if oldErr == nil && old.ID == ev.BackupID {
 		b.Trigger = old.Trigger
 		if b.StartedAt.IsZero() {
 			b.StartedAt = old.StartedAt
@@ -291,4 +296,19 @@ func (s *Server) handleGetBackup(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, 200, b)
 	return nil
+}
+
+// agentOwnsBackup: a backup event from nodeID may only create or update a record of a service
+// placed on nodeID, and never touch a record (or prune snapshots) belonging to another server
+// or service. A leaked node token therefore cannot rewrite other servers' backup history.
+func (s *Server) agentOwnsBackup(ctx context.Context, nodeID string, ev api.BackupEvent, old *api.Backup, oldErr error) bool {
+	if oldErr == nil && old != nil {
+		return old.ServerID == nodeID && old.ServiceID == ev.ServiceID
+	}
+	svc, _, err := s.st.GetService(ctx, ev.ServiceID)
+	if err != nil {
+		return false
+	}
+	node, err := s.serviceNode(ctx, svc)
+	return err == nil && node == nodeID
 }
