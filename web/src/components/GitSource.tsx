@@ -1,13 +1,14 @@
 // Builds from source: form fields, webhook setup, the service source card and the build log viewer.
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, Box, Eye, EyeOff, GitBranch, GitCommitHorizontal, Hammer, KeyRound, Loader2, Pencil, Plus, RefreshCw, Rocket, ScrollText, Trash2, Webhook, X } from 'lucide-react'
+import { ArrowDown, Box, Eye, EyeOff, GitBranch, GitCommitHorizontal, Hammer, KeyRound, Loader2, Pencil, Plus, RefreshCw, Rocket, ScanSearch, ScrollText, Trash2, Webhook, X } from 'lucide-react'
 import { Badge, Brand, Button, Card } from './ui'
 import { CodeBlock, ConfirmDialog, CopyButton, Label, Modal, Skeleton, TextInput } from './feedback'
 import { api } from '../api/client'
 import { invalidate, run, useBusy, useQuery } from '../api/hooks'
 import { ago, dateTime, deployStatusText, latestDeploy, triggerText } from '../api/view'
-import { buildActive, commitUrl, gitApi, gitBody, gitFormError, gitFormFrom, repoPath, repoUrl, shortSha, useBuildLogs, type GitForm } from '../api/git'
-import type { Deployment, GitWebhook, Service } from '../api/types'
+import { buildActive, commitUrl, gitApi, gitBody, gitFormError, gitFormFrom, inferProvider, isSshRepo, providerName, repoPath, repoUrl, shortSha, useBuildLogs, type GitForm } from '../api/git'
+import type { Deployment, GitDetected, GitProvider, GitWebhook, Service } from '../api/types'
+import { GitAdvancedFields, GitProviderPicker, ProviderIcon, SshKeyField } from './GitSourceFields'
 import { useT } from '../i18n'
 import { cx, si } from './ui-utils'
 import { useCan } from '../api/queries'
@@ -19,7 +20,7 @@ export const GithubIcon = ({ size = 16 }: { size?: number }) => <Brand icon={si.
 export type SourceKind = 'image' | 'git'
 export function SourceToggle({ value, onChange }: { value: SourceKind; onChange: (v: SourceKind) => void }) {
   const { t } = useT()
-  const items: [SourceKind, string, React.ReactNode][] = [['image', t('镜像', 'Image'), <Box key="i" size={14} />], ['git', t('GitHub 仓库', 'GitHub repo'), <GithubIcon key="g" size={14} />]]
+  const items: [SourceKind, string, React.ReactNode][] = [['image', t('镜像', 'Image'), <Box key="i" size={14} />], ['git', t('Git 仓库', 'Git repo'), <GitBranch key="g" size={14} />]]
   return (
     <div className="inline-flex rounded-lg field p-0.5 gap-1" role="tablist">
       {items.map(([k, l, i]) => (
@@ -31,15 +32,19 @@ export function SourceToggle({ value, onChange }: { value: SourceKind; onChange:
 }
 
 // ---------- git fields ----------
-export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f: GitForm) => void; hasToken?: boolean; autoFocus?: boolean }) {
+export function GitFields({ f, set, hasToken, hasSshKey, autoFocus }: { f: GitForm; set: (f: GitForm) => void; hasToken?: boolean; hasSshKey?: boolean; autoFocus?: boolean }) {
   const { t } = useT()
   const [showTok, setShowTok] = useState(false)
-  const up = (k: 'repo' | 'branch' | 'context' | 'dockerfile' | 'token') => (e: React.ChangeEvent<HTMLInputElement>) => set({ ...f, [k]: e.target.value })
+  const up = (k: 'repo' | 'branch' | 'context' | 'dockerfile' | 'token' | 'username') => (e: React.ChangeEvent<HTMLInputElement>) => set({ ...f, [k]: e.target.value })
+  const prov: GitProvider = f.provider || inferProvider(f.repo)
+  const ssh = isSshRepo(f.repo.trim())
+  const placeholder = { github: 'https://github.com/owner/repo', gitlab: 'https://gitlab.com/group/project', gitea: 'https://codeberg.org/owner/repo', git: 'https://git.example.com/owner/repo.git' }[prov]
   const setArg = (i: number, a: { k: string; v: string }) => set({ ...f, args: f.args.map((x, j) => j === i ? a : x) })
   return (
     <>
-      <Label t={t('仓库地址', 'Repository URL')} d={t('公开仓库直接填写；私有仓库在下方填写 Token。', 'Public repos work as is; for a private repo add a token below.')}>
-        <TextInput autoFocus={autoFocus} mono className="w-full" placeholder="https://github.com/owner/repo" value={f.repo} onChange={up('repo')} />
+      <GitProviderPicker value={f.provider} inferred={inferProvider(f.repo)} onChange={p => set({ ...f, provider: p })} />
+      <Label t={t('仓库地址', 'Repository URL')} d={t('https 或 SSH 地址（git@主机:路径）。公开仓库直接填写；私有仓库在下方填写 Token 或部署密钥。', 'An https or SSH URL (git@host:path). Public repos work as is; for a private repo add a token or deploy key below.')}>
+        <TextInput autoFocus={autoFocus} mono className="w-full" placeholder={placeholder} value={f.repo} onChange={up('repo')} />
       </Label>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
         <Label t={t('分支', 'Branch')}><TextInput mono className="w-full" value={f.branch} onChange={up('branch')} placeholder="main" /></Label>
@@ -59,7 +64,8 @@ export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f
         ))}</div> : <div className="h-11 rounded-lg border-2 border-dashed border-line2 px-3.5 flex items-center text-[13px] text-dim">{t('没有构建参数', 'No build args')}</div>}
         <div className="text-[12px] text-dim mt-1.5">{t('构建参数不是机密：会留在镜像历史里。机密请用环境变量。', 'Build args are not secret: they stay in the image history. Use env vars for secrets.')}</div>
       </div>
-      <Label t={t('GitHub Token（可选）', 'GitHub token (optional)')} d={t('只写不读：加密保存，之后不会再显示。需要仓库的 Contents 读取权限。', 'Write-only: stored encrypted and never shown again. Needs read access to the repo contents.')}>
+      {ssh ? <SshKeyField f={f} set={set} hasSshKey={hasSshKey} /> : <>
+      <Label t={t(`${providerName[prov]} Token（可选）`, `${providerName[prov]} token (optional)`)} d={t('只写不读：加密保存，之后不会再显示。只需要仓库的读取权限。', 'Write-only: stored encrypted and never shown again. Needs read access to the repository only.')}>
         {hasToken && !f.token && <div className="mb-2 flex items-center gap-2 text-[13px]">
           {f.clearToken
             ? <><Badge tone="red"><X size={11} />{t('保存后清除', 'Cleared on save')}</Badge><button type="button" onClick={() => set({ ...f, clearToken: false })} className="text-accent text-[12.5px]">{t('撤销', 'Undo')}</button></>
@@ -67,33 +73,46 @@ export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f
         </div>}
         <div className="relative">
           <TextInput mono className="w-full pr-10" type={showTok ? 'text' : 'password'} autoComplete="new-password" value={f.token} onChange={up('token')}
-            placeholder={hasToken ? t('留空保持不变；填写则替换', 'Leave empty to keep; type to replace') : 'github_pat_…'} />
+            placeholder={hasToken ? t('留空保持不变；填写则替换', 'Leave empty to keep; type to replace') : prov === 'gitlab' ? 'glpat-…' : prov === 'github' ? 'github_pat_…' : 'token'} />
           <button type="button" onClick={() => setShowTok(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg">{showTok ? <EyeOff size={15} /> : <Eye size={15} />}</button>
         </div>
       </Label>
+      {prov !== 'github' && <Label t={t('Token 用户名（可选）', 'Token username (optional)')} d={t('默认 GitLab 为 oauth2，其他为 git；Gitea 可填你的用户名。', 'Defaults: oauth2 on GitLab, git elsewhere; on Gitea you may use your username.')}>
+        <TextInput mono className="w-full" value={f.username} onChange={up('username')} placeholder={prov === 'gitlab' ? 'oauth2' : 'git'} />
+      </Label>}
+      </>}
+      <GitAdvancedFields f={f} set={set} />
     </>
   )
 }
 
 // ---------- webhook ----------
-/** Webhook URL + secret with the GitHub setup steps. `secret` undefined = not shown (hidden / API token). */
+/** Webhook URL + secret with the forge's setup steps. `secret` undefined = not shown (hidden / API token). */
 export function WebhookSetup({ wh, secret }: { wh: GitWebhook; secret?: string }) {
   const { t } = useT()
+  const p = wh.provider ?? 'github'
+  const branch = wh.branch || 'main'
+  const steps: Record<GitProvider, React.ReactNode[]> = {
+    github: [t('打开仓库 Settings → Webhooks → Add webhook', 'Open the repo: Settings → Webhooks → Add webhook'), t('Payload URL 填上面的地址', 'Payload URL: the URL above'),
+      <>Content type: <span className="font-mono">{wh.content_type || 'application/json'}</span></>, t('Secret 填上面的密钥', 'Secret: the secret above'),
+      t('事件选择 Just the push event，保存', 'Which events: Just the push event, then save')],
+    gitlab: [t('打开项目 Settings → Webhooks → Add new webhook', 'Open the project: Settings → Webhooks → Add new webhook'), t('URL 填上面的地址', 'URL: the URL above'),
+      t('Secret token 填上面的密钥', 'Secret token: the secret above'), t('触发器只勾选 Push events，保存', 'Trigger: Push events only, then save')],
+    gitea: [t('打开仓库 设置 → Web 钩子 → 添加 Web 钩子 → Gitea（或 Forgejo）', 'Open the repo: Settings → Webhooks → Add webhook → Gitea (or Forgejo)'), t('目标 URL 填上面的地址，内容类型 application/json', 'Target URL: the URL above, content type application/json'),
+      t('密钥文本填上面的密钥', 'Secret: the secret above'), t('触发条件选「推送」，保存', 'Trigger on: Push events, then save')],
+    git: [t('在你的 Git 服务器上添加推送 Webhook，指向上面的地址', 'Add a push webhook on your git server pointing at the URL above'),
+      t('需按 GitHub 格式签名（X-Hub-Signature-256），密钥填上面的密钥', 'It must sign like GitHub (X-Hub-Signature-256) with the secret above'),
+      t('不支持 Webhook 时，在高级设置里开启定时检查新提交', 'If your server has no webhooks, turn on polling in the advanced settings')],
+  }
   return (
     <>
-      <div className="text-[13px] font-semibold mb-1.5">Payload URL</div>
+      <div className="text-[13px] font-semibold mb-1.5">{p === 'gitlab' ? 'URL' : 'Payload URL'}</div>
       <CodeBlock>{wh.url}</CodeBlock>
-      {secret && <><div className="text-[13px] font-semibold mb-1.5 mt-4">Secret</div><CodeBlock>{secret}</CodeBlock></>}
+      {secret && <><div className="text-[13px] font-semibold mb-1.5 mt-4">{p === 'gitlab' ? 'Secret token' : 'Secret'}</div><CodeBlock>{secret}</CodeBlock></>}
       <div className="mt-5 rounded-lg field px-4 py-3.5 text-[13px] leading-6 text-fg2">
-        <div className="font-semibold text-fg mb-1">{t('在 GitHub 上设置', 'Set up on GitHub')}</div>
-        <ol className="list-decimal pl-5 space-y-0.5">
-          <li>{t('打开仓库 Settings → Webhooks → Add webhook', 'Open the repo: Settings → Webhooks → Add webhook')}</li>
-          <li>{t('Payload URL 填上面的地址', 'Payload URL: the URL above')}</li>
-          <li>Content type: <span className="font-mono">{wh.content_type || 'application/json'}</span></li>
-          <li>{t('Secret 填上面的密钥', 'Secret: the secret above')}</li>
-          <li>{t('事件选择 Just the push event，保存', 'Which events: Just the push event, then save')}</li>
-        </ol>
-        <div className="text-[12px] text-dim mt-2">{t(`只有推送到 ${wh.branch || 'main'} 分支会触发构建，其他分支和标签会被忽略。`, `Only pushes to ${wh.branch || 'main'} build; other branches and tags are ignored.`)}</div>
+        <div className="font-semibold text-fg mb-1">{t(`在 ${providerName[p]} 上设置`, `Set up on ${providerName[p]}`)}</div>
+        <ol className="list-decimal pl-5 space-y-0.5">{steps[p].map((x, i) => <li key={i}>{x}</li>)}</ol>
+        <div className="text-[12px] text-dim mt-2">{t(`只有推送到 ${branch} 分支会触发构建，其他分支和标签会被忽略。`, `Only pushes to ${branch} build; other branches and tags are ignored.`)}</div>
       </div>
     </>
   )
@@ -103,7 +122,7 @@ export function WebhookSetup({ wh, secret }: { wh: GitWebhook; secret?: string }
 export function WebhookOnceDialog({ wh, onClose }: { wh: GitWebhook; onClose: () => void }) {
   const { t } = useT()
   return (
-    <Modal title={<><Webhook size={17} />{t('配置 GitHub Webhook', 'Set up the GitHub webhook')}</>} width={620} onClose={onClose}
+    <Modal title={<><Webhook size={17} />{t('配置推送 Webhook', 'Set up the push webhook')}</>} width={620} onClose={onClose}
       footer={<Button size="sm" variant="primary" onClick={onClose}>{t('我已保存', 'Done')}</Button>}>
       <div className="text-[13px] text-muted mb-4 leading-6">{t('推送代码后自动构建并部署。密钥只在这里完整显示一次，之后可在服务页查看或轮换。', 'Pushes then build and deploy automatically. The secret is shown here once; later you can reveal or rotate it on the service page.')}</div>
       <WebhookSetup wh={wh} secret={wh.secret} />
@@ -121,30 +140,39 @@ export function SourceCard({ s }: { s: Service }) {
   const [edit, setEdit] = useState(false)
   const [toImage, setToImage] = useState(false)
   const [logs, setLogs] = useState<Deployment>()
+  const [det, setDet] = useState<GitDetected>()
   const canDeploy = useCan('deploy')
   if (!g) return null
+  const prov = g.provider ?? inferProvider(g.repo)
+  const detect = () => wrap(async () => { const r = await run(() => gitApi.detect(s.id)); if (r) { setDet(r); invalidate(`project:${s.project_id}`) } })
+  const mode = g.builder === 'generated' ? t('自动生成 Dockerfile', 'generated Dockerfile') : g.builder === 'dockerfile' ? (g.dockerfile || 'Dockerfile')
+    : t(`${g.dockerfile || 'Dockerfile'}（没有则自动生成）`, `${g.dockerfile || 'Dockerfile'} (generated if missing)`)
   const rebuild = () => wrap(() => run(() => api.action(s.id, 'redeploy'), { ok: t('已开始构建最新提交', 'Building the latest commit'), invalidate: [`deployments:${s.id}`, `project:${s.project_id}`] }))
   const building = last && buildActive(last.status) && last.status !== 'pulling' && last.status !== 'starting'
   return (
     <Card className="mt-6 p-4 @2xl:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <GithubIcon size={18} />
+        <ProviderIcon p={prov} size={18} />
         <span className="text-[15px] font-semibold tracking-tight">{t('源码构建', 'Build from source')}</span>
+        <Badge tone="zinc">{providerName[prov]}</Badge>
         {last?.status === 'building' ? <Badge tone="amber"><Loader2 size={11} className="animate-spin" />{t('构建中', 'Building')}</Badge> : last?.status === 'failed' ? <Badge tone="red">{t('上次失败', 'Last build failed')}</Badge> : null}
         {canDeploy && <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setEdit(true)}><Pencil size={13} />{t('编辑', 'Edit')}</Button>
+          <Button size="sm" disabled={busy} onClick={detect}><ScanSearch size={13} />{t('检测构建方式', 'Detect build')}</Button>
           <Button size="sm" variant="primary" disabled={busy || !!building} onClick={rebuild}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}{t('重新构建最新提交', 'Rebuild latest')}</Button>
         </div>}
       </div>
       <div className="mt-5 grid grid-cols-[84px_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
         <span className="text-muted">{t('仓库', 'Repository')}</span>
-        <a href={repoUrl(g.repo)} target="_blank" rel="noreferrer" className="font-mono hover:underline truncate">{repoPath(g.repo)}</a>
+        <a href={repoUrl(g.repo)} target="_blank" rel="noreferrer" className="font-mono hover:underline truncate" title={g.repo}>{repoPath(g.repo)}</a>
         <span className="text-muted">{t('分支', 'Branch')}</span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono min-w-0 [overflow-wrap:anywhere]"><GitBranch size={14} className="text-accent shrink-0" />{g.branch || 'main'}
-          <span className="text-dim font-sans text-[12.5px]">· {g.context ? `${g.context}/` : ''}{g.dockerfile || 'Dockerfile'}{g.has_token ? ` · ${t('私有仓库 Token 已保存', 'private repo token saved')}` : ''}</span></span>
+          <span className="text-dim font-sans text-[12.5px]">· {g.context ? `${g.context}/` : ''}{mode}{g.has_token ? ` · ${t('私有仓库 Token 已保存', 'private repo token saved')}` : ''}{g.has_ssh_key ? ` · ${t('部署密钥已保存', 'deploy key saved')}` : ''}{g.poll_interval_sec ? ` · ${t(`每 ${Math.round(g.poll_interval_sec / 60)} 分钟检查新提交`, `polls every ${Math.round(g.poll_interval_sec / 60)} min`)}` : ''}</span></span>
+        {g.detected?.stack && <><span className="text-muted">{t('识别结果', 'Detected')}</span>
+          <span className="text-[12.5px]"><Badge tone="violet">{g.detected.stack}</Badge> <span className="text-dim">{g.detected.reason}</span></span></>}
         <span className="text-muted">{t('最近提交', 'Last commit')}</span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{g.last_commit
-          ? <a href={commitUrl(g.repo, g.last_commit)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(g.last_commit)}</a>
+          ? <a href={commitUrl(g.repo, g.last_commit, prov)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(g.last_commit)}</a>
           : <span className="text-dim">{t('还没有成功的构建', 'No successful build yet')}</span>}
           {last && <span className="text-dim text-[12.5px]">· {t('最近部署', 'latest deploy')} {ago(last.started_at)} · {deployStatusText[last.status] ?? last.status}</span>}
           {last && <button onClick={() => setLogs(last)} className="text-accent text-[12.5px] inline-flex items-center gap-1 ml-1"><ScrollText size={13} />{t('构建日志', 'Build log')}</button>}
@@ -154,6 +182,13 @@ export function SourceCard({ s }: { s: Service }) {
       {edit && <EditGitModal s={s} onClose={() => setEdit(false)} />}
       {toImage && <SwitchToImageModal s={s} onClose={() => setToImage(false)} />}
       {logs && <BuildLogModal key={logs.id} s={s} d={logs} onClose={() => setLogs(undefined)} />}
+      {det && <Modal title={<><ScanSearch size={17} />{t('构建方式', 'How it builds')}</>} width={720} onClose={() => setDet(undefined)}>
+        <div className="text-[13px] mb-3">{det.stack
+          ? t(`没有使用仓库的 Dockerfile：识别为 ${det.stack}（${det.reason}），将使用下面生成的 Dockerfile。可在「编辑 → 高级设置」中覆盖技术栈和命令。`, `Builds without the repo's Dockerfile: detected ${det.stack} (${det.reason}); the Dockerfile below is generated. Override the stack and commands in Edit → Advanced.`)
+          : t(`使用仓库里的 ${det.dockerfile}。`, `Uses the repo's ${det.dockerfile}.`)}
+          {det.commit && <span className="text-dim"> · {shortSha(det.commit)}</span>}</div>
+        {det.stack && det.dockerfile && <CodeBlock grow>{det.dockerfile}</CodeBlock>}
+      </Modal>}
       <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-3 text-[12.5px] text-dim">
         <span>{t('构建在服务所在的服务器上进行，每台服务器同时只跑一个构建，超时 20 分钟。', "Builds run on the service's own server, one at a time per server, 20 min timeout.")}</span>
         {canDeploy && <Button className="ml-auto" size="sm" variant="ghost" onClick={() => setToImage(true)}><Box size={13} />{t('改回镜像部署', 'Switch back to image')}</Button>}
@@ -173,7 +208,7 @@ function WebhookSection({ s }: { s: Service }) {
   const secret = wh?.secret
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap items-center gap-2 mb-2"><Webhook size={15} className="text-accent" /><span className="text-[13px] font-semibold">GitHub Webhook</span>
+      <div className="flex flex-wrap items-center gap-2 mb-2"><Webhook size={15} className="text-accent" /><span className="text-[13px] font-semibold">{t('推送 Webhook', 'Push webhook')}</span>
         <span className="text-[12.5px] text-dim">{t(`推送到 ${s.git?.branch || 'main'} 后自动构建`, `Pushes to ${s.git?.branch || 'main'} build automatically`)}</span>
         <button onClick={() => setSetup(true)} disabled={!wh} className="ml-auto text-accent text-[12.5px]">{t('设置步骤', 'Setup steps')}</button></div>
       {q.error && !wh ? <div className="text-[13px] text-[#ef4444]">{q.error.message}</div> : !wh ? <Skeleton className="h-24 w-full" /> : (
@@ -191,9 +226,9 @@ function WebhookSection({ s }: { s: Service }) {
         </div>
       )}
       {rot && <ConfirmDialog title={t('轮换 Webhook 密钥', 'Rotate webhook secret')} action={t('确认轮换', 'Rotate')} danger={false} onClose={() => setRot(false)}
-        description={t('旧密钥立即失效，在 GitHub 上更新为新密钥之前，推送不会触发构建。', 'The old secret stops working at once; pushes will not build until you update the secret on GitHub.')}
-        onConfirm={async () => { const r = await run(() => gitApi.rotate(s.id), { ok: t('已生成新密钥，请更新到 GitHub', 'New secret issued, update it on GitHub') }); if (r) { q.set(r); setShow(true); invalidate(`webhook:${s.id}`) } }} />}
-      {setup && wh && <Modal title={<><Webhook size={17} />{t('配置 GitHub Webhook', 'Set up the GitHub webhook')}</>} width={620} onClose={() => setSetup(false)}>
+        description={t('旧密钥立即失效，在代码托管平台上更新为新密钥之前，推送不会触发构建。', 'The old secret stops working at once; pushes will not build until you update the secret on your git host.')}
+        onConfirm={async () => { const r = await run(() => gitApi.rotate(s.id), { ok: t('已生成新密钥，请更新到代码托管平台', 'New secret issued, update it on your git host') }); if (r) { q.set(r); setShow(true); invalidate(`webhook:${s.id}`) } }} />}
+      {setup && wh && <Modal title={<><Webhook size={17} />{t('配置推送 Webhook', 'Set up the push webhook')}</>} width={620} onClose={() => setSetup(false)}>
         <WebhookSetup wh={wh} secret={secret} />
         {!secret && <div className="mt-3 text-[12.5px] text-dim">{t('密钥只对面板会话显示；忘记了可以轮换。', 'The secret is only shown to a panel session; rotate it if lost.')}</div>}
       </Modal>}
@@ -216,11 +251,11 @@ export function EditGitModal({ s, onClose }: { s: Service; onClose: () => void }
   })
   if (wh) return <WebhookOnceDialog wh={wh} onClose={onClose} />
   return (
-    <Modal title={<><GithubIcon size={17} />{isNew ? t('改为从 GitHub 构建', 'Build from GitHub') : t('编辑源码设置', 'Edit git settings')}</>} width={640} onClose={onClose}
+    <Modal title={<><GitBranch size={17} />{isNew ? t('改为从 Git 仓库构建', 'Build from a git repo') : t('编辑源码设置', 'Edit git settings')}</>} width={640} onClose={onClose}
       footer={<><span className="mr-auto self-center text-[12.5px] text-[#ef4444]">{f.repo && err}</span><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button>
         <Button size="sm" variant="primary" disabled={!!err || busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Rocket size={13} />}{t('保存并构建', 'Save and build')}</Button></>}>
-      {isNew && <div className="mb-4 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">{t('保存后不再拉取镜像，改为在服务器上用 Dockerfile 构建；之后可随时改回镜像。', 'After saving, the image is no longer pulled; the service is built from its Dockerfile on its server. You can switch back any time.')}</div>}
-      <GitFields f={f} set={setF} hasToken={s.git?.has_token} autoFocus={isNew} />
+      {isNew && <div className="mb-4 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">{t('保存后不再拉取镜像，改为在服务器上从源码构建（有 Dockerfile 用 Dockerfile，没有则自动生成）；之后可随时改回镜像。', 'After saving, the image is no longer pulled; the service is built from source on its server (its Dockerfile, or a generated one). You can switch back any time.')}</div>}
+      <GitFields f={f} set={setF} hasToken={s.git?.has_token} hasSshKey={s.git?.has_ssh_key} autoFocus={isNew} />
     </Modal>
   )
 }
@@ -238,7 +273,7 @@ function SwitchToImageModal({ s, onClose }: { s: Service; onClose: () => void })
   return (
     <Modal title={<><Box size={17} />{t('改回镜像部署', 'Switch back to image')}</>} onClose={onClose}
       footer={<><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button><Button size="sm" variant="primary" disabled={!ok || busy} onClick={go}>{busy && <Loader2 size={13} className="animate-spin" />}{t('切换并部署', 'Switch and deploy')}</Button></>}>
-      <div className="text-[13.5px] text-fg2 leading-6 mb-4">{t('停止从 GitHub 构建，改为拉取下面的镜像部署。仓库设置、Token 和 Webhook 会被删除，GitHub 上的 Webhook 请手动移除。', 'Stops building from GitHub and deploys the image below instead. The repo settings, token and webhook are removed; delete the webhook on GitHub yourself.')}</div>
+      <div className="text-[13.5px] text-fg2 leading-6 mb-4">{t('停止从源码构建，改为拉取下面的镜像部署。仓库设置、Token、部署密钥和 Webhook 会被删除，代码托管平台上的 Webhook 请手动移除。', 'Stops building from source and deploys the image below instead. The repo settings, token, deploy key and webhook are removed; delete the webhook on your git host yourself.')}</div>
       <Label t={t('镜像', 'Image')} d={t('例如 ghcr.io/me/app:v1；不写标签时使用 latest', 'e.g. ghcr.io/me/app:v1; latest when no tag is given')}>
         <TextInput autoFocus mono className="w-full" placeholder="ghcr.io/owner/image:tag" value={image} onChange={e => setImage(e.target.value)} onKeyDown={e => e.key === 'Enter' && ok && go()} />
       </Label>
@@ -249,7 +284,7 @@ function SwitchToImageModal({ s, onClose }: { s: Service; onClose: () => void })
 // ---------- deployments: commit + build log ----------
 export function CommitLink({ s, d }: { s: Service; d: Deployment }) {
   if (!d.commit) return null
-  return <a href={commitUrl(s.git?.repo, d.commit)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 font-mono text-[12px] text-fg2 hover:underline"><GitCommitHorizontal size={13} className="text-accent" />{shortSha(d.commit)}</a>
+  return <a href={commitUrl(s.git?.repo, d.commit, s.git?.provider)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 font-mono text-[12px] text-fg2 hover:underline"><GitCommitHorizontal size={13} className="text-accent" />{shortSha(d.commit)}</a>
 }
 
 export function BuildLogModal({ s, d, onClose }: { s: Service; d: Deployment; onClose: () => void }) {

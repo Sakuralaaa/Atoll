@@ -90,13 +90,28 @@ export interface Service {
   replicas: string; created_at: string; domains?: Domain[]
   /** server the service runs on (read-only); usually the project's server */ server_id?: string
   /** read-only: "image" (pulled from a registry) or "git" (built from GitHub on its own server) */ source?: 'image' | 'git' | string
-  /** set = built from a GitHub repository (see docs/api.md "Builds from source") */ git?: GitSource
+  /** set = built from a git repository (see docs/api.md "Builds from source") */ git?: GitSource
   /** returned once, when a git service is created or first switched to git */ webhook?: GitWebhook
 }
 
 /** Builds a service from source on its own server. PATCH is partial (omitted fields and the token are kept). */
+export type GitProvider = 'github' | 'gitlab' | 'gitea' | 'git'
+export type GitBuilder = 'auto' | 'dockerfile' | 'generated'
 export interface GitSource {
-  /** https://github.com/OWNER/REPO */ repo: string
+  /** https://host/OWNER/REPO, ssh://git@host/path or git@host:path */ repo: string
+  /** inferred from the host when omitted */ provider?: GitProvider
+  /** https username sent with the token (default oauth2 on GitLab, git elsewhere) */ username?: string
+  /** write-only SSH deploy key */ ssh_key?: string
+  has_ssh_key?: boolean
+  /** PATCH only: remove the stored key */ clear_ssh_key?: boolean
+  /** pinned host keys; empty = trust on first use */ known_hosts?: string
+  /** 0 = off, else 60–86400 */ poll_interval_sec?: number
+  builder?: GitBuilder
+  /** generated builds: node, bun, python, go, static ("" = detect) */ stack?: string
+  install_command?: string
+  build_command?: string
+  start_command?: string
+  /** read-only: what the last build / detection found */ detected?: GitDetected
   /** default "main" */ branch?: string
   /** build context: subdirectory of the repo ("" = root) */ context?: string
   /** relative to the context, default "Dockerfile" */ dockerfile?: string
@@ -107,7 +122,9 @@ export interface GitSource {
   /** read-only: commit of the last successful build */ last_commit?: string
 }
 /** GET /services/{id}/webhook. Secret only at creation / rotation and to a panel session. */
-export interface GitWebhook { url: string; secret?: string; has_secret: boolean; content_type: string; events: string; branch: string }
+export interface GitWebhook { url: string; secret?: string; has_secret: boolean; content_type: string; events: string; branch: string; provider?: GitProvider }
+/** POST /services/{id}/git/detect and GitSource.detected: stack "" = the repo's Dockerfile */
+export interface GitDetected { stack?: string; reason?: string; dockerfile?: string; commit?: string }
 export interface DeploymentLogLine { seq: number; at: string; line: string }
 /** GET /services/{id}/deployments/{dep}/logs?after=SEQ */
 export interface DeploymentLogs { deployment_id: string; status: string; lines: DeploymentLogLine[]; truncated?: boolean }

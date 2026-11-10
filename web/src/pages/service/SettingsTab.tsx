@@ -2,10 +2,10 @@ import { useCan } from '../../api/queries'
 import { useState } from 'react'
 import { useMask } from '../../api/privacy'
 import { Link } from 'react-router-dom'
-import { Pencil, Check, X, Loader2 } from 'lucide-react'
+import { Pencil, Check, X, Loader2, GitBranch } from 'lucide-react'
 import { Button, Card } from '../../components/ui'
 import { ConfirmDialog, Modal, Select, TextInput } from '../../components/feedback'
-import { EditGitModal, GithubIcon } from '../../components/GitSource'
+import { EditGitModal } from '../../components/GitSource'
 import { isGit, repoPath } from '../../api/git'
 import { api } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
@@ -42,7 +42,7 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
         <Row t={L("服务名称")} d={L("也是项目内网的主机名；改了以后其他服务里引用它的地址要一起改")}><TextInput className="w-full @4xl:w-[420px]" value={f.name} onChange={set('name')} /></Row>
         {git && s.git
           ? <Row t={t('源码', 'Source')} d={t(`从 GitHub 构建：${repoPath(s.git.repo)}@${s.git.branch || 'main'}`, `Built from GitHub: ${repoPath(s.git.repo)}@${s.git.branch || 'main'}`)}><Button size="sm" onClick={() => setGitEdit(true)}><Pencil size={13} />{t('编辑源码设置', 'Edit git settings')}</Button></Row>
-          : <Row t={L("镜像")} d={pinnedHint ?? L("Docker Hub、GHCR 或私有仓库")}><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 GitHub 构建', 'Build from GitHub')} onClick={() => setGitEdit(true)}><GithubIcon size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
+          : <Row t={L("镜像")} d={pinnedHint ?? L("Docker Hub、GHCR 或私有仓库")}><div className="flex flex-wrap items-center gap-2 w-full @4xl:w-auto"><TextInput mono className="w-full @4xl:w-[420px]" value={f.image} onChange={set('image')} />{s.kind === 'image' && <Button size="sm" variant="ghost" title={t('改为从 Git 仓库构建', 'Build from a git repo')} onClick={() => setGitEdit(true)}><GitBranch size={14} />{t('改用源码', 'Use source')}</Button>}</div></Row>}
       </Sec>
       <Sec t={L("启动")}>
         <Row t={L("启动命令")} d={L("覆盖镜像的 CMD")}><TextInput mono className="w-full @4xl:w-[420px]" value={f.command} onChange={set('command')} placeholder={L("使用镜像默认值")} /></Row>
