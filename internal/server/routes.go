@@ -183,6 +183,8 @@ func (s *Server) Handler() http.Handler {
 
 	// builds from source (git.go): GitHub push webhook, verified by HMAC instead of a login
 	open("POST "+v+"/hooks/github/{service_id}", s.handleGitHubWebhook)
+	open("POST "+v+"/hooks/gitlab/{service_id}", s.handleGitLabWebhook) // git_hooks.go
+	open("POST "+v+"/hooks/gitea/{service_id}", s.handleGiteaWebhook)   // Gitea and Forgejo
 
 	// live events
 	a("GET "+v+"/events", lvlRead, s.handleEvents)
