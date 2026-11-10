@@ -7,6 +7,7 @@ import { Skeleton, TextInput } from '../components/feedback'
 import { api, isChallenge, isDemo, ApiError } from '../api/client'
 import { invalidate, useQuery } from '../api/hooks'
 import { useT } from '../i18n'
+import { startOnboarding } from '../onboarding'
 
 export default function Login() {
   const { t } = useT()
@@ -37,6 +38,8 @@ export default function Login() {
     setBusy(true); setErr(undefined)
     try {
       const r = await (setup ? api.setup(u.trim(), pw) : api.login(u.trim(), pw))
+      // the first admin account: open the first-run wizard (App redirects / to /welcome while it is active)
+      if (setup) startOnboarding((!isChallenge(r) && r.username) || u.trim())
       if (isChallenge(r)) { setPending(r.pending_token); setCode(''); setUseRecovery(false); setPw('') }
       else done()
     } catch (x) { setErr(explain(x)) } finally { setBusy(false) }

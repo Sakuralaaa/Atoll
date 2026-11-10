@@ -2,6 +2,10 @@
 // Placeholders {0}, {1}… are filled by L's extra arguments.
 const en: Record<string, string> = {
  "博客": "Blog",
+ "首次启动向导": "First-run guide",
+ "重新打开向导": "Reopen the guide",
+ "按步骤设置中控地址、添加节点、配置域名和备份，并部署第一个服务。进度保存在这个浏览器里。": "Walk through the control server address, the first server, domains and backups, then deploy a first service. Progress is kept in this browser.",
+ "打开向导": "Open the guide",
  "工具": "Tools",
  "运维": "Ops",
  "开发": "Dev",

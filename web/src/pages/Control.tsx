@@ -261,12 +261,12 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
           <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{`curl -fsSL ${installServerURL(rel?.tag ?? 'main')} | sudo sh -s -- --version ${rel?.tag ?? 'vX.Y.Z'}`}</CodeBlock></div>
         </div>)}
       </Card>
-      <Card className="p-5 flex gap-3 items-start">
+      {s.deployment !== 'docker' && <Card className="p-5 flex gap-3 items-start">
         <Info size={17} className="text-accent mt-0.5 shrink-0" />
         <div className="text-[13px] text-fg2 leading-6 min-w-0">
           <b>{L("升级期间各服务器上的服务照常运行。")}</b>{L("中控重启时面板和 API 会中断几秒，agent 会自动重连；业务容器、对外域名和 HTTPS 都在各 worker 上，不受影响。\n          升级前会自动做一份")} <span className="font-mono">pre-update</span> {L("中控备份；新版本 60 秒内没有通过健康检查会自动换回旧版本。")}
         </div>
-      </Card>
+      </Card>}
       {s.last_update_result && <LastResult r={s.last_update_result} />}
       <Card className="p-5 @2xl:p-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

@@ -163,12 +163,12 @@ function appInputs(app: AppTemplate, typed: Record<string, string>): Record<stri
   return Object.keys(out).length ? out : undefined
 }
 
-function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaultServer?: string }) {
+export function CreateProject({ onClose, defaultServer, initialMode = 'empty', onCreated }: { onClose: () => void; defaultServer?: string; initialMode?: 'empty' | 'app'; onCreated?: () => void }) {
   const nav = useNavigate()
   const { lang } = useT()
   const servers = (useQuery('servers', api.servers).data ?? []).filter(s => s.role !== 'control')
   const apps = useQuery('app-templates', api.appTemplates).data ?? []
-  const [mode, setMode] = useState<'empty' | 'app'>('empty')
+  const [mode, setMode] = useState<'empty' | 'app'>(initialMode)
   const [cat, setCat] = useState('all')
   const [appId, setAppId] = useState('')
   const [name, setName] = useState(''); const [desc, setDesc] = useState(''); const [sid, setSid] = useState('')
@@ -190,12 +190,12 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
     if (mode === 'empty') {
       const p = await run(() => api.createProject({ name: name.trim(), server_id: server, description: desc || undefined }), { ok: L("项目已创建"), invalidate: ['projects'] })
       setBusy(false)
-      if (p) { onClose(); nav(`/projects/${p.id}?add=1`) }
+      if (p) { onCreated?.(); onClose(); nav(`/projects/${p.id}?add=1`) }
       return
     }
     const r = await run(() => api.createFromApp(app!.id, { name: projName, server_id: server, ...(noDomain ? {} : { hostname: h.v.hostname, ...(h.v.root_domain ? { root_domain: h.v.root_domain } : {}) }), ...(extraSvc && !no2 ? { domains: { [extraSvc.name]: h2.v.full } } : {}), inputs: appInputs(app!, inputs) }), { ok: L("{0} 已创建，正在部署", app!.name), invalidate: ['projects'] })
     setBusy(false)
-    if (r) { const main = r.services.find(x => x.name === app!.services.find(t => t.main)?.name); onClose(); nav(main ? `/projects/${r.project.id}/services/${main.id}` : `/projects/${r.project.id}`) }
+    if (r) { onCreated?.(); const main = r.services.find(x => x.name === app!.services.find(t => t.main)?.name); onClose(); nav(main ? `/projects/${r.project.id}/services/${main.id}` : `/projects/${r.project.id}`) }
   }
   const shown = apps.filter(a => cat === 'all' || a.category === cat)
   const tab = (v: 'empty' | 'app', label: string) => (

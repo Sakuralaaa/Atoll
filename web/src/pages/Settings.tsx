@@ -1,12 +1,13 @@
 import { L } from '../i18n'
 import { useState } from 'react'
-import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save } from 'lucide-react'
+import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save, Sparkles } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { startOnboarding } from '../onboarding'
 import { useCan } from '../api/queries'
 import type { Settings as S } from '../api/types'
 import ImageCheckSettings from '../components/ImageCheckSettings'
@@ -41,8 +42,23 @@ export default function Settings() {
         {q.data && <ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} />}
         {q.data && <BackupStorageSettings s={q.data} />}
         {q.data && <NetworkSettings s={q.data} />}
+        <ReopenOnboarding />
       </div>
     </MainShell>
+  )
+}
+
+/** Settings → 首次启动向导: start the first-run wizard again (progress is per account, in this browser). */
+function ReopenOnboarding() {
+  const nav = useNavigate()
+  const me = useQuery('me', api.me).data
+  if (!me) return null
+  return (
+    <Section icon={<Sparkles size={17} />} t={L("首次启动向导")}>
+      <Field t={L("重新打开向导")} d={L("按步骤设置中控地址、添加节点、配置域名和备份，并部署第一个服务。进度保存在这个浏览器里。")}>
+        <Button size="sm" onClick={() => { startOnboarding(me.username); nav('/welcome') }}><Sparkles size={14} />{L("打开向导")}</Button>
+      </Field>
+    </Section>
   )
 }
 
