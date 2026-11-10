@@ -305,6 +305,8 @@ git tag v0.1.0 && git push --tags
 - [docs/README.md](docs/README.md)：文档总览；[快速开始](docs/quick-start.md) · [功能概览](docs/features.md) · [运维参考](docs/operations.md) · [故障排查](docs/troubleshooting.md) · [常见问题](docs/faq.md)
 - [docs/api.md](docs/api.md)：REST API、agent 协议、权限、备份、构建
 - [docs/control.md](docs/control.md)：中控的备份、自更新、迁移、灾难恢复
+- [docs/compatibility.md](docs/compatibility.md)：版本兼容与升级承诺（stable/beta 通道、直升、降级、中控与 agent 版本差）
+- [docs/security-review-2026-11.md](docs/security-review-2026-11.md)：2026-11 安全自审：检查项、已修问题与遗留风险
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md)：从 Zeabur 迁移
 - [docs/adopt-docker.md](docs/adopt-docker.md)：接管自己用 Docker 启动的容器
 - [docs/ui-guide.md](docs/ui-guide.md)：面板界面约定

@@ -304,6 +304,8 @@ git tag v0.1.0 && git push --tags
 - [docs/README.md](docs/README.md): docs overview; [quick start](docs/quick-start.md) · [features](docs/features.md) · [operations](docs/operations.md) · [troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
 - [docs/api.md](docs/api.md): REST API, agent protocol, scopes, backups, builds
 - [docs/control.md](docs/control.md): control plane backups, self-update, migration, disaster recovery
+- [docs/compatibility.md](docs/compatibility.md): compatibility and upgrade policy (stable/beta channels, direct upgrades, downgrades, control/agent version skew; English summary at the end)
+- [docs/security-review-2026-11.md](docs/security-review-2026-11.md): 2026-11 security self-review (Chinese): checks, fixes and remaining risks
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md): migrating from Zeabur
 - [docs/adopt-docker.md](docs/adopt-docker.md): adopting containers you started with Docker
 - [docs/ui-guide.md](docs/ui-guide.md): panel UI conventions
