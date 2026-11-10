@@ -102,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/deployments/{dep}/logs", lvlRead, s.handleDeploymentLogs)
 	a("GET "+v+"/services/{id}/webhook", lvlRead, s.handleGetWebhook)
 	a("POST "+v+"/services/{id}/webhook/rotate", needDeploySession, s.handleRotateWebhook)
+	a("POST "+v+"/services/{id}/git/detect", lvlDeploy, s.handleGitDetect) // git_detect.go
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", needExec, s.handleExec)

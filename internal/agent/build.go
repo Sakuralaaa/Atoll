@@ -166,6 +166,16 @@ func validateBuild(p *api.BuildPayload) error {
 	default:
 		return fmt.Errorf("unknown builder %q", p.Builder)
 	}
+	switch p.Stack {
+	case "", "node", "bun", "python", "go", "static":
+	default:
+		return fmt.Errorf("unknown stack %q", p.Stack)
+	}
+	for _, c := range []string{p.InstallCommand, p.BuildCommand, p.StartCommand} {
+		if len(c) > 1000 || strings.ContainsAny(c, "\x00\r\n") {
+			return errors.New("build commands must be one line")
+		}
+	}
 	if !buildBranchRe.MatchString(p.Branch) || strings.HasPrefix(p.Branch, "-") || strings.Contains(p.Branch, "..") {
 		return fmt.Errorf("invalid branch %q", p.Branch)
 	}
@@ -277,31 +287,11 @@ func (b *Builder) Build(ctx context.Context, p api.BuildPayload) (api.BuildResul
 	}
 	lg := b.newLog(p)
 	defer lg.close()
-
-	select {
-	case b.slot <- struct{}{}:
-	default:
-		lg.line("atoll-agent: waiting for another build on this server to finish")
-		qt := time.NewTimer(time.Duration(p.QueueSec) * time.Second)
-		select {
-		case b.slot <- struct{}{}:
-			qt.Stop()
-		case <-qt.C:
-			return api.BuildResult{}, fmt.Errorf("another build kept this server's build slot busy for %s", time.Duration(p.QueueSec)*time.Second)
-		case <-ctx.Done():
-			qt.Stop()
-			return api.BuildResult{}, ctx.Err()
-		}
+	release, err := b.acquire(ctx, p, lg)
+	if err != nil {
+		return api.BuildResult{}, err
 	}
-	b.bstate.actMu.Lock()
-	b.bstate.active = p.ServiceID
-	b.bstate.actMu.Unlock()
-	defer func() {
-		b.bstate.actMu.Lock()
-		b.bstate.active = ""
-		b.bstate.actMu.Unlock()
-		<-b.slot
-	}()
+	defer release()
 
 	timeout := time.Duration(p.TimeoutSec) * time.Second
 	bctx, cancel := context.WithTimeout(ctx, timeout)
@@ -318,6 +308,35 @@ func (b *Builder) Build(ctx context.Context, p api.BuildPayload) (api.BuildResul
 	b.prune(context.WithoutCancel(ctx), p.ServiceID, p.Keep, res.Image, lg)
 	b.Log.Info("built", "service", p.ServiceID, "image", res.Image, "commit", res.Commit)
 	return res, nil
+}
+
+// acquire waits for this server's build slot (at most p.QueueSec) and marks the service's
+// build active; release gives the slot back.
+func (b *Builder) acquire(ctx context.Context, p api.BuildPayload, lg *buildLog) (release func(), err error) {
+	select {
+	case b.slot <- struct{}{}:
+	default:
+		lg.line("atoll-agent: waiting for another build on this server to finish")
+		qt := time.NewTimer(time.Duration(p.QueueSec) * time.Second)
+		select {
+		case b.slot <- struct{}{}:
+			qt.Stop()
+		case <-qt.C:
+			return nil, fmt.Errorf("another build kept this server's build slot busy for %s", time.Duration(p.QueueSec)*time.Second)
+		case <-ctx.Done():
+			qt.Stop()
+			return nil, ctx.Err()
+		}
+	}
+	b.bstate.actMu.Lock()
+	b.bstate.active = p.ServiceID
+	b.bstate.actMu.Unlock()
+	return func() {
+		b.bstate.actMu.Lock()
+		b.bstate.active = ""
+		b.bstate.actMu.Unlock()
+		<-b.slot
+	}, nil
 }
 
 func (b *Builder) run(ctx context.Context, lg *buildLog, dir string, env []string, out func(string), name string, args ...string) error {
@@ -338,33 +357,40 @@ func (b *Builder) run(ctx context.Context, lg *buildLog, dir string, env []strin
 	return nil
 }
 
-func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (api.BuildResult, error) {
+// checkout fetches the commit to build into a new temp dir of BuildsDir (removed by
+// cleanup) and returns the dir, its resolved root and the commit.
+func (b *Builder) checkout(ctx context.Context, p api.BuildPayload, lg *buildLog) (root, sha string, cleanup func(), err error) {
+	cleanup = func() {}
 	if err := b.checkBuildDisk(); err != nil {
-		return api.BuildResult{}, err
+		return "", "", cleanup, err
 	}
 	if err := os.MkdirAll(b.Paths.BuildsDir(), 0o700); err != nil {
-		return api.BuildResult{}, err
+		return "", "", cleanup, err
 	}
 	dir, err := os.MkdirTemp(b.Paths.BuildsDir(), p.ServiceID+"-")
 	if err != nil {
-		return api.BuildResult{}, err
+		return "", "", cleanup, err
 	}
-	defer os.RemoveAll(dir)
+	cleanup = func() { os.RemoveAll(dir) }
+	root, sha, err = b.fetchInto(ctx, p, lg, dir)
+	return root, sha, cleanup, err
+}
 
+func (b *Builder) fetchInto(ctx context.Context, p api.BuildPayload, lg *buildLog, dir string) (string, string, error) {
 	// The token never appears in argv: git reads it from GIT_CONFIG_* (as actions/checkout does);
 	// a deploy key sits in a 0600 file of a private dir removed after the fetch (build_git.go).
 	remote, err := parseRemote(p.Repo)
 	if err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	secDir, err := os.MkdirTemp(b.Paths.BuildsDir(), "sec-")
 	if err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	defer os.RemoveAll(secDir)
 	env, _, err := b.gitAccess(ctx, buildAuth(p), remote, secDir)
 	if err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	ref := "refs/heads/" + p.Branch
 	if p.Commit != "" {
@@ -372,18 +398,18 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 	}
 	git, err := b.gitCommand(ctx, lg, dir, env)
 	if err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	if err := git(nil, "init", "-q"); err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	err = git(nil, "fetch", "--depth", "1", "--no-tags", remote.fetchURL, ref)
 	os.RemoveAll(secDir) // the key is not needed after the fetch
 	if err != nil {
-		return api.BuildResult{}, fmt.Errorf("fetching %s from %s failed (private repository without a valid token or deploy key, or unknown branch/commit): %w", ref, p.Repo, err)
+		return "", "", fmt.Errorf("fetching %s from %s failed (private repository without a valid token or deploy key, or unknown branch/commit): %w", ref, p.Repo, err)
 	}
 	if err := git(nil, "-c", "advice.detachedHead=false", "checkout", "-q", "FETCH_HEAD"); err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	var sha string
 	if err := git(func(s string) {
@@ -392,37 +418,35 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 		}
 		lg.line(s)
 	}, "rev-parse", "HEAD"); err != nil {
-		return api.BuildResult{}, err
+		return "", "", err
 	}
 	if sha == "" {
-		return api.BuildResult{}, errors.New("git rev-parse HEAD returned no commit")
+		return "", "", errors.New("git rev-parse HEAD returned no commit")
 	}
 	if p.Commit != "" && sha != p.Commit {
-		return api.BuildResult{}, fmt.Errorf("fetched commit %s, wanted %s", sha, p.Commit)
+		return "", "", fmt.Errorf("fetched commit %s, wanted %s", sha, p.Commit)
 	}
 
 	root, err := filepath.EvalSymlinks(dir)
 	if err != nil {
+		return "", "", err
+	}
+	return root, sha, nil
+}
+
+func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (api.BuildResult, error) {
+	root, sha, cleanup, err := b.checkout(ctx, p, lg)
+	defer cleanup()
+	if err != nil {
 		return api.BuildResult{}, err
 	}
-	inside := func(rel string) (string, error) {
-		pth, err := filepath.EvalSymlinks(filepath.Join(root, rel))
-		if err != nil {
-			return "", err
-		}
-		if pth != root && !strings.HasPrefix(pth, root+string(filepath.Separator)) {
-			return "", fmt.Errorf("%s points outside the repository", rel)
-		}
-		return pth, nil
-	}
-	ctxDir, err := inside(p.Context)
+	dir := root
+	ctxDir, dockerfile, detected, err := b.dockerfileFor(p, root, sha, lg) // build_detect.go
 	if err != nil {
-		return api.BuildResult{}, fmt.Errorf("build context %q not found in %s@%s", p.Context, p.Repo, sha[:12])
+		return api.BuildResult{}, err
 	}
-	dfRel := filepath.Join(p.Context, p.Dockerfile)
-	dockerfile, err := inside(dfRel)
-	if st, serr := os.Stat(dockerfile); err != nil || serr != nil || st.IsDir() {
-		return api.BuildResult{}, fmt.Errorf("no Dockerfile at %s in %s@%s. Builds without a Dockerfile (automatic detection such as Railpack/Nixpacks) are not supported yet: add a Dockerfile, or set git.dockerfile / git.context to where it is", dfRel, p.Repo, sha[:12])
+	if detected != nil && detected.Stack != "" {
+		defer os.Remove(dockerfile)
 	}
 
 	tag := BuildImageTag(p.ServiceID, sha)
@@ -460,7 +484,7 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 	if _, err := b.RT.ImageInfo(ctx, tag); err != nil {
 		return api.BuildResult{}, fmt.Errorf("docker build finished but %s is missing: %w", tag, err)
 	}
-	return api.BuildResult{Image: tag, Commit: sha}, nil
+	return api.BuildResult{Image: tag, Commit: sha, Detected: detected}, nil
 }
 
 // gitCommand returns how this build runs git: the host's git when installed, otherwise the

@@ -200,3 +200,57 @@ func TestOldAgentNoDockerfileHint(t *testing.T) {
 		t.Fatalf("message %q", d.Message)
 	}
 }
+
+func TestGitDetectPreview(t *testing.T) {
+	e := newTestEnv(t)
+	e.setup()
+	agent, nodeID := capableAgent(t, e)
+	gitBuilds(agent)
+	agent.mu.Lock()
+	prev := agent.hook
+	agent.hook = func(env inEnvelope) (api.ResultPayload, bool) {
+		if env.Type == api.MsgBuildDetect {
+			var p api.BuildPayload
+			json.Unmarshal(env.Payload, &p)
+			raw, _ := json.Marshal(api.GitDetected{Stack: orDefaultStr(p.Stack, "node"), Reason: "package.json", Dockerfile: "FROM node:22-alpine\n", Commit: gitHead})
+			return api.ResultPayload{OK: true, Output: string(raw)}, true
+		}
+		return prev(env)
+	}
+	agent.mu.Unlock()
+	var p api.Project
+	e.mustDo("POST", "/api/v1/projects", map[string]string{"name": "det", "server_id": nodeID}, &p, 201)
+	var svc api.Service
+	e.mustDo("POST", "/api/v1/projects/"+p.ID+"/services", map[string]any{"name": "app", "kind": "image",
+		"git": map[string]any{"repo": "https://gitlab.com/a/b", "token": "glpat-x"}}, &svc, 201)
+	var det api.GitDetected
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/git/detect", nil, &det, 200)
+	if det.Stack != "node" || det.Commit != gitHead {
+		t.Fatalf("detect %+v", det)
+	}
+	var got api.Service
+	e.mustDo("GET", "/api/v1/services/"+svc.ID, nil, &got, 200)
+	if got.Git.Detected == nil || got.Git.Detected.Stack != "node" {
+		t.Fatalf("stored detection %+v", got.Git.Detected)
+	}
+	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/git/detect", map[string]any{"stack": "bun"}, &det, 200)
+	if det.Stack != "bun" {
+		t.Fatalf("override %+v", det)
+	}
+	raws := agent.received(api.MsgBuildDetect)
+	var pl api.BuildPayload
+	json.Unmarshal(raws[len(raws)-1], &pl)
+	if pl.Token != "glpat-x" || pl.Username != "oauth2" || pl.Stack != "bun" {
+		t.Fatalf("detect payload %+v", pl)
+	}
+	if code := e.do("POST", "/api/v1/services/"+svc.ID+"/git/detect", map[string]any{"stack": "cobol"}, nil); code != 400 {
+		t.Fatalf("bad stack: %d", code)
+	}
+}
+
+func orDefaultStr(v, d string) string {
+	if v == "" {
+		return d
+	}
+	return v
+}

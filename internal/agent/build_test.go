@@ -34,6 +34,7 @@ type fakeCmd struct {
 	fetchErr    error
 	fetchHook   func(env []string) // called during git fetch (build_git_test.go)
 	lsRemoteOut []string           // git ls-remote output
+	dockerfiles []string           // content of the -f file of every docker build
 	buildBlock  chan struct{}      // docker build waits for it (or ctx) when set
 	started     chan string        // receives the tag of every docker build that starts
 	inspectErr  error              // docker buildx inspect (dedicated builder exists?)
@@ -106,6 +107,12 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 		for i, a := range args {
 			if a == "-t" && i+1 < len(args) {
 				tag = args[i+1]
+			}
+			if a == "-f" && i+1 < len(args) {
+				raw, _ := os.ReadFile(args[i+1])
+				c.mu.Lock()
+				c.dockerfiles = append(c.dockerfiles, string(raw))
+				c.mu.Unlock()
 			}
 		}
 		c.mu.Lock()

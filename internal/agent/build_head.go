@@ -66,9 +66,3 @@ func (b *Builder) Head(ctx context.Context, p api.GitHeadPayload) (api.GitHeadRe
 	}
 	return api.GitHeadResult{Commit: sha}, nil
 }
-
-// Detect fetches the commit a build would use and reports how it would be built (stack
-// detection for repositories without a Dockerfile; build_detect.go).
-func (b *Builder) Detect(ctx context.Context, p api.BuildPayload) (api.GitDetected, error) {
-	return api.GitDetected{}, errors.New("stack detection is not available yet")
-}
