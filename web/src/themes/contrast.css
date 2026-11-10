@@ -1,0 +1,35 @@
+/* High contrast: pure black and white, 3px borders, yellow focus, no shadows.
+   html[data-theme=contrast] sets the shape; .light / .dark set the colours. */
+html[data-theme=contrast] {
+  --hover-lift: none; --card-lift: none; --press: none; --card-press: none; --italic: normal; --bw: 3px;
+  --bw-thin: 2px; --sh-card: none; --sh-card-hover: none; --sh-btn: none; --sh-btn-hover: none;
+  --sh-tile: none; --sh-sm: none; --sh-side: none; --sh-pop: none; --btn-font: var(--font-sans);
+  --btn-weight: 800; --btn-track: 0; --r-box: 4px; --r-btn: 4px; --r-chip: 4px; --r-field: 4px; --r-tile: 4px;
+  --radius-sm: 2px; --radius-md: 3px; --radius-lg: 4px; --radius-xl: 4px; --radius-2xl: 6px;
+  --canvas-bg: none; --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent;
+  --focus: #ffe600; --focus-ring: 0 0 0 6px #000000;
+}
+html[data-theme=contrast].light {
+  color-scheme: light;
+  --bg: #ffffff; --side: #ffffff; --card: #ffffff; --card2: #ffffff; --sunk: #ffffff; --pop: #ffffff;
+  --line: #000000; --line2: #000000; --muted: #1f1f1f; --dim: #3d3d3d; --fg: #000000; --fg2: #000000;
+  --ov: #000000; --accent: #000000; --accent-soft: #000000; --tick-off: #d0d0d0; --edge: #000000;
+  --brand: #000000; --brand-ink: #ffffff; --brand-strong: #000000; --grain: transparent; --ink: #000000;
+  --danger: #b00000; --warn: #7a4a00; --hi: #ffe600; --hi-ink: #000000; --pick: #000000; --pick-ink: #ffffff;
+  --nav-bg: #ffe600; --nav-ink: #000000; --t-amber: #ffe600; --t-red: #ffb3b3; --t-green: #9dffb8;
+  --t-violet: #dccfff; --t-orange: #ffc78a; --t-note: #ffffff; --t-ok: #ffffff; --t-wash: #ffffff;
+  --t-field: #ffffff;
+}
+html[data-theme=contrast].dark {
+  color-scheme: dark;
+  --bg: #000000; --side: #000000; --card: #000000; --card2: #000000; --sunk: #000000; --pop: #000000;
+  --line: #ffffff; --line2: #ffffff; --muted: #e6e6e6; --dim: #c4c4c4; --fg: #ffffff; --fg2: #ffffff;
+  --ov: #ffffff; --accent: #ffffff; --accent-soft: #ffffff; --tick-off: #3a3a3a; --edge: #ffffff;
+  --brand: #ffffff; --brand-ink: #000000; --brand-strong: #ffffff; --grain: transparent; --ink: #000000;
+  --danger: #ff7070; --warn: #ffd000; --hi: #ffe600; --hi-ink: #000000; --pick: #ffffff; --pick-ink: #000000;
+  --nav-bg: #ffe600; --nav-ink: #000000; --t-amber: #ffe600; --t-red: #ffb3b3; --t-green: #9dffb8;
+  --t-violet: #dccfff; --t-orange: #ffc78a; --t-note: #ffffff; --t-ok: #ffffff; --t-wash: #ffffff;
+  --t-field: #ffffff;
+}
+html[data-theme=contrast] a:hover { text-decoration: underline; }
+html[data-theme=contrast] .btn-primary:hover, html[data-theme=contrast] .btn-secondary:hover, html[data-theme=contrast] .btn-danger:hover { outline: 2px solid var(--hi); outline-offset: 2px; }

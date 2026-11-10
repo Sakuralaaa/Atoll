@@ -1,0 +1,38 @@
+/* Minimal: hairline borders, soft shadows, large radii, black and white, no slant (Vercel / Linear).
+   html[data-theme=minimal] sets the shape; .light / .dark set the colours. */
+html[data-theme=minimal] {
+  --hover-lift: none; --card-lift: translateY(-1px); --press: translateY(1px); --card-press: none;
+  --italic: normal; --bw: 1px; --bw-thin: 1px;
+  --sh-card: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.05);
+  --sh-card-hover: 0 2px 4px rgba(0,0,0,.05), 0 8px 24px -8px rgba(0,0,0,.12);
+  --sh-btn: 0 1px 2px rgba(0,0,0,.06); --sh-btn-hover: 0 1px 3px rgba(0,0,0,.1); --sh-tile: none;
+  --sh-sm: none; --sh-side: none; --sh-pop: 0 12px 32px -8px rgba(0,0,0,.18); --btn-font: var(--font-sans);
+  --btn-weight: 600; --btn-track: -0.005em; --r-box: 12px; --r-btn: 8px; --r-chip: 999px; --r-field: 8px;
+  --r-tile: 8px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 14px; --radius-2xl: 16px;
+  --canvas-bg: none; --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent;
+  --focus: color-mix(in srgb, var(--fg) 55%, transparent);
+}
+html[data-theme=minimal].light {
+  color-scheme: light;
+  --bg: #fafafa; --side: #f5f5f5; --card: #ffffff; --card2: #f4f4f5; --sunk: #fafafa; --pop: #ffffff;
+  --line: #e4e4e7; --line2: #d4d4d8; --muted: #71717a; --dim: #a1a1aa; --fg: #09090b; --fg2: #27272a;
+  --ov: #000000; --accent: #18181b; --accent-soft: #3f3f46; --tick-off: #e4e4e7; --edge: #e4e4e7;
+  --brand: #18181b; --brand-ink: #ffffff; --brand-strong: #18181b; --grain: rgba(0,0,0,.05); --ink: #18181b;
+  --danger: #dc2626; --warn: #b45309; --hi: #18181b; --hi-ink: #ffffff; --pick: #18181b; --pick-ink: #ffffff;
+  --nav-bg: #f0f0f1; --nav-ink: #09090b; --t-amber: #fef3c7; --t-red: #fee2e2; --t-green: #dcfce7;
+  --t-violet: #ede9fe; --t-orange: #ffedd5; --t-note: #fffbeb; --t-ok: #f0fdf4;
+  --t-wash: rgba(255,255,255,.75); --t-field: #ffffff;
+}
+html[data-theme=minimal].dark {
+  color-scheme: dark;
+  --bg: #0a0a0a; --side: #0a0a0a; --card: #111111; --card2: #18181b; --sunk: #0d0d0d; --pop: #141414;
+  --line: #262626; --line2: #3f3f46; --muted: #a1a1aa; --dim: #71717a; --fg: #fafafa; --fg2: #d4d4d8;
+  --ov: #ffffff; --accent: #e4e4e7; --accent-soft: #d4d4d8; --tick-off: #27272a; --edge: #262626;
+  --brand: #fafafa; --brand-ink: #09090b; --brand-strong: #e4e4e7; --grain: rgba(255,255,255,.04);
+  --ink: #09090b; --danger: #f87171; --warn: #fbbf24; --hi: #fafafa; --hi-ink: #09090b; --pick: #fafafa;
+  --pick-ink: #09090b; --nav-bg: #1f1f22; --nav-ink: #fafafa; --t-amber: #fde68a; --t-red: #fecaca;
+  --t-green: #bbf7d0; --t-violet: #ddd6fe; --t-orange: #fed7aa; --t-note: #fef3c7; --t-ok: #dcfce7;
+  --t-wash: rgba(255,255,255,.7); --t-field: #fafafa;
+}
+html[data-theme=minimal].dark .btn-secondary:hover, html[data-theme=minimal].dark .surface-hover:hover { border-color: #3f3f46; }
+html[data-theme=minimal].light .btn-secondary:hover, html[data-theme=minimal].light .surface-hover:hover { border-color: #d4d4d8; }
