@@ -43,6 +43,8 @@ type agentConn struct {
 	lastSeen atomic.Int64
 	// selfUpgrade: the agent said in its hello that it handles MsgUpgrade.
 	selfUpgrade bool
+	// buildSources: the agent said in its hello that it builds any git source (git_source.go).
+	buildSources bool
 	// latency: round-trip times of control→agent pings (latency.go).
 	latency latencyRing
 }
@@ -252,6 +254,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	var hello api.HelloPayload
 	json.Unmarshal(env.Payload, &hello)
 	c.selfUpgrade = hello.SelfUpgrade
+	c.buildSources = hello.BuildSources
 	if err := s.st.UpdateNodeHello(ctx, nodeID, hello); err != nil {
 		s.log.Error("hello", "err", err)
 		return

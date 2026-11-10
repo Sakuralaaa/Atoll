@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
 // The webhook secret rotate needs deploy for a member (it was session-only before), and a
@@ -25,7 +26,7 @@ func TestMemberWebhookRotateNeedsDeploy(t *testing.T) {
 		if err := e.srv.st.CreateService(ctx, svc); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.srv.st.PutServiceGit(ctx, svc.ID, api.GitSource{Repo: "https://github.com/acme/app", Branch: "main"}, nil, "s3cret-webhook"); err != nil {
+		if err := e.srv.st.PutServiceGit(ctx, svc.ID, api.GitSource{Repo: "https://github.com/acme/app", Branch: "main"}, store.GitSecrets{}, "s3cret-webhook"); err != nil {
 			t.Fatal(err)
 		}
 		var wh api.GitWebhook

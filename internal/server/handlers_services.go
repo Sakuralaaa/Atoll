@@ -72,6 +72,13 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 		if !s.hub.Online(node) {
 			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
 		}
+		g := *req.Git
+		if err := validateGitSource(&g); err != nil {
+			return err
+		}
+		if err := s.checkBuildCaps(node, g, false); err != nil { // git_source.go
+			return err
+		}
 	}
 	if err := checkHostPaths(req.Service.Volumes, nil); err != nil {
 		return err
@@ -214,8 +221,10 @@ func (s *Server) createService(ctx context.Context, p *api.Project, v api.Servic
 			s.st.DeleteService(ctx, v.ID)
 			return nil, err
 		}
-		v.Git = &api.GitSource{Repo: git.Repo, Branch: git.Branch, Context: git.Context, Dockerfile: git.Dockerfile,
-			BuildArgs: git.BuildArgs, HasToken: git.Token != ""}
+		out := *git
+		out.HasToken, out.HasSSHKey = git.Token != "", git.SSHKey != ""
+		out.Token, out.SSHKey = "", ""
+		v.Git = &out
 		v.Source = "git"
 	}
 	s.publishService(ctx, v.ID)
@@ -277,9 +286,14 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 			return badRequest("invalid git: %v", err)
 		}
 		cur := *svc.Git
-		cur.HasToken, cur.LastCommit = false, ""
+		cur.HasToken, cur.LastCommit, cur.HasSSHKey, cur.Detected = false, "", false, nil
 		b, _ := json.Marshal(cur)
 		json.Unmarshal(b, &base)
+		if _, repo := over["repo"]; repo {
+			if _, prov := over["provider"]; !prov {
+				delete(base, "provider") // a new repo URL infers its provider again
+			}
+		}
 		for k, v := range over {
 			base[k] = v
 		}
@@ -326,6 +340,9 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 		}
 		if !s.hub.Online(nodeID) {
 			return errf(409, "server_offline", "%v; builds from source run on the service's server", ErrNodeOffline)
+		}
+		if err := s.checkBuildCaps(nodeID, *gitNext, svc.Git != nil && svc.Git.HasSSHKey && !gitNext.ClearSSHKey); err != nil {
+			return err
 		}
 	}
 	if err := checkHostPaths(next.Volumes, svc.Volumes); err != nil {

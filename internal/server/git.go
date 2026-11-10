@@ -80,11 +80,10 @@ func cleanRelPath(field, p string) (string, error) {
 
 // validateGitSource normalizes g in place (defaults, cleaned paths).
 func validateGitSource(g *api.GitSource) error {
-	repo, err := normalizeRepo(g.Repo)
+	u, err := normalizeGitSourceURL(g) // git_source.go
 	if err != nil {
 		return err
 	}
-	g.Repo = repo
 	g.Branch = strings.TrimSpace(g.Branch)
 	if g.Branch == "" {
 		g.Branch = "main"
@@ -116,19 +115,18 @@ func validateGitSource(g *api.GitSource) error {
 	}
 	g.Token = strings.TrimSpace(g.Token)
 	if len(g.Token) > 512 || strings.ContainsAny(g.Token, " \t\r\n") {
-		return badRequest("git.token is not a valid GitHub token")
+		return badRequest("git.token is not a valid access token")
 	}
 	g.HasToken, g.LastCommit = false, ""
-	return nil
+	return validateGitExtras(g, u)
 }
 
-// tokenUpdate turns the write-only token fields of a request into PutServiceGit's argument.
-func tokenUpdate(g *api.GitSource) *string {
+// secretUpdate turns a write-only field and its clear flag into a PutServiceGit argument.
+func secretUpdate(v string, clear bool) *string {
 	switch {
-	case g.Token != "":
-		t := g.Token
-		return &t
-	case g.ClearToken:
+	case v != "":
+		return &v
+	case clear:
 		e := ""
 		return &e
 	}
@@ -138,8 +136,13 @@ func tokenUpdate(g *api.GitSource) *string {
 func newWebhookSecret() string { return randString(40, tokenAlphabet) }
 
 func (s *Server) webhookInfo(ctx context.Context, r *http.Request, svcID string, g *store.GitRow, withSecret bool) api.GitWebhook {
+	kind := g.Provider
+	if kind != "gitlab" && kind != "gitea" {
+		kind = "github" // GitHub, and any server that signs like it (X-Hub-Signature-256)
+	}
 	w := api.GitWebhook{
-		URL:         s.publicURL(ctx, r) + "/api/v1/hooks/github/" + svcID,
+		URL:         s.publicURL(ctx, r) + "/api/v1/hooks/" + kind + "/" + svcID,
+		Provider:    g.Provider,
 		HasSecret:   g.WebhookSecret != "",
 		ContentType: "application/json",
 		Events:      "push",
@@ -157,13 +160,16 @@ func (s *Server) saveGitSource(ctx context.Context, svcID string, g api.GitSourc
 	if isNew {
 		secret = newWebhookSecret()
 	}
-	tok := tokenUpdate(&g)
-	if isNew && tok == nil {
-		e := ""
-		tok = &e
+	sec := store.GitSecrets{Token: secretUpdate(g.Token, g.ClearToken), SSHKey: secretUpdate(g.SSHKey, g.ClearSSHKey)}
+	e := ""
+	if isNew && sec.Token == nil {
+		sec.Token = &e
 	}
-	g.Token, g.ClearToken = "", false
-	return secret, s.st.PutServiceGit(ctx, svcID, g, tok, secret)
+	if isNew && sec.SSHKey == nil {
+		sec.SSHKey = &e
+	}
+	g.Token, g.ClearToken, g.SSHKey, g.ClearSSHKey = "", false, "", false
+	return secret, s.st.PutServiceGit(ctx, svcID, g, sec, secret)
 }
 
 // ---------- deploy integration ----------
@@ -172,7 +178,7 @@ func (s *Server) saveGitSource(ctx context.Context, svcID string, g api.GitSourc
 // pushed commit). Other deploys (env change, migration, restore...) reuse the last image when
 // it is on the target server, and otherwise rebuild the commit that was running.
 func userBuildTrigger(trigger string) bool {
-	return trigger == "create" || trigger == "redeploy" || trigger == "webhook"
+	return trigger == "create" || trigger == "redeploy" || trigger == "webhook" || trigger == "poll"
 }
 
 // prepareBuild decides how a git service's deployment gets its image. It either fills spec
@@ -194,12 +200,18 @@ func (s *Server) prepareBuild(ctx context.Context, svc *api.Service, spec *api.R
 	}
 	spec.Image = ""
 	timeout := int(s.cfg.BuildTimeout / time.Second)
-	return &api.BuildPayload{
+	b := &api.BuildPayload{
 		DeploymentID: spec.DeploymentID, ServiceID: svc.ID,
 		Repo: g.Repo, Branch: g.Branch, Commit: commit, Context: g.Context, Dockerfile: g.Dockerfile,
 		BuildArgs: g.BuildArgs, Token: g.Token,
 		TimeoutSec: timeout, QueueSec: timeout, Keep: s.cfg.BuildKeep,
-	}, nil
+	}
+	if s.agentBuildSources(node) { // git_source.go; older agents get the payload they know
+		fillBuildSources(b, g, firstPort(*spec))
+	} else if gitNeedsSources(g.GitSource, g.HasSSHKey) {
+		b.Provider = g.Provider // marks the payload for runBuild's agent check
+	}
+	return b, nil
 }
 
 // runBuild runs a deployment's build on its server and returns the spec completed with the
@@ -219,15 +231,29 @@ func (s *Server) runBuild(ctx context.Context, p pendingApply) (api.ResolvedSpec
 	s.appendBuildLog(ctx, p.depID, p.serviceID, []string{"atoll: building " + what + " on " + p.nodeID})
 
 	wait := time.Duration(b.TimeoutSec+b.QueueSec)*time.Second + 2*time.Minute
-	res, err := s.hub.Request(ctx, p.nodeID, api.MsgBuild, *b, wait)
+	var res api.ResultPayload
+	var err error
 	msg := ""
+	if b.Builder == "" && b.Provider != "" { // the source needs a newer agent (git_source.go)
+		if g, gerr := s.st.GetServiceGit(ctx, p.serviceID); gerr == nil && s.agentBuildSources(p.nodeID) {
+			fillBuildSources(b, g, firstPort(p.spec))
+		} else {
+			msg = agentTooOldBuildMsg
+		}
+	}
+	if msg == "" {
+		res, err = s.hub.Request(ctx, p.nodeID, api.MsgBuild, *b, wait)
+	}
 	switch {
+	case msg != "":
 	case err != nil:
 		msg = err.Error()
 	case !res.OK:
 		msg = res.Error
 		if strings.Contains(msg, "unsupported message type") {
 			msg = "this server's atoll-agent is too old to build from source; upgrade it"
+		} else {
+			msg = agentUpgradeHint(msg)
 		}
 	}
 	var out api.BuildResult
@@ -249,6 +275,9 @@ func (s *Server) runBuild(ctx context.Context, p pendingApply) (api.ResolvedSpec
 		return api.ResolvedSpec{}, false
 	}
 	s.st.SetGitBuilt(ctx, p.serviceID, out.Commit, out.Image, p.nodeID)
+	if b.Builder != "" { // new agents report how they built it (nil = the repo's Dockerfile)
+		s.st.SetGitDetected(ctx, p.serviceID, out.Detected)
+	}
 	s.st.SetServiceImage(ctx, p.serviceID, out.Image)
 	s.st.PruneDeploymentLogs(ctx, p.serviceID, 10)
 	s.appendBuildLog(ctx, p.depID, p.serviceID, []string{"atoll: built " + out.Image + " (commit " + out.Commit + "), deploying"})
