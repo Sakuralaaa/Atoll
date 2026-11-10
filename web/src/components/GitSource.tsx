@@ -54,7 +54,7 @@ export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f
             <TextInput mono className="w-[40%] min-w-0" placeholder="KEY" value={a.k} onChange={e => setArg(i, { ...a, k: e.target.value.trim() })} />
             <span className="text-muted font-mono">=</span>
             <TextInput mono className="flex-1 min-w-0" placeholder="value" value={a.v} onChange={e => setArg(i, { ...a, v: e.target.value })} />
-            <button type="button" title={t('删除', 'Remove')} onClick={() => set({ ...f, args: f.args.filter((_, j) => j !== i) })} className="text-muted hover:text-[#ef4444] px-1"><Trash2 size={15} /></button>
+            <button type="button" title={t('删除', 'Remove')} onClick={() => set({ ...f, args: f.args.filter((_, j) => j !== i) })} className="text-muted hover:text-danger px-1"><Trash2 size={15} /></button>
           </div>
         ))}</div> : <div className="h-11 rounded-lg border-2 border-dashed border-line2 px-3.5 flex items-center text-[13px] text-dim">{t('没有构建参数', 'No build args')}</div>}
         <div className="text-[12px] text-dim mt-1.5">{t('构建参数不是机密：会留在镜像历史里。机密请用环境变量。', 'Build args are not secret: they stay in the image history. Use env vars for secrets.')}</div>
@@ -63,7 +63,7 @@ export function GitFields({ f, set, hasToken, autoFocus }: { f: GitForm; set: (f
         {hasToken && !f.token && <div className="mb-2 flex items-center gap-2 text-[13px]">
           {f.clearToken
             ? <><Badge tone="red"><X size={11} />{t('保存后清除', 'Cleared on save')}</Badge><button type="button" onClick={() => set({ ...f, clearToken: false })} className="text-accent text-[12.5px]">{t('撤销', 'Undo')}</button></>
-            : <><Badge tone="green"><KeyRound size={11} />{t('Token 已保存', 'Token saved')}</Badge><button type="button" onClick={() => set({ ...f, clearToken: true })} className="text-[12.5px] text-muted hover:text-[#ef4444]">{t('清除', 'Clear')}</button></>}
+            : <><Badge tone="green"><KeyRound size={11} />{t('Token 已保存', 'Token saved')}</Badge><button type="button" onClick={() => set({ ...f, clearToken: true })} className="text-[12.5px] text-muted hover:text-danger">{t('清除', 'Clear')}</button></>}
         </div>}
         <div className="relative">
           <TextInput mono className="w-full pr-10" type={showTok ? 'text' : 'password'} autoComplete="new-password" value={f.token} onChange={up('token')}
@@ -176,7 +176,7 @@ function WebhookSection({ s }: { s: Service }) {
       <div className="flex flex-wrap items-center gap-2 mb-2"><Webhook size={15} className="text-accent" /><span className="text-[13px] font-semibold">GitHub Webhook</span>
         <span className="text-[12.5px] text-dim">{t(`推送到 ${s.git?.branch || 'main'} 后自动构建`, `Pushes to ${s.git?.branch || 'main'} build automatically`)}</span>
         <button onClick={() => setSetup(true)} disabled={!wh} className="ml-auto text-accent text-[12.5px]">{t('设置步骤', 'Setup steps')}</button></div>
-      {q.error && !wh ? <div className="text-[13px] text-[#ef4444]">{q.error.message}</div> : !wh ? <Skeleton className="h-24 w-full" /> : (
+      {q.error && !wh ? <div className="text-[13px] text-danger">{q.error.message}</div> : !wh ? <Skeleton className="h-24 w-full" /> : (
         <div className="space-y-2">
           <div className="h-11 rounded-lg field px-3.5 flex items-center gap-3 font-mono text-[13px] min-w-0"><span className="text-muted font-sans text-[12px] w-[52px] shrink-0 @max-md:hidden">URL</span><span className="truncate flex-1 min-w-0" title={wh.url}>{wh.url}</span><CopyButton text={wh.url} /></div>
           <div className="min-h-11 py-1.5 rounded-lg field px-3.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[13px] min-w-0">
@@ -217,9 +217,9 @@ export function EditGitModal({ s, onClose }: { s: Service; onClose: () => void }
   if (wh) return <WebhookOnceDialog wh={wh} onClose={onClose} />
   return (
     <Modal title={<><GithubIcon size={17} />{isNew ? t('改为从 GitHub 构建', 'Build from GitHub') : t('编辑源码设置', 'Edit git settings')}</>} width={640} onClose={onClose}
-      footer={<><span className="mr-auto self-center text-[12.5px] text-[#ef4444]">{f.repo && err}</span><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button>
+      footer={<><span className="mr-auto self-center text-[12.5px] text-danger">{f.repo && err}</span><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button>
         <Button size="sm" variant="primary" disabled={!!err || busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Rocket size={13} />}{t('保存并构建', 'Save and build')}</Button></>}>
-      {isNew && <div className="mb-4 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">{t('保存后不再拉取镜像，改为在服务器上用 Dockerfile 构建；之后可随时改回镜像。', 'After saving, the image is no longer pulled; the service is built from its Dockerfile on its server. You can switch back any time.')}</div>}
+      {isNew && <div className="mb-4 rounded-lg border-2 border-dashed border-warn px-3 py-2 text-[12.5px] text-fg2">{t('保存后不再拉取镜像，改为在服务器上用 Dockerfile 构建；之后可随时改回镜像。', 'After saving, the image is no longer pulled; the service is built from its Dockerfile on its server. You can switch back any time.')}</div>}
       <GitFields f={f} set={setF} hasToken={s.git?.has_token} autoFocus={isNew} />
     </Modal>
   )
@@ -266,20 +266,20 @@ export function BuildLogModal({ s, d, onClose }: { s: Service; d: Deployment; on
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted mb-3">
         <span className="font-mono">{d.id}</span><span>· {triggerText[d.trigger] ?? d.trigger}</span><span>· {dateTime(d.started_at)}</span>
         {d.commit && <span>· <CommitLink s={s} d={d} /></span>}
-        {truncated && <span className="ml-auto text-[#f59e0b]">{t('日志过长，只保留了最新的部分', 'Log truncated: only the newest lines are kept')}</span>}
+        {truncated && <span className="ml-auto text-warn">{t('日志过长，只保留了最新的部分', 'Log truncated: only the newest lines are kept')}</span>}
       </div>
       <div className="relative">
         <div ref={box} onScroll={e => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40) }}
           className="surface bg-sunk h-[52vh] overflow-auto p-4 font-mono text-[12.5px] leading-5">
           {!loaded && <div className="space-y-2"><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /><Skeleton className="h-3 w-3/5" /></div>}
           {loaded && !lines.length && <div className="text-dim font-sans text-[13px]">{error ? error.message : live ? t('等待构建输出…', 'Waiting for build output…') : t('这次部署没有构建日志（只保留最近 10 次部署的日志）', 'No build log for this deployment (logs are kept for the 10 newest deployments)')}</div>}
-          {lines.map(l => <div key={l.seq} className={cx('whitespace-pre-wrap break-all', /\b(error|failed|fatal)\b/i.test(l.line) ? 'text-[#ef4444]' : 'text-fg2')}>{l.line}</div>)}
+          {lines.map(l => <div key={l.seq} className={cx('whitespace-pre-wrap break-all', /\b(error|failed|fatal)\b/i.test(l.line) ? 'text-danger' : 'text-fg2')}>{l.line}</div>)}
           {live && loaded && <div className="mt-2 flex items-center gap-2 text-muted font-sans text-[12px]"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />{t('实时输出中', 'Live')}</div>}
-          {!live && st === 'failed' && d.message && <div className="mt-3 text-[#ef4444] whitespace-pre-wrap break-all">{d.message}</div>}
+          {!live && st === 'failed' && d.message && <div className="mt-3 text-danger whitespace-pre-wrap break-all">{d.message}</div>}
         </div>
         {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="absolute right-4 bottom-4 h-9 w-9 rounded-full tile bg-card2 grid place-items-center"><ArrowDown size={16} /></button>}
       </div>
-      {error && lines.length > 0 && <div className="mt-2 text-[12.5px] text-[#ef4444]">{error.message}</div>}
+      {error && lines.length > 0 && <div className="mt-2 text-[12.5px] text-danger">{error.message}</div>}
     </Modal>
   )
 }

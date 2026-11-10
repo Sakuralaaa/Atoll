@@ -38,6 +38,7 @@ html[data-theme=terminal].dark {
   --t-wash: rgba(255,255,255,.55); --t-field: #e9ffe9; --scan-t: rgba(51,255,102,.035);
   --glow-t: rgba(51,255,102,.45);
 }
+html[data-theme=terminal].light { --knob: #f2fff0; } html[data-theme=terminal].dark { --knob: #021a06; }
 html[data-theme=terminal] body { letter-spacing: 0; font-feature-settings: normal; }
 html[data-theme=terminal].dark body { text-shadow: 0 0 1px rgba(51,255,102,.35); }
 html[data-theme=terminal] .rounded-full:not(.h-\[7px\]):not(.h-2\.5):not(.h-2) { border-radius: 0 !important; }

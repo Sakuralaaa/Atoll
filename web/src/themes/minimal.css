@@ -34,5 +34,6 @@ html[data-theme=minimal].dark {
   --t-green: #bbf7d0; --t-violet: #ddd6fe; --t-orange: #fed7aa; --t-note: #fef3c7; --t-ok: #dcfce7;
   --t-wash: rgba(255,255,255,.7); --t-field: #fafafa;
 }
+html[data-theme=minimal].light { --knob: #ffffff; } html[data-theme=minimal].dark { --knob: #0a0a0a; }
 html[data-theme=minimal].dark .btn-secondary:hover, html[data-theme=minimal].dark .surface-hover:hover { border-color: #3f3f46; }
 html[data-theme=minimal].light .btn-secondary:hover, html[data-theme=minimal].light .surface-hover:hover { border-color: #d4d4d8; }

@@ -83,8 +83,8 @@ function Form({ s }: { s: Settings }) {
         d={t('只写：保存后不再显示。Tailscale 后台 → Settings → Keys → Generate auth key（Reusable + Tags）。', 'Write-only: never shown again. Tailscale admin → Settings → Keys → Generate auth key (Reusable + Tags).')}>
         <TextInput mono type="password" autoComplete="off" className="w-full" value={authKey} onChange={e => setAuthKey(e.target.value)}
           placeholder={s.has_tailscale_auth_key ? t('已设置，留空保持不变', 'Set — leave empty to keep') : 'tskey-auth-…'} />
-        {keyBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('应以 tskey- 开头', 'Should start with tskey-')}</div>}
-        {needKey && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('启用 Tailscale 需要 auth key', 'Tailscale needs an auth key')}</div>}
+        {keyBad && <div className="text-[12px] text-danger mt-1.5">{t('应以 tskey- 开头', 'Should start with tskey-')}</div>}
+        {needKey && <div className="text-[12px] text-danger mt-1.5">{t('启用 Tailscale 需要 auth key', 'Tailscale needs an auth key')}</div>}
         {s.has_tailscale_auth_key && !wasOn && <button type="button" disabled={busy} onClick={clearKey} className="mt-2 text-[12.5px] text-muted underline hover:text-fg">{t('清除已保存的 auth key', 'Clear the stored auth key')}</button>}
       </Row>
       <Row t={t('Tailnet 名称', 'Tailnet name')} d={t('MagicDNS 后缀，可选，例如 tail1234.ts.net', 'MagicDNS suffix, optional, e.g. tail1234.ts.net')}>
@@ -92,7 +92,7 @@ function Form({ s }: { s: Settings }) {
       </Row>
       <Row t={t('中控内网地址', 'Control URL over tailnet')} d={t('Agent 经 tailnet 连中控的地址。留空则用中控的 tailnet 监听地址（ATOLL_AGENT_LISTEN）。', 'Where agents reach the control server over the tailnet. Empty = derived from the tailnet listener (ATOLL_AGENT_LISTEN).')}>
         <TextInput mono className="w-full" value={url} onChange={e => setUrl(e.target.value)} placeholder={s.tailnet_control_url || 'http://100.x.y.z:7301'} />
-        {urlBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('需以 http:// 或 https:// 开头', 'Must start with http:// or https://')}</div>}
+        {urlBad && <div className="text-[12px] text-danger mt-1.5">{t('需以 http:// 或 https:// 开头', 'Must start with http:// or https://')}</div>}
       </Row>
       <Row t={t('监听状态', 'Listener status')} d={t('中控在 tailnet 上为 Agent 开放的端口', 'The agent endpoint the control server serves on the tailnet')}>
         <div className="space-y-2 text-[13px]">

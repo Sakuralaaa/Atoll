@@ -12,7 +12,7 @@ export function Toaster() {
     <div className="fixed left-4 right-4 bottom-4 sm:left-auto sm:right-6 sm:bottom-6 z-[70] flex flex-col gap-3 sm:w-[380px]">
       {list.map(t => (
         <div key={t.id} role="status" className={cx('rise surface px-4 py-3 flex items-start gap-3 text-[13px] font-semibold',
-          t.tone === 'error' && '!bg-[#fca5a5] text-[#141414]', t.tone === 'ok' && '!bg-[#86efac] text-[#141414]')}>
+          t.tone === 'error' && '!bg-t-red text-ink', t.tone === 'ok' && '!bg-t-green text-ink')}>
           {t.tone === 'error' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : t.tone === 'ok' ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <Info size={16} className="mt-0.5 shrink-0 text-accent" />}
           <span className="flex-1 min-w-0 [overflow-wrap:anywhere]">{t.msg}</span>
           {t.action && <button onClick={() => { dismissToast(t.id); t.action?.run() }} className="shrink-0 underline underline-offset-2 font-bold hover:opacity-80">{t.action.label}</button>}
@@ -53,7 +53,7 @@ export function ConfirmDialog({ title, description, name, action = L("确认删�
   const ok = (name === undefined || v === name) && !busy
   const go = async () => { if (!ok) return; setBusy(true); try { await onConfirm(); onClose() } finally { setBusy(false) } }
   return (
-    <Modal title={<><AlertTriangle size={17} className={danger ? 'text-[#ef4444]' : 'text-accent'} />{title}</>} onClose={onClose}
+    <Modal title={<><AlertTriangle size={17} className={danger ? 'text-danger' : 'text-accent'} />{title}</>} onClose={onClose}
       footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant={danger ? 'danger' : 'primary'} autoFocus={name === undefined} disabled={!ok} className={!ok ? 'opacity-50 pointer-events-none' : ''} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{action}</Button></>}>
       <div className="text-[13.5px] text-fg2 leading-6 [overflow-wrap:anywhere]">{description}</div>
       {children}
@@ -77,8 +77,8 @@ export function Label({ t, d, children }: { t: string; d?: string; children: Rea
 }
 export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" onClick={() => onChange(!on)} className={cx('h-6 w-11 shrink-0 rounded-full relative border-2 border-[var(--edge)] transition-colors', on ? 'bg-[#7c3aed]' : 'bg-sunk')}>
-      <span className={cx('absolute top-[1px] h-[18px] w-[18px] rounded-full border-2 border-[var(--edge)] bg-[#fde047] transition-all', on ? 'right-[1px]' : 'left-[1px]')} />
+    <button type="button" onClick={() => onChange(!on)} className={cx('h-6 w-11 shrink-0 rounded-full relative border-2 border-[var(--edge)] transition-colors', on ? 'bg-brand' : 'bg-sunk')}>
+      <span className={cx('absolute top-[1px] h-[18px] w-[18px] rounded-full border-2 border-[var(--edge)] bg-[var(--knob,var(--hi))] transition-all', on ? 'right-[1px]' : 'left-[1px]')} />
     </button>
   )
 }
@@ -116,7 +116,7 @@ export function RowsSkeleton({ n = 4 }: { n?: number }) {
 export function Empty({ icon, title, desc, action }: { icon?: React.ReactNode; title: string; desc?: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-line2 px-8 py-12 flex flex-col items-center text-center">
-      {icon && <div className="tile h-12 w-12 rounded-lg bg-[#fde047] text-[#141414] grid place-items-center mb-4">{icon}</div>}
+      {icon && <div className="tile h-12 w-12 rounded-lg bg-hi text-hi-ink grid place-items-center mb-4">{icon}</div>}
       <div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{title}</div>
       {desc && <div className="text-[13px] text-muted mt-1.5 max-w-[460px] leading-6">{desc}</div>}
       {action && <div className="mt-5">{action}</div>}
@@ -125,7 +125,7 @@ export function Empty({ icon, title, desc, action }: { icon?: React.ReactNode; t
 }
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
-    <Card className="px-6 py-5 flex items-center gap-4 !bg-[#fca5a5] text-[#141414]">
+    <Card className="px-6 py-5 flex items-center gap-4 !bg-t-red text-ink">
       <AlertTriangle size={18} /><div className="flex-1"><div className="text-[13.5px] font-bold">{L("加载失败")}</div><div className="text-[13px] mt-0.5">{error.message}</div></div>
       {onRetry && <button onClick={onRetry} className="btn-secondary h-8 px-3 text-[12.5px] inline-flex items-center gap-1.5"><RefreshCw size={13} />{L("重试")}</button>}
     </Card>

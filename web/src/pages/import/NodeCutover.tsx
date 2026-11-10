@@ -22,7 +22,7 @@ const READY = ['rehearsed', 'rolled_back']
 export function NodeWideNote() {
   const { t } = useT()
   return (
-    <Card className="px-5 py-4 flex items-start gap-3 text-[13px] !bg-[#fde68a] text-[#141414]">
+    <Card className="px-5 py-4 flex items-start gap-3 text-[13px] !bg-[#fde68a] text-ink">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" />
       <div className="leading-6">{t(
         'Zeabur 的入口控制器由这台服务器上所有 Zeabur 项目共用：切换会让它们全部停止由 Zeabur 对外服务。服务器上还有其他在运行、有域名的项目时，单独切换会被拒绝——先逐个导入并演练，再一起批量切换。',
@@ -51,7 +51,7 @@ export function NodeCutoverCard({ job, srv }: { job: ImportJob; srv?: Server }) 
           const self = j.id === job.id, on = self || (picked[j.id] ?? true)
           return (
             <button key={j.id} type="button" disabled={self} onClick={() => setPicked(p => ({ ...p, [j.id]: !on }))} className="flex items-center gap-3 w-full text-left min-h-9 text-[13px] disabled:cursor-default">
-              <span className={cx('h-5 w-5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', on ? 'bg-[#8b5cf6] text-white' : 'bg-sunk')}>{on && <Check size={13} strokeWidth={3} />}</span>
+              <span className={cx('h-5 w-5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', on ? 'bg-pick text-pick-ink' : 'bg-sunk')}>{on && <Check size={13} strokeWidth={3} />}</span>
               <span className="font-semibold truncate">{j.plan.project_name}</span>
               <span className="font-mono text-[12px] text-muted truncate">{j.namespace}</span>
               {self && <span className="ml-auto text-[12px] text-dim shrink-0">{t('当前', 'current')}</span>}

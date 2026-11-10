@@ -149,7 +149,7 @@ function ProjectCard({ p, servers, updates, prefs, drag }: CardProps & { p: Proj
       </div>
       <div className="mt-auto pt-5"><div className="px-5 h-11 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px]">
         {srv ? <><Mini provider={providerOf(srv)} size={13} /><span className="text-fg2 truncate min-w-0">{srv.name}</span></> : <span className="text-dim">—</span>}
-        <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} /><span className={bad ? 'text-[#ef4444] font-semibold' : ''}>{!ss.length ? t('无服务', 'No services') : bad ? t('有异常', 'Failing') : run === ss.length ? t('运行中', 'Running') : t('部分运行', 'Partly running')}</span>{run}/{ss.length}</span>
+        <span className="ml-auto flex items-center gap-2 text-muted tnum shrink-0"><UpdateBadge u={ss.map(s => updates[s.id]).find(u => u?.update_available)} /><Dot status={!ss.length ? 'unknown' : bad ? 'failed' : run === ss.length ? 'running' : 'deploying'} /><span className={bad ? 'text-danger font-semibold' : ''}>{!ss.length ? t('无服务', 'No services') : bad ? t('有异常', 'Failing') : run === ss.length ? t('运行中', 'Running') : t('部分运行', 'Partly running')}</span>{run}/{ss.length}</span>
       </div></div>
     </Link>
   )
@@ -199,7 +199,7 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
   }
   const shown = apps.filter(a => cat === 'all' || a.category === cat)
   const tab = (v: 'empty' | 'app', label: string) => (
-    <button type="button" onClick={() => setMode(v)} className={cx('h-8 px-3 rounded-md text-[13px] font-semibold transition-colors', mode === v ? 'bg-[#fde047] text-[#141414] border-2 border-[var(--edge)]' : 'text-muted hover:text-fg')}>{label}</button>
+    <button type="button" onClick={() => setMode(v)} className={cx('h-8 px-3 rounded-md text-[13px] font-semibold transition-colors', mode === v ? 'bg-hi text-hi-ink border-2 border-[var(--edge)]' : 'text-muted hover:text-fg')}>{label}</button>
   )
   return (
     <Modal title={L("创建项目")} width={mode === 'app' ? 760 : 560} onClose={onClose} footer={<><Button size="sm" onClick={onClose}>{L("取消")}</Button><Button size="sm" variant="primary" disabled={!ready || busy} onClick={submit}>{mode === 'app' ? L("创建并部署") : L("创建")}</Button></>}>
@@ -211,7 +211,7 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4 max-h-[300px] overflow-auto pr-1 -mr-1">
           {shown.map(a => (
             <button key={a.id} type="button" onClick={() => { setAppId(a.id); if (!name.trim() || apps.some(x => x.id === name.trim())) setName(a.id) }}
-              className={cx('text-left flex gap-3 p-3 rounded-lg border-2 transition-colors', appId === a.id ? 'border-[#8b5cf6] bg-[#8b5cf6]/10' : 'border-line hover:border-[var(--edge)]')}>
+              className={cx('text-left flex gap-3 p-3 rounded-lg border-2 transition-colors', appId === a.id ? 'border-pick bg-pick/10' : 'border-line hover:border-[var(--edge)]')}>
               <span style={{ background: a.color }} className="tile h-9 w-9 shrink-0 rounded-[8px] grid place-items-center text-[15px] font-extrabold font-mono text-white">{a.name[0]}</span>
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-[13.5px] font-semibold">{a.name}{a.services.length > 1 && <span className="text-[11px] font-mono text-dim">+{a.services.filter(x => !x.main).map(x => x.template ?? x.name).join(', ')}</span>}</span>
@@ -231,11 +231,11 @@ function CreateProject({ onClose, defaultServer }: { onClose: () => void; defaul
         {app && mode === 'app' && <>
           <Label t={app.needs_domain ? (lang === "en" ? "Domain" : "域名") : L("域名（可选）")} d={app.needs_domain ? L("{0} 需要通过自己的 HTTPS 域名访问", app.name) : L("留空则之后在服务的「网络」里绑定")}>
             <HostnameInput h={h} onEnter={submit} placeholder={app.needs_domain ? L("前缀，如 {0}；填 @ 使用根域名本身", app.id) : L("前缀，如 {0}；留空则不绑定", app.id)} />
-            {!noDomain && <div className={cx('text-[12px] font-mono mt-1.5 break-all', h.v.ok ? 'text-muted' : 'text-[#ef4444]')}>{h.v.ok ? <>→ https://{h.v.full}</> : L("域名格式不对")}</div>}
+            {!noDomain && <div className={cx('text-[12px] font-mono mt-1.5 break-all', h.v.ok ? 'text-muted' : 'text-danger')}>{h.v.ok ? <>→ https://{h.v.full}</> : L("域名格式不对")}</div>}
           </Label>
           {extraSvc && <Label t={(lang === 'en' ? extraSvc.domain_label_en : extraSvc.domain_label) || L("{0} 的域名（可选）", extraSvc.name)} d={(lang === 'en' ? extraSvc.domain_hint_en : extraSvc.domain_hint) || L("留空则之后在服务的「网络」里绑定")}>
             <HostnameInput h={h2} onEnter={submit} placeholder={L("前缀，如 {0}；留空则不绑定", 'api')} />
-            {!no2 && <div className={cx('text-[12px] font-mono mt-1.5 break-all', h2.v.ok ? 'text-muted' : 'text-[#ef4444]')}>{h2.v.ok ? <>→ https://{h2.v.full}</> : L("域名格式不对")}</div>}
+            {!no2 && <div className={cx('text-[12px] font-mono mt-1.5 break-all', h2.v.ok ? 'text-muted' : 'text-danger')}>{h2.v.ok ? <>→ https://{h2.v.full}</> : L("域名格式不对")}</div>}
           </Label>}
           {(app.inputs ?? []).map(i => (
             <Label key={i.key} t={lang === 'en' ? i.label_en : i.label} d={L("留空自动生成")}>

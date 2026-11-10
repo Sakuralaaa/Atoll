@@ -23,7 +23,7 @@ export function ReauthChip() {
   const left = useWindowLeft()
   if (left <= 15) return null
   return (
-    <span title={L("5 分钟内的敏感操作无需重复输入密码")} className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border-[1.5px] border-[var(--edge)] bg-[#86efac] text-[#141414] text-[11.5px] font-bold font-mono whitespace-nowrap">
+    <span title={L("5 分钟内的敏感操作无需重复输入密码")} className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border-[1.5px] border-[var(--edge)] bg-t-green text-ink text-[11.5px] font-bold font-mono whitespace-nowrap">
       <ShieldCheck size={13} />{L("已验证")} {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
     </span>
   )
@@ -84,7 +84,7 @@ export function ReauthDialog({ title = L("确认身份"), desc, onDone }: { titl
           <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={ev => setCode(ev.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
           <div className="text-[12px] text-dim mt-1.5">{L("验证器里当前的验证码（不接受恢复码）")}</div>
         </label>}
-        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
         {isDemo() && <div className="mt-3 text-[12px] text-dim">{L("演示模式：任意密码均可；输入 wrong 体验密码错误，连续 3 次触发锁定。")}</div>}
         <button type="submit" hidden />
       </form>

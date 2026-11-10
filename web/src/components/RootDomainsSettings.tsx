@@ -64,7 +64,7 @@ function Row({ r, only, onDelete }: { r: RootDomain; only: boolean; onDelete: ()
       <div className="min-w-[min(100%,220px)] flex-1">
         <div className="flex flex-wrap items-center gap-2 font-mono text-[13.5px] font-semibold [overflow-wrap:anywhere]">{r.name}{r.default && <Badge tone="green"><Star size={10} strokeWidth={3} />{t('默认', 'Default')}</Badge>}<CertBadge r={r} /></div>
         <div className="text-[12.5px] text-muted mt-1">{r.zone_name ? <>Cloudflare Zone <span className="font-mono">{r.zone_name}</span></> : t('未找到 Cloudflare Zone：DNS 记录需要手动创建', 'No Cloudflare zone found: create DNS records by hand')}</div>
-        {r.cert_error && <div className="text-[12px] text-[#f59e0b] mt-1 [overflow-wrap:anywhere]">{r.cert_error}</div>}
+        {r.cert_error && <div className="text-[12px] text-warn mt-1 [overflow-wrap:anywhere]">{r.cert_error}</div>}
       </div>
       <div className={`flex flex-wrap items-center gap-2 ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
         <Select className="w-[210px]" value={r.cert_mode} onChange={e => patch({ cert_mode: e.target.value }, t('证书模式已更新', 'Certificate mode updated'))} title={t('证书模式', 'Certificate mode')}>
@@ -74,7 +74,7 @@ function Row({ r, only, onDelete }: { r: RootDomain; only: boolean; onDelete: ()
         </Select>
         {!r.default && <Button size="sm" onClick={() => patch({ default: true }, t('已设为默认根域名', 'Default root domain set'))}><Star size={13} />{t('设为默认', 'Make default')}</Button>}
         <button title={t('重新匹配 Zone 并重试证书', 'Match the zone and retry the certificate again')} onClick={refresh} className="h-8 w-8 grid place-items-center text-muted hover:text-fg">{busy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}</button>
-        <button title={t('移除', 'Remove')} disabled={r.default && !only} onClick={onDelete} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444] disabled:opacity-30 disabled:pointer-events-none"><Trash2 size={15} /></button>
+        <button title={t('移除', 'Remove')} disabled={r.default && !only} onClick={onDelete} className="h-8 w-8 grid place-items-center text-muted hover:text-danger disabled:opacity-30 disabled:pointer-events-none"><Trash2 size={15} /></button>
       </div>
     </div>
   )

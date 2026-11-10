@@ -123,7 +123,7 @@ function MoreMenu({ items, disabled }: { items: MenuItem[]; disabled?: boolean }
     <div ref={ref} className="relative">
       <Button aria-label={L("更多操作")} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => setOpen(v => !v)}><MoreHorizontal size={16} /></Button>
       {open && <div role="menu" className="absolute right-0 top-11 z-30 surface bg-pop p-1 w-44">
-        {items.map(it => <button key={it.l} role="menuitem" onClick={() => { setOpen(false); it.run() }} className={cx('w-full flex items-center gap-2.5 text-left px-3 h-9 rounded-md text-[13px] hover:bg-ov/5', it.danger && 'text-[#ef4444]')}>{it.icon}{it.l}</button>)}
+        {items.map(it => <button key={it.l} role="menuitem" onClick={() => { setOpen(false); it.run() }} className={cx('w-full flex items-center gap-2.5 text-left px-3 h-9 rounded-md text-[13px] hover:bg-ov/5', it.danger && 'text-danger')}>{it.icon}{it.l}</button>)}
       </div>}
     </div>
   )

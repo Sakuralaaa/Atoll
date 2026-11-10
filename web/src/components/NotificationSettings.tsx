@@ -50,7 +50,7 @@ export default function NotificationSettings({ mine = false }: { mine?: boolean 
             {!c.enabled && <Badge tone="zinc">{L("已停用")}</Badge>}
             <TestButton c={c} mine={mine} />
             <button title={L("编辑")} onClick={() => setEdit({ i, c })} className="text-muted hover:text-fg"><Pencil size={15} /></button>
-            <button title={L("删除")} onClick={() => setDel(i)} className="text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
+            <button title={L("删除")} onClick={() => setDel(i)} className="text-muted hover:text-danger"><Trash2 size={15} /></button>
           </div>
         ))}
         {n && <div className="px-4 @2xl:px-6 py-3"><Button size="sm" onClick={() => setEdit({ i: -1, c: blank() })}><Plus size={14} />{L("添加渠道")}</Button></div>}
@@ -72,7 +72,7 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 /** 24-hour HH:MM (a native time input follows the browser locale and may show AM/PM). */
 function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const bad = value !== '' && !HHMM.test(value)
-  return <TextInput mono inputMode="numeric" maxLength={5} placeholder="23:00" className={cx('w-[84px] text-center', bad && 'ring-2 ring-[#ef4444]')} value={value}
+  return <TextInput mono inputMode="numeric" maxLength={5} placeholder="23:00" className={cx('w-[84px] text-center', bad && 'ring-2 ring-danger')} value={value}
     onChange={e => { let v = e.target.value.replace(/[^\d:]/g, ''); if (/^\d{4}$/.test(v)) v = `${v.slice(0, 2)}:${v.slice(2)}`; onChange(v) }} />
 }
 

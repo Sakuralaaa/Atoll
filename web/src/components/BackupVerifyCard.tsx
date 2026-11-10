@@ -59,7 +59,7 @@ function Row({ t, title, desc, v, next, off, action }: {
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="flex-1 min-w-[min(100%,260px)]">
           <div className="flex flex-wrap items-center gap-2 text-[13px]">
-            <Icon size={16} className={v?.status === 'done' ? 'text-[#22c55e]' : v?.status === 'failed' ? 'text-[#ef4444]' : v?.status === 'running' ? 'animate-spin text-accent' : 'text-dim'} />
+            <Icon size={16} className={v?.status === 'done' ? 'text-[#22c55e]' : v?.status === 'failed' ? 'text-danger' : v?.status === 'running' ? 'animate-spin text-accent' : 'text-dim'} />
             <span className="font-semibold">{title}</span>
             <Badge tone={tone(v?.status)}>{statusLabel(t, v)}</Badge>
             {v && <span className="text-[12.5px] text-muted">{dateTime(v.started_at)} · {ago(v.started_at)}{v.trigger === 'manual' ? t(' · 手动', ' · manual') : t(' · 定时', ' · scheduled')}{v.duration_ms ? ` · ${duration(v.duration_ms)}` : ''}</span>}
@@ -68,7 +68,7 @@ function Row({ t, title, desc, v, next, off, action }: {
             {desc}{' '}
             {off ? t('定时已关闭。', 'Schedule off.') : next ? t(`下次 ${dateTime(next)}。`, `Next ${dateTime(next)}.`) : ''}
           </div>
-          {v?.error && !open && <div className="mt-1.5 font-mono text-[12px] text-[#ef4444] break-all line-clamp-2">{v.error}</div>}
+          {v?.error && !open && <div className="mt-1.5 font-mono text-[12px] text-danger break-all line-clamp-2">{v.error}</div>}
           {hasMore && (
             <button type="button" onClick={() => setOpen(!open)} className="mt-1.5 text-[12px] text-fg2 hover:text-fg inline-flex items-center gap-1">
               {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}{t('详情', 'Details')}
@@ -83,10 +83,10 @@ function Row({ t, title, desc, v, next, off, action }: {
             <div key={i} className="rounded-lg field px-3.5 py-2.5 text-[12.5px] flex flex-wrap gap-x-3 gap-y-1 items-baseline">
               <Badge tone={tone(s.status)}>{partLabel(t, s.part)}</Badge>
               {s.snapshot_id && <span className="font-mono text-[12px] text-dim" title={s.snapshot_id}>{shortSnap(s.snapshot_id)}</span>}
-              <span className={s.error ? 'font-mono text-[12px] text-[#ef4444] break-all' : 'text-fg2'}>{s.error || stepDetail(t, s.part, s.detail, s.bytes)}</span>
+              <span className={s.error ? 'font-mono text-[12px] text-danger break-all' : 'text-fg2'}>{s.error || stepDetail(t, s.part, s.detail, s.bytes)}</span>
             </div>
           ))}
-          {v.error && <div className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-[#ef4444] break-all">{v.error}</div>}
+          {v.error && <div className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-danger break-all">{v.error}</div>}
           {v.warnings?.map((w, i) => <div key={i} className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-fg2 break-all">⚠ {w}</div>)}
         </div>
       )}

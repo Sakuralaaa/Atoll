@@ -50,7 +50,7 @@ export function LogsTab() {
             {!q.data.lines.length && <div className="text-dim py-6 text-center">{L("这段时间内没有日志")}</div>}
             {q.data.lines.map((l, i) => <div key={i} className={cx('whitespace-pre-wrap [overflow-wrap:anywhere]', lineTone(l))}>{l}</div>)}
           </div>
-          {!follow && <button onClick={toBottom} className="absolute right-4 bottom-4 chip h-8 px-3 inline-flex items-center gap-1.5 bg-[#fde047] text-[#141414] text-[12px] font-bold"><ArrowDown size={13} />{L("跳到最新")}</button>}
+          {!follow && <button onClick={toBottom} className="absolute right-4 bottom-4 chip h-8 px-3 inline-flex items-center gap-1.5 bg-hi text-hi-ink text-[12px] font-bold"><ArrowDown size={13} />{L("跳到最新")}</button>}
         </Card>
       )}
     </div>
@@ -119,7 +119,7 @@ export function AuditTab() {
                   <span className="flex items-center gap-2 min-w-0 @max-4xl:col-span-2 @max-4xl:order-2"><Badge tone={k[1]}>{k[0]}</Badge><span className="min-w-0 flex flex-col"><button onClick={() => filterBy('actor', r.actor)} className="font-mono text-[12.5px] truncate hover:underline min-w-0 text-left" title={L("只看 {0}", r.actor)}>{r.actor}</button>{r.user_name && (r.actor !== `user:${r.user_name}` || r.user_role === 'member') && <button onClick={() => filterBy('user', r.user_name!)} className="text-[12px] text-muted truncate hover:underline text-left" title={L("只看账号 {0} 的操作", r.user_name)}>{r.user_role === 'member' ? L("子账号 {0}", r.user_name) : L("账号 {0}", r.user_name)}</button>}</span></span>
                   <span className="min-w-0 @max-4xl:order-0 @max-4xl:col-start-1 @max-4xl:row-start-1 flex items-center gap-1.5">
                     {hasDetail ? <button onClick={() => setOpen(open === r.id ? undefined : r.id)} className="text-muted hover:text-fg shrink-0" title={L("详情")}>{open === r.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button> : <span className="w-[14px] shrink-0" />}
-                    <button onClick={() => filterBy('action', r.action)} className={cx('font-mono text-[12.5px] font-semibold truncate hover:underline min-w-0', /failed|denied/.test(r.action) && 'text-[#ef4444]')} title={L("只看 {0}", r.action)}>{r.action}</button>
+                    <button onClick={() => filterBy('action', r.action)} className={cx('font-mono text-[12.5px] font-semibold truncate hover:underline min-w-0', /failed|denied/.test(r.action) && 'text-danger')} title={L("只看 {0}", r.action)}>{r.action}</button>
                   </span>
                   <span className="truncate text-fg2 @max-4xl:col-span-2 @max-4xl:order-3 @max-4xl:pl-5" title={r.target}>{r.target || <span className="text-dim">—</span>}</span>
                   <span className="font-mono text-[12px] text-muted truncate @max-4xl:order-4 @max-4xl:pl-5" ><IP v={r.ip} /></span>
@@ -144,7 +144,7 @@ export function AuditTab() {
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-x-4">
-      <div className="flex flex-col items-center"><span className="tile h-8 w-8 rounded-lg bg-[#fde047] text-[#141414] grid place-items-center font-mono font-extrabold text-[14px]">{n}</span><span className="flex-1 w-[2px] bg-line mt-2" /></div>
+      <div className="flex flex-col items-center"><span className="tile h-8 w-8 rounded-lg bg-hi text-hi-ink grid place-items-center font-mono font-extrabold text-[14px]">{n}</span><span className="flex-1 w-[2px] bg-line mt-2" /></div>
       <div className="pb-8 min-w-0"><div className="text-[15px] font-semibold mt-1 mb-2">{title}</div><div className="text-[13px] text-fg2 leading-6 space-y-3">{children}</div></div>
     </div>
   )
@@ -166,8 +166,8 @@ export function MigrateTab({ s }: { s: ControlStatus }) {
       <h2 className="text-[18px] font-semibold tracking-tight">{L("把中控迁移到另一台机器")}</h2>
       <p className="text-[13px] text-muted mt-1.5 leading-6">{L("中控 VPS 到期、换配置或换机房时使用。全程业务不停，只有面板 / API 和 agent 的控制连接中断几分钟。本页只是操作指南，命令需要在服务器上执行。")}</p>
       {dom
-        ? <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-[#bbf7d0] text-[#141414] px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><CheckCircle2 size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板用域名")} <b className="font-mono">{dom}</b> {L("访问：中控会把它推送给每个 agent 作为备用地址，迁移后 agent 靠它找到新中控。迁移前请确认所有服务器都已在线连过当前中控。")}</span></div>
-        : <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-[#fca5a5] text-[#141414] px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板当前用 IP 访问（")}<span className="font-mono">{pub}</span>{L("）。agent 没有可以跟着走的域名，迁移后需要在每台服务器上手动切换地址（第 4 步）。强烈建议先把")} <span className="font-mono">ATOLL_PUBLIC_URL</span> {L("改成 Cloudflare 区域里的域名。")}</span></div>}
+        ? <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-t-ok text-ink px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><CheckCircle2 size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板用域名")} <b className="font-mono">{dom}</b> {L("访问：中控会把它推送给每个 agent 作为备用地址，迁移后 agent 靠它找到新中控。迁移前请确认所有服务器都已在线连过当前中控。")}</span></div>
+        : <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-t-red text-ink px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板当前用 IP 访问（")}<span className="font-mono">{pub}</span>{L("）。agent 没有可以跟着走的域名，迁移后需要在每台服务器上手动切换地址（第 4 步）。强烈建议先把")} <span className="font-mono">ATOLL_PUBLIC_URL</span> {L("改成 Cloudflare 区域里的域名。")}</span></div>}
       <div className="mt-8">
         <Step n={1} title={L("在旧中控导出")}>
           <p>{L("在「备份」里点")} <b>{L("导出加密包")}</b>{L("（需要密码和验证码，再设置导出口令），或在旧主机上离线导出：")}</p>

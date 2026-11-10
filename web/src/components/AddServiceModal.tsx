@@ -95,7 +95,7 @@ function Placement({ projectId, value, onChange }: { projectId: string; value: s
           {servers.map(x => <option key={x.id} value={x.id}>{x.name}{x.id === proj.server_id ? t('（项目服务器）', ' (project server)') : ''}{x.status !== 'online' ? ` · ${t('离线', 'offline')}` : ''}</option>)}
         </Select>
       </Label>
-      {other && (tailnetOff || !other.tailnet_ip || (home && !home.tailnet_ip)) && <div className="mb-4 -mt-2 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">
+      {other && (tailnetOff || !other.tailnet_ip || (home && !home.tailnet_ip)) && <div className="mb-4 -mt-2 rounded-lg border-2 border-dashed border-warn px-3 py-2 text-[12.5px] text-fg2">
         {tailnetOff ? t('跨服务器需要先在设置里启用 Tailscale。', 'Cross-server placement needs Tailscale enabled in Settings.') : t('两台服务器都需要先加入内网（tailnet）。', 'Both servers need to be on the tailnet first.')}
       </div>}
     </div>
@@ -120,7 +120,7 @@ function Section({ title, count, open, onToggle, children }: { title: string; co
     </div>
   )
 }
-const iconBtn = 'h-9 w-9 shrink-0 grid place-items-center rounded-md text-muted hover:text-[#ef4444] hover:bg-ov/5'
+const iconBtn = 'h-9 w-9 shrink-0 grid place-items-center rounded-md text-muted hover:text-danger hover:bg-ov/5'
 const addBtn = 'inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted hover:text-fg mt-1'
 
 /** Splits a start command the way a shell would for simple cases: spaces, '…' and "…" quotes. */
@@ -231,7 +231,7 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
             <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-2">
               <TextInput mono className="w-full sm:w-[38%]" placeholder="KEY" value={e.key} onChange={ev => setRow(setEnvs, i, { key: ev.target.value })} />
               <TextInput mono className="flex-1 min-w-0" type={e.secret ? 'password' : 'text'} autoComplete="new-password" placeholder="value" value={e.value} onChange={ev => setRow(setEnvs, i, { value: ev.target.value })} />
-              <button type="button" title={L("私有值")} onClick={() => setRow(setEnvs, i, { secret: !e.secret })} className={cx('h-9 w-9 shrink-0 grid place-items-center rounded-md hover:bg-ov/5', e.secret ? 'text-[#f59e0b]' : 'text-muted')}>{e.secret ? <Lock size={15} /> : <LockOpen size={15} />}</button>
+              <button type="button" title={L("私有值")} onClick={() => setRow(setEnvs, i, { secret: !e.secret })} className={cx('h-9 w-9 shrink-0 grid place-items-center rounded-md hover:bg-ov/5', e.secret ? 'text-warn' : 'text-muted')}>{e.secret ? <Lock size={15} /> : <LockOpen size={15} />}</button>
               <button type="button" title={L("删除")} onClick={() => delRow(setEnvs, i)} className={iconBtn}><Trash2 size={15} /></button>
             </div>
           ))}
@@ -292,7 +292,7 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
 
       {source === 'git' && <div className="text-[12px] text-dim mt-2 mb-3">{t('在服务所在的服务器上执行 docker build，需要仓库里有 Dockerfile（不支持自动识别）。', "Runs docker build on the service's server; the repo needs a Dockerfile (no auto-detection).")}</div>}
       <div className="flex items-center justify-end gap-2 mt-3">
-        {(formErr || (source === 'git' && git.repo && gitErr)) && <span className="mr-auto text-[12.5px] text-[#ef4444]">{formErr || gitErr}</span>}
+        {(formErr || (source === 'git' && git.repo && gitErr)) && <span className="mr-auto text-[12.5px] text-danger">{formErr || gitErr}</span>}
         <Button variant="primary" disabled={!ready || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}{source === 'git' ? t('构建并部署', 'Build and deploy') : L("部署")}</Button>
       </div>
     </div>
@@ -309,7 +309,7 @@ function DbPicker({ projectId, serverId, onDone }: { projectId: string; serverId
   }
   return (
     <div className="p-2">
-      {t.error && <div className="p-4 text-[13px] text-[#ef4444]">{t.error.message}</div>}
+      {t.error && <div className="p-4 text-[13px] text-danger">{t.error.message}</div>}
       {!t.data && !t.error && <div className="p-6 flex justify-center text-muted"><Loader2 className="animate-spin" /></div>}
       {t.data?.map(x => (
         <button key={x.kind} disabled={!!busy} onClick={() => create(x.kind)} className="w-full text-left flex items-center gap-4 px-4 h-[68px] rounded-xl hover:bg-ov/[0.06]">

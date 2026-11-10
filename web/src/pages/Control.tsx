@@ -164,7 +164,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
           <KV k={L("公网地址")} v={s.public_url ? <a href={s.public_url} target="_blank" rel="noreferrer" className="font-mono text-[12.5px] hover:underline">{s.public_url}</a> : '—'} />
           <KV k="Tailnet" v={t ? <span className="inline-flex flex-wrap items-center justify-end gap-2"><IP className="font-mono text-[12.5px]" v={t.ip} />{t.listen_error ? <Badge tone="red">{L("监听失败")}</Badge> : t.listen ? <Badge tone="green">{L("监听中")}</Badge> : null}</span> : <span className="text-dim">{L("未启用")}</span>} />
           {t?.control_url && <KV k={L("Agent 私网地址")} v={<span className="font-mono text-[12px] tracking-tight">{t.control_url}</span>} />}
-          {t?.listen_error && <div className="text-[12.5px] text-[#ef4444] font-semibold py-1 [overflow-wrap:anywhere]">{t.listen_error}</div>}
+          {t?.listen_error && <div className="text-[12.5px] text-danger font-semibold py-1 [overflow-wrap:anywhere]">{t.listen_error}</div>}
           <KV k={L("Agent 连接")} v={<Link to="/servers" className="inline-flex items-center gap-2 hover:underline"><Dot status={s.agents_connected === s.agents_total ? 'online' : 'deploying'} />{s.agents_connected} / {s.agents_total} {L("台服务器在线")}</Link>} />
         </Card>
         <Card className="p-6 flex flex-col">
@@ -174,7 +174,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
             <KV k={L("触发")} v={triggerLabel[b.trigger] ?? b.trigger} />
             <KV k={L("大小")} v={<span className="tnum">{bytes(b.size_bytes)}</span>} />
             <KV k={L("位置")} v={<Where local={b.local} remote={b.remote} />} />
-            {b.error && <div className="text-[12.5px] text-[#f59e0b] font-semibold py-1 [overflow-wrap:anywhere]">{b.error}</div>}
+            {b.error && <div className="text-[12.5px] text-warn font-semibold py-1 [overflow-wrap:anywhere]">{b.error}</div>}
           </> : <div className="flex-1 grid place-items-center text-[13px] text-dim py-6">{L("还没有中控备份（每天自动备份一次）")}</div>}
         </Card>
       </div>
@@ -193,7 +193,7 @@ function Metrics() {
       <div className="flex flex-wrap items-center justify-between gap-3 mt-9 mb-5"><h2 className="text-[18px] font-semibold tracking-tight">{L("资源曲线")}</h2><RangePicker v={range} set={setRange} /></div>
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
-        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
+        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" max={100} labels={labels} />
         <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => (x.mem_total_mb ? (x.mem_used_mb / x.mem_total_mb) * 100 : 0))} color="#38bdf8" max={100} labels={labels} />
         <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => (x.disk_total_gb ? (x.disk_used_gb / x.disk_total_gb) * 100 : 0))} color="#34d399" max={100} labels={labels} />
       </div>
@@ -234,7 +234,7 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
             <div className="mt-1 text-[22px] font-extrabold italic font-mono tracking-tight">{s.version}</div>
             <div className="text-[12.5px] text-dim font-mono mt-0.5 truncate">{s.commit ? `commit ${s.commit}` : ''}{s.commit ? ' · ' : ''}{s.go_version}</div>
           </div>
-          <div className={cx('rounded-xl p-4 min-w-0', s.update_available ? 'surface !bg-[color-mix(in_srgb,#8b5cf6_16%,var(--card))]' : 'border-2 border-dashed border-line2')}>
+          <div className={cx('rounded-xl p-4 min-w-0', s.update_available ? 'surface !bg-[color-mix(in_srgb,var(--pick)_16%,var(--card))]' : 'border-2 border-dashed border-line2')}>
             <div className="text-[12.5px] text-muted flex items-center gap-2">{L("最新发布")}{rel?.prerelease && <Badge tone="amber">{L("预发布")}</Badge>}</div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-[22px] font-extrabold italic font-mono tracking-tight">{rel?.tag ?? '—'}</span>
@@ -246,7 +246,7 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
             </div>
           </div>
         </div>
-        {s.release_error && <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-[#fef3c7] text-[#141414] px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("检查 GitHub 发布失败：")}{s.release_error}</span></div>}
+        {s.release_error && <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-t-note text-ink px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("检查 GitHub 发布失败：")}{s.release_error}</span></div>}
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button variant="primary" disabled={!s.update_available || !s.self_update_supported || busy || !rel} onClick={() => setConfirm('update')}><Rocket size={15} />{s.update_available && rel ? L("升级到 {0}", rel.tag) : L("已是最新版本")}</Button>
           <Button onClick={check} disabled={checking || busy}>{checking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}{L("检查更新")}</Button>
@@ -275,7 +275,7 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
           <Button variant="danger-outline" disabled={!s.rollback_version || busy || !s.self_update_supported} onClick={() => setConfirm('rollback')}><Undo2 size={15} />{L("回滚")}{s.rollback_version ? L("到 {0}", s.rollback_version) : ''}</Button>
         </div>
       </Card>
-      {confirm && <Modal width={520} title={<>{confirm === 'update' ? <Rocket size={17} className="text-accent" /> : <Undo2 size={17} className="text-[#ef4444]" />}{confirm === 'update' ? L("升级到 {0}", rel?.tag) : L("回滚到 {0}", s.rollback_version)}</>} onClose={() => setConfirm(undefined)}
+      {confirm && <Modal width={520} title={<>{confirm === 'update' ? <Rocket size={17} className="text-accent" /> : <Undo2 size={17} className="text-danger" />}{confirm === 'update' ? L("升级到 {0}", rel?.tag) : L("回滚到 {0}", s.rollback_version)}</>} onClose={() => setConfirm(undefined)}
         footer={<><Button size="sm" onClick={() => setConfirm(undefined)}>{L("取消")}</Button><Button size="sm" variant={confirm === 'update' ? 'primary' : 'danger'} onClick={() => start(confirm)}>{confirm === 'update' ? L("开始升级") : L("开始回滚")}</Button></>}>
         <div className="text-[13.5px] text-fg2 leading-6 space-y-2 [overflow-wrap:anywhere]">
           {confirm === 'update'
@@ -299,7 +299,7 @@ function Progress({ s, offline, watch }: { s: ControlStatus; offline: boolean; w
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [])
   const el = Math.floor((now - t0) / 1000)
   return (
-    <Card className="p-5 @2xl:p-6 !bg-[color-mix(in_srgb,#8b5cf6_16%,var(--card))]">
+    <Card className="p-5 @2xl:p-6 !bg-[color-mix(in_srgb,var(--pick)_16%,var(--card))]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Loader2 size={17} className="animate-spin text-accent" />
         <div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{mode === 'rollback' ? L("正在回滚") : L("正在升级")}{watch?.version ? <span className="font-mono"> → {watch.version}</span> : null}</div>
@@ -330,7 +330,7 @@ function LastResult({ r }: { r: UpdateResult }) {
         <span className="ml-auto text-[12.5px] text-dim">{dateTime(r.finished_at || r.started_at)} · {ago(r.finished_at || r.started_at)}</span>
       </div>
       <div className="mt-3 font-mono text-[13px] [overflow-wrap:anywhere]">{r.from_version || '?'} → {r.to_version || '?'}</div>
-      {r.error && <div className="mt-2 text-[12.5px] text-[#ef4444] font-semibold leading-5 [overflow-wrap:anywhere]">{r.error}</div>}
+      {r.error && <div className="mt-2 text-[12.5px] text-danger font-semibold leading-5 [overflow-wrap:anywhere]">{r.error}</div>}
     </Card>
   )
 }
@@ -344,7 +344,7 @@ export function ControlCard() {
     <Link to="/control" className="rounded-2xl surface surface-hover px-4 @2xl:px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3 mb-5">
       <div className="flex items-center gap-3 min-w-0 flex-1 basis-[220px]">
         <div className="relative shrink-0">
-          <div className="tile h-10 w-10 rounded-[10px] grid place-items-center bg-[#c4b5fd] text-[#141414]"><ServerCog size={19} /></div>
+          <div className="tile h-10 w-10 rounded-[10px] grid place-items-center bg-t-violet text-ink"><ServerCog size={19} /></div>
           <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', on ? 'bg-emerald-400' : s ? 'bg-zinc-600' : 'bg-zinc-500')} />
         </div>
         <div className="min-w-0">

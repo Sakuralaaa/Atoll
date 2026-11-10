@@ -113,8 +113,8 @@ function Form({ s }: { s: S }) {
           </Field>
           <Field t={L("私钥")} right={<KeyRound size={13} className="text-muted" />}>
             <textarea rows={4} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
-            {!certPair && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("证书和私钥需要一起填写")}</div>}
-            {certPair && !certLooksOk && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("看起来不是 PEM 格式")}</div>}
+            {!certPair && <div className="text-[12px] text-danger mt-1.5">{L("证书和私钥需要一起填写")}</div>}
+            {certPair && !certLooksOk && <div className="text-[12px] text-danger mt-1.5">{L("看起来不是 PEM 格式")}</div>}
           </Field>
         </>}
       </Section>

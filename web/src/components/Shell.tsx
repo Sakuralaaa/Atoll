@@ -66,7 +66,7 @@ function NavList({ pending }: { pending: number }) {
           const badge = d.key === 'approvals' ? pending : 0
           return <NavLink to={d.to} end={d.to === '/'} draggable={false} className={({ isActive }) => cx('group flex items-center gap-3 h-9 pl-3 pr-1.5 rounded-lg text-[13.5px] font-medium',
             isActive || dragging ? 'nav-active text-fg' : 'text-fg2 hover:bg-ov/5')}>{d.icon}<span className="flex-1 min-w-0 truncate">{d.label}</span>
-            {!!badge && <span className="min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono not-italic grid place-items-center tnum">{badge}</span>}
+            {!!badge && <span className="min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-t-red text-ink border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono not-italic grid place-items-center tnum">{badge}</span>}
             <span className={cx('transition-opacity', dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>{grip}</span>
           </NavLink>
         }} />
@@ -79,7 +79,7 @@ export function LangToggle() {
   return (
     <div className="inline-flex rounded-lg field p-[3px] gap-0.5">
       {(['zh', 'en'] as Lang[]).map(v => (
-        <button key={v} onClick={() => setLang(v)} title={v === 'zh' ? L("中文") : 'English'} className={cx('h-7 px-2 grid place-items-center rounded-md text-[11.5px] font-bold font-mono transition-colors', lang === v ? 'bg-[#fde047] text-[#141414] border-2 border-[var(--edge)]' : 'text-dim hover:text-fg')}>
+        <button key={v} onClick={() => setLang(v)} title={v === 'zh' ? L("中文") : 'English'} className={cx('h-7 px-2 grid place-items-center rounded-md text-[11.5px] font-bold font-mono transition-colors', lang === v ? 'bg-hi text-hi-ink border-2 border-[var(--edge)]' : 'text-dim hover:text-fg')}>
           {v === 'zh' ? L("中") : 'EN'}
         </button>
       ))}
@@ -103,7 +103,7 @@ export function ThemeToggle() {
   return (
     <div className="inline-flex rounded-lg field p-[3px] gap-0.5">
       {(['light', 'dark'] as Theme[]).map(v => (
-        <button key={v} onClick={() => set(v)} title={v === 'light' ? L("明亮模式") : L("黑夜模式")} className={cx('h-7 w-7 grid place-items-center rounded-md transition-colors', t === v ? 'bg-[#fde047] text-[#141414] border-2 border-[var(--edge)]' : 'text-dim hover:text-fg')}>
+        <button key={v} onClick={() => set(v)} title={v === 'light' ? L("明亮模式") : L("黑夜模式")} className={cx('h-7 w-7 grid place-items-center rounded-md transition-colors', t === v ? 'bg-hi text-hi-ink border-2 border-[var(--edge)]' : 'text-dim hover:text-fg')}>
           {v === 'light' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
       ))}
@@ -126,7 +126,7 @@ function UserRow() {
   return (
     <div ref={ref} className="relative flex items-center gap-2.5 px-1">
       <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} title={L("账户")} className="flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-ov/5 -mx-1 px-1 py-0.5">
-        {me?.avatar ? <Avatar size={32} src={me.avatar} className="rounded-lg" /> : <span className="tile h-8 w-8 shrink-0 rounded-lg bg-[#fde047] grid place-items-center text-[13px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
+        {me?.avatar ? <Avatar size={32} src={me.avatar} className="rounded-lg" /> : <span className="tile h-8 w-8 shrink-0 rounded-lg bg-hi grid place-items-center text-[13px] font-extrabold font-mono text-hi-ink">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
         <span className="min-w-0 leading-tight text-left"><span className="block text-[13px] font-medium truncate">{me?.username ?? '…'}</span><span className="block text-[11.5px] text-dim truncate whitespace-nowrap">{isDemo() ? L("演示模式") : L("管理员")}</span></span>
       </button>
       <div className="ml-auto flex items-center gap-1.5"><LangButton /><ThemeToggle /></div>
@@ -135,7 +135,7 @@ function UserRow() {
           <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />{L("账户与安全")}</Link>
           <Link role="menuitem" to="/settings" onClick={() => setOpen(false)} className={row}><SlidersHorizontal size={15} />{L("设置")}</Link>
           <div className="h-px bg-line my-1" />
-          <button role="menuitem" onClick={logout} className={cx(row, 'text-[#ef4444]')}><LogOut size={15} />{L("退出登录")}</button>
+          <button role="menuitem" onClick={logout} className={cx(row, 'text-danger')}><LogOut size={15} />{L("退出登录")}</button>
         </div>
       )}
     </div>
@@ -161,7 +161,7 @@ function Frame({ side, top, children, pad = 'pt-7' }: { side: React.ReactNode; t
       <aside onClick={e => { if ((e.target as HTMLElement).closest('a')) setOpen(false) }}
         className={cx('w-[248px] shrink-0 bg-side border-r border-line flex flex-col px-4 pb-4 overflow-y-auto no-sb', pad,
           'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[min(280px,86vw)] max-lg:border-r-2 max-lg:border-[var(--edge)] max-lg:transition-transform max-lg:duration-200',
-          open ? 'max-lg:translate-x-0 max-lg:shadow-[6px_0_0_0_var(--edge)]' : 'max-lg:-translate-x-full max-lg:invisible')}>
+          open ? 'max-lg:translate-x-0 max-lg:shadow-side' : 'max-lg:-translate-x-full max-lg:invisible')}>
         <button onClick={() => setOpen(false)} title={L("关闭菜单")} className="lg:hidden absolute right-3 top-5 h-8 w-8 grid place-items-center rounded-md text-muted hover:text-fg"><X size={18} /></button>
         {side}
       </aside>
@@ -215,17 +215,17 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   const me = useMe().data
   const member = me?.role === 'member'
   return (
-    <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title={L("审批")}>{pending}</Link>}</>} side={<>
+    <Frame top={<><Link to="/" className="shrink-0"><Logo /></Link>{!!pending && <Link to="/confirmations" className="ml-auto mr-1 min-w-[22px] h-[20px] px-1.5 rounded-[3px] bg-t-red text-ink border-[1.5px] border-[var(--edge)] text-[11px] font-bold font-mono grid place-items-center tnum" title={L("审批")}>{pending}</Link>}</>} side={<>
         <Link to="/" className="px-2 mb-4 shrink-0"><Logo /></Link>
         <div className="shrink-0"><SearchBox /></div>
         <NavList pending={pending} />
         <Favorites />
         <div className="shrink-0 pt-3 border-t border-line flex flex-col gap-2.5">
-          {!!problems && <Link to="/" className="rounded-xl surface !bg-[#fca5a5] text-[#141414] px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} {L("个异常需要处理")}</span></Link>}
+          {!!problems && <Link to="/" className="rounded-xl surface !bg-t-red text-ink px-3 py-2 text-[12.5px] font-bold flex items-center gap-2"><AlertTriangle size={14} className="shrink-0" /><span className="truncate">{problems} {L("个异常需要处理")}</span></Link>}
           <Link to={member ? '/servers' : '/control'} className="rounded-xl surface surface-hover px-3 py-2 text-[12px] text-muted flex items-center gap-2 min-w-0"><Dot status={servers ? 'online' : 'unknown'} /><span className="truncate">{servers ? (member ? L("{0}/{1} 服务器已连接", online, workers.length) : L("中控在线 · {0}/{1} 服务器已连接", online, workers.length)) : L("正在连接中控…")}</span></Link>
           <UserRow />
         </div>
-    </>}>{me?.must_change_password && <Link to="/settings/security" className="block m-4 mb-0 rounded-xl surface !bg-[#fde047] text-[#141414] px-4 py-2.5 text-[13px] font-bold">{L("管理员为你设置了初始密码，请先在「账号与安全」改一个自己的密码")}</Link>}{children}</Frame>
+    </>}>{me?.must_change_password && <Link to="/settings/security" className="block m-4 mb-0 rounded-xl surface !bg-hi text-hi-ink px-4 py-2.5 text-[13px] font-bold">{L("管理员为你设置了初始密码，请先在「账号与安全」改一个自己的密码")}</Link>}{children}</Frame>
   )
 }
 

@@ -22,7 +22,7 @@ function StepList({ job, from = 0, to }: { job: ImportJob; from?: number; to?: n
       {job.steps.slice(from, to).map((s, i) => (
         <div key={i} className="flex items-start gap-3 py-2">
           <span className={cx('h-6 w-6 rounded-[4px] border-[1.5px] border-[var(--edge)] grid place-items-center shrink-0',
-            s.status === 'done' && 'bg-[#86efac] text-[#141414]', s.status === 'running' && 'bg-[#fcd34d] text-[#141414]', s.status === 'failed' && 'bg-[#fca5a5] text-[#141414]', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
+            s.status === 'done' && 'bg-t-green text-ink', s.status === 'running' && 'bg-t-amber text-ink', s.status === 'failed' && 'bg-t-red text-ink', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
             {s.status === 'done' ? <Check size={13} strokeWidth={3} /> : s.status === 'running' ? <Loader2 size={13} className="animate-spin" /> : s.status === 'failed' ? <X size={13} strokeWidth={3} /> : s.status === 'skipped' ? <Minus size={13} /> : <Circle size={7} fill="currentColor" />}
           </span>
           <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{bt(s.name)}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 break-words">{bt(s.detail)}</div>}</div>
@@ -43,7 +43,7 @@ function VerifyTable({ job }: { job: ImportJob }) {
           return (
             <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,90px)_minmax(0,90px)_64px] gap-x-2 px-5 h-11 items-center text-[13px] border-b border-line last:border-0">
               <span className="text-fg2 truncate">{r.service}</span><span className="font-mono text-[12.5px] truncate">{r.table}</span>
-              <span className="text-right tnum">{r.source_rows.toLocaleString()}</span><span className={cx('text-right tnum font-semibold', !ok && 'text-[#f59e0b]')}>{r.target_rows.toLocaleString()}</span>
+              <span className="text-right tnum">{r.source_rows.toLocaleString()}</span><span className={cx('text-right tnum font-semibold', !ok && 'text-warn')}>{r.target_rows.toLocaleString()}</span>
               <span className="flex justify-end">{ok ? <Badge tone="green">{L("一致")}</Badge> : LIVE.includes(job.status) ? <Badge tone="amber">{L("同步中")}</Badge> : <Badge tone="red">{L("不一致")}</Badge>}</span>
             </div>
           )
@@ -66,9 +66,9 @@ export function JobView({ job, step, set, openConfirm }: { job: ImportJob; step:
     const done = job.status === 'rehearsed'
     return (
       <>
-        {done ? banner('!bg-[#86efac] text-[#141414]', <ShieldCheck size={22} />, L("演练通过"), <>{L("Atoll 副本已在本机运行，数据一致。Zeabur 仍在对外服务，用户无感知。")}</>, <Button variant="primary" size="lg" onClick={() => set({ step: 'cutover' })}>{L("下一步：切换")}<ArrowRight size={15} /></Button>)
+        {done ? banner('!bg-t-green text-ink', <ShieldCheck size={22} />, L("演练通过"), <>{L("Atoll 副本已在本机运行，数据一致。Zeabur 仍在对外服务，用户无感知。")}</>, <Button variant="primary" size="lg" onClick={() => set({ step: 'cutover' })}>{L("下一步：切换")}<ArrowRight size={15} /></Button>)
           : job.status === 'planned' ? banner('', <FlaskConical size={22} className="text-accent" />, L("准备演练"), L("已创建 Atoll 项目和服务，尚未开始复制。"), <RehearseBtn job={job} />)
-          : job.status === 'failed' ? banner('!bg-[#fca5a5] text-[#141414]', <AlertTriangle size={22} />, L("演练失败"), L("查看下方失败的步骤。Zeabur 未受影响。"), <RehearseBtn job={job} label={L("重新演练")} />)
+          : job.status === 'failed' ? banner('!bg-t-red text-ink', <AlertTriangle size={22} />, L("演练失败"), L("查看下方失败的步骤。Zeabur 未受影响。"), <RehearseBtn job={job} label={L("重新演练")} />)
           : banner('', <Loader2 size={22} className="animate-spin text-accent" />, L("正在演练…"), <><span className="font-semibold">{L("Zeabur 继续对外服务")}</span>{L("，Atoll 在本机起一套不接公网的副本并复制数据。可以离开此页，进度会保留。")}</>)}
         <div className="grid grid-cols-1 @5xl:grid-cols-[400px_minmax(0,1fr)] gap-6 items-start [&>*]:min-w-0">
           <Card className="p-5"><div className="text-[13px] font-semibold mb-2 flex items-center gap-2">{L("演练步骤")}<span className="ml-auto text-[12px] text-muted font-normal">{name} · {srv?.name}</span></div><StepList job={job} to={6} /></Card>
@@ -86,7 +86,7 @@ export function JobView({ job, step, set, openConfirm }: { job: ImportJob; step:
     return (
       <>
         {rolled ? banner('', <Undo2 size={22} className="text-accent" />, L("已回滚到 Zeabur"), L("Zeabur 的工作负载和入口控制器已恢复，Atoll 副本已停止。可以随时重新演练。"), <RehearseBtn job={job} label={L("重新演练")} />)
-          : banner('!bg-[#86efac] text-[#141414]', <PartyPopper size={22} />, rolling ? L("正在回滚…") : L("完成：已由 Atoll 接管"), <>{name} {L("的")} {job.plan.services.length} {L("个服务正在本机 Docker 中运行，atoll-caddy 接管了 80/443。Zeabur 的组件都还在，只是停着。")}</>,
+          : banner('!bg-t-green text-ink', <PartyPopper size={22} />, rolling ? L("正在回滚…") : L("完成：已由 Atoll 接管"), <>{name} {L("的")} {job.plan.services.length} {L("个服务正在本机 Docker 中运行，atoll-caddy 接管了 80/443。Zeabur 的组件都还在，只是停着。")}</>,
             job.project_id && <Link to={`/projects/${job.project_id}`} className="btn-secondary h-10 px-5 inline-flex items-center gap-1.5 text-[13.5px]">{L("打开项目")}<ArrowRight size={14} /></Link>)}
         <div className="grid grid-cols-1 @5xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start [&>*]:min-w-0">
           <div className="space-y-5">
@@ -166,12 +166,12 @@ function Cutover({ job, srv, hosts, open, onBack }: { job: ImportJob; srv?: Serv
             <div className="text-[15px] font-semibold">{L("切换会做什么")}</div>
             <div className="mt-4 space-y-3 text-[13.5px]">
               {[[L("缩容 Zeabur 应用到 0"), L("数据库保持运行，直到最后一次导出")], [L("最终数据同步"), L("增量 rsync 数据卷，重新 dump/restore 数据库并再次核对行数")], [L("停用 Zeabur 入口控制器"), L("整台服务器共用：所有 Zeabur 项目同时停止由 Zeabur 服务；记录原配置，回滚时原样恢复")], [L("atoll-caddy 接管 80/443"), L("用同样的主机名提供 HTTPS，新域名在 Cloudflare 自动建记录")]].map(([t, d], i) => (
-                <div key={t} className="flex gap-3"><span className="h-6 w-6 rounded-[4px] border-[1.5px] border-[var(--edge)] bg-[#c4b5fd] text-[#141414] grid place-items-center text-[12px] font-extrabold font-mono shrink-0">{i + 1}</span><div><div className="font-semibold">{t}</div><div className="text-[12.5px] text-muted mt-0.5">{d}</div></div></div>
+                <div key={t} className="flex gap-3"><span className="h-6 w-6 rounded-[4px] border-[1.5px] border-[var(--edge)] bg-t-violet text-ink grid place-items-center text-[12px] font-extrabold font-mono shrink-0">{i + 1}</span><div><div className="font-semibold">{t}</div><div className="text-[12.5px] text-muted mt-0.5">{d}</div></div></div>
               ))}
             </div>
           </Card>
           <Card className="p-6 flex gap-5 items-center">
-            <div className="tile h-12 w-12 rounded-lg bg-[#86efac] text-[#141414] grid place-items-center shrink-0"><Globe size={22} /></div>
+            <div className="tile h-12 w-12 rounded-lg bg-t-green text-ink grid place-items-center shrink-0"><Globe size={22} /></div>
             <div className="flex-1"><div className="text-[14px] font-semibold">{L("同一台机器，同一个 IP，DNS 不用动")}</div><div className="text-[13px] text-muted mt-1 leading-6">{L("服务仍在")} <span className="font-mono text-fg"><IP v={srv?.public_ipv4} /></span> {L("上，只是从 Zeabur 的 k3s 换到了 Atoll 的 Docker。已有的 A 记录继续有效；只有 *.zeabur.app 地址会失效")}{hosts.length ? L("，新地址会在切换时创建") : ''}{L("。预计停机不到一分钟。")}</div></div>
           </Card>
           {running && <Card className="p-5"><div className="text-[13px] font-semibold mb-2 flex items-center gap-2"><Loader2 size={14} className="animate-spin text-accent" />{L("正在切换…")}</div><StepList job={job} from={6} /></Card>}
@@ -205,20 +205,20 @@ function Cleanup({ job, srv, onBack }: { job: ImportJob; srv?: Server; onBack: (
   const memMb = inv?.k3s_mem_mb ?? 1200
   const pvcBytes = inv?.projects.reduce((a, p) => a + projBytes(p), 0) ?? 0
   if (job.status === 'cleaned') return (
-    <Card className="px-4 @2xl:px-6 py-6 flex flex-wrap items-center gap-4 !bg-[#86efac] text-[#141414]"><PartyPopper size={24} className="shrink-0" /><div className="flex-1 min-w-[min(100%,200px)]"><div className="text-[16px] font-extrabold italic tracking-[-0.02em]">{L("迁移全部完成")}</div><div className="text-[13px] mt-0.5">{L("Zeabur 的 k3s 已从")} {srv?.name} {L("上移除。")}{keep ? L("PVC 备份保存在 /var/lib/atoll/zeabur-backup。") : ''}</div></div>{job.project_id && <Link to={`/projects/${job.project_id}`} className="btn-secondary h-10 px-5 inline-flex items-center gap-1.5 text-[13.5px]">{L("打开项目")}<ArrowRight size={14} /></Link>}</Card>
+    <Card className="px-4 @2xl:px-6 py-6 flex flex-wrap items-center gap-4 !bg-t-green text-ink"><PartyPopper size={24} className="shrink-0" /><div className="flex-1 min-w-[min(100%,200px)]"><div className="text-[16px] font-extrabold italic tracking-[-0.02em]">{L("迁移全部完成")}</div><div className="text-[13px] mt-0.5">{L("Zeabur 的 k3s 已从")} {srv?.name} {L("上移除。")}{keep ? L("PVC 备份保存在 /var/lib/atoll/zeabur-backup。") : ''}</div></div>{job.project_id && <Link to={`/projects/${job.project_id}`} className="btn-secondary h-10 px-5 inline-flex items-center gap-1.5 text-[13.5px]">{L("打开项目")}<ArrowRight size={14} /></Link>}</Card>
   )
   const busy = job.status === 'cleaning'
   return (
     <div className="grid grid-cols-1 @5xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start [&>*]:min-w-0">
       <div className="space-y-5">
-        <Card className="px-6 py-5 flex items-start gap-4 !bg-[#fca5a5] text-[#141414]">
+        <Card className="px-6 py-5 flex items-start gap-4 !bg-t-red text-ink">
           <AlertTriangle size={22} className="shrink-0 mt-0.5" />
           <div><div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{L("不可逆操作")}</div><div className="text-[13.5px] mt-1 leading-6 font-semibold">{L("移除后无法回滚到 Zeabur，可释放约")} {memMb.toLocaleString()} {L("MB 内存。")}</div>
             <div className="text-[13px] mt-1 leading-6">{L("会运行")} <span className="font-mono">/usr/local/bin/k3s-uninstall.sh</span>{L("，删除 k3s、Zeabur 的全部工作负载、入口控制器和 PVC 目录。Atoll 的容器与数据不受影响。")}</div></div>
         </Card>
         <Card className="p-6">
           <button type="button" onClick={() => setKeep(v => !v)} className="flex items-start gap-3 text-left w-full">
-            <span className={cx('h-5 w-5 mt-0.5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', keep ? 'bg-[#8b5cf6] text-white' : 'bg-sunk')}>{keep && <Check size={13} strokeWidth={3} />}</span>
+            <span className={cx('h-5 w-5 mt-0.5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', keep ? 'bg-pick text-pick-ink' : 'bg-sunk')}>{keep && <Check size={13} strokeWidth={3} />}</span>
             <div><div className="text-[13.5px] font-semibold">{L("先备份 Zeabur 数据卷")}</div><div className="text-[13px] text-muted mt-0.5">{L("把每个 PVC 目录打包到")} <span className="font-mono">/var/lib/atoll/zeabur-backup/&lt;pvc&gt;.tgz</span>{pvcBytes ? L("，约 {0}", bytes(pvcBytes)) : ''}{L("。确认用不上后可手动删除。")}</div></div>
           </button>
         </Card>

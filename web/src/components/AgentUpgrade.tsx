@@ -103,7 +103,7 @@ export function AgentUpgradeAll({ servers }: { servers: Server[] }) {
     {rows && <Modal title={t('升级已开始', 'Upgrades started')} width={620} onClose={close} footer={<Button size="sm" variant="primary" onClick={close}>{t('完成', 'Done')}</Button>}>
       <div className="space-y-2 text-[13px]">
         {rows.map(r => <div key={r.id} className="flex items-start gap-3"><span className="font-semibold w-40 shrink-0 truncate">{name(r.id)}</span>
-          {r.upgrade ? <span className="text-fg2">{r.upgrade.from} → {r.upgrade.to}</span> : <span className="text-[#ef4444] [overflow-wrap:anywhere]">{r.error}</span>}</div>)}
+          {r.upgrade ? <span className="text-fg2">{r.upgrade.from} → {r.upgrade.to}</span> : <span className="text-danger [overflow-wrap:anywhere]">{r.error}</span>}</div>)}
       </div>
       <div className="mt-4 text-[12.5px] text-muted">{t('结果会显示在每台服务器的卡片上。', 'Results show on each server card.')}</div>
     </Modal>}

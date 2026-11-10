@@ -53,7 +53,7 @@ export default function Login() {
   }
   const back = () => { setPending(undefined); setErr(undefined); setCode('') }
 
-  const errBox = err && <div role="alert" className="mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-[#fca5a5] text-[#141414] px-3.5 py-2.5 text-[13px] font-semibold flex items-center gap-2"><AlertTriangle size={15} className="shrink-0" />{err}</div>
+  const errBox = err && <div role="alert" className="mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-t-red text-ink px-3.5 py-2.5 text-[13px] font-semibold flex items-center gap-2"><AlertTriangle size={15} className="shrink-0" />{err}</div>
 
   return (
     <div className="h-full canvas topline flex flex-col">
@@ -87,12 +87,12 @@ export default function Login() {
                 <p className="text-[13px] text-muted mt-1.5 leading-6">{setup
                   ? t('这是第一次启动。创建的账号拥有全部权限，之后可以在「连接」里给 agent 发令牌。', 'First start. This account has full access; later you can issue tokens for agents under "CLI & API".')
                   : t('自托管的 PaaS 控制台：你的服务器，你的服务。', 'Self-hosted PaaS console: your servers, your services.')}</p>
-                {status.error && <div className="mt-4 text-[12.5px] text-[#ef4444] flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{t('无法获取服务器状态：', 'Cannot reach the server: ')}{status.error.message}</div>}
+                {status.error && <div className="mt-4 text-[12.5px] text-danger flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{t('无法获取服务器状态：', 'Cannot reach the server: ')}{status.error.message}</div>}
                 <label className="block mt-6"><div className="text-[13px] font-semibold mb-1.5">{t('用户名', 'Username')}</div><TextInput autoFocus autoComplete="username" className="w-full" value={u} onChange={e => setU(e.target.value)} placeholder="admin" /></label>
                 <label className="block mt-4"><div className="text-[13px] font-semibold mb-1.5">{t('密码', 'Password')}</div><TextInput type="password" autoComplete={setup ? 'new-password' : 'current-password'} className="w-full" value={pw} onChange={e => setPw(e.target.value)} />
-                  {short && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('至少 8 位', 'At least 8 characters')}</div>}</label>
+                  {short && <div className="text-[12px] text-danger mt-1.5">{t('至少 8 位', 'At least 8 characters')}</div>}</label>
                 {setup && <label className="block mt-4"><div className="text-[13px] font-semibold mb-1.5">{t('确认密码', 'Confirm password')}</div><TextInput type="password" autoComplete="new-password" className="w-full" value={pw2} onChange={e => setPw2(e.target.value)} />
-                  {mismatch && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('两次输入不一致', 'Passwords do not match')}</div>}</label>}
+                  {mismatch && <div className="text-[12px] text-danger mt-1.5">{t('两次输入不一致', 'Passwords do not match')}</div>}</label>}
                 {errBox}
                 <Button type="submit" variant="primary" size="lg" className="w-full mt-6 h-11" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : setup ? <Sparkles size={15} /> : <LogIn size={15} />}{setup ? t('创建并进入', 'Create and continue') : t('登录', 'Sign in')}</Button>
               </>}

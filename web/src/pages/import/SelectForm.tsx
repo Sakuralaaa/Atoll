@@ -56,7 +56,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
               const on = sel.has(s.service_id), [rl, rt] = ROLE[s.role] ?? ROLE.other
               return (
                 <button key={s.service_id} onClick={() => toggle(s.service_id)} className="w-full text-left px-5 h-16 flex items-center gap-4 hover:bg-ov/[0.02]">
-                  <span className={cx('h-5 w-5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', on ? 'bg-[#8b5cf6] text-white' : 'bg-sunk')}>{on && <Check size={13} strokeWidth={3} />}</span>
+                  <span className={cx('h-5 w-5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', on ? 'bg-pick text-pick-ink' : 'bg-sunk')}>{on && <Check size={13} strokeWidth={3} />}</span>
                   <ServiceIcon s={{ kind: s.kind, letter: letterFor(s.name), color: colorFor(s.name) }} size={30} />
                   <div className="flex-1 min-w-0"><div className="text-[13.5px] font-semibold flex items-center gap-2">{s.name}<Badge tone={rt}>{rl}</Badge>{zStatus(s) !== 'running' && <StatusBadge s={s} />}</div><div className="font-mono text-[12px] text-muted truncate mt-0.5">{s.image}</div></div>
                   <ImageBadge s={s} />
@@ -66,7 +66,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
             })}
           </Card>
           {dangling.length > 0 && (
-            <div className="mt-3 rounded-[4px] border-2 border-[var(--edge)] bg-[#fcd34d] text-[#141414] px-4 py-3 text-[12.5px]">
+            <div className="mt-3 rounded-[4px] border-2 border-[var(--edge)] bg-t-amber text-ink px-4 py-3 text-[12.5px]">
               <div className="font-bold flex items-center gap-1.5"><AlertTriangle size={14} />{L("有服务引用了没选中的服务")}</div>
               {dangling.map((d, i) => <div key={i} className="mt-1 font-mono">{d.from}{d.key ? `.${d.key}` : ''} → {d.to}</div>)}
               <div className="mt-1">{L("迁移后这些连接会断开，除非你之后手动改成新地址。")}</div>
@@ -78,7 +78,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
           <div className="text-[15px] font-semibold mb-1 flex items-center gap-2"><Globe size={16} />{L("域名")}</div>
           <div className="text-[13px] text-muted mb-4">{L("切换时自动在 Cloudflare 创建记录；zeabur.app 地址届时失效。")}</div>
           {!zHosts.length ? <Card className="px-6 py-5 text-[13px] text-muted">{L("选中的服务没有 zeabur.app 域名。")}</Card> : needCf ? (
-            <Card className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-4 !bg-[#fcd34d] text-[#141414]">
+            <Card className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-4 !bg-t-amber text-ink">
               <Settings2 size={20} className="shrink-0" />
               <div className="flex-1 min-w-[min(100%,200px)]"><div className="text-[13.5px] font-bold">{L("先设置主域名和 Cloudflare 令牌")}</div><div className="text-[13px] mt-0.5">{L("这些服务目前只有 zeabur.app 地址，切换后就会失效。需要一个由 Cloudflare 托管的主域名来生成新地址。")}</div></div>
               <Link to="/settings" className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px]">{L("去设置")}<ArrowRight size={14} /></Link>
@@ -88,7 +88,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
               <div className="hidden @2xl:grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1.2fr)] gap-4 px-6 h-10 items-center text-[12.5px] text-muted border-b border-line"><span>{L("Zeabur 地址")}</span><span /><span>{L("新地址（Cloudflare 代理）")}</span></div>
               {zHosts.map(h => (
                 <div key={h} className="grid grid-cols-[minmax(0,1fr)] @2xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1.2fr)] gap-x-4 gap-y-2 px-4 @2xl:px-6 py-3 @2xl:py-0 @2xl:h-16 items-center border-b border-line last:border-0">
-                  <span className="flex items-center gap-2 min-w-0"><span className="font-mono text-[13px] text-[#ef4444] line-through decoration-2 truncate">{h}</span><Badge tone="red">{L("迁移后失效")}</Badge></span>
+                  <span className="flex items-center gap-2 min-w-0"><span className="font-mono text-[13px] text-danger line-through decoration-2 truncate">{h}</span><Badge tone="red">{L("迁移后失效")}</Badge></span>
                   <ArrowRight size={16} className="text-accent @max-2xl:rotate-90" />
                   <TextInput mono className="w-full" value={target(h)} onChange={e => setMap(m => ({ ...m, [h]: e.target.value }))} placeholder={L("留空则不绑定")} />
                 </div>

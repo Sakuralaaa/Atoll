@@ -20,9 +20,9 @@ export function ProxyChoice({ proxied, onChange }: { proxied: boolean; onChange:
 function ProxyCard({ on, onClick, icon, title, tag, desc }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; tag: string; desc: string }) {
   return (
     <button type="button" role="radio" aria-checked={on} onClick={onClick}
-      className={`text-left rounded-[4px] border-2 p-3.5 transition-[transform,box-shadow] ${on ? 'border-[var(--edge)] bg-card shadow-[4px_4px_0_0_var(--edge)] -translate-x-px -translate-y-px' : 'border-line bg-sunk text-fg2 hover:border-line2'}`}>
+      className={`text-left rounded-[4px] border-2 p-3.5 transition-[transform,box-shadow] ${on ? 'border-[var(--edge)] bg-card shadow-hard -translate-x-px -translate-y-px' : 'border-line bg-sunk text-fg2 hover:border-line2'}`}>
       <div className="flex items-center gap-2">
-        <span className={`h-7 w-7 grid place-items-center rounded-[3px] border-[1.5px] border-[var(--edge)] shrink-0 ${on ? 'bg-[#fdba74] text-[#141414]' : 'bg-card2'}`}>{icon}</span>
+        <span className={`h-7 w-7 grid place-items-center rounded-[3px] border-[1.5px] border-[var(--edge)] shrink-0 ${on ? 'bg-t-orange text-ink' : 'bg-card2'}`}>{icon}</span>
         <span className="text-[13.5px] font-semibold">{title}</span>
         <span className={`ml-auto h-4 w-4 rounded-full border-2 border-[var(--edge)] shrink-0 ${on ? 'bg-brand' : ''}`} />
       </div>

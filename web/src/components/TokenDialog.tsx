@@ -48,7 +48,7 @@ export function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onC
       : await run(() => api.createToken(body), { invalidate: ['tokens'] })
     if (r) onSaved(r)
   })
-  const box = (on: boolean, disabled?: boolean) => cx('h-[18px] w-[18px] shrink-0 rounded-[3px] border-2 border-[var(--edge)] grid place-items-center', on ? 'bg-[#c4b5fd] text-[#141414]' : 'bg-card', disabled && 'opacity-40')
+  const box = (on: boolean, disabled?: boolean) => cx('h-[18px] w-[18px] shrink-0 rounded-[3px] border-2 border-[var(--edge)] grid place-items-center', on ? 'bg-t-violet text-ink' : 'bg-card', disabled && 'opacity-40')
   return (
     <Modal title={token ? t('编辑 API 令牌', 'Edit API token') : t('创建 API 令牌', 'Create API token')} width={640} onClose={onClose}
       footer={<><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button><Button size="sm" variant="primary" disabled={!valid || busy} onClick={submit}>{busy && <Loader2 size={13} className="animate-spin" />}{token ? t('保存', 'Save') : t('创建', 'Create')}</Button></>}>
@@ -58,7 +58,7 @@ export function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onC
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="text-[13px] font-semibold">{t('权限', 'Permissions')}</div>
           <div className="flex gap-1.5">{PRESETS.map(pr => (
-            <button key={pr.k} type="button" onClick={() => preset(pr.perms)} className={cx('h-7 px-2.5 rounded-[4px] text-[12px] font-bold font-mono italic border-2', activePreset === pr.k ? 'border-[var(--edge)] bg-[#fde047] text-[#141414] shadow-[2px_2px_0_0_var(--edge)]' : 'border-line2 text-muted hover:text-fg')}>{t(pr.zh, pr.en)}</button>
+            <button key={pr.k} type="button" onClick={() => preset(pr.perms)} className={cx('h-7 px-2.5 rounded-[4px] text-[12px] font-bold font-mono italic border-2', activePreset === pr.k ? 'border-[var(--edge)] bg-hi text-hi-ink shadow-hard-sm' : 'border-line2 text-muted hover:text-fg')}>{t(pr.zh, pr.en)}</button>
           ))}</div>
         </div>
         <div className="rounded-lg field divide-y divide-line">
@@ -68,14 +68,14 @@ export function TokenDialog({ token, onClose, onSaved }: { token?: APIToken; onC
               <button key={p} type="button" disabled={disabled} onClick={() => toggle(p)} className={cx('w-full text-left px-3.5 py-2.5 flex items-start gap-3', !disabled && 'hover:bg-ov/5')}>
                 <span className={cx(box(has(p), disabled && p !== 'read'), 'mt-0.5')}>{has(p) && <Check size={12} strokeWidth={3.5} />}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2 text-[13px] font-semibold">{info[p][0]}<span className="font-mono text-[11.5px] text-dim font-normal">{p}</span>{(DANGEROUS as string[]).includes(p) && <ShieldAlert size={13} className="text-[#ef4444]" />}</span>
+                  <span className="flex items-center gap-2 text-[13px] font-semibold">{info[p][0]}<span className="font-mono text-[11.5px] text-dim font-normal">{p}</span>{(DANGEROUS as string[]).includes(p) && <ShieldAlert size={13} className="text-danger" />}</span>
                   <span className="block text-[12px] text-muted mt-0.5 leading-5">{scoped && isGlobal(p) ? t('全局权限，不能和项目范围一起用', 'Global permission — cannot be combined with a project scope') : p === 'read' ? t('始终包含。', 'Always included. ') + info[p][1] : info[p][1]}</span>
                 </span>
               </button>
             )
           })}
         </div>
-        {danger.length > 0 && <div className="mt-3 rounded-lg border-2 border-[var(--edge)] bg-[#fca5a5] text-[#141414] px-3.5 py-2.5 text-[12.5px] leading-5 flex gap-2 shadow-[3px_3px_0_0_var(--edge)]">
+        {danger.length > 0 && <div className="mt-3 rounded-lg border-2 border-[var(--edge)] bg-t-red text-ink px-3.5 py-2.5 text-[12.5px] leading-5 flex gap-2 shadow-hard-md">
           <AlertTriangle size={15} className="shrink-0 mt-0.5" />
           <span><b>{t('高风险权限：', 'High-risk permissions: ')}</b>{danger.map(p => info[p][0]).join(t('、', ', '))}{L("。")}{t('拿到这个令牌的人或 agent 可以直接删除数据、迁移服务或接管其他令牌。', 'Whoever holds this token can delete data, move services or take over other tokens directly.')}{!approval && t('建议同时开启下面的「需要面板审批」。', ' Consider turning on "require panel approval" below.')}</span>
         </div>}

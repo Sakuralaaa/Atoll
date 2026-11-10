@@ -25,7 +25,7 @@ export function UsageTab({ s }: { s: Service }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><div className="text-[15px] font-semibold">{L("用量")}</div><RangePicker v={range} set={setRange} /></div>
       {q.error && !q.data && <div className="mb-4"><ErrorState error={q.error} onRetry={q.refetch} /></div>}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 [&>*]:min-w-0">
-        <Chart title="CPU" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" labels={labels} />
+        <Chart title="CPU" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" labels={labels} />
         <Chart title={L("内存")} icon={<MemoryStick size={15} />} data={d.map(x => x.mem_mb)} color="#38bdf8" unit=" MB" labels={labels} />
       </div>
       <div className="mt-5"><Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="#34d399" unit=" MB/s" h={150} labels={labels} /></div>
@@ -61,7 +61,7 @@ export function NetworkTab({ s, srv }: { s: Service; srv?: Server }) {
           {([[L("用户"), <Globe key="g" size={18} />], ['Cloudflare', <Cloud key="c" size={18} className="text-[#f6821f]" />], [`Caddy · ${srv?.name.split(' ')[0] ?? '…'}`, <ShieldCheck key="s" size={18} className="text-emerald-400" />], [`${s.name}:${port?.container_port ?? '—'}`, <Box key="b" size={18} className="text-accent" />]] as const).map(([l, i], idx, a) => (
             <div key={idx} className="flex flex-col @4xl:flex-row items-center min-w-0 max-w-full">
               <div className="rounded-xl border border-line2 bg-card2 px-4 h-12 flex items-center gap-2.5 text-[13px] font-semibold min-w-0 max-w-full [&>svg]:shrink-0">{i}<span className="truncate" title={l}>{l}</span></div>
-              {idx < a.length - 1 && <><div className="@4xl:hidden h-6 border-l-2 border-dashed border-[#7c3aed]/60 relative"><span className="absolute -left-[5px] -bottom-[6px] text-[#7c3aed] text-[10px] leading-none">▼</span></div><div className="@max-4xl:hidden w-16 shrink-0 border-t-2 border-dashed border-[#7c3aed]/60 relative"><span className="absolute -right-1 -top-[5px] text-[#7c3aed] text-[10px]">▶</span></div></>}
+              {idx < a.length - 1 && <><div className="@4xl:hidden h-6 border-l-2 border-dashed border-brand/60 relative"><span className="absolute -left-[5px] -bottom-[6px] text-brand text-[10px] leading-none">▼</span></div><div className="@max-4xl:hidden w-16 shrink-0 border-t-2 border-dashed border-brand/60 relative"><span className="absolute -right-1 -top-[5px] text-brand text-[10px]">▶</span></div></>}
             </div>
           ))}
         </div>
@@ -69,7 +69,7 @@ export function NetworkTab({ s, srv }: { s: Service; srv?: Server }) {
           <div key={d.id} className="mt-4 rounded-lg border border-line bg-bg/50 px-4 @2xl:px-5 py-3 min-h-14 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <Dot status={d.status} /><span className="font-semibold text-[15px] min-w-0 [overflow-wrap:anywhere]">{d.hostname}</span><DomainBadge d={d} />
             <span className="text-[13px] text-muted @4xl:ml-3 [overflow-wrap:anywhere]">A <IP v={srv?.public_ipv4} /> · {d.proxied ? L("已代理 · Full (strict)") : L("仅 DNS")} {L("· 端口")} {d.port_name}</span>
-            <span className="ml-auto flex gap-3 text-muted"><a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="hover:text-fg"><ExternalLink size={15} /></a>{canBind && <button onClick={() => setDel(d)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>}</span>
+            <span className="ml-auto flex gap-3 text-muted"><a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" className="hover:text-fg"><ExternalLink size={15} /></a>{canBind && <button onClick={() => setDel(d)} className="hover:text-danger"><Trash2 size={15} /></button>}</span>
           </div>
         ))}
       </Card>
@@ -109,8 +109,8 @@ export function DiskTab({ s }: { s: Service }) {
             <div key={v.name} className="px-4 @2xl:px-6 py-3.5 min-h-16 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-2.5">
               <HardDrive size={18} className="text-accent shrink-0" />
               <div className="flex-1 min-w-0"><div className="font-mono text-[13px] [overflow-wrap:anywhere]">{v.mount_path}</div><div className="text-[12.5px] text-muted mt-0.5 font-mono [overflow-wrap:anywhere]">/var/lib/atoll/volumes/{s.id}/{v.name}</div></div>
-              {isDemo() && <div className="w-56 @max-3xl:order-last @max-3xl:w-full @max-3xl:pl-[34px]"><div className="flex justify-between text-[12.5px] mb-1.5"><span className="text-muted">{L("已用")}</span><span>{i ? '86 MB' : '1.4 GB'}</span></div><div className="h-2.5 rounded-[4px] field"><div className="h-full bg-[#8b5cf6]" style={{ width: i ? '6%' : '28%' }} /></div></div>}
-              <span className="flex gap-3 text-muted @3xl:ml-4 shrink-0">{canExec && <Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link>}{canDeploy && <button onClick={() => setDel(v.name)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button>}</span>
+              {isDemo() && <div className="w-56 @max-3xl:order-last @max-3xl:w-full @max-3xl:pl-[34px]"><div className="flex justify-between text-[12.5px] mb-1.5"><span className="text-muted">{L("已用")}</span><span>{i ? '86 MB' : '1.4 GB'}</span></div><div className="h-2.5 rounded-[4px] field"><div className="h-full bg-pick" style={{ width: i ? '6%' : '28%' }} /></div></div>}
+              <span className="flex gap-3 text-muted @3xl:ml-4 shrink-0">{canExec && <Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link>}{canDeploy && <button onClick={() => setDel(v.name)} className="hover:text-danger"><Trash2 size={15} /></button>}</span>
             </div>
           ))}
         </Card>

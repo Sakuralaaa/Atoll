@@ -68,7 +68,7 @@ function PendingCard({ c }: { c: Confirmation }) {
   }
   return (
     <Card className="p-4 @2xl:p-5 flex flex-wrap @3xl:flex-nowrap items-start @3xl:items-center gap-4 @2xl:gap-5">
-      <div className={cx('tile h-12 w-12 rounded-lg grid place-items-center shrink-0 text-[#141414]', danger(c.action) ? 'bg-[#fca5a5]' : 'bg-[#fcd34d]')}><Icon size={18} /></div>
+      <div className={cx('tile h-12 w-12 rounded-lg grid place-items-center shrink-0 text-ink', danger(c.action) ? 'bg-t-red' : 'bg-t-amber')}><Icon size={18} /></div>
       <div className="flex-1 min-w-[min(100%,220px)]">
         <div className="flex items-center gap-2 flex-wrap"><span className="text-[15px] font-extrabold italic tracking-[-0.02em]">{label}</span><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full" title={c.target}>{c.target}</span></div>
         <div className="text-[13px] text-fg2 mt-1 leading-5 [overflow-wrap:anywhere]">{c.summary}</div>

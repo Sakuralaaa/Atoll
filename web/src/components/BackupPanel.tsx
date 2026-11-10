@@ -119,7 +119,7 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
             ))}
             <TextInput mono aria-label={L("cron 表达式")} className="w-full max-w-[180px]" value={v.schedule} onChange={e => setV(x => ({ ...x, schedule: e.target.value }))} placeholder="0 3 * * *" />
           </div>
-          <div className={cx('text-[12px] mt-1.5', cronOk ? 'text-dim' : 'text-[#ef4444]')}>{cronOk ? L("5 段：分 时 日 月 周。例如 30 2 * * * 表示每天 02:30") : L("需要 5 段 cron 表达式，例如 0 3 * * *")}</div>
+          <div className={cx('text-[12px] mt-1.5', cronOk ? 'text-dim' : 'text-danger')}>{cronOk ? L("5 段：分 时 日 月 周。例如 30 2 * * * 表示每天 02:30") : L("需要 5 段 cron 表达式，例如 0 3 * * *")}</div>
         </div>
 
         <span className="font-semibold">{L("时区")}</span>
@@ -137,7 +137,7 @@ function PolicyForm({ s, policy, onSaved }: { s: Service; policy: BackupPolicy; 
                 <TextInput mono type="number" min={0} max={1000} className="w-[84px]" value={String(v.keep[k])} onChange={setKeep(k)} /></label>
             ))}
           </div>
-          <div className={cx('text-[12px] mt-1.5', keepOk ? 'text-dim' : 'text-[#ef4444]')}>{keepOk ? L("restic forget：每天、每周、每月各保留最近一份，超出的自动清理") : L("至少保留一份，每项 0–1000")}</div>
+          <div className={cx('text-[12px] mt-1.5', keepOk ? 'text-dim' : 'text-danger')}>{keepOk ? L("restic forget：每天、每周、每月各保留最近一份，超出的自动清理") : L("至少保留一份，每项 0–1000")}</div>
         </div>
 
         {isDb && <>
@@ -195,7 +195,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore?: (b: Ba
               </div>
               {open === b.id && (b.error || b.warnings?.length) && (
                 <div className="px-6 pb-4 -mt-1 space-y-1.5">
-                  {b.error && <div className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-[#ef4444] break-all">{b.error}</div>}
+                  {b.error && <div className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-danger break-all">{b.error}</div>}
                   {b.warnings?.map((w, i) => <div key={i} className="rounded-lg field px-3.5 py-2.5 font-mono text-[12px] text-fg2 break-all">⚠ {w}</div>)}
                 </div>
               )}
@@ -234,7 +234,7 @@ function RestoreFlow({ p, s, list, initial, onClose }: { p: Project; s: Service;
     <ConfirmDialog title={L("还原备份")} name={s.name} action={L("覆盖并还原")} onClose={onClose} onConfirm={go}
       description={<>
         <b className="text-fg">{s.name}</b> {L("现在的数据会被")} <b className="text-fg">{dateTime(b.started_at)}</b> {L("的备份")}<b className="text-fg">{L("完全替换")}</b>{L("，之后写入的数据会丢失。还原期间服务会停止。")}
-        {moving && <div className="mt-3 rounded-lg field px-3.5 py-3 text-[13px] flex gap-2.5"><AlertTriangle size={16} className="text-[#f59e0b] shrink-0 mt-0.5" /><span>{L("整个项目「")}{projName(p)}{L("」会迁到")} <b className="text-fg">{tgt?.name}</b>{L("：在那里按已保存的配置重建所有服务，再还原这份数据，并把域名 DNS 切过去。")}</span></div>}
+        {moving && <div className="mt-3 rounded-lg field px-3.5 py-3 text-[13px] flex gap-2.5"><AlertTriangle size={16} className="text-warn shrink-0 mt-0.5" /><span>{L("整个项目「")}{projName(p)}{L("」会迁到")} <b className="text-fg">{tgt?.name}</b>{L("：在那里按已保存的配置重建所有服务，再还原这份数据，并把域名 DNS 切过去。")}</span></div>}
       </>} />
   )
   return (
@@ -257,7 +257,7 @@ function RestoreFlow({ p, s, list, initial, onClose }: { p: Project; s: Service;
             ? <>{L("原服务器")} <b className="text-fg">{origin.name}</b> {L("离线，可以选择另一台在线服务器：整个项目会在那里重建并还原这份数据，DNS 随之切换。")}</>
             : <>{L("正在读取服务器状态…")}</>}
       </div>
-      {tgt && tgt.status !== 'online' && <div className="text-[12px] text-[#ef4444] mt-2">{L("目标服务器离线，无法还原")}</div>}
+      {tgt && tgt.status !== 'online' && <div className="text-[12px] text-danger mt-2">{L("目标服务器离线，无法还原")}</div>}
     </Modal>
   )
 }
@@ -273,7 +273,7 @@ function RestoreStatus({ s }: { s: Service }) {
   const recent = active || (j.finished_at && now - new Date(j.finished_at).getTime() < 24 * 3600e3)
   if (!recent) return null
   return (
-    <Card className={cx('mt-6 px-4 @2xl:px-6 py-4', j.status === 'failed' && '!bg-[#fca5a5] text-[#141414]')}>
+    <Card className={cx('mt-6 px-4 @2xl:px-6 py-4', j.status === 'failed' && '!bg-t-red text-ink')}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
         {active ? <Loader2 size={16} className="animate-spin text-accent" /> : j.status === 'done' ? <CheckCircle2 size={16} className="text-[#22c55e]" /> : <XCircle size={16} />}
         <span className="font-semibold">{active ? L("正在还原") : j.status === 'done' ? L("还原完成") : L("还原失败")}</span>

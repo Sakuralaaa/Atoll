@@ -23,15 +23,15 @@ export function ProblemsBanner({ scope }: { scope: 'servers' | 'projects' }) {
   const setCollapsed = (v: boolean) => { localStorage.setItem(COLLAPSE_KEY + scope, v ? '1' : '0'); setCollapsedState(v) }
   if (!list.length) return null
   return (
-    <div className="mb-6 rounded-2xl surface !bg-[#fca5a5] text-[#141414] overflow-hidden" role="alert">
+    <div className="mb-6 rounded-2xl surface !bg-t-red text-ink overflow-hidden" role="alert">
       <button type="button" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed}
-        className={`w-full px-5 h-11 flex items-center gap-2 text-[13.5px] font-extrabold text-left hover:bg-black/5 ${collapsed ? '' : 'border-b-2 border-[var(--edge)]'}`}>
+        className={`w-full px-5 h-11 flex items-center gap-2 text-[13.5px] font-extrabold text-left hover:bg-ink/5 ${collapsed ? '' : 'border-b-2 border-[var(--edge)]'}`}>
         <AlertTriangle size={16} />{t(`${list.length} 个异常需要处理`, `${list.length} problem${list.length > 1 ? 's' : ''} to look at`)}
         <span className="ml-auto flex items-center gap-1 text-[12px] font-semibold opacity-70">{collapsed ? t('展开', 'Show') : t('收起', 'Hide')}<ChevronDown size={15} className={collapsed ? '' : 'rotate-180'} /></span>
       </button>
       {!collapsed && <div className="divide-y divide-black/15">
         {list.map(p => (
-          <Link key={p.id} to={problemHref(p)} className="px-5 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] hover:bg-black/5">
+          <Link key={p.id} to={problemHref(p)} className="px-5 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] hover:bg-ink/5">
             <span className="shrink-0">{ICON[p.kind] ?? <AlertTriangle size={15} />}</span>
             <span className="font-bold shrink-0">{problemLabel(p.kind)}</span>
             <span className="font-mono font-semibold truncate max-w-[40%]">{p.subject_name}</span>

@@ -17,7 +17,7 @@ export function FilterChips<T>({ f, defs, compact, className }: {
           !on && !n && id && 'opacity-50')}>
         {label}
         <span className={cx('tnum font-mono text-[11px] min-w-[18px] h-[18px] px-1 rounded-[3px] grid place-items-center not-italic',
-          alert && n ? 'bg-[#fca5a5] text-[#141414] border-[1.5px] border-[var(--edge)]' : 'bg-ov/[0.07] text-muted')}>{n}</span>
+          alert && n ? 'bg-t-red text-ink border-[1.5px] border-[var(--edge)]' : 'bg-ov/[0.07] text-muted')}>{n}</span>
       </button>
     )
   }

@@ -49,10 +49,10 @@ export function ZRow({ s, names }: { s: ZeaburService; names: Record<string, str
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted">
           {s.ports.map(p => <span key={p.name} className="font-mono text-[12px]">{p.container_port}/{p.protocol}</span>)}
           {s.node_ports?.map(n => <span key={n} className="font-mono text-[12px] text-dim">NodePort {n}</span>)}
-          {s.domains.map(d => <span key={d} className="flex items-center gap-1.5 min-w-0"><Globe size={13} className="shrink-0" /><span className={cx('font-medium truncate', isZeaburApp(d) ? 'text-[#ef4444] line-through decoration-2' : 'text-fg')}>{d}</span>{isZeaburApp(d) && <Badge tone="red">{L("迁移后失效")}</Badge>}</span>)}
+          {s.domains.map(d => <span key={d} className="flex items-center gap-1.5 min-w-0"><Globe size={13} className="shrink-0" /><span className={cx('font-medium truncate', isZeaburApp(d) ? 'text-danger line-through decoration-2' : 'text-fg')}>{d}</span>{isZeaburApp(d) && <Badge tone="red">{L("迁移后失效")}</Badge>}</span>)}
         </div>
         {!!s.references?.length && <Refs refs={s.references} names={names} />}
-        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
+        {s.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-warn mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>
       <div className="space-y-1.5 min-w-0">
         {!s.volumes.length && <span className="text-dim">{L("无数据卷")}</span>}

@@ -58,7 +58,7 @@ export function EnvTab({ s }: { s: Service }) {
               <span className="flex items-center justify-end gap-3 text-dim group-hover:text-muted transition-colors @max-3xl:row-start-1 @max-3xl:col-start-2">
                 {v.exposed && <span title={L("同项目其他服务可引用")} className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Share2 size={11} />{L("暴露")}</span>}
                 {v.secret && <span className="flex items-center gap-1 text-[11.5px] rounded-full ring-1 ring-inset ring-line2 px-2 h-[22px]"><Lock size={11} />{L("私有")}</span>}
-                {canDeploy && <><button title={L("编辑")} onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title={L("删除")} onClick={() => remove(v)} className="hover:text-[#ef4444]"><Trash2 size={15} /></button></>}
+                {canDeploy && <><button title={L("编辑")} onClick={() => setEdit({ i, v })} className="hover:text-fg"><Pencil size={15} /></button><button title={L("删除")} onClick={() => remove(v)} className="hover:text-danger"><Trash2 size={15} /></button></>}
               </span>
             </div>
           ))}
@@ -119,7 +119,7 @@ function RawEnv({ rows, onClose, onSave }: { rows: EnvVar[]; onClose: () => void
       <div className="text-[12.5px] text-muted mb-3">{L("每行一个 KEY=VALUE，可直接粘贴 .env 文件。私有变量显示为空值，保持为空即不修改；删掉的行会被移除。")}</div>
       <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false} wrap="off" className="w-full h-[320px] max-h-[50vh] rounded-lg field p-3.5 font-mono text-[13px] leading-6 outline-none text-fg resize-none" />
       <div className="mt-2 text-[12px] text-dim">{L("共")} {parsed.vars.length} {L("个变量")}{added ? L("，新增 {0}", added) : ''}{removed ? L("，移除 {0}", removed) : ''}</div>
-      {parsed.errors.length > 0 && <div className="mt-1 text-[12px] text-[#ef4444]">{L("无法解析：")}{parsed.errors.slice(0, 3).map(e => L("第 {0} 行：{1}", e.line, e.text)).join(L("；"))}{parsed.errors.length > 3 ? L(" 等 {0} 行", parsed.errors.length) : ''}</div>}
+      {parsed.errors.length > 0 && <div className="mt-1 text-[12px] text-danger">{L("无法解析：")}{parsed.errors.slice(0, 3).map(e => L("第 {0} 行：{1}", e.line, e.text)).join(L("；"))}{parsed.errors.length > 3 ? L(" 等 {0} 行", parsed.errors.length) : ''}</div>}
     </Modal>
   )
 }

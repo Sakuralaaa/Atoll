@@ -42,7 +42,7 @@ export default function Domains() {
         {!canSettings ? null : !settings ? <Card className="p-6 mb-8"><Skeleton className="h-12 w-full" /></Card> : (
           <Card className="mb-8 overflow-hidden">
             <div className="p-5 @2xl:p-6 flex flex-wrap @3xl:flex-nowrap items-center gap-5">
-              <div className="tile h-12 w-12 rounded-lg bg-[#fdba74] text-[#141414] grid place-items-center shrink-0"><Cloud size={24} /></div>
+              <div className="tile h-12 w-12 rounded-lg bg-t-orange text-ink grid place-items-center shrink-0"><Cloud size={24} /></div>
               <div className="flex-1 min-w-[min(100%,240px)]">
                 <div className="flex flex-wrap items-center gap-2 text-[15px] font-semibold [overflow-wrap:anywhere]">{settings.base_domain || L("未设置根域名")}{(roots?.length ?? 0) > 1 && <span className="text-[13px] font-normal text-muted">+{roots!.length - 1} {L("个根域名")}</span>}{cfOk ? <Badge tone="green">{L("已连接")}</Badge> : <Badge tone="amber">{L("未连接")}</Badge>}</div>
                 <div className="text-[13px] text-muted mt-1">{cfOk ? L("Cloudflare · {0} · 绑定根域名下的域名时自动创建 DNS 记录", settings.tls_mode === 'acme' ? L('ACME 证书') : L('Origin CA 证书')) : L("在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。")}</div>
@@ -72,7 +72,7 @@ export default function Domains() {
                   <span className="@max-4xl:order-3"><DomainBadge d={d} /></span>
                   <span className="flex items-center gap-1 justify-end @max-4xl:order-1 @max-4xl:-my-1.5">
                     <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer" title={L("打开")} className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><ExternalLink size={15} /></a>
-                    {canBind && <button title={L("解绑")} onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>}
+                    {canBind && <button title={L("解绑")} onClick={() => setDel(d)} className="h-8 w-8 grid place-items-center text-muted hover:text-danger"><Trash2 size={15} /></button>}
                   </span>
                 </div>
               )
@@ -104,7 +104,7 @@ function CloudTag({ d, onClick }: { d: Domain; onClick?: () => void }) {
     ? t('Cloudflare 代理（橙云）：隐藏源站 IP、有防护；单个请求 100 秒超时，只代理 HTTP(S)', 'Proxied by Cloudflare (orange cloud): hides the origin IP, protected; 100-second request timeout, HTTP(S) only')
     : t('仅 DNS（灰云）：直连服务器，没有超时限制、任何协议都行；会暴露源站 IP', 'DNS only (grey cloud): straight to the server, no timeout, any protocol; exposes the origin IP')
   const body = <>
-    <span className={`${tagCls} ${d.proxied ? 'bg-[#fdba74] text-[#141414]' : 'bg-card2 text-fg2'}`}>{d.proxied ? <Cloud size={11} strokeWidth={2.5} /> : <CloudOff size={11} strokeWidth={2.5} />}{d.proxied ? t('橙云', 'Proxied') : t('灰云', 'DNS only')}</span>
+    <span className={`${tagCls} ${d.proxied ? 'bg-t-orange text-ink' : 'bg-card2 text-fg2'}`}>{d.proxied ? <Cloud size={11} strokeWidth={2.5} /> : <CloudOff size={11} strokeWidth={2.5} />}{d.proxied ? t('橙云', 'Proxied') : t('灰云', 'DNS only')}</span>
     <span className={`text-[11.5px] ${d.proxied ? 'text-dim' : 'text-[#d97706]'}`}>{d.proxied ? t('100 秒超时', '100 s timeout') : t('会暴露源站 IP', 'exposes origin IP')}</span>
   </>
   if (!onClick) return <span className="inline-flex items-center gap-1.5" title={tip}>{body}</span>
@@ -114,9 +114,9 @@ function CloudTag({ d, onClick }: { d: Domain; onClick?: () => void }) {
 /** Certificate the servers present for the host. */
 function CertTag({ d }: { d: Domain }) {
   const { t } = useT()
-  if (d.cert === 'origin' && !d.proxied) return <span className={`${tagCls} bg-[#fcd34d] text-[#141414]`} title={t('直连时浏览器不信任 Cloudflare Origin CA 证书：把这个根域名的证书模式改为「自动」或 ACME', 'Browsers reject a Cloudflare Origin CA certificate on a direct connection: set this root domain to "Auto" or ACME')}><ShieldAlert size={11} />Origin CA</span>
-  if (d.cert === 'origin') return <span className={`${tagCls} bg-[#86efac] text-[#141414]`} title={t('Cloudflare Origin CA 证书（只有 Cloudflare 信任，配合橙云使用）', 'Cloudflare Origin CA certificate (trusted by Cloudflare only, for proxied hosts)')}>Origin CA</span>
-  if (d.cert === 'acme') return <span className={`${tagCls} bg-[#c4b5fd] text-[#141414]`} title={t('ACME 证书（Let\'s Encrypt，浏览器直接信任）', 'ACME certificate (Let\'s Encrypt, trusted by browsers)')}>ACME</span>
+  if (d.cert === 'origin' && !d.proxied) return <span className={`${tagCls} bg-t-amber text-ink`} title={t('直连时浏览器不信任 Cloudflare Origin CA 证书：把这个根域名的证书模式改为「自动」或 ACME', 'Browsers reject a Cloudflare Origin CA certificate on a direct connection: set this root domain to "Auto" or ACME')}><ShieldAlert size={11} />Origin CA</span>
+  if (d.cert === 'origin') return <span className={`${tagCls} bg-t-green text-ink`} title={t('Cloudflare Origin CA 证书（只有 Cloudflare 信任，配合橙云使用）', 'Cloudflare Origin CA certificate (trusted by Cloudflare only, for proxied hosts)')}>Origin CA</span>
+  if (d.cert === 'acme') return <span className={`${tagCls} bg-t-violet text-ink`} title={t('ACME 证书（Let\'s Encrypt，浏览器直接信任）', 'ACME certificate (Let\'s Encrypt, trusted by browsers)')}>ACME</span>
   if (d.cert === 'http') return <span className={`${tagCls} bg-card2 text-fg2`} title={t('服务器上没有证书：只能经 Cloudflare 以 HTTP 回源', 'No certificate on the server: Cloudflare reaches it over HTTP')}>HTTP</span>
   return null
 }
@@ -128,7 +128,7 @@ function TokenPerms({ c }: { c?: CloudflareTokenCheck }) {
   const chip = (state: string | undefined, label: string, warn: string, err?: string) => {
     const ok = state === 'ok', missing = state === 'missing'
     return (
-      <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] whitespace-nowrap ${missing ? 'border-[#d97706]/50 bg-[#fcd34d]/20 text-[#b45309] dark:text-[#fbbf24]' : 'border-line bg-sunk text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
+      <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] whitespace-nowrap ${missing ? 'border-[#d97706]/50 bg-t-amber/20 text-[#b45309] dark:text-[#fbbf24]' : 'border-line bg-sunk text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
         {!c ? <Loader2 size={13} className="animate-spin text-muted" /> : ok ? <ShieldCheck size={13} className="text-emerald-500" /> : <ShieldAlert size={13} className={missing ? '' : 'text-muted'} />}
         {label}{c && !ok && <span className="font-semibold">{missing ? t(' · 缺失', ' · missing') : t(' · 未知', ' · unknown')}</span>}
       </span>

@@ -32,7 +32,7 @@ function Bar({ label, used, cap, unit }: { label: string; used: number; cap?: nu
   return (
     <div className="min-w-0">
       <div className="flex items-baseline justify-between gap-2 text-[12px]"><span className="text-muted">{label}</span><span className="font-mono tnum">{fmt(used)}{cap ? ` / ${fmt(cap)}` : ''} {unit}</span></div>
-      {cap ? <div className="mt-1 h-1.5 rounded-full bg-sunk overflow-hidden"><div className={cx('h-full', pct >= 100 ? 'bg-[#ef4444]' : pct >= 80 ? 'bg-[#f59e0b]' : 'bg-[#22c55e]')} style={{ width: `${pct}%` }} /></div> : <div className="mt-1 text-[11px] text-dim">—</div>}
+      {cap ? <div className="mt-1 h-1.5 rounded-full bg-sunk overflow-hidden"><div className={cx('h-full', pct >= 100 ? 'bg-danger' : pct >= 80 ? 'bg-warn' : 'bg-[#22c55e]')} style={{ width: `${pct}%` }} /></div> : <div className="mt-1 text-[11px] text-dim">—</div>}
     </div>
   )
 }
