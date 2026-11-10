@@ -12,3 +12,6 @@ internal/server/webui/dist/assets/
 notes/real-test-*.md
 web/playwright-report/
 web/test-results/
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

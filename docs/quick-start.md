@@ -20,7 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
   | sudo sh -s -- --domain panel.example.com
 ```
 
-安装脚本会配置中控服务、Caddy 和 HTTPS；面板默认只监听本机，由反向代理对外提供访问。安装后打开 `https://panel.example.com`，创建第一个管理员账号，并在「设置 → 安全」启用两步验证。
+安装脚本会配置中控服务、Caddy 和 HTTPS；面板默认只监听本机，由反向代理对外提供访问。安装后打开 `https://panel.example.com`，创建第一个管理员账号，并在「设置 → 安全」启用两步验证。创建管理员后会进入一个可跳过的首次启动向导：中控名称与地址 → 添加第一台节点 → Cloudflare 根域名（可选）→ S3 备份（可选）→ 部署第一个服务；之后可在「设置 → 首次启动向导」重新打开。
 
 如果使用自己的 HTTPS 反向代理或需要额外配置，请看[中控运维手册](control.md)。想用容器运行中控，请看[用 Docker 安装中控](install-docker.md)。
 

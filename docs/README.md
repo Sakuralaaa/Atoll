@@ -2,6 +2,8 @@
 
 Atoll 是自托管的多 VPS 容器面板：由一台中控、每台机器上的 agent 和原生 Docker 组成。
 
+在线阅读：<https://sakuralaaa.github.io/Atoll/> · 在线演示：<https://sakuralaaa.github.io/Atoll/demo/?demo=1>
+
 > **项目状态：pre-alpha。** 生产使用前请先在非关键服务上验证，并演练备份恢复。
 
 ## 上手与常见问题
@@ -15,6 +17,7 @@ Atoll 是自托管的多 VPS 容器面板：由一台中控、每台机器上的
 
 ## 参考手册
 
+- [备份](backups.md) · [域名与 HTTPS](domains.md) · [子账号](subaccounts.md) · [CLI 与 MCP](cli-mcp.md) · [安全](security.md)
 - [REST API、agent 协议与权限](api.md)
 - [中控备份、自更新与迁移](control.md)
 - [从 Zeabur 迁移](migrate-from-zeabur.md)
