@@ -275,7 +275,7 @@ func (s *Server) runBuild(ctx context.Context, p pendingApply) (api.ResolvedSpec
 		return api.ResolvedSpec{}, false
 	}
 	s.st.SetGitBuilt(ctx, p.serviceID, out.Commit, out.Image, p.nodeID)
-	if b.Builder != "" { // new agents report how they built it (nil = the repo's Dockerfile)
+	if b.Builder != "" && out.Detected != nil { // new agents report how they built it
 		s.st.SetGitDetected(ctx, p.serviceID, out.Detected)
 	}
 	s.st.SetServiceImage(ctx, p.serviceID, out.Image)

@@ -223,6 +223,7 @@ func TestGitDetectPreview(t *testing.T) {
 	var svc api.Service
 	e.mustDo("POST", "/api/v1/projects/"+p.ID+"/services", map[string]any{"name": "app", "kind": "image",
 		"git": map[string]any{"repo": "https://gitlab.com/a/b", "token": "glpat-x"}}, &svc, 201)
+	waitDepStatus(t, e, latestDep(t, e, svc.ID).ID, "running")
 	var det api.GitDetected
 	e.mustDo("POST", "/api/v1/services/"+svc.ID+"/git/detect", nil, &det, 200)
 	if det.Stack != "node" || det.Commit != gitHead {
