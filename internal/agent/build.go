@@ -9,11 +9,11 @@ package agent
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,6 +104,8 @@ type Builder struct {
 	HasSourceServices func() bool
 	// Now is the clock for the idle stop (default time.Now). Tests replace it.
 	Now func() time.Time
+	// LookupHost resolves a repo host before fetching (default net.DefaultResolver). Tests replace it.
+	LookupHost func(ctx context.Context, host string) ([]netip.Addr, error)
 
 	once   sync.Once
 	slot   chan struct{}
@@ -153,8 +155,16 @@ func validateBuild(p *api.BuildPayload) error {
 	if err := validID(p.ServiceID); err != nil {
 		return err
 	}
-	if !strings.HasPrefix(p.Repo, "https://github.com/") || strings.ContainsAny(p.Repo, "@ \t\n?#") {
-		return fmt.Errorf("repo must be a GitHub https URL")
+	if p.Provider == "" && p.Builder == "" && (!legacyGitHub(p.Repo) || strings.ContainsAny(p.Repo, "@ \t\n?#")) {
+		return fmt.Errorf("repo must be a GitHub https URL") // an older control server only sends those
+	}
+	if _, err := parseRemote(p.Repo); err != nil { // build_git.go
+		return err
+	}
+	switch p.Builder {
+	case "", "auto", "dockerfile", "generated":
+	default:
+		return fmt.Errorf("unknown builder %q", p.Builder)
 	}
 	if !buildBranchRe.MatchString(p.Branch) || strings.HasPrefix(p.Branch, "-") || strings.Contains(p.Branch, "..") {
 		return fmt.Errorf("invalid branch %q", p.Branch)
@@ -201,10 +211,7 @@ type buildLog struct {
 
 func (b *Builder) newLog(p api.BuildPayload) *buildLog {
 	l := &buildLog{b: b, p: p, stop: make(chan struct{}), done: make(chan struct{})}
-	l.redact = func(s string) string { return s }
-	if p.Token != "" {
-		l.redact = func(s string) string { return strings.ReplaceAll(s, p.Token, "***") }
-	}
+	l.redact = redactor(authSecrets(buildAuth(p))) // build_git.go
 	go func() {
 		defer close(l.done)
 		t := time.NewTicker(b.FlushEvery)
@@ -340,12 +347,20 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 	}
 	defer os.RemoveAll(dir)
 
-	// The token never appears in argv: git reads it from GIT_CONFIG_* (as actions/checkout does).
-	env := []string{"GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=true", "LC_ALL=C"}
-	if p.Token != "" {
-		basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + p.Token))
-		env = append(env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
-			"GIT_CONFIG_VALUE_0=AUTHORIZATION: basic "+basic)
+	// The token never appears in argv: git reads it from GIT_CONFIG_* (as actions/checkout does);
+	// a deploy key sits in a 0600 file of a private dir removed after the fetch (build_git.go).
+	remote, err := parseRemote(p.Repo)
+	if err != nil {
+		return api.BuildResult{}, err
+	}
+	secDir, err := os.MkdirTemp(b.Paths.BuildsDir(), "sec-")
+	if err != nil {
+		return api.BuildResult{}, err
+	}
+	defer os.RemoveAll(secDir)
+	env, _, err := b.gitAccess(ctx, buildAuth(p), remote, secDir)
+	if err != nil {
+		return api.BuildResult{}, err
 	}
 	ref := "refs/heads/" + p.Branch
 	if p.Commit != "" {
@@ -358,8 +373,10 @@ func (b *Builder) build(ctx context.Context, p api.BuildPayload, lg *buildLog) (
 	if err := git(nil, "init", "-q"); err != nil {
 		return api.BuildResult{}, err
 	}
-	if err := git(nil, "fetch", "--depth", "1", "--no-tags", p.Repo+".git", ref); err != nil {
-		return api.BuildResult{}, fmt.Errorf("fetching %s from %s failed (private repository without a valid token, or unknown branch/commit): %w", ref, p.Repo, err)
+	err = git(nil, "fetch", "--depth", "1", "--no-tags", remote.fetchURL, ref)
+	os.RemoveAll(secDir) // the key is not needed after the fetch
+	if err != nil {
+		return api.BuildResult{}, fmt.Errorf("fetching %s from %s failed (private repository without a valid token or deploy key, or unknown branch/commit): %w", ref, p.Repo, err)
 	}
 	if err := git(nil, "-c", "advice.detachedHead=false", "checkout", "-q", "FETCH_HEAD"); err != nil {
 		return api.BuildResult{}, err
@@ -464,6 +481,7 @@ func (b *Builder) gitCommand(ctx context.Context, lg *buildLog, dir string, env 
 	}
 	base := []string{"run", "--rm", "--pull", "never", "--security-opt", "no-new-privileges",
 		"-v", dir + ":/src", "-w", "/src", "-u", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "-e", "HOME=/tmp"}
+	base = append(base, containerMounts(env)...) // deploy key / known hosts (build_git.go)
 	for _, kv := range env {
 		if name, _, ok := strings.Cut(kv, "="); ok && name != "" {
 			base = append(base, "-e", name)

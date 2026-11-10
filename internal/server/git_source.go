@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Sakuralaaa/Atoll/internal/api"
+	"github.com/Sakuralaaa/Atoll/internal/netguard"
 	"github.com/Sakuralaaa/Atoll/internal/server/store"
 )
 
@@ -267,8 +268,14 @@ func agentUpgradeHint(msg string) string {
 	return msg
 }
 
-// checkGitHost refuses repository hosts that point into the server's own network.
-func checkGitHost(host string) error { return nil }
+// checkGitHost refuses repository hosts that point at a server itself or a cloud metadata
+// service (the build server re-checks what the name resolves to before fetching).
+func checkGitHost(host string) error {
+	if err := netguard.CheckHost(host); err != nil {
+		return badRequest("git repo host not allowed: %v", err)
+	}
+	return nil
+}
 
 func firstPort(spec api.ResolvedSpec) int {
 	if len(spec.Ports) > 0 {

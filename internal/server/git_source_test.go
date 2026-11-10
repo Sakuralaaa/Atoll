@@ -59,6 +59,11 @@ func TestValidateGitSourceExtras(t *testing.T) {
 		"provider":   {Repo: "https://gitlab.com/a/b", Provider: "bitbucket"},
 		"gh-as-lab":  {Repo: "https://github.com/a/b", Provider: "gitlab"},
 		"knownhosts": {Repo: "git@gitlab.com:a/b.git", KnownHosts: "gitlab.com"},
+		"loopback":   {Repo: "https://127.0.0.1/a/b"},
+		"metadata":   {Repo: "https://169.254.169.254/a/b"},
+		"localhost":  {Repo: "ssh://git@localhost/a/b"},
+		"mapped":     {Repo: "https://[::ffff:127.0.0.1]/a/b"},
+		"gce":        {Repo: "https://metadata.google.internal/a/b"},
 	} {
 		if err := validateGitSource(&bad); err == nil {
 			t.Errorf("%s: accepted %+v", name, bad)

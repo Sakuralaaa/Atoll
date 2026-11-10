@@ -32,12 +32,13 @@ type fakeCmd struct {
 	files      map[string]string // written into the checkout
 	fetchOut   []string
 	fetchErr   error
-	buildBlock chan struct{} // docker build waits for it (or ctx) when set
-	started    chan string   // receives the tag of every docker build that starts
-	inspectErr error         // docker buildx inspect (dedicated builder exists?)
-	createErr  error         // docker buildx create
-	pullErr    error         // docker pull
-	lsOut      []string      // docker buildx ls output
+	fetchHook  func(env []string) // called during git fetch (build_git_test.go)
+	buildBlock chan struct{}      // docker build waits for it (or ctx) when set
+	started    chan string        // receives the tag of every docker build that starts
+	inspectErr error              // docker buildx inspect (dedicated builder exists?)
+	createErr  error              // docker buildx create
+	pullErr    error              // docker pull
+	lsOut      []string           // docker buildx ls output
 
 	mu         sync.Mutex
 	calls      []cmdCall
@@ -70,6 +71,9 @@ func (c *fakeCmd) Run(ctx context.Context, dir string, env []string, out func(st
 		c.rt.AddImage(args[1], time.Now())
 		return c.pullErr
 	case name == "git" && args[0] == "fetch":
+		if c.fetchHook != nil {
+			c.fetchHook(env)
+		}
 		for _, l := range c.fetchOut {
 			out(l)
 		}
