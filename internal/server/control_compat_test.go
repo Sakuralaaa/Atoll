@@ -18,7 +18,7 @@ func TestCheckUpdateTarget(t *testing.T) {
 		{"v0.2.0", false, true, ""},
 		{"v0.2.0-beta.1", true, false, "prerelease"},
 		{"v0.2.0-beta.1", false, false, "prerelease"}, // mislabelled on GitHub: the tag decides too
-		{"v0.2.0-beta.1", true, true, ""},              // beta channel: opt-in by tag
+		{"v0.2.0-beta.1", true, true, ""},             // beta channel: opt-in by tag
 		{"v0.1.44", false, true, "downgrade_unsupported"},
 		{"v0.1.45-beta.3", true, true, "downgrade_unsupported"},
 	} {
