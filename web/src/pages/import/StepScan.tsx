@@ -81,7 +81,7 @@ export function ScanSkeleton() {
   return <div className="space-y-5"><div className="grid grid-cols-2 @4xl:grid-cols-4 gap-4">{[0, 1, 2, 3].map(i => <Card key={i} className="p-5"><Skeleton className="h-3 w-20" /><Skeleton className="h-6 w-28 mt-3" /></Card>)}</div><RowsSkeleton n={3} /></div>
 }
 function Stat({ i, l, v, sub, warn }: { i: React.ReactNode; l: string; v: React.ReactNode; sub?: string; warn?: boolean }) {
-  return <Card className={cx('px-5 py-4', warn && '!bg-[#fcd34d] text-[#141414]')}><div className={cx('flex items-center gap-1.5 text-[12.5px]', warn ? '' : 'text-muted')}>{i}{l}</div><div className="text-[20px] font-extrabold italic tracking-[-0.02em] mt-1 tnum [overflow-wrap:anywhere]">{v}</div>{sub && <div className={cx('text-[12px] mt-0.5', warn ? '' : 'text-dim')}>{sub}</div>}</Card>
+  return <Card className={cx('px-5 py-4', warn && '!bg-t-amber text-ink')}><div className={cx('flex items-center gap-1.5 text-[12.5px]', warn ? '' : 'text-muted')}>{i}{l}</div><div className="text-[20px] font-extrabold italic tracking-[-0.02em] mt-1 tnum [overflow-wrap:anywhere]">{v}</div>{sub && <div className={cx('text-[12px] mt-0.5', warn ? '' : 'text-dim')}>{sub}</div>}</Card>
 }
 function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string) => void }) {
   const { bt } = useBackendText()
@@ -105,7 +105,7 @@ function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string
               <Button variant="primary" onClick={() => onPick(p.namespace)}>{L("迁移这个项目")}<ArrowRight size={14} /></Button>
             </div>
             {!!p.warnings?.length && (
-              <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-[#fcd34d]/20 space-y-1">
+              <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-t-amber/20 space-y-1">
                 {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
               </div>
             )}

@@ -97,7 +97,7 @@ function MigrateService({ p, s, onClose }: { p: Project; s: Service; onClose: ()
           {targets.map(x => <option key={x.id} value={x.id} disabled={x.status !== 'online'}>{x.name}{x.id === p.server_id ? t('（项目服务器）', ' (project server)') : ''}{x.tailnet_ip ? ` · ${mask(x.tailnet_ip)}` : ''}{x.status !== 'online' ? ` · ${t('离线', 'offline')}` : ''}</option>)}
         </Select>
       ) : <div className="text-[13px] text-muted">{t('没有其他服务器。', 'No other servers.')}</div>}
-      {warn && <div className="mt-4 rounded-lg border-2 border-dashed border-[#f59e0b] px-3 py-2 text-[12.5px] text-fg2">{warn}</div>}
+      {warn && <div className="mt-4 rounded-lg border-2 border-dashed border-warn px-3 py-2 text-[12.5px] text-fg2">{warn}</div>}
       <div className="mt-4 text-[12.5px] text-muted leading-5">{t('服务会停止、复制卷后在目标服务器启动；绑定的域名会改指向新服务器。', 'The service stops, its volumes are copied, then it starts on the target; bound domains are repointed.')}</div>
     </Modal>
   )

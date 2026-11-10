@@ -102,16 +102,16 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         <span className={cx('font-mono truncate', u.digest_changed ? 'text-accent font-semibold' : 'text-fg2')} title={u.latest_digest}>{shortDigest(u.latest_digest)}</span>
         {u.major_tag && <>
           <span className="text-muted">{L("大版本")}</span>
-          <span className="col-span-2 flex flex-wrap items-center gap-2 text-fg2 min-w-0"><TriangleAlert size={14} className="text-[#f59e0b] shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">{L("主版本号变化，可能不兼容，请先看更新日志")}</span>
+          <span className="col-span-2 flex flex-wrap items-center gap-2 text-fg2 min-w-0"><TriangleAlert size={14} className="text-warn shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">{L("主版本号变化，可能不兼容，请先看更新日志")}</span>
             {canDeploy && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ tag: u.major_tag })}>{L("切换")}</Button>}</span>
         </>}
       </div>}
 
-      {(u.error || u.note) && <div className={cx('mt-4 text-[12.5px] leading-5 [overflow-wrap:anywhere]', u.error ? 'text-[#ef4444]' : 'text-muted')}>{u.error || u.note}</div>}
+      {(u.error || u.note) && <div className={cx('mt-4 text-[12.5px] leading-5 [overflow-wrap:anywhere]', u.error ? 'text-danger' : 'text-muted')}>{u.error || u.note}</div>}
 
       {u.policy === 'auto' && checkable && canDeploy && <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px]">
         <span className="text-muted">{L("自动更新时段")}</span>
-        <TextInput mono className={cx('h-9 w-[150px]', winBad && 'ring-2 ring-[#ef4444]')} placeholder={L("任意时间")} value={winValue}
+        <TextInput mono className={cx('h-9 w-[150px]', winBad && 'ring-2 ring-danger')} placeholder={L("任意时间")} value={winValue}
           onChange={e => setWin(e.target.value.trim())} onKeyDown={e => e.key === 'Enter' && !winBad && setPolicy('auto', winValue)} />
         <span className="text-dim text-[12px]">{L("UTC，例如 18:00-21:00（北京时间 02:00-05:00）；留空表示随时。只自动更新同一标签的新摘要，不会自动换标签。")}</span>
         {win !== undefined && win !== (u.window ?? '') && <Button size="sm" disabled={busy || winBad} onClick={() => setPolicy('auto', winValue)}>{L("保存")}</Button>}

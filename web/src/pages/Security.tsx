@@ -15,13 +15,14 @@ import { toast } from '../components/toast'
 import NotificationSettings from '../components/NotificationSettings'
 import MemberTokens from '../components/MemberTokens'
 import { MyQuotaCard } from '../components/MemberQuota'
+import AppearanceSettings from '../components/AppearanceSettings'
 
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
   const { t } = useT()
   const me = useQuery('me', api.me)
   const admin = me.data?.role !== 'member'
-  const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-[#fde047] text-[#141414]' : 'border-transparent text-muted hover:text-fg')
+  const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-hi text-hi-ink' : 'border-transparent text-muted hover:text-fg')
   return (
     <div className="flex flex-wrap gap-2 mt-5 mb-8">
       {admin && <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>}
@@ -43,6 +44,7 @@ export default function Security() {
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
         <AvatarCard />
+        <AppearanceSettings />
         <UsernameCard twoFactor={q.data?.enabled} />
         <ChangePasswordCard twoFactor={q.data?.enabled} />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -108,7 +110,7 @@ function AvatarCard() {
     <Section icon={<ImageUp size={17} />} title={t('头像', 'Avatar')}>
       <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-4">
         {me?.avatar ? <Avatar size={64} src={me.avatar} className="rounded-xl" />
-          : <span className="tile h-16 w-16 shrink-0 rounded-xl bg-[#fde047] grid place-items-center text-[26px] font-extrabold font-mono text-[#141414]">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
+          : <span className="tile h-16 w-16 shrink-0 rounded-xl bg-hi grid place-items-center text-[26px] font-extrabold font-mono text-hi-ink">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-muted leading-5">{t('支持 PNG、JPG、WebP，会自动裁成正方形并压缩，只显示在面板里。', 'PNG, JPG or WebP; cropped to a square and shrunk. Shown in the panel only.')}</div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -168,7 +170,7 @@ function UsernameCard({ twoFactor }: { twoFactor?: boolean }) {
           </label>}
         </div>
         {changed && !valid && <div className="mt-3 text-[12.5px] text-muted font-semibold">{t('1–64 个字符：字母、数字、_ . @ -', '1–64 characters: letters, digits, _ . @ -')}</div>}
-        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
         {changed && <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}{t('保存用户名', 'Save username')}</Button>}
       </form>
     </Section>
@@ -225,7 +227,7 @@ function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
           </label>}
         </div>
         {hint && <div className="mt-3 text-[12.5px] text-muted font-semibold">{hint}</div>}
-        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
         <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{t('修改密码', 'Change password')}</Button>
       </form>
     </Section>
@@ -247,9 +249,9 @@ function TwoFactorCard({ st }: { st: TwoFactorStatus }) {
         </> : <>
           <div className="grid grid-cols-2 gap-4 text-[13px]">
             <div><div className="text-muted text-[12px]">{t('启用时间', 'Enabled')}</div><div className="font-semibold mt-0.5">{fmt(st.enabled_at)}</div></div>
-            <div><div className="text-muted text-[12px]">{t('剩余恢复码', 'Recovery codes left')}</div><div className={cx('font-semibold mt-0.5 font-mono', low && 'text-[#ef4444]')}>{st.recovery_codes_left} / 10</div></div>
+            <div><div className="text-muted text-[12px]">{t('剩余恢复码', 'Recovery codes left')}</div><div className={cx('font-semibold mt-0.5 font-mono', low && 'text-danger')}>{st.recovery_codes_left} / 10</div></div>
           </div>
-          {low && <div className="mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-[#fde047] text-[#141414] px-3.5 py-2.5 text-[13px] font-semibold flex items-center gap-2"><AlertTriangle size={15} className="shrink-0" />{t('恢复码快用完了，建议重新生成。', 'You are running out of recovery codes — regenerate them.')}</div>}
+          {low && <div className="mt-4 rounded-[4px] border-2 border-[var(--edge)] bg-hi text-hi-ink px-3.5 py-2.5 text-[13px] font-semibold flex items-center gap-2"><AlertTriangle size={15} className="shrink-0" />{t('恢复码快用完了，建议重新生成。', 'You are running out of recovery codes — regenerate them.')}</div>}
           <div className="flex flex-wrap gap-3 mt-5">
             <Button onClick={() => setFlow('regen')}><RefreshCw size={14} />{t('重新生成恢复码', 'Regenerate recovery codes')}</Button>
             <Button variant="danger-outline" onClick={() => setFlow('disable')}><ShieldOff size={14} />{t('停用两步验证', 'Turn off 2FA')}</Button>
@@ -316,7 +318,7 @@ function EnrollModal({ onClose, onDone }: { onClose: () => void; onDone: (codes:
           </div>
         </form>
       )}
-      {err && <div role="alert" className="mt-4 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+      {err && <div role="alert" className="mt-4 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
     </Modal>
   )
 }
@@ -335,7 +337,7 @@ function ReauthModal({ mode, onClose, onDone }: { mode: 'disable' | 'regen'; onC
     } catch (x) { setErr(errText(t, x)); setCode('') }
   })
   return (
-    <Modal title={disable ? <><ShieldOff size={17} className="text-[#ef4444]" />{t('停用两步验证', 'Turn off two-factor authentication')}</> : <><RefreshCw size={17} className="text-accent" />{t('重新生成恢复码', 'Regenerate recovery codes')}</>} onClose={onClose}
+    <Modal title={disable ? <><ShieldOff size={17} className="text-danger" />{t('停用两步验证', 'Turn off two-factor authentication')}</> : <><RefreshCw size={17} className="text-accent" />{t('重新生成恢复码', 'Regenerate recovery codes')}</>} onClose={onClose}
       footer={<><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button><Button size="sm" variant={disable ? 'danger' : 'primary'} disabled={!ok || busy} onClick={go}>{busy && <Loader2 size={14} className="animate-spin" />}{disable ? t('停用', 'Turn off') : t('生成新的恢复码', 'Generate new codes')}</Button></>}>
       <form onSubmit={e => { e.preventDefault(); if (ok) go() }}>
         <div className="text-[13.5px] text-fg2 leading-6">{disable
@@ -347,7 +349,7 @@ function ReauthModal({ mode, onClose, onDone }: { mode: 'disable' | 'regen'; onC
         <TextInput mono autoComplete="one-time-code" className="w-full" value={code} onChange={e => setCode(e.target.value)} placeholder={disable ? '000000 / xxxxx-xxxxx' : '000000'} />
         <button type="submit" hidden />
       </form>
-      {err && <div role="alert" className="mt-4 text-[12.5px] text-[#ef4444] font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+      {err && <div role="alert" className="mt-4 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
     </Modal>
   )
 }

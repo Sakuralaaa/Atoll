@@ -34,6 +34,8 @@ type meResponse struct {
 	Avatar string `json:"avatar,omitempty"`
 	// NavOrder is the account's sidebar order (panel entry keys); empty = default.
 	NavOrder []string `json:"nav_order,omitempty"`
+	// Theme is the account's preset panel theme id; empty = default.
+	Theme string `json:"theme,omitempty"`
 	// Role is "admin" or "member" (notes/subaccounts.md). A member sees only Servers
 	// and the Projects on them.
 	Role    string   `json:"role"`
@@ -189,10 +191,10 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) error {
 		role = store.RoleMember
 	}
 	if p.Session && !p.Member {
-		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions), Avatar: ui.Avatar, NavOrder: ui.NavOrder, Role: role})
+		writeJSON(w, 200, meResponse{Username: p.User.Username, Auth: "session", Scope: "session", Permissions: slices.Clone(api.AllPermissions), Avatar: ui.Avatar, NavOrder: ui.NavOrder, Theme: ui.Theme, Role: role})
 		return nil
 	}
-	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval, NavOrder: ui.NavOrder, Role: role}
+	me := meResponse{Username: p.User.Username, Auth: "token", Scope: p.Scope, Permissions: []string{}, RequireApproval: p.RequireApproval, NavOrder: ui.NavOrder, Theme: ui.Theme, Role: role}
 	if p.Session {
 		me.Auth, me.Scope, me.Avatar, me.MustChangePassword = "session", "session", ui.Avatar, p.User.MustChangePassword
 	}

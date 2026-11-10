@@ -30,10 +30,10 @@ export default function Developer() {
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 mb-3"><div className="text-[15px] font-semibold flex items-center gap-2"><KeyRound size={18} />{t('API 令牌', 'API tokens')}</div><Button variant="primary" onClick={() => setCreate(true)}><Plus size={15} />{t('创建令牌', 'Create token')}</Button></div>
         {fresh?.token && (
-          <Card className="p-5 mb-5 !bg-[#86efac] text-[#141414]">
+          <Card className="p-5 mb-5 !bg-t-green text-ink">
             <div className="flex items-center gap-2 text-[13.5px] font-bold"><AlertTriangle size={16} />{t(`令牌「${fresh.name}」已创建，只显示这一次`, `Token "${fresh.name}" created — shown only once`)}</div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <div className="flex-1 basis-full @2xl:basis-0 min-w-0 h-11 rounded-[4px] border-2 border-[#141414] bg-[#fffdf8] px-3.5 flex items-center font-mono text-[13px] truncate">{fresh.token}</div>
+              <div className="flex-1 basis-full @2xl:basis-0 min-w-0 h-11 rounded-[4px] border-2 border-[var(--edge)] bg-t-field px-3.5 flex items-center font-mono text-[13px] truncate">{fresh.token}</div>
               <CopyButton text={fresh.token} label={t('复制令牌', 'Copy token')} />
               <Button size="sm" onClick={() => setFresh(undefined)}>{t('我已保存', "I've saved it")}</Button>
             </div>
@@ -62,7 +62,7 @@ export default function Developer() {
                   <span className="text-muted @max-4xl:text-[12px]"><span className="@4xl:hidden">{t('最近使用：', 'Last used: ')}</span>{tk.last_used_at ? ago(tk.last_used_at) : t('从未使用', 'Never')}</span>
                   <div className="flex items-center justify-end @max-4xl:row-start-1 @max-4xl:col-start-2">
                     <button title={t('编辑', 'Edit')} onClick={() => setEdit(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><Pencil size={15} /></button>
-                    <button title={t('吊销', 'Revoke')} onClick={() => setRevoke(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                    <button title={t('吊销', 'Revoke')} onClick={() => setRevoke(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-danger"><Trash2 size={15} /></button>
                   </div>
                 </div>
               )

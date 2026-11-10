@@ -33,7 +33,7 @@ export default function ResourceDefaultsSettings({ s }: { s: Settings }) {
           <div className="flex flex-wrap items-center gap-3">
             <TextInput mono type="number" min={0} className="w-[140px]" value={mem} onChange={e => setMem(e.target.value)} placeholder={t('不限', 'none')} />
             <span className="text-[13px] text-muted">MB</span>
-            {!memOk && <span className="text-[12px] text-[#ef4444]">{t('填 0（不限）或 6 到 1048576 之间的整数', 'Enter 0 (no limit) or a whole number from 6 to 1048576')}</span>}
+            {!memOk && <span className="text-[12px] text-danger">{t('填 0（不限）或 6 到 1048576 之间的整数', 'Enter 0 (no limit) or a whole number from 6 to 1048576')}</span>}
           </div>
         </div>
         <div className="px-4 @2xl:px-6 py-5 grid grid-cols-1 @3xl:grid-cols-[260px_minmax(0,1fr)] gap-3 @3xl:gap-6 items-center">
@@ -41,7 +41,7 @@ export default function ResourceDefaultsSettings({ s }: { s: Settings }) {
           <div className="flex flex-wrap items-center gap-3">
             <TextInput mono type="number" min={0} step="0.25" className="w-[140px]" value={cpu} onChange={e => setCpu(e.target.value)} placeholder={t('不限', 'none')} />
             <span className="text-[13px] text-muted">{t('核', 'cores')}</span>
-            {!cpuOk && <span className="text-[12px] text-[#ef4444]">{t('填 0（不限）到 1024 之间的数', 'Enter a number from 0 (no limit) to 1024')}</span>}
+            {!cpuOk && <span className="text-[12px] text-danger">{t('填 0（不限）到 1024 之间的数', 'Enter a number from 0 (no limit) to 1024')}</span>}
             <Button className="ml-auto" size="sm" variant="primary" disabled={!memOk || !cpuOk || !dirty || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{t('保存', 'Save')}</Button>
           </div>
         </div>

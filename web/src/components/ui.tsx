@@ -32,7 +32,7 @@ export function Avatar({ size = 24, name = '', src, className }: { size?: number
   if (src) return <img src={src} alt="" width={size} height={size} style={{ width: size, height: size }} className={cx('rounded-md object-cover shrink-0 border-2 border-[var(--edge)] bg-sunk', className)} />
   return (
     <div style={{ width: size, height: size, background: colorFor(name || '?'), fontSize: Math.round(size * 0.46) }}
-      className="rounded-md grid place-items-center font-extrabold font-mono text-[#141414] shrink-0 border-2 border-[var(--edge)]">
+      className="rounded-md grid place-items-center font-extrabold font-mono text-ink shrink-0 border-2 border-[var(--edge)]">
       {letterFor(name || '?')}
     </div>
   )
@@ -47,7 +47,7 @@ export function Button({ children, variant = 'secondary', size = 'md', className
       variant === 'secondary' && 'btn-secondary text-fg',
       variant === 'ghost' && 'text-fg2 hover:bg-ov/5',
       variant === 'danger' && 'btn-danger',
-      variant === 'danger-outline' && 'btn-secondary !text-[#ef4444]',
+      variant === 'danger-outline' && 'btn-secondary !text-danger',
       className)}>{children}</button>
   )
 }
@@ -121,7 +121,7 @@ export function ServiceIcon({ s, size = 28 }: { s: IconSpec; size?: number }) {
     )
   }
   return (
-    <div style={{ width: size, height: size, background: `color-mix(in srgb, ${s.color ?? '#8b5cf6'} 38%, var(--card))` }} className="tile rounded-[8px] grid place-items-center shrink-0">
+    <div style={{ width: size, height: size, background: `color-mix(in srgb, ${s.color ?? 'var(--pick)'} 38%, var(--card))` }} className="tile rounded-[8px] grid place-items-center shrink-0">
       <span style={{ fontSize: size * 0.44 }} className="font-extrabold font-mono text-fg">{s.letter}</span>
     </div>
   )
@@ -186,11 +186,11 @@ export function CopyId({ v }: { v: string }) {
 }
 
 export function Badge({ children, tone = 'amber' }: { children: React.ReactNode; tone?: 'amber' | 'green' | 'violet' | 'zinc' | 'red' }) {
-  return <span className={cx('inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded-[3px] px-2 h-[22px] text-[11.5px] font-bold font-mono italic tracking-normal border-[1.5px] border-[var(--edge)] shadow-[2px_2px_0_0_var(--edge)]',
-    tone === 'amber' && 'bg-[#fcd34d] text-[#141414]',
-    tone === 'green' && 'bg-[#86efac] text-[#141414]',
-    tone === 'violet' && 'bg-[#c4b5fd] text-[#141414]',
-    tone === 'red' && 'bg-[#fca5a5] text-[#141414]',
+  return <span className={cx('inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded-[3px] px-2 h-[22px] text-[11.5px] font-bold font-mono italic tracking-normal border-[1.5px] border-[var(--edge)] shadow-hard-sm',
+    tone === 'amber' && 'bg-t-amber text-ink',
+    tone === 'green' && 'bg-t-green text-ink',
+    tone === 'violet' && 'bg-t-violet text-ink',
+    tone === 'red' && 'bg-t-red text-ink',
     tone === 'zinc' && 'bg-card2 text-fg2')}>{children}</span>
 }
 
@@ -204,7 +204,7 @@ function smooth(pts: number[][]) {
   return d
 }
 
-export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels = ['12:24', '14:48', '17:12', '19:36', '22:00', '00:24'], h = 160, max }: { title: string; icon?: React.ReactNode; data: number[]; color?: string; unit?: string; labels?: string[]; h?: number; max?: number }) {
+export function Chart({ title, icon, data, color = 'var(--pick)', unit = '%', labels = ['12:24', '14:48', '17:12', '19:36', '22:00', '00:24'], h = 160, max }: { title: string; icon?: React.ReactNode; data: number[]; color?: string; unit?: string; labels?: string[]; h?: number; max?: number }) {
   const w = 600
   if (data.length < 2) return (
     <Card className="overflow-hidden"><div className="px-5 pt-4 flex items-center gap-1.5 text-[12.5px] text-muted">{icon}{title}</div>
@@ -214,7 +214,7 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
   const step = w / (data.length - 1)
   const pts = data.map((v, i) => [i * step, h - (v / top) * h * 0.92])
   const d = smooth(pts)
-  const id = 'c' + title.length + color.slice(1)
+  const id = 'c' + title.length + color.replace(/[^a-z0-9]/gi, '')
   const last = data[data.length - 1]
   return (
     <Card className="overflow-hidden">
@@ -227,9 +227,9 @@ export function Chart({ title, icon, data, color = '#8b5cf6', unit = '%', labels
         <div className="relative">
           <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">{[0, 1, 2, 3].map(i => <div key={i} className="border-t border-ov/[0.04]" />)}</div>
           <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full relative overflow-visible" style={{ height: h }}>
-            <defs><linearGradient id={id} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".35" /><stop offset="1" stopColor={color} stopOpacity=".05" /></linearGradient></defs>
+            <defs><linearGradient id={id} x1="0" x2="0" y1="0" y2="1"><stop offset="0" style={{ stopColor: color, stopOpacity: .35 }} /><stop offset="1" style={{ stopColor: color, stopOpacity: .05 }} /></linearGradient></defs>
             <path d={`${d} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} />
-            <path d={d} fill="none" stroke={color} strokeWidth="2.2" vectorEffect="non-scaling-stroke" />
+            <path d={d} fill="none" style={{ stroke: color }} strokeWidth="2.2" vectorEffect="non-scaling-stroke" />
           </svg>
         </div>
         <div className="flex justify-between text-[11px] text-dim mt-2 tnum">{labels.map((l, i) => <span key={i}>{l}</span>)}</div>

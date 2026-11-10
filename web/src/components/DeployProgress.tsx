@@ -36,7 +36,7 @@ export function DeployProgress({ s }: { s: Service }) {
   const steps = git ? STEPS : STEPS.filter(x => x !== 'building')
   const at = steps.indexOf(d.status)
   return (
-    <div className={cx('mt-5 rounded-xl border-2 border-[var(--edge)] px-4 py-3 text-[13px] flex flex-wrap items-center gap-3', running ? 'bg-card2/60' : 'bg-[#fca5a5] text-[#141414]')}>
+    <div className={cx('mt-5 rounded-xl border-2 border-[var(--edge)] px-4 py-3 text-[13px] flex flex-wrap items-center gap-3', running ? 'bg-card2/60' : 'bg-t-red text-ink')}>
       {running ? <Loader2 size={16} className="animate-spin text-accent shrink-0" /> : <XCircle size={16} className="shrink-0" />}
       {running ? <div className="flex-1 min-w-[min(100%,260px)]">
         <div className="font-semibold">{t('正在部署', 'Deploying')} · {deployStatusText[d.status] ?? d.status}<span className="font-normal text-muted"> · {ago(d.started_at)}</span></div>

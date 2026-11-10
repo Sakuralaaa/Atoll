@@ -165,7 +165,7 @@ function MetricsTab({ s }: { s: Server }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="text-[20px] font-semibold tracking-tight">{L("监控指标")}</h2><div className="flex flex-wrap gap-2"><RangePicker v={range} set={setRange} />{isDemo() && <Button variant="primary"><Bell size={15} />{L("设置告警")}</Button>}</div></div>
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
-        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="#8b5cf6" max={100} labels={labels} />
+        <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" max={100} labels={labels} />
         <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="#38bdf8" max={100} labels={labels} />
         <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
       </div>
@@ -215,7 +215,7 @@ function SettingsTab({ s }: { s: Server }) {
       <NetworkSection s={s} />
       <Section title="Agent">
         <Row t="Atoll Agent" d={L("{0} · 本地保存期望状态，中控离线时容器照常运行", s.agent_version || L('未知版本'))}><span className="flex items-center gap-2 text-[13px]"><Dot status={s.status} />{s.status === 'online' ? L("已连接") : statusText[s.status] ?? s.status}</span><AgentUpgradeAction s={s} /></Row>
-        {s.agent_upgrade?.state === 'failed' && s.agent_upgrade.error && <div className="px-6 pb-4 -mt-2 text-[12.5px] text-[#ef4444] [overflow-wrap:anywhere]">{s.agent_upgrade.error}</div>}
+        {s.agent_upgrade?.state === 'failed' && s.agent_upgrade.error && <div className="px-6 pb-4 -mt-2 text-[12.5px] text-danger [overflow-wrap:anywhere]">{s.agent_upgrade.error}</div>}
         <Row t={L("防火墙")} d={L("80/443 仅放行 Cloudflare IP；SSH 与 Agent 只走 Tailscale")}><Badge tone="green">{L("已启用")}</Badge></Row>
       </Section>
       {isDemo() && <Section title={L("资源保留")}>
@@ -318,7 +318,7 @@ function StatusTab({ s }: { s: Server }) {
         return (
           <div key={row.service_id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] gap-x-4 px-6 h-12 items-center text-[13px] border-b border-line last:border-0">
             <span className="font-mono text-[13px] truncate">{f ? <Link to={`/projects/${f.p.id}/services/${f.x.id}`} className="hover:underline">atoll-{f.x.name}</Link> : `atoll-${row.service_id}`}</span><span className="truncate" title={f?.p.name}>{f ? projName(f.p) : '—'}</span><span className="font-mono text-[12.5px] text-muted truncate">{f?.x.image ?? row.image_digest ?? '—'}</span>
-            <span className="flex items-center gap-2"><Dot status={st(row.state)} />{row.state}{row.health ? ` · ${row.health}` : ''}</span><span className={row.restart_count ? 'text-[#f59e0b] font-semibold' : 'text-muted'}>{row.restart_count}</span>
+            <span className="flex items-center gap-2"><Dot status={st(row.state)} />{row.state}{row.health ? ` · ${row.health}` : ''}</span><span className={row.restart_count ? 'text-warn font-semibold' : 'text-muted'}>{row.restart_count}</span>
           </div>
         )
       })}

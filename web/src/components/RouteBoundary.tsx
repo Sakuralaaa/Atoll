@@ -27,7 +27,7 @@ function RouteError({ error, stale, onRetry }: { error: Error; stale: boolean; o
   const { t } = useT()
   return (
     <div className="min-h-[60vh] grid place-items-center px-4">
-      <div role="alert" className="rounded-2xl surface !bg-[#fca5a5] text-[#141414] px-6 py-5 max-w-[560px] w-full flex items-start gap-4">
+      <div role="alert" className="rounded-2xl surface !bg-t-red text-ink px-6 py-5 max-w-[560px] w-full flex items-start gap-4">
         <AlertTriangle size={18} className="mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-[13.5px] font-bold">{stale ? t('页面加载失败，面板可能刚更新过', 'The page failed to load; the panel may have just been updated') : t('页面出错了', 'This page hit an error')}</div>

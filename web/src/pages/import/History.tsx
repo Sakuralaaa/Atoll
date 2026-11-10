@@ -85,11 +85,11 @@ export function AdvancedCli() {
               <div>
                 <div className="flex items-center gap-2 text-[13.5px] font-semibold">{plan.project_name}<span className="text-muted font-normal text-[12.5px]">· {plan.services.length} {L("个服务 ·")} {bytes(dataBytes)}</span><button onClick={() => setPlan(undefined)} className="ml-auto text-muted hover:text-fg"><X size={15} /></button></div>
                 <div className="mt-2 flex flex-wrap gap-1.5">{plan.services.map(s => <span key={s.name} className="chip px-2 h-6 inline-flex items-center bg-card text-[12px] font-mono">{s.name}</span>)}</div>
-                {plan.warnings?.map(w => <div key={w} className="mt-2 flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
+                {plan.warnings?.map(w => <div key={w} className="mt-2 flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-warn mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
                 <div className="mt-4 flex gap-2"><Select className="flex-1" value={tgt} onChange={e => setTarget(e.target.value)}>{servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select><Button variant="primary" disabled={busy || !tgt} onClick={submit}>{L("创建并开始")}</Button></div>
               </div>
             )}
-            {err && <div className="mt-3 text-[12.5px] text-[#ef4444]">{err}</div>}
+            {err && <div className="mt-3 text-[12.5px] text-danger">{err}</div>}
           </Card>
         </div>
       )}

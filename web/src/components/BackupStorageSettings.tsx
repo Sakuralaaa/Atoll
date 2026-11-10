@@ -87,11 +87,11 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
       <Card className="divide-y divide-line">
         <Row t="S3 Endpoint" d={<>{L("R2：")}<span className="font-mono">{L("https://&lt;账户 ID&gt;.r2.cloudflarestorage.com")}</span><br />{L("B2：")}<span className="font-mono">https://s3.us-west-004.backblazeb2.com</span></>}>
           <TextInput mono className="w-full" value={v.backup_endpoint} onChange={set('backup_endpoint')} placeholder="https://0123456789abcdef.r2.cloudflarestorage.com" />
-          {endpointBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("只填主机或 http(s) 地址，不带路径")}</div>}
+          {endpointBad && <div className="text-[12px] text-danger mt-1.5">{L("只填主机或 http(s) 地址，不带路径")}</div>}
         </Row>
         <Row t={L("存储桶")} d={L("小写字母、数字、点和连字符")}>
           <TextInput mono className="w-full" value={v.backup_bucket} onChange={set('backup_bucket')} placeholder="atoll-backups" />
-          {bucketBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("存储桶名称不合法")}</div>}
+          {bucketBad && <div className="text-[12px] text-danger mt-1.5">{L("存储桶名称不合法")}</div>}
         </Row>
         <Row t={L("路径前缀")} d={L("仓库在存储桶里的目录，默认 atoll")}>
           <TextInput mono className="w-full" value={v.backup_prefix} onChange={set('backup_prefix')} placeholder="atoll" />
@@ -104,7 +104,7 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
         </Row>
         <Row t="Secret Key" right={<Saved on={s.has_backup_credentials} />} d={L("需要对存储桶有读写和删除权限")}>
           <TextInput mono type="password" autoComplete="off" className="w-full" value={sk} onChange={e => { setSk(e.target.value); setTest(undefined) }} placeholder={s.has_backup_credentials ? L("已设置，留空保持不变") : 'Secret Access Key'} />
-          {pairBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("Access Key 和 Secret Key 需要一起填写")}</div>}
+          {pairBad && <div className="text-[12px] text-danger mt-1.5">{L("Access Key 和 Secret Key 需要一起填写")}</div>}
         </Row>
         <Row t={L("仓库密码")} right={<Saved on={s.has_backup_password} />}
           d={s.has_backup_password ? L("restic 用它加密所有快照。丢了它，备份就无法恢复。") : L("首次保存时自动生成并只显示一次。在新中控上接管已有仓库时，在这里填原来的密码。")}>
@@ -112,12 +112,12 @@ function Form({ s, onGenerated, onReveal }: { s: Settings; onGenerated: (x: Secr
             ? <Button size="sm" disabled={busy} onClick={reveal}><Eye size={14} />{L("显示密码")}</Button>
             : <>
               <TextInput mono type="password" autoComplete="new-password" className="w-full" value={repoPw} onChange={e => setRepoPw(e.target.value)} placeholder={L("留空自动生成（推荐）")} />
-              {pwBad && <div className="text-[12px] text-[#ef4444] mt-1.5">{L("至少 12 个字符")}</div>}
+              {pwBad && <div className="text-[12px] text-danger mt-1.5">{L("至少 12 个字符")}</div>}
             </>}
         </Row>
       </Card>
       {test && (
-        <Card className={cx('mt-4 px-5 py-3.5 flex items-start gap-3 text-[13px]', test.ok ? '!bg-[#86efac] text-[#141414]' : '!bg-[#fca5a5] text-[#141414]')}>
+        <Card className={cx('mt-4 px-5 py-3.5 flex items-start gap-3 text-[13px]', test.ok ? '!bg-t-green text-ink' : '!bg-t-red text-ink')}>
           {test.ok ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <XCircle size={16} className="mt-0.5 shrink-0" />}
           <div className="min-w-0"><div className="font-bold">{test.ok ? L("连接成功") : L("连接失败")}{'server_id' in test && test.server_id ? <span className="font-normal"> {L("· 由")} {test.server_id} {L("检查")}</span> : null}</div>
             {test.message && <div className="font-mono text-[12px] mt-0.5 break-all">{test.message}</div>}</div>
@@ -146,7 +146,7 @@ function PasswordCard({ secret, onClose }: { secret: Secret; onClose: () => void
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   return (
-    <Card className="mb-4 p-5 !bg-[#fde047] text-[#141414]">
+    <Card className="mb-4 p-5 !bg-hi text-hi-ink">
       <div className="flex items-center gap-2 text-[14px] font-extrabold italic"><KeyRound size={16} />{secret.first ? L("已生成仓库密码：只显示这一次") : L("仓库密码")}</div>
       <div className="mt-1.5 text-[13px] leading-5 flex gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" />
         <span>{L("restic 用它加密全部快照。中控数据库丢失时，只有凭这个密码才能从存储桶恢复数据。请立即复制或下载，保存到密码管理器，不要和存储桶密钥放在一起。")}</span></div>

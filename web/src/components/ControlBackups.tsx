@@ -37,14 +37,14 @@ export function BackupsTab({ s }: { s: ControlStatus }) {
       <div className="text-[13px] text-muted leading-6 -mt-3 max-w-[820px]">{L("备份包含数据库快照、")}<span className="font-mono">master.key</span>{L("、")}<span className="font-mono">server.env</span> {L("和 Caddyfile，用口令加密（scrypt + AES-256-GCM）。没有口令就打不开。")}</div>
 
       {/* passphrase: prominent, the one thing that makes bucket backups usable after losing the box */}
-      <div className="rounded-[5px] border-2 border-[var(--edge)] shadow-[4px_4px_0_0_var(--edge)] bg-[#fef3c7] text-[#141414] p-5 @2xl:p-6">
+      <div className="rounded-[5px] border-2 border-[var(--edge)] shadow-hard bg-t-note text-ink p-5 @2xl:p-6">
         <div className="flex items-start gap-3">
           <AlertTriangle size={20} className="shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
             <div className="text-[15px] font-extrabold italic tracking-[-0.02em]">{L("把备份口令存到中控以外的地方")}</div>
             <div className="text-[13px] leading-6 mt-1">{L("中控机器整台坏掉时，只能靠这个口令解开存储桶里的备份；")}<b>{L("丢了口令就等于丢了备份")}</b>{L("。请存进密码管理器，不要只放在这台服务器上。")}</div>
             <div className="text-[12.5px] mt-2">{L("定时备份当前使用：")}<b>{l ? passphraseFromText[l.passphrase_from] ?? l.passphrase_from : '…'}</b></div>
-            {shown && <div className="mt-3 rounded-lg border-2 border-[var(--edge)] bg-white/70 px-3 py-2 flex flex-wrap items-center gap-2">
+            {shown && <div className="mt-3 rounded-lg border-2 border-[var(--edge)] bg-t-wash px-3 py-2 flex flex-wrap items-center gap-2">
               <span className="font-mono text-[13.5px] font-semibold min-w-0 flex-1 [overflow-wrap:anywhere]">{shown.passphrase}</span>
               <CopyButton text={shown.passphrase} />
             </div>}
@@ -67,7 +67,7 @@ export function BackupsTab({ s }: { s: ControlStatus }) {
               : <><div className="mt-1.5 text-[14px] font-semibold">{L("未配置")}</div><div className="text-[12.5px] text-dim mt-0.5">{L("只有本地副本。在")} <Link to="/settings" className="text-accent hover:underline">{L("设置 → 备份")}</Link> {L("配置 S3 / R2 后自动上传。")}</div></>}
           </Card>
         </div>
-        {l.remote_error && <div className="rounded-lg border-2 border-[var(--edge)] bg-[#fca5a5] text-[#141414] px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("存储桶：")}{l.remote_error}</span></div>}
+        {l.remote_error && <div className="rounded-lg border-2 border-[var(--edge)] bg-t-red text-ink px-3.5 py-2.5 text-[12.5px] font-semibold flex items-start gap-2 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("存储桶：")}{l.remote_error}</span></div>}
         {!l.backups.length ? <Empty icon={<Archive size={22} />} title={L("还没有中控备份")} desc={L("每天自动备份一次；也可以现在就做一份。")} action={<Button variant="primary" onClick={runNow}><Play size={15} />{L("立即备份")}</Button>} /> : (
           <Card className="overflow-hidden">
             <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_80px_90px_90px_minmax(0,1fr)_minmax(0,1fr)_92px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>{L("时间")}</span><span>{L("触发")}</span><span>{L("版本")}</span><span>{L("大小")}</span><span>{L("位置")}</span><span>SHA256</span><span /></div>
@@ -80,7 +80,7 @@ export function BackupsTab({ s }: { s: ControlStatus }) {
                 <span className="@max-4xl:order-2 flex @4xl:[&>span]:justify-start"><Where local={b.local} remote={b.remote} /></span>
                 <span className="font-mono text-[12px] text-muted truncate @max-4xl:order-3 @max-4xl:basis-full" title={b.sha256}>{b.sha256 ? `${b.sha256.slice(0, 16)}…` : '—'}</span>
                 <span className="flex justify-end @max-4xl:order-1"><Button size="sm" onClick={() => download(b)}><Download size={14} />{L("下载")}</Button></span>
-                {b.error && <div className="basis-full @4xl:col-span-7 order-4 text-[12px] text-[#f59e0b] font-semibold [overflow-wrap:anywhere]">{b.error}</div>}
+                {b.error && <div className="basis-full @4xl:col-span-7 order-4 text-[12px] text-warn font-semibold [overflow-wrap:anywhere]">{b.error}</div>}
               </div>
             ))}
           </Card>
@@ -138,7 +138,7 @@ function ExportDialog({ host, guard, onClose }: { host: string; guard: Guard; on
       <form onSubmit={e => { e.preventDefault(); go() }}>
         <div className="text-[13.5px] text-fg2 leading-6">{L("现场生成一个新的中控备份包，用你这次输入的口令加密。")}<b>{L("口令不会被保存")}</b>{L("，请先存进密码管理器——忘了就打不开这个包。")}</div>
         <PassFields a={a} b={b} setA={setA} setB={setB} />
-        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
         <div className="mt-4 text-[12px] text-dim leading-5">{L("用于迁移到新机器：")}<span className="font-mono">{L("install-server.sh --restore 文件 --restore-passphrase-file 口令文件")}</span>{L("（见「迁移」）。")}</div>
         <button type="submit" hidden />
       </form>
@@ -162,7 +162,7 @@ function ChangePassphrase({ guard, onClose, onDone }: { guard: Guard; onClose: (
       <form onSubmit={e => { e.preventDefault(); go() }}>
         <div className="text-[13.5px] text-fg2 leading-6">{L("之后的定时和手动备份都用新口令加密。")}<b>{L("已有的备份仍然只能用旧口令打开")}</b>{L("，旧口令也请继续保留到这些备份过期。")}</div>
         <PassFields a={a} b={b} setA={setA} setB={setB} />
-        {err && <div role="alert" className="mt-3 text-[12.5px] text-[#ef4444] font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-start gap-1.5 [overflow-wrap:anywhere]"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{err}</div>}
         <button type="submit" hidden />
       </form>
     </Modal>

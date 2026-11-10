@@ -72,7 +72,7 @@ export default function Servers() {
                     <div className="min-w-0 flex-1">
                       {/* full name, wrapping; badges live in the footer so nothing squeezes it */}
                       <div className="text-[15px] font-semibold leading-snug [overflow-wrap:anywhere]">{s.name}</div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-fg2"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-[#ef4444]' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? t('在线 · Docker', 'Online · Docker') : s.status === 'offline' ? <span className="text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span> : s.status === 'pending' ? t('等待连接', 'Waiting') : t('离线', 'Offline')}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-fg2"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-danger' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? t('在线 · Docker', 'Online · Docker') : s.status === 'offline' ? <span className="text-danger font-semibold">{t('离线', 'Offline')}</span> : s.status === 'pending' ? t('等待连接', 'Waiting') : t('离线', 'Offline')}</div>
                       <div className="mt-0.5 text-[12.5px] text-muted [overflow-wrap:anywhere]" title={t('系统版本', 'OS')}>{s.os || '—'}</div>
                     </div>
                   </div>
@@ -115,7 +115,7 @@ function AddServer({ onClose }: { onClose: () => void }) {
     <Modal title={tr(L("添加服务器"), 'Add server')} width={720} onClose={onClose} footer={<Button size="sm" variant="primary" onClick={onClose}>{tr(L("完成"), 'Done')}</Button>}>
       <div className="text-[13.5px] text-fg2 leading-6">{tr(L("在新 VPS 上以 root 运行下面这行命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，连上后服务器会出现在列表里。"), 'Run this as root on the new VPS. It installs Docker and the Atoll agent; the agent connects back to the control server and the server shows up in the list.')}</div>
       <div className="mt-4">
-        {err && <div className="text-[13px] text-[#ef4444]">{err}</div>}
+        {err && <div className="text-[13px] text-danger">{err}</div>}
         {!t && !err && <div className="h-[76px] rounded-lg field grid place-items-center text-muted"><Loader2 className="animate-spin" size={18} /></div>}
         {t && <>
           <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{t.command}</CodeBlock></div>

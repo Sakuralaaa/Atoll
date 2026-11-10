@@ -1,0 +1,44 @@
+/* Terminal: monospace everywhere, square corners, phosphor green, scanlines.
+   html[data-theme=terminal] sets the shape; .light / .dark set the colours. */
+html[data-theme=terminal] {
+  --hover-lift: none; --card-lift: none; --press: none; --card-press: none; --italic: normal; --bw: 1px;
+  --bw-thin: 1px; --sh-card: none; --sh-card-hover: 0 0 0 1px var(--edge), 0 0 18px -4px var(--glow-t);
+  --sh-btn: none; --sh-btn-hover: 0 0 12px -2px var(--glow-t); --sh-tile: none; --sh-sm: none;
+  --sh-side: none; --sh-pop: 0 0 0 1px var(--edge), 0 0 24px -6px var(--glow-t); --btn-font: var(--font-mono);
+  --btn-weight: 700; --btn-track: 0; --r-box: 0px; --r-btn: 0px; --r-chip: 0px; --r-field: 0px; --r-tile: 0px;
+  --radius-xs: 0px; --radius-sm: 0px; --radius-md: 0px; --radius-lg: 0px; --radius-xl: 0px; --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --font-sans: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, "Noto Sans SC Variable", "PingFang SC", "Microsoft YaHei", monospace;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, "Noto Sans SC Variable", "PingFang SC", "Microsoft YaHei", monospace;
+  --canvas-bg: repeating-linear-gradient(to bottom, transparent 0 2px, var(--scan-t) 2px 3px);
+  --canvas-size: 100% 3px; --topline: var(--brand); --topline-h: 2px; --topline-edge: 0 solid transparent;
+  --focus: var(--hi);
+}
+html[data-theme=terminal].light {
+  color-scheme: light;
+  --bg: #eef3ea; --side: #e6ede1; --card: #f7faf4; --card2: #edf3e8; --sunk: #f2f7ee; --pop: #f7faf4;
+  --line: #bccdb2; --line2: #7f9a74; --muted: #41603a; --dim: #6c8762; --fg: #0e2a0b; --fg2: #1d3d18;
+  --ov: #0e2a0b; --accent: #16781a; --accent-soft: #0f5c12; --tick-off: #d6e2cf; --edge: #527a49;
+  --brand: #1a7f1f; --brand-ink: #f2fff0; --brand-strong: #16781a; --grain: rgba(20,90,20,.08);
+  --ink: #0b2109; --danger: #c62828; --warn: #8a5000; --hi: #1a7f1f; --hi-ink: #f2fff0; --pick: #1a7f1f;
+  --pick-ink: #f2fff0; --nav-bg: #d4e8cc; --nav-ink: #0b2109; --t-amber: #f3dc8a; --t-red: #f2b8b0;
+  --t-green: #b8e6a8; --t-violet: #cfc3ee; --t-orange: #f2c79a; --t-note: #f4ecc6; --t-ok: #d7efcc;
+  --t-wash: rgba(255,255,255,.6); --t-field: #f7faf4; --scan-t: rgba(20,90,20,.035);
+  --glow-t: rgba(26,127,31,.35);
+}
+html[data-theme=terminal].dark {
+  color-scheme: dark;
+  --bg: #050a05; --side: #040804; --card: #081108; --card2: #0d1a0d; --sunk: #061006; --pop: #0a150a;
+  --line: #1b3a1d; --line2: #2e6633; --muted: #6fbf73; --dim: #4f9453; --fg: #b8ffb4; --fg2: #93ec90;
+  --ov: #33ff66; --accent: #5cff8a; --accent-soft: #8affa8; --tick-off: #11261a; --edge: #1f5a29;
+  --brand: #33ff66; --brand-ink: #021a06; --brand-strong: #5cff8a; --grain: rgba(51,255,102,.06);
+  --ink: #021a06; --danger: #ff5f56; --warn: #ffbd2e; --hi: #33ff66; --hi-ink: #021a06; --pick: #33ff66;
+  --pick-ink: #021a06; --nav-bg: #0f2e16; --nav-ink: #c8ffc4; --t-amber: #ffd75e; --t-red: #ff8a80;
+  --t-green: #5cff8a; --t-violet: #c3a6ff; --t-orange: #ffaa5c; --t-note: #ffe9a3; --t-ok: #a8ffbf;
+  --t-wash: rgba(255,255,255,.55); --t-field: #e9ffe9; --scan-t: rgba(51,255,102,.035);
+  --glow-t: rgba(51,255,102,.45);
+}
+html[data-theme=terminal].light { --knob: #f2fff0; } html[data-theme=terminal].dark { --knob: #021a06; }
+html[data-theme=terminal] body { letter-spacing: 0; font-feature-settings: normal; }
+html[data-theme=terminal].dark body { text-shadow: 0 0 1px rgba(51,255,102,.35); }
+html[data-theme=terminal] .rounded-full:not(.h-\[7px\]):not(.h-2\.5):not(.h-2) { border-radius: 0 !important; }

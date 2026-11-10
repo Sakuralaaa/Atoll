@@ -1,0 +1,42 @@
+/* Zeabur-like: purple brand, 8px radii, hairline borders, grid texture and a purple glow at the top.
+   html[data-theme=zeabur] sets the shape; .light / .dark set the colours. */
+html[data-theme=zeabur] {
+  --hover-lift: none; --card-lift: translateY(-1px); --press: translateY(1px); --card-press: none;
+  --italic: normal; --bw: 1px; --bw-thin: 1px;
+  --sh-card: 0 1px 2px rgba(24,10,60,.06), 0 6px 20px -10px rgba(99,0,255,.18);
+  --sh-card-hover: 0 2px 4px rgba(24,10,60,.08), 0 12px 32px -10px rgba(99,0,255,.3);
+  --sh-btn: 0 1px 2px rgba(24,10,60,.08); --sh-btn-hover: 0 4px 14px -4px rgba(99,0,255,.35); --sh-tile: none;
+  --sh-sm: none; --sh-side: none; --sh-pop: 0 16px 40px -12px rgba(40,10,90,.35);
+  --btn-font: var(--font-sans); --btn-weight: 600; --btn-track: 0; --r-box: 8px; --r-btn: 8px; --r-chip: 6px;
+  --r-field: 8px; --r-tile: 8px; --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --canvas-bg: radial-gradient(ellipse 70% 320px at 50% -60px, var(--glow-z), transparent 70%), linear-gradient(var(--grid-z) 1px, transparent 1px), linear-gradient(90deg, var(--grid-z) 1px, transparent 1px);
+  --canvas-size: 100% 100%, 32px 32px, 32px 32px; --topline: transparent; --topline-h: 0px;
+  --topline-edge: 0 solid transparent; --focus: var(--brand);
+}
+html[data-theme=zeabur].light {
+  color-scheme: light;
+  --bg: #fbfaff; --side: #f6f4fd; --card: #ffffff; --card2: #f5f3ff; --sunk: #faf9ff; --pop: #ffffff;
+  --line: #e9e5f5; --line2: #d6cfee; --muted: #625b7c; --dim: #938cad; --fg: #18122b; --fg2: #2f2848;
+  --ov: #1a0f40; --accent: #6d28d9; --accent-soft: #5b21b6; --tick-off: #ebe7f7; --edge: #e4def5;
+  --brand: #6300ff; --brand-ink: #ffffff; --brand-strong: #6300ff; --grain: rgba(99,0,255,.06);
+  --ink: #18122b; --danger: #dc2626; --warn: #b45309; --hi: #ede5ff; --hi-ink: #4c1d95; --pick: #6300ff;
+  --pick-ink: #ffffff; --nav-bg: #f1ebff; --nav-ink: #4c1d95; --t-amber: #fef3c7; --t-red: #fee2e2;
+  --t-green: #dcfce7; --t-violet: #ede5ff; --t-orange: #ffedd5; --t-note: #fffbeb; --t-ok: #f0fdf4;
+  --t-wash: rgba(255,255,255,.75); --t-field: #ffffff; --glow-z: rgba(99,0,255,.14);
+  --grid-z: rgba(99,0,255,.045);
+}
+html[data-theme=zeabur].dark {
+  color-scheme: dark;
+  --bg: #0c0a13; --side: #0a0811; --card: #14111f; --card2: #1b1729; --sunk: #100d19; --pop: #17132a;
+  --line: #2a2440; --line2: #3d3560; --muted: #a39dbd; --dim: #78719a; --fg: #f4f2ff; --fg2: #d6d1ee;
+  --ov: #ffffff; --accent: #a78bfa; --accent-soft: #c4b5fd; --tick-off: #241f38; --edge: #2b2544;
+  --brand: #7b2fff; --brand-ink: #ffffff; --brand-strong: #a78bfa; --grain: rgba(167,139,250,.07);
+  --ink: #18122b; --danger: #f87171; --warn: #fbbf24; --hi: #c4b5fd; --hi-ink: #1e1238; --pick: #7b2fff;
+  --pick-ink: #ffffff; --nav-bg: #231c3d; --nav-ink: #f4f2ff; --t-amber: #fde68a; --t-red: #fecaca;
+  --t-green: #bbf7d0; --t-violet: #ddd6fe; --t-orange: #fed7aa; --t-note: #fef3c7; --t-ok: #dcfce7;
+  --t-wash: rgba(255,255,255,.7); --t-field: #faf9ff; --glow-z: rgba(123,47,255,.28);
+  --grid-z: rgba(167,139,250,.05);
+}
+html[data-theme=zeabur] .canvas { background-repeat: no-repeat, repeat, repeat; }
+html[data-theme=zeabur] .btn-primary:hover { filter: brightness(1.08); }

@@ -321,6 +321,7 @@ const en: Record<string, string> = {
  "我已妥善保存": "I've saved it",
  "隐藏": "Hide",
  "账户与安全": "Account & security",
+ "外观": "Appearance",
  "页面": "Pages",
  "服务": "Services",
  "操作": "Actions",

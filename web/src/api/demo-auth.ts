@@ -2,14 +2,14 @@ import { ApiError } from './client'
 import type { SessionInfo } from './types'
 import type { makeDemoUsers } from './demo-users'
 
-/** Demo: /auth/* and /me/* (login, 2FA, password, sessions, avatar, nav order). */
+/** Demo: /auth/* and /me/* (login, 2FA, password, sessions, avatar, nav order, theme). */
 export function makeDemoAuth(demoUsers: ReturnType<typeof makeDemoUsers>) {
   const now = Date.now()
   const iso = (msAgo: number) => new Date(now - msAgo).toISOString()
   const H = 3600e3, D = 24 * H
   const fail = (status: number, msg: string): never => { throw new ApiError(status, msg) }
   const DEMO_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
-  const demoUser: { name: string; avatar: string; nav: string[] } = { name: 'demo', avatar: '', nav: [] }
+  const demoUser: { name: string; avatar: string; nav: string[]; theme: string } = { name: 'demo', avatar: '', nav: [], theme: '' }
   const demo2fa = { enabled: false, at: '', left: 10 }
   const demoCodes = () => ['k7m2q-x9tpw', 'h4rcz-m8vne', 'p3dqs-w7kua', 'y9bft-c2hrm', 'n6gxe-t4jqp', 'r2wmk-z8cdv', 'e5ujn-q3fyb', 'a8tpc-v6sgh', 'w4hzr-k9nem', 'f7qdy-b3xut']
   const demoSessions: SessionInfo[] = [
@@ -33,7 +33,12 @@ export function makeDemoAuth(demoUsers: ReturnType<typeof makeDemoUsers>) {
       }
       if (U && m('me/avatar')) { demoUser.avatar = String(body?.avatar ?? ''); return { avatar: demoUser.avatar } }
       if (U && m('me/nav-order')) { demoUser.nav = (body?.order as string[]) ?? []; return { order: demoUser.nav } }
-      if (m('auth/me')) return demoUsers.me({ id: 'usr_demo', username: demoUser.name, avatar: demoUser.avatar || undefined, nav_order: demoUser.nav.length ? demoUser.nav : undefined })
+      if (U && m('me/theme')) {
+        const t = String(body?.theme ?? '')
+        if (t && !/^[a-z][a-z0-9-]{0,31}$/.test(t)) fail(400, 'invalid theme: ' + t)
+        demoUser.theme = t; return { theme: t }
+      }
+      if (m('auth/me')) return demoUsers.me({ id: 'usr_demo', username: demoUser.name, avatar: demoUser.avatar || undefined, nav_order: demoUser.nav.length ? demoUser.nav : undefined, theme: demoUser.theme || undefined })
       if (m('auth/login') || m('auth/setup')) return { id: 'usr_demo', username: (demoUser.name = body?.username || demoUser.name) }
       if (m('auth/logout')) return {}
       if (G && m('auth/2fa')) return { enabled: demo2fa.enabled, enabled_at: demo2fa.enabled ? demo2fa.at : undefined, recovery_codes_left: demo2fa.enabled ? demo2fa.left : 0 }

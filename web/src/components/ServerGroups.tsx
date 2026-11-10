@@ -32,7 +32,7 @@ export function ServerGroupCards({ groups, total, listView, prefs }: { groups: S
                   reserves two lines so every card keeps the same height */}
               <div className="min-w-0 flex-1 min-h-[62px] flex flex-col justify-center">
                 <div className="text-[15px] font-semibold leading-snug line-clamp-2 [overflow-wrap:anywhere]" title={s?.name}>{s?.name ?? t('未知机器', 'Unknown machine')}{s && <Flag code={countryOf(s)} size={12} className="inline-block ml-2 align-[-1px]" />}</div>
-                <div className="text-[12px] text-muted truncate mt-0.5 font-mono">{s ? <IP v={s.public_ipv4 || s.tailnet_ip} /> : g.id || '—'}{s?.status === 'offline' && <span className="ml-2 font-sans text-[#ef4444] font-semibold">{t('离线', 'Offline')}</span>}</div>
+                <div className="text-[12px] text-muted truncate mt-0.5 font-mono">{s ? <IP v={s.public_ipv4 || s.tailnet_ip} /> : g.id || '—'}{s?.status === 'offline' && <span className="ml-2 font-sans text-danger font-semibold">{t('离线', 'Offline')}</span>}</div>
               </div>
               <ChevronRight size={18} className="text-dim group-hover:text-fg2 shrink-0" />
             </div>
@@ -45,7 +45,7 @@ export function ServerGroupCards({ groups, total, listView, prefs }: { groups: S
             </div>
             <div className="mt-auto px-5 h-11 shrink-0 border-t border-line bg-sunk/60 flex items-center gap-2 text-[12.5px] text-muted tnum">
               <span>{g.projects.length === all ? t(`${all} 个项目`, `${all} projects`) : t(`${g.projects.length} / ${all} 个项目`, `${g.projects.length} of ${all} projects`)}</span>
-              {bad > 0 && <span className="text-[#ef4444] font-semibold">{t(`${bad} 个失败`, `${bad} failed`)}</span>}
+              {bad > 0 && <span className="text-danger font-semibold">{t(`${bad} 个失败`, `${bad} failed`)}</span>}
               {s && s.status === 'online' && <Latency s={s} label={false} className="text-[12.5px]" />}
               <span className="ml-auto flex items-center gap-2"><Dot status={status} />{run}/{ss.length}</span>
             </div>

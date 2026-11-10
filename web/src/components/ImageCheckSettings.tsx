@@ -25,7 +25,7 @@ export default function ImageCheckSettings({ s }: { s: Settings }) {
         <div className="flex flex-wrap items-center gap-3">
           <TextInput mono type="number" min={1} max={168} className="w-[120px]" value={v} onChange={e => setV(e.target.value)} />
           <span className="text-[13px] text-muted">{L("小时")}</span>
-          {!ok && <span className="text-[12px] text-[#ef4444]">{L("请输入 1 到 168 之间的整数")}</span>}
+          {!ok && <span className="text-[12px] text-danger">{L("请输入 1 到 168 之间的整数")}</span>}
           <Button className="ml-auto" size="sm" variant="primary" disabled={!ok || n === cur || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{L("保存")}</Button>
         </div>
       </Card>

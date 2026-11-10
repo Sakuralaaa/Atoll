@@ -137,7 +137,7 @@ export default function FilesPage() {
   const renderDir = (dir: string, depth: number): React.ReactNode => {
     const st = dirs[dir]
     if (st === 'loading' || st === undefined) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center"><Skeleton className="h-3 w-24" /></div>
-    if (!Array.isArray(st)) return <div style={{ paddingLeft: depth * 18 + 26 }} className="py-1 text-[12px] text-[#ef4444] break-all">{st.error}</div>
+    if (!Array.isArray(st)) return <div style={{ paddingLeft: depth * 18 + 26 }} className="py-1 text-[12px] text-danger break-all">{st.error}</div>
     if (!st.length) return <div style={{ paddingLeft: depth * 18 + 26 }} className="h-[30px] flex items-center text-[12px] text-dim">{L("空目录")}</div>
     return st.map(e => {
       const p = join(dir, e.name), vol = isVol(p), isOpen = open.has(p)
@@ -146,7 +146,7 @@ export default function FilesPage() {
           <button onClick={() => (e.dir ? toggle(p) : openFile(p))} title={p}
             className={cx('w-full flex items-center gap-2 h-[30px] rounded-[4px] pr-2 text-left', file === p ? 'nav-active !shadow-none' : 'hover:bg-ov/5')} style={{ paddingLeft: depth * 18 + 4 }}>
             {e.dir ? (isOpen ? <ChevronDown size={14} className="text-muted shrink-0" /> : <ChevronRight size={14} className="text-muted shrink-0" />) : <span className="w-[14px] shrink-0" />}
-            {e.dir ? <Folder size={15} className={cx('shrink-0', vol ? 'text-accent' : 'text-fg2')} fill="currentColor" /> : cfgOf(p) ? <FileCog size={15} className="text-[#f59e0b] shrink-0" /> : <FileText size={15} className="text-fg2 shrink-0" />}
+            {e.dir ? <Folder size={15} className={cx('shrink-0', vol ? 'text-accent' : 'text-fg2')} fill="currentColor" /> : cfgOf(p) ? <FileCog size={15} className="text-warn shrink-0" /> : <FileText size={15} className="text-fg2 shrink-0" />}
             <span className={cx('truncate', vol ? 'text-accent font-semibold' : 'text-fg')}>{e.name}</span>
           </button>
           {e.dir && isOpen && renderDir(p, depth + 1)}
@@ -175,7 +175,7 @@ export default function FilesPage() {
             {configs.map(c => (
               <button key={c.path} onClick={() => openFile(c.path.replace(/\/+$/, ''))} title={c.path}
                 className={cx('w-full flex items-center gap-2 h-[30px] rounded-[4px] px-1 text-left font-mono text-[13px]', file === c.path ? 'nav-active !shadow-none' : 'hover:bg-ov/5')}>
-                <FileCog size={15} className="text-[#f59e0b] shrink-0" /><span className="truncate">{c.path}</span>
+                <FileCog size={15} className="text-warn shrink-0" /><span className="truncate">{c.path}</span>
               </button>
             ))}
           </div>
@@ -188,7 +188,7 @@ export default function FilesPage() {
           </div>
         )}
         <div className="font-mono text-[13px] overflow-auto flex-1 pb-6 -mx-1 px-1">
-          {rootErr ? <div className="text-[12.5px] text-[#ef4444] break-all font-sans">{L("无法读取容器文件：")}{rootErr}<div className="mt-2"><Button size="sm" onClick={start}><RefreshCw size={13} />{L("重试")}</Button></div></div>
+          {rootErr ? <div className="text-[12.5px] text-danger break-all font-sans">{L("无法读取容器文件：")}{rootErr}<div className="mt-2"><Button size="sm" onClick={start}><RefreshCw size={13} />{L("重试")}</Button></div></div>
             : !root ? <div className="space-y-2.5 pt-1">{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} className="h-3.5" />)}</div>
             : <>
               <button onClick={() => toggle(root)} className="w-full flex items-center gap-2 h-[30px] px-1 rounded-[4px] hover:bg-ov/5 text-left">
@@ -203,9 +203,9 @@ export default function FilesPage() {
           {file ? <>
             <span className="font-mono truncate">{file}</span>
             {orig !== undefined && <span className="text-dim shrink-0 tnum">· {bytes(new TextEncoder().encode(text).length)}</span>}
-            {cfgOf(file) ? <span className="text-[12px] text-[#f59e0b] font-semibold shrink-0">{L("· 配置文件，保存后会重新部署")}</span>
+            {cfgOf(file) ? <span className="text-[12px] text-warn font-semibold shrink-0">{L("· 配置文件，保存后会重新部署")}</span>
               : isVol(file) ? <span className="text-[12px] text-accent shrink-0">{L("· 卷内文件")}</span> : <span className="text-[12px] text-dim shrink-0 max-lg:hidden">{L("· 不在卷内，重新部署后恢复原样")}</span>}
-            {dirty && <span className="h-2 w-2 rounded-full bg-[#f59e0b] shrink-0" title={L("未保存")} />}
+            {dirty && <span className="h-2 w-2 rounded-full bg-warn shrink-0" title={L("未保存")} />}
             <span className="ml-auto" />
             <Button size="sm" disabled={!dirty || saving} onClick={() => setText(orig ?? '')}><Undo2 size={13} />{L("取消")}</Button>
             <Button size="sm" variant="primary" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}{L("保存")}</Button>
@@ -213,7 +213,7 @@ export default function FilesPage() {
         </div>
         {!file ? <div className="flex-1 flex items-center justify-center p-6 md:p-10 min-w-0 [&>*]:max-w-full"><Empty icon={<FileText size={22} />} title={L("浏览容器里的文件")} desc={L("通过容器内的 ls / cat 读取，保存时写回原路径（最大 1 MB）。Atoll 挂载的配置文件保存后会重新部署。大文件和二进制文件请用命令行。")} /></div>
           : loadingFile ? <div className="p-5 space-y-3">{[60, 40, 75, 30, 55].map((w, i) => <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />)}</div>
-          : fileErr ? <div className="p-6 flex items-start gap-2 text-[13px] text-[#ef4444]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="break-all">{fileErr}</span></div>
+          : fileErr ? <div className="p-6 flex items-start gap-2 text-[13px] text-danger"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="break-all">{fileErr}</span></div>
           : (
             <div className="flex-1 overflow-auto">
               <div className="flex min-h-full font-mono text-[13.5px] leading-7">

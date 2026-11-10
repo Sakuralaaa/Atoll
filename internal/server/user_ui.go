@@ -92,3 +92,23 @@ func (s *Server) handlePutNavOrder(w http.ResponseWriter, r *http.Request) error
 	writeJSON(w, 200, map[string][]string{"order": req.Order})
 	return nil
 }
+
+// PUT /api/v1/me/theme {theme: "minimal"}; an empty theme resets it to the default.
+// Ids are the panel's own; unknown ones are kept so a newer panel's themes survive.
+func (s *Server) handlePutTheme(w http.ResponseWriter, r *http.Request) error {
+	p := principalFrom(r.Context())
+	var req struct {
+		Theme string `json:"theme"`
+	}
+	if err := decode(r, &req); err != nil {
+		return err
+	}
+	if req.Theme != "" && !navKeyRe.MatchString(req.Theme) {
+		return badRequest("invalid theme: %s", req.Theme)
+	}
+	if err := s.st.SetTheme(r.Context(), p.User.ID, req.Theme); err != nil {
+		return err
+	}
+	writeJSON(w, 200, map[string]string{"theme": req.Theme})
+	return nil
+}

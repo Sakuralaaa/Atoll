@@ -60,7 +60,7 @@ export default function ImportDocker() {
             return (
               <div key={s.n} className="flex items-center gap-2">
                 <div className={cx('h-10 pl-1.5 pr-3.5 rounded-lg inline-flex items-center gap-2 text-[13px] font-semibold border-2', active ? 'nav-active' : done ? 'border-[var(--edge)] bg-card text-fg' : 'border-dashed border-line2 text-muted')}>
-                  <span className={cx('h-6 w-6 rounded-[4px] grid place-items-center text-[12px] font-extrabold font-mono border-[1.5px] border-[var(--edge)]', done ? 'bg-[#86efac] text-[#141414]' : active ? 'bg-[#8b5cf6] text-white' : 'bg-sunk text-muted')}>{done ? <Check size={13} strokeWidth={3} /> : s.n}</span>
+                  <span className={cx('h-6 w-6 rounded-[4px] grid place-items-center text-[12px] font-extrabold font-mono border-[1.5px] border-[var(--edge)]', done ? 'bg-t-green text-ink' : active ? 'bg-pick text-pick-ink' : 'bg-sunk text-muted')}>{done ? <Check size={13} strokeWidth={3} /> : s.n}</span>
                   {s.l}
                 </div>
                 {i < steps.length - 1 && <ChevronRight size={15} className="text-dim" />}
@@ -154,7 +154,7 @@ function GroupCard({ g, serverId, onCreated }: { g: DockerGroup; serverId: strin
         </div>
         <Button variant="primary" disabled={!g.adoptable || !picked.length || busy} onClick={adopt}>{busy && <Loader2 size={14} className="animate-spin" />}{t('接管这一组', 'Adopt this group')}<ArrowRight size={14} /></Button>
       </div>
-      {!!g.warnings?.length && <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-[#fcd34d]/20 space-y-1">
+      {!!g.warnings?.length && <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-t-amber/20 space-y-1">
         {g.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px]"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>}
       <div className="divide-y divide-line">
@@ -171,7 +171,7 @@ function ContainerRow({ c, checked, onToggle }: { c: DockerContainer; checked: b
   return (
     <div className="px-4 @2xl:px-6 py-4 grid grid-cols-1 @3xl:grid-cols-[230px_minmax(0,1fr)] gap-x-6 gap-y-3 text-[13px] [&>*]:min-w-0">
       <div className="flex items-start gap-3 min-w-0">
-        <button type="button" disabled={manual} onClick={onToggle} aria-label={c.name} className={cx('h-5 w-5 mt-0.5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', manual ? 'bg-sunk opacity-50' : checked ? 'bg-[#8b5cf6] text-white' : 'bg-sunk')}>{checked && !manual && <Check size={13} strokeWidth={3} />}</button>
+        <button type="button" disabled={manual} onClick={onToggle} aria-label={c.name} className={cx('h-5 w-5 mt-0.5 rounded-[4px] border-2 border-[var(--edge)] grid place-items-center shrink-0', manual ? 'bg-sunk opacity-50' : checked ? 'bg-pick text-pick-ink' : 'bg-sunk')}>{checked && !manual && <Check size={13} strokeWidth={3} />}</button>
         <div className="min-w-0">
           <div className="font-semibold truncate">{c.name}</div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -185,8 +185,8 @@ function ContainerRow({ c, checked, onToggle }: { c: DockerContainer; checked: b
         <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[12.5px] text-fg2 truncate max-w-full">{c.image}</span><Badge tone="zinc">{c.pinned_image ? t('固定摘要', 'pinned digest') : t('本地镜像', 'local image')}</Badge>{!!c.mem_usage_mb && <span className="text-[12px] text-muted">{c.mem_usage_mb} MB</span>}</div>
         <div className="flex flex-wrap gap-x-4 gap-y-1">{c.ports.map((p, i) => <span key={i} className={cx('font-mono text-[12px]', p.host_port ? 'text-fg' : 'text-dim')}>{portText(p)}</span>)}</div>
         {c.mounts.map((m, i) => <div key={i} className="flex items-center gap-2 min-w-0 text-[12px]"><HardDrive size={13} className="text-accent shrink-0" /><span className="font-mono truncate" title={m.source}>{m.name || m.source}</span><ArrowRight size={11} className="text-dim shrink-0" /><span className="font-mono truncate">{m.destination}</span>{m.read_only && <Badge tone="zinc">ro</Badge>}</div>)}
-        {c.risk_reasons?.map(r => <div key={r} className="flex items-start gap-1.5 text-[12.5px] text-[#ef4444]"><ShieldAlert size={13} className="mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(r)}</span></div>)}
-        {c.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
+        {c.risk_reasons?.map(r => <div key={r} className="flex items-start gap-1.5 text-[12.5px] text-danger"><ShieldAlert size={13} className="mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(r)}</span></div>)}
+        {c.warnings?.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-warn mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>
     </div>
   )
@@ -199,7 +199,7 @@ function Steps({ job }: { job: ImportJob }) {
       {job.steps.map((s, i) => (
         <div key={i} className="flex items-start gap-3 py-2">
           <span className={cx('h-6 w-6 rounded-[4px] border-[1.5px] border-[var(--edge)] grid place-items-center shrink-0',
-            s.status === 'done' && 'bg-[#86efac] text-[#141414]', s.status === 'running' && 'bg-[#fcd34d] text-[#141414]', s.status === 'failed' && 'bg-[#fca5a5] text-[#141414]', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
+            s.status === 'done' && 'bg-t-green text-ink', s.status === 'running' && 'bg-t-amber text-ink', s.status === 'failed' && 'bg-t-red text-ink', (s.status === 'pending' || s.status === 'skipped') && 'bg-sunk text-dim')}>
             {s.status === 'done' ? <Check size={13} strokeWidth={3} /> : s.status === 'running' ? <Loader2 size={13} className="animate-spin" /> : s.status === 'failed' ? <X size={13} strokeWidth={3} /> : s.status === 'skipped' ? <Minus size={13} /> : <Circle size={7} fill="currentColor" />}
           </span>
           <div className="min-w-0"><div className={cx('text-[13.5px] font-semibold', s.status === 'pending' && 'text-muted font-medium')}>{bt(s.name)}</div>{s.detail && <div className="text-[12.5px] text-muted mt-0.5 break-words">{bt(s.detail)}</div>}</div>
@@ -236,11 +236,11 @@ function Job({ job }: { job: ImportJob }) {
     <>
       {BUSY.includes(s) ? banner('', <Loader2 size={22} className="animate-spin text-accent" />, { rehearsing: t('正在演练…', 'Rehearsing…'), cutting_over: t('正在切换…', 'Cutting over…'), rolling_back: t('正在回滚…', 'Rolling back…') }[s]!, t('可以离开此页，进度会保留。', 'You can leave this page; progress is kept.'))
         : s === 'planned' ? banner('', <FlaskConical size={22} className="text-accent" />, t('准备演练', 'Ready to rehearse'), t('Atoll 会在你的容器旁边启动副本：不发布端口、可写目录用临时空目录，检查健康后再停掉。你的容器照常服务。', 'Atoll starts copies next to your containers: no published ports, scratch dirs for writable data; checked for health, then stopped again. Your containers keep serving.'), rehearseBtn(t('开始演练', 'Rehearse')))
-        : s === 'rehearsed' ? banner('!bg-[#86efac] text-[#141414]', <ShieldCheck size={22} />, t('演练通过', 'Rehearsal passed'), t('切换时停止你的旧容器（保留，重启策略改为 no），Atoll 服务在同样的端口和数据上启动。失败会自动回滚。', 'The cutover stops your old containers (kept, restart policy set to no) and starts the Atoll services on the same ports and data. A failure rolls back by itself.'), cutBtn)
-        : s === 'live' ? banner('!bg-[#86efac] text-[#141414]', <ShieldCheck size={22} />, t('已由 Atoll 接管', 'Adopted by Atoll'), <>{t('不要再对这个项目运行 docker compose up，否则旧容器会和 Atoll 的同时启动。', 'Do not run docker compose up for this project any more: it would start the old containers next to Atoll\'s.')}</>,
+        : s === 'rehearsed' ? banner('!bg-t-green text-ink', <ShieldCheck size={22} />, t('演练通过', 'Rehearsal passed'), t('切换时停止你的旧容器（保留，重启策略改为 no），Atoll 服务在同样的端口和数据上启动。失败会自动回滚。', 'The cutover stops your old containers (kept, restart policy set to no) and starts the Atoll services on the same ports and data. A failure rolls back by itself.'), cutBtn)
+        : s === 'live' ? banner('!bg-t-green text-ink', <ShieldCheck size={22} />, t('已由 Atoll 接管', 'Adopted by Atoll'), <>{t('不要再对这个项目运行 docker compose up，否则旧容器会和 Atoll 的同时启动。', 'Do not run docker compose up for this project any more: it would start the old containers next to Atoll\'s.')}</>,
           <div className="flex flex-wrap gap-2">{job.project_id && <Link to={`/projects/${job.project_id}`} className="btn-secondary h-10 px-5 inline-flex items-center gap-1.5 text-[13.5px]">{t('打开项目', 'Open project')}<ArrowRight size={14} /></Link>}{rbBtn}</div>)
         : s === 'rolled_back' ? banner('', <Undo2 size={22} className="text-accent" />, t('已回滚', 'Rolled back'), t('你的旧容器又在运行，Atoll 服务已停止。', 'Your old containers run again; the Atoll services are stopped.'), <div className="flex flex-wrap gap-2">{rehearseBtn(t('重新演练', 'Rehearse again'))}{cutBtn}</div>)
-        : banner('!bg-[#fca5a5] text-[#141414]', <AlertTriangle size={22} />, t('失败', 'Failed'), t('查看下方失败的步骤。旧容器不会被删除。', 'See the failed step below. Old containers are never removed.'), <div className="flex flex-wrap gap-2">{rehearseBtn(t('重新演练', 'Rehearse again'))}{rbBtn}</div>)}
+        : banner('!bg-t-red text-ink', <AlertTriangle size={22} />, t('失败', 'Failed'), t('查看下方失败的步骤。旧容器不会被删除。', 'See the failed step below. Old containers are never removed.'), <div className="flex flex-wrap gap-2">{rehearseBtn(t('重新演练', 'Rehearse again'))}{rbBtn}</div>)}
       <div className="grid grid-cols-1 @5xl:grid-cols-[420px_minmax(0,1fr)] gap-6 items-start [&>*]:min-w-0">
         <Card className="p-5"><div className="text-[13px] font-semibold mb-2 flex items-center gap-2">{t('步骤', 'Steps')}<span className="ml-auto text-[12px] text-muted font-normal font-mono">{job.group}</span></div><Steps job={job} /></Card>
         <div className="space-y-5">
@@ -254,7 +254,7 @@ function Job({ job }: { job: ImportJob }) {
               </div>
             ))}
           </Card>
-          {!!job.plan.warnings?.length && <Card className="p-5 space-y-1.5">{job.plan.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-[#f59e0b] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}</Card>}
+          {!!job.plan.warnings?.length && <Card className="p-5 space-y-1.5">{job.plan.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg2"><AlertTriangle size={13} className="text-warn mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}</Card>}
         </div>
       </div>
       {mem && <ConfirmDialog title={t('内存可能不足', 'Memory may be insufficient')} action={t('仍然演练', 'Rehearse anyway')} danger={false} onClose={() => setMem(null)}

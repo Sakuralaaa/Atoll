@@ -82,7 +82,7 @@ function Stepper({ step, completed }: { step: number; completed: number }) {
         return (
           <div key={s.n} className="flex items-center gap-2">
             <div className={cx('h-10 pl-1.5 pr-3.5 rounded-lg inline-flex items-center gap-2 text-[13px] font-semibold border-2', active ? 'nav-active' : done ? 'border-[var(--edge)] bg-card text-fg' : 'border-dashed border-line2 text-muted')}>
-              <span className={cx('h-6 w-6 rounded-[4px] grid place-items-center text-[12px] font-extrabold font-mono border-[1.5px] border-[var(--edge)] not-italic', done ? 'bg-[#86efac] text-[#141414]' : active ? 'bg-[#8b5cf6] text-white' : 'bg-sunk text-muted')}>{done ? <Check size={13} strokeWidth={3} /> : s.n}</span>
+              <span className={cx('h-6 w-6 rounded-[4px] grid place-items-center text-[12px] font-extrabold font-mono border-[1.5px] border-[var(--edge)] not-italic', done ? 'bg-t-green text-ink' : active ? 'bg-pick text-pick-ink' : 'bg-sunk text-muted')}>{done ? <Check size={13} strokeWidth={3} /> : s.n}</span>
               {s.l}
             </div>
             {i < STEPS.length - 1 && <ChevronRight size={15} className="text-dim" />}

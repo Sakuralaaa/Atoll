@@ -124,7 +124,7 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
         <div className="flex gap-3 h-[110px] md:h-[150px]">
           <div className="flex flex-col justify-between text-[11.5px] text-dim pb-5 tnum w-6 text-right"><span>{top}</span><span>{Math.round(top * 0.6)}</span><span>{Math.round(top * 0.3)}</span><span>0</span></div>
           <div className="flex-1 flex flex-col">
-            <div className="flex-1 flex items-end gap-[3px]">{bars.map((b, i) => <div key={i} className="flex-1 bg-[#8b5cf6] rounded-t-[2px]" style={{ height: `${(b / top) * 100}%` }} />)}</div>
+            <div className="flex-1 flex items-end gap-[3px]">{bars.map((b, i) => <div key={i} className="flex-1 bg-pick rounded-t-[2px]" style={{ height: `${(b / top) * 100}%` }} />)}</div>
             <div className="flex justify-between text-[11.5px] text-dim mt-1.5 tnum whitespace-nowrap overflow-hidden">{ticks.map((t, i) => <span key={i} className={cx(i % 2 === 1 && 'max-md:hidden')}>{t}</span>)}</div>
           </div>
         </div>
@@ -198,7 +198,7 @@ function Exec({ sid }: { sid: string }) {
       <div className="text-[13px] text-muted mb-3">{L("在容器内用")} <span className="font-mono">sh -c</span> {L("执行一次性命令（非交互，超时 30 秒）。")}</div>
       <div ref={box} className="flex-1 surface bg-sunk overflow-auto p-5 font-mono text-[13px] leading-6 min-h-0">
         {!hist.length && <div className="text-dim">{L("例如：ls -la /app、env | sort、cat /etc/os-release")}</div>}
-        {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-[#ef4444]')}>{h.out || L("(无输出)")}</pre>{h.code != null && h.code !== 0 && <div className="text-[12px] text-dim">{L("退出码")} {h.code}</div>}</div>)}
+        {hist.map((h, i) => <div key={i} className="mb-3"><div className="text-accent-soft">$ {h.cmd}</div><pre className={cx('whitespace-pre-wrap break-all', h.ok ? 'text-fg2' : 'text-danger')}>{h.out || L("(无输出)")}</pre>{h.code != null && h.code !== 0 && <div className="text-[12px] text-dim">{L("退出码")} {h.code}</div>}</div>)}
         {busy && <Loader2 size={14} className="animate-spin text-muted" />}
       </div>
       <div className="mt-4 flex gap-2"><input value={cmd} onChange={e => setCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder={L("输入命令，回车执行")} className="flex-1 min-w-0 h-11 rounded-lg field px-3.5 font-mono text-[13px] outline-none text-fg placeholder:text-dim" /><Button variant="primary" size="lg" disabled={busy || !cmd.trim()} onClick={go}><Play size={14} />{L("执行")}</Button></div>

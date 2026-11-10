@@ -29,10 +29,10 @@ export default function MemberTokens() {
         <div className="text-[15px] font-semibold flex items-center gap-2"><KeyRound size={17} />{t('API 令牌', 'API tokens')}<Hint>{t('给 CLI、MCP（Claude Code、Codex 等 agent）或脚本用。令牌能做的不超过你的账号：只有你的服务器和项目、你的权限；管理员收回权限或停用账号时立即生效。', 'For the CLI, MCP (agents such as Claude Code or Codex) or scripts. A token can do no more than your account: only your servers and projects, only your permissions; when the admin narrows or disables your account it applies at once.')}</Hint></div>
         <Button size="sm" variant="primary" onClick={() => setCreate(true)}><Plus size={14} />{t('创建令牌', 'Create token')}</Button>
       </div>
-      {fresh?.token && <Card className="p-5 mb-4 !bg-[#86efac] text-[#141414]">
+      {fresh?.token && <Card className="p-5 mb-4 !bg-t-green text-ink">
         <div className="flex items-center gap-2 text-[13.5px] font-bold"><AlertTriangle size={16} />{t(`令牌「${fresh.name}」已创建，只显示这一次`, `Token "${fresh.name}" created — shown only once`)}</div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 basis-full @2xl:basis-0 min-w-0 h-11 rounded-[4px] border-2 border-[#141414] bg-[#fffdf8] px-3.5 flex items-center font-mono text-[13px] truncate">{fresh.token}</div>
+          <div className="flex-1 basis-full @2xl:basis-0 min-w-0 h-11 rounded-[4px] border-2 border-[var(--edge)] bg-t-field px-3.5 flex items-center font-mono text-[13px] truncate">{fresh.token}</div>
           <CopyButton text={fresh.token} label={t('复制令牌', 'Copy token')} />
           <Button size="sm" onClick={() => setFresh(undefined)}>{t('我已保存', "I've saved it")}</Button>
         </div>
@@ -50,7 +50,7 @@ export default function MemberTokens() {
               <div className="text-[12.5px] min-w-0 max-w-[260px] truncate" title={names.join(', ')}>{names.length ? <span className="flex items-center gap-1.5"><FolderLock size={13} className="shrink-0 text-muted" />{names.join(', ')}</span> : <span className="text-muted">{t('我的所有项目', 'All my projects')}</span>}</div>
               <div className="flex items-center ml-auto">
                 <button title={t('编辑', 'Edit')} onClick={() => setEdit(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-fg"><Pencil size={15} /></button>
-                <button title={t('吊销', 'Revoke')} onClick={() => setRevoke(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-[#ef4444]"><Trash2 size={15} /></button>
+                <button title={t('吊销', 'Revoke')} onClick={() => setRevoke(tk)} className="h-8 w-8 grid place-items-center text-muted hover:text-danger"><Trash2 size={15} /></button>
               </div>
             </div>
           )
