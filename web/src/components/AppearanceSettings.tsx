@@ -8,36 +8,36 @@ import { api, ApiError } from '../api/client'
 import { useT } from '../i18n'
 import { applyStyle, applyTheme, STYLES, useLook, type Style, type Theme } from '../theme'
 
-type Swatch = { bg: string; card: string; edge: string; brand: string; fg: string; muted: string; hi: string }
+type Swatch = { bg: string; card: string; edge: string; brand: string; ink: string; fg: string; muted: string; hi: string }
 type Preview = { name: [string, string]; desc: [string, string]; radius: number; bw: number; shadow: (s: Swatch) => string; mono?: boolean; italic?: boolean; light: Swatch; dark: Swatch }
 
 // Hand-kept miniatures of each theme (the real colours live in index.css / themes/*.css, which
 // only apply on <html>, so a preview cannot borrow them).
 const PREVIEW: Record<Style, Preview> = {
-  atoll: { name: ['Atoll', 'Atoll'], desc: ['默认 · 粗边框、硬阴影、斜体', 'Default · bold borders, hard shadows'], radius: 4, bw: 2, italic: true,
+  atoll: { name: ['Atoll', 'Atoll'], desc: ['默认 · 粗边框、硬阴影、斜体', 'Default · bold, hard shadows'], radius: 4, bw: 2, italic: true,
     shadow: s => `3px 3px 0 0 ${s.edge}`,
-    light: { bg: '#f3efe6', card: '#fffdf8', edge: '#141414', brand: '#a78bfa', fg: '#141414', muted: '#8c887f', hi: '#fde047' },
-    dark: { bg: '#1f1e26', card: '#2c2b35', edge: '#0c0b10', brand: '#8b5cf6', fg: '#f1f0ec', muted: '#6c6c76', hi: '#fde047' } },
-  minimal: { name: ['极简', 'Minimal'], desc: ['细线、柔和阴影、大圆角', 'Hairlines, soft shadows, round corners'], radius: 9, bw: 1,
+    light: { bg: '#f3efe6', card: '#fffdf8', edge: '#141414', brand: '#a78bfa', ink: '#141414', fg: '#141414', muted: '#8c887f', hi: '#fde047' },
+    dark: { bg: '#1f1e26', card: '#2c2b35', edge: '#0c0b10', brand: '#8b5cf6', ink: '#ffffff', fg: '#f1f0ec', muted: '#6c6c76', hi: '#fde047' } },
+  minimal: { name: ['极简', 'Minimal'], desc: ['细线、柔和阴影、大圆角', 'Hairlines, soft, rounded'], radius: 9, bw: 1,
     shadow: () => '0 1px 3px rgba(0,0,0,.12)',
-    light: { bg: '#fafafa', card: '#ffffff', edge: '#e4e4e7', brand: '#18181b', fg: '#09090b', muted: '#a1a1aa', hi: '#f4f4f5' },
-    dark: { bg: '#0a0a0a', card: '#111111', edge: '#262626', brand: '#fafafa', fg: '#fafafa', muted: '#71717a', hi: '#27272a' } },
-  zeabur: { name: ['Zeabur', 'Zeabur'], desc: ['紫色品牌、网格与顶部紫光', 'Purple, grid texture, top glow'], radius: 6, bw: 1,
+    light: { bg: '#fafafa', card: '#ffffff', edge: '#e4e4e7', brand: '#18181b', ink: '#ffffff', fg: '#09090b', muted: '#a1a1aa', hi: '#f4f4f5' },
+    dark: { bg: '#0a0a0a', card: '#111111', edge: '#262626', brand: '#fafafa', ink: '#09090b', fg: '#fafafa', muted: '#71717a', hi: '#27272a' } },
+  zeabur: { name: ['Zeabur', 'Zeabur'], desc: ['紫色品牌、网格与顶部紫光', 'Purple, grid, top glow'], radius: 6, bw: 1,
     shadow: () => '0 4px 14px -6px rgba(99,0,255,.35)',
-    light: { bg: '#fbfaff', card: '#ffffff', edge: '#e4def5', brand: '#6300ff', fg: '#18122b', muted: '#938cad', hi: '#ede5ff' },
-    dark: { bg: '#0c0a13', card: '#14111f', edge: '#2b2544', brand: '#7b2fff', fg: '#f4f2ff', muted: '#78719a', hi: '#231c3d' } },
-  terminal: { name: ['终端', 'Terminal'], desc: ['等宽字体、直角、磷光绿', 'Monospace, square, phosphor green'], radius: 0, bw: 1, mono: true,
+    light: { bg: '#fbfaff', card: '#ffffff', edge: '#e4def5', brand: '#6300ff', ink: '#ffffff', fg: '#18122b', muted: '#938cad', hi: '#ede5ff' },
+    dark: { bg: '#0c0a13', card: '#14111f', edge: '#2b2544', brand: '#7b2fff', ink: '#ffffff', fg: '#f4f2ff', muted: '#78719a', hi: '#231c3d' } },
+  terminal: { name: ['终端', 'Terminal'], desc: ['等宽字体、直角、磷光绿', 'Mono, square, green'], radius: 0, bw: 1, mono: true,
     shadow: () => 'none',
-    light: { bg: '#eef3ea', card: '#f7faf4', edge: '#527a49', brand: '#1a7f1f', fg: '#0e2a0b', muted: '#6c8762', hi: '#d4e8cc' },
-    dark: { bg: '#050a05', card: '#081108', edge: '#1f5a29', brand: '#33ff66', fg: '#b8ffb4', muted: '#4f9453', hi: '#0f2e16' } },
-  macaron: { name: ['马卡龙', 'Macaron'], desc: ['粉、薄荷、薰衣草，圆润柔和', 'Pink, mint, lavender, soft and round'], radius: 12, bw: 1,
+    light: { bg: '#eef3ea', card: '#f7faf4', edge: '#527a49', brand: '#1a7f1f', ink: '#f2fff0', fg: '#0e2a0b', muted: '#6c8762', hi: '#d4e8cc' },
+    dark: { bg: '#050a05', card: '#081108', edge: '#1f5a29', brand: '#33ff66', ink: '#021a06', fg: '#b8ffb4', muted: '#4f9453', hi: '#0f2e16' } },
+  macaron: { name: ['马卡龙', 'Macaron'], desc: ['粉、薄荷、薰衣草，圆润柔和', 'Pink, mint, lavender'], radius: 12, bw: 1,
     shadow: () => '0 6px 14px -6px rgba(236,72,153,.45)',
-    light: { bg: '#fdf6f9', card: '#fffdfe', edge: '#f0d3e1', brand: '#f9a8d4', fg: '#3b2638', muted: '#a88ba0', hi: '#b9f0dc' },
-    dark: { bg: '#211a29', card: '#2b2235', edge: '#4a3b59', brand: '#f9a8d4', fg: '#fbeff7', muted: '#94809a', hi: '#9de6cf' } },
-  contrast: { name: ['高对比', 'High contrast'], desc: ['纯黑白、3px 边框、黄色焦点', 'Black and white, 3px borders, yellow focus'], radius: 3, bw: 3,
+    light: { bg: '#fdf6f9', card: '#fffdfe', edge: '#f0d3e1', brand: '#f9a8d4', ink: '#4a1538', fg: '#3b2638', muted: '#a88ba0', hi: '#b9f0dc' },
+    dark: { bg: '#211a29', card: '#2b2235', edge: '#4a3b59', brand: '#f9a8d4', ink: '#3a1230', fg: '#fbeff7', muted: '#94809a', hi: '#9de6cf' } },
+  contrast: { name: ['高对比', 'High contrast'], desc: ['纯黑白、3px 边框、黄色焦点', 'B/W, 3px borders, yellow focus'], radius: 3, bw: 3,
     shadow: () => 'none',
-    light: { bg: '#ffffff', card: '#ffffff', edge: '#000000', brand: '#000000', fg: '#000000', muted: '#3d3d3d', hi: '#ffe600' },
-    dark: { bg: '#000000', card: '#000000', edge: '#ffffff', brand: '#ffffff', fg: '#ffffff', muted: '#c4c4c4', hi: '#ffe600' } },
+    light: { bg: '#ffffff', card: '#ffffff', edge: '#000000', brand: '#000000', ink: '#ffffff', fg: '#000000', muted: '#3d3d3d', hi: '#ffe600' },
+    dark: { bg: '#000000', card: '#000000', edge: '#ffffff', brand: '#ffffff', ink: '#000000', fg: '#ffffff', muted: '#c4c4c4', hi: '#ffe600' } },
 }
 
 /** A tiny page in the theme's colours: sidebar, a card and a button. */
@@ -58,7 +58,7 @@ function Mini({ p, mode }: { p: Preview; mode: Theme }) {
             <div className="h-2 w-[60%]" style={{ background: s.fg, borderRadius: 2 }} />
             <div className="h-1.5 w-[85%] mt-1.5" style={{ background: s.muted, borderRadius: 2, opacity: .7 }} />
           </div>
-          <span className="self-start h-4 px-2.5 grid place-items-center text-[8px] font-bold leading-none" style={{ background: s.brand, borderRadius: p.radius, border: `${Math.min(p.bw, 2)}px solid ${s.edge}`, color: s.bg, fontStyle: p.italic ? 'italic' : 'normal' }}>Aa</span>
+          <span className="self-start h-4 px-2.5 grid place-items-center text-[8px] font-bold leading-none" style={{ background: s.brand, borderRadius: p.radius, border: `${Math.min(p.bw, 2)}px solid ${s.edge}`, color: s.ink, fontStyle: p.italic ? 'italic' : 'normal' }}>Aa</span>
         </div>
       </div>
     </div>

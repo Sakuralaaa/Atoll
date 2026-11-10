@@ -32,4 +32,6 @@ html[data-theme=contrast].dark {
   --t-field: #ffffff;
 }
 html[data-theme=contrast] a:hover { text-decoration: underline; }
+html[data-theme=contrast] .nav-active .text-muted, html[data-theme=contrast] .nav-active .text-dim { color: var(--nav-ink); }
+html[data-theme=contrast] .nav-active [class*="bg-ov/"] { background-color: rgba(0,0,0,.14); }
 html[data-theme=contrast] .btn-primary:hover, html[data-theme=contrast] .btn-secondary:hover, html[data-theme=contrast] .btn-danger:hover { outline: 2px solid var(--hi); outline-offset: 2px; }
