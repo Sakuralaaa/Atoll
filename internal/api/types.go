@@ -337,7 +337,7 @@ type Deployment struct {
 	ServerID    string     `json:"server_id"`
 	ImageDigest string     `json:"image_digest,omitempty"`
 	Status      string     `json:"status"`           // "queued" | "building" | "pulling" | "starting" | "running" | "failed" | "superseded"
-	Trigger     string     `json:"trigger"`          // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update" | "webhook"
+	Trigger     string     `json:"trigger"`          // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update" | "webhook" | "poll"
 	Commit      string     `json:"commit,omitempty"` // git services: the commit built (set once the build finished)
 	Message     string     `json:"message,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`

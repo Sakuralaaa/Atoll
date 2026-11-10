@@ -121,9 +121,10 @@ type Server struct {
 	agentSums  agentSumCache // SHA-256 of hosted agent binaries for the join command (routes.go)
 	agentUpg   agentUpgrades // panel-started agent upgrades (agent_upgrade.go)
 
-	upd *updater      // image update detection (imageupdates.go)
-	net *netState     // private network provider + mesh (network.go)
-	ctl *controlState // 中控: the control server itself (control*.go)
+	upd     *updater      // image update detection (imageupdates.go)
+	gitPoll *gitPoller    // polled git sources (git_poll.go)
+	net     *netState     // private network provider + mesh (network.go)
+	ctl     *controlState // 中控: the control server itself (control*.go)
 
 	bg     context.Context
 	cancel context.CancelFunc
@@ -203,6 +204,7 @@ func New(cfg Config) (*Server, error) {
 	s := &Server{meshKey: deriveMeshKey(key), cfg: cfg, st: st, log: cfg.Logger, events: newEventBus(), lock: newLockout(), mfa: newPendingLogins(), jobBusy: map[string]bool{}, applyQ: map[string]*applyQueue{}, held: map[string]int{}, geoKick: make(chan struct{}, 1)}
 	s.hub = newHub(s)
 	s.upd = newUpdater()
+	s.gitPoll = newGitPoller()
 	s.ctl = newControlState()
 	s.bg, s.cancel = context.WithCancel(context.Background())
 	if ups, err := st.ListAgentUpgrades(s.bg); err == nil {
@@ -237,6 +239,8 @@ func New(cfg Config) (*Server, error) {
 	go s.housekeeping()
 	s.wg.Add(1)
 	go s.imageUpdateLoop()
+	s.wg.Add(1)
+	go s.gitPollLoop()       // git_poll.go
 	s.startBackupScheduler() // backups.go
 	s.startProblemWatcher()  // problems.go
 	s.startGeoIP()           // geoip.go
