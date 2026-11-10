@@ -123,6 +123,13 @@ func TestExpandAndReferences(t *testing.T) {
 	if r, ok := m["postgres.POSTGRES_PASSWORD"]; !ok || r.Value != "" || !r.Secret {
 		t.Fatalf("secret exposed var must be listed but masked: %+v", r)
 	}
+	// regression: a plain exposed var that expands a secret must not leak it
+	if r, ok := m["postgres.POSTGRES_CONNECTION_STRING"]; !ok || r.Value != "" || !r.Secret {
+		t.Fatalf("plain var embedding a secret must be masked: %+v", r)
+	}
+	if r := m["postgres.POSTGRES_USERNAME"]; r.Value != "root" || r.Secret {
+		t.Fatalf("plain var must keep its value: %+v", r)
+	}
 	if _, ok := m["postgres.PASSWORD"]; ok {
 		t.Fatal("non-exposed var listed")
 	}

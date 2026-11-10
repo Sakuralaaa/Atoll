@@ -61,6 +61,10 @@ type resolver struct {
 	visiting map[string]bool
 	warnSeen map[string]bool
 	warnings []string
+	// tainted marks vars whose expanded value contains (part of) a secret var;
+	// touched is set while expanding when any secret was read.
+	tainted map[string]bool
+	touched bool
 }
 
 func newResolver(in Input) *resolver {
@@ -69,6 +73,7 @@ func newResolver(in Input) *resolver {
 		cache:    map[string]string{},
 		visiting: map[string]bool{},
 		warnSeen: map[string]bool{},
+		tainted:  map[string]bool{},
 	}
 	for i := range in.Services {
 		s := &in.Services[i]
@@ -143,15 +148,23 @@ func findVar(s *Service, key string) (api.EnvVar, bool) {
 func (r *resolver) varValue(s *Service, key string) string {
 	id := s.Name + "\x00" + key
 	if v, ok := r.cache[id]; ok {
+		r.touched = r.touched || r.tainted[id]
 		return v
 	}
 	v, _ := findVar(s, key)
 	if r.visiting[id] {
 		r.warn("cycle detected while resolving %s.%s; left unexpanded", s.Name, key)
+		r.touched = r.touched || v.Secret
 		return v.Value
 	}
 	r.visiting[id] = true
+	outer := r.touched
+	r.touched = false
 	out := r.expand(s, v.Value)
+	if r.touched || v.Secret {
+		r.tainted[id] = true
+	}
+	r.touched = outer || r.tainted[id]
 	delete(r.visiting, id)
 	r.cache[id] = out
 	return out
@@ -303,11 +316,16 @@ func References(in Input) []api.EnvVar {
 			if !v.Exposed {
 				continue
 			}
-			val := ""
-			if !v.Secret {
+			val, secret := "", v.Secret
+			if !secret {
 				val = r.varValue(s, v.Key)
+				// a plain var that expands a secret (DATABASE_URL=...${PASSWORD}...) would
+				// leak it to anyone who may read references: report it as secret, no value
+				if r.tainted[s.Name+"\x00"+v.Key] {
+					val, secret = "", true
+				}
 			}
-			out = append(out, api.EnvVar{Key: v.Key, Value: val, Secret: v.Secret, Exposed: true, Source: s.Name})
+			out = append(out, api.EnvVar{Key: v.Key, Value: val, Secret: secret, Exposed: true, Source: s.Name})
 		}
 	}
 	return out

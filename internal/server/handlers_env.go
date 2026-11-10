@@ -125,6 +125,23 @@ func (s *Server) handleEnvReferences(w http.ResponseWriter, r *http.Request) err
 		in.Services = append(in.Services, envresolve.Service{Name: o.Name, Vars: vars, Ports: o.Ports})
 	}
 	refs := envresolve.References(in)
+	// a member does not see services placed on servers it is not assigned (memberSeesService),
+	// so it does not see what they expose either
+	if pr := principalFrom(r.Context()); pr != nil && pr.Member {
+		hidden := map[string]bool{}
+		for i := range svcs {
+			if !memberSeesService(pr, &svcs[i]) {
+				hidden[svcs[i].Name] = true
+			}
+		}
+		kept := refs[:0]
+		for _, ref := range refs {
+			if !hidden[ref.Source] {
+				kept = append(kept, ref)
+			}
+		}
+		refs = kept
+	}
 	if refs == nil {
 		refs = []api.EnvVar{}
 	}
