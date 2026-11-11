@@ -45,6 +45,10 @@ type Ingress struct {
 	AdminGrace time.Duration
 
 	mu sync.Mutex
+	// noOriginWarned is set once the "no origin certificate" warning was logged, so an agent
+	// without Cloudflare does not repeat it on every ingress sync; a certificate arriving (or
+	// a TLS mode that needs none) clears it.
+	noOriginWarned bool
 }
 
 func NewIngress(rt Runtime, p Paths, fw Firewall, log *slog.Logger) *Ingress {
@@ -151,6 +155,23 @@ func (in *Ingress) load() (api.IngressPayload, error) {
 	return p, json.Unmarshal(b, &p)
 }
 
+// noteOriginCert warns once (per missing spell) that routes in cloudflare-origin mode are
+// served over HTTP only because no origin certificate has been pushed. Caller holds in.mu.
+func (in *Ingress) noteOriginCert(p api.IngressPayload) {
+	c, _ := in.tlsPaths()
+	missing := (p.TLSMode == "cloudflare-origin" || p.TLSMode == "") && len(p.Routes) > 0 && fileMissing(c)
+	if !missing {
+		in.noOriginWarned = false
+		return
+	}
+	if in.noOriginWarned {
+		in.log.Debug("cloudflare-origin mode, still no origin certificate; serving HTTP only")
+		return
+	}
+	in.noOriginWarned = true
+	in.log.Warn("cloudflare-origin mode but no origin certificate yet; serving HTTP only (logged once until it changes)")
+}
+
 // Render builds the caddy JSON for a payload given the TLS files on disk.
 func (in *Ingress) Render(p api.IngressPayload) ([]byte, error) {
 	cert, key := in.tlsPaths()
@@ -229,11 +250,7 @@ func (in *Ingress) apply(ctx context.Context, p api.IngressPayload) error {
 	if err != nil {
 		return err
 	}
-	if p.TLSMode == "cloudflare-origin" || p.TLSMode == "" {
-		if c, _ := in.tlsPaths(); fileMissing(c) {
-			in.log.Warn("cloudflare-origin mode but no origin certificate yet; serving HTTP only")
-		}
-	}
+	in.noteOriginCert(p)
 	if err := writeFileAtomic(in.configFile(), cfg, 0o644); err != nil {
 		return err
 	}

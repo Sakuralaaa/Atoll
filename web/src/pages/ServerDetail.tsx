@@ -96,7 +96,7 @@ function InfoTab({ s }: { s: Server }) {
         </Card>
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-5">{L("资源使用")}</div>
-          {[[L("CPU 使用率"), u.cpu, '#60a5fa'], [L("内存使用率"), u.mem, '#a78bfa'], [L("硬盘使用率"), u.disk, '#34d399']].map(([l, v, c]) => (
+          {[[L("CPU 使用率"), u.cpu, 'var(--c-1)'], [L("内存使用率"), u.mem, 'var(--c-2)'], [L("硬盘使用率"), u.disk, 'var(--c-3)']].map(([l, v, c]) => (
             <div key={l as string} className="mb-5">
               <div className="flex justify-between text-[13px] mb-2"><span className="text-muted">{l}</span><span className="font-semibold">{v}%</span></div>
               <Ticks value={v as number} color={c as string} n={64} />
@@ -148,7 +148,7 @@ function MetricsTab({ s }: { s: Server }) {
   const [range, setRange] = useState<Range>('24h')
   const m = useQuery(`server-metrics:${s.id}:${range}`, () => api.serverMetrics(s.id, range), { interval: 60000 })
   const ps = projectsOn(useProjects().data, s.id)
-  const colors = ['#a855f7', '#eab308', '#22c55e', '#ef4444', '#3b82f6', '#f97316']
+  const colors = ['var(--c-2)', 'var(--c-5)', 'var(--c-3)', 'var(--c-6)', 'var(--c-1)', 'var(--c-7)']
   const svcIds = ps.flatMap(p => (p.services ?? []).map(x => x.id))
   const per = useQuery(svcIds.length ? `svc-metrics-agg:${s.id}:${range}:${svcIds.join(',')}` : null, () => Promise.all(svcIds.map(id => api.serviceMetrics(id, range).catch(() => []))))
   const d = m.data ?? []
@@ -166,14 +166,14 @@ function MetricsTab({ s }: { s: Server }) {
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" max={100} labels={labels} />
-        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="#38bdf8" max={100} labels={labels} />
-        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="#34d399" max={100} labels={labels} />
+        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => pct(x.mem_used_mb, x.mem_total_mb))} color="var(--c-4)" max={100} labels={labels} />
+        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => pct(x.disk_used_gb, x.disk_total_gb))} color="var(--c-3)" max={100} labels={labels} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-9 mb-3"><h3 className="text-[15px] font-semibold">{L("项目分布")}</h3><span className="text-[13px] text-muted">{RANGES.find(r => r.k === range)?.l}</span></div>
       <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4 text-[13px]">{ps.map((p, i) => <span key={p.id} className="flex items-center gap-2 min-w-0 max-w-full"><span className="h-3 w-3 rounded-full shrink-0" style={{ background: colors[i % 6] }} />{projName(p)}</span>)}</div>
       <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-5 [&>*]:min-w-0">
-        <Chart title={L("CPU 使用率（容器合计）")} icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="#a855f7" labels={timeLabels(aggAts)} />
-        <Chart title={L("内存（容器合计）")} icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="#eab308" unit=" MB" labels={timeLabels(aggAts)} />
+        <Chart title={L("CPU 使用率（容器合计）")} icon={<Cpu size={15} />} data={agg(x => x.cpu_pct)} color="var(--c-2)" labels={timeLabels(aggAts)} />
+        <Chart title={L("内存（容器合计）")} icon={<MemoryStick size={15} />} data={agg(x => x.mem_mb)} color="var(--c-5)" unit=" MB" labels={timeLabels(aggAts)} />
       </div>
     </>
   )

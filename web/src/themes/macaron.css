@@ -1,4 +1,5 @@
-/* Macaron: pink / mint / lavender, 18px radii, coloured soft shadows.
+/* Macaron: soft pink on cream, 18px radii, gentle shadows. Since v0.1.45 one accent colour
+   (pink) with neutral borders; mint and lavender stay only as status tints.
    html[data-theme=macaron] sets the shape; .light / .dark set the colours. */
 html[data-theme=macaron] {
   --hover-lift: translateY(-1px); --card-lift: translateY(-2px); --press: translateY(1px); --card-press: none;
@@ -10,33 +11,33 @@ html[data-theme=macaron] {
   --sh-pop: 0 18px 40px -14px var(--sh-m); --btn-font: var(--font-sans); --btn-weight: 700; --btn-track: 0;
   --r-box: 18px; --r-btn: 12px; --r-chip: 999px; --r-field: 12px; --r-tile: 12px; --radius-sm: 8px;
   --radius-md: 10px; --radius-lg: 14px; --radius-xl: 18px; --radius-2xl: 22px;
-  --canvas-bg: radial-gradient(600px 360px at 8% -6%, var(--blob-a), transparent 70%), radial-gradient(520px 340px at 100% 0%, var(--blob-b), transparent 70%), radial-gradient(640px 420px at 60% 110%, var(--blob-c), transparent 70%);
+  --canvas-bg: radial-gradient(700px 380px at 0% -10%, var(--blob-a), transparent 70%);
   --canvas-size: 100% 100%; --canvas-fixed: fixed;
-  --topline: linear-gradient(90deg, #f9a8d4, #a7f3d0, #c4b5fd); --topline-h: 4px;
+  --topline: transparent; --topline-h: 0px;
   --topline-edge: 0 solid transparent; --focus: #f472b6;
 }
 html[data-theme=macaron].light {
   color-scheme: light;
   --bg: #fdf6f9; --side: #f9eef4; --card: #fffdfe; --card2: #fdf0f6; --sunk: #fdf7fa; --pop: #fffdfe;
-  --line: #f2dce7; --line2: #e2bfd1; --muted: #7d5f76; --dim: #a88ba0; --fg: #3b2638; --fg2: #563f52;
-  --ov: #6b2154; --accent: #db2777; --accent-soft: #be185d; --tick-off: #f4e3ec; --edge: #f0d3e1;
+  --line: #efe3e8; --line2: #dccbd3; --muted: #7d5f76; --dim: #a88ba0; --fg: #3b2638; --fg2: #563f52;
+  --ov: #6b2154; --accent: #db2777; --accent-soft: #be185d; --tick-off: #f4e3ec; --edge: #ecdfe5;
   --brand: #f9a8d4; --brand-ink: #4a1538; --brand-strong: #db2777; --grain: rgba(219,39,119,.06);
-  --ink: #3b2638; --danger: #e11d48; --warn: #b45309; --hi: #b9f0dc; --hi-ink: #134e3a; --pick: #ec4899;
+  --ink: #3b2638; --danger: #e11d48; --warn: #b45309; --hi: #fbd5e7; --hi-ink: #6b2154; --pick: #ec4899;
   --pick-ink: #ffffff; --nav-bg: #fde4f0; --nav-ink: #6b2154; --t-amber: #fde9b4; --t-red: #fecdd6;
   --t-green: #c6f1df; --t-violet: #e4d9ff; --t-orange: #ffd9c0; --t-note: #fff4dc; --t-ok: #dcf7ec;
-  --t-wash: rgba(255,255,255,.75); --t-field: #fffdfe; --sh-m: rgba(236,72,153,.28);
-  --sh-m2: rgba(167,139,250,.22); --blob-a: rgba(249,168,212,.35); --blob-b: rgba(167,243,208,.35);
-  --blob-c: rgba(196,181,253,.3);
+  --t-wash: rgba(255,255,255,.75); --t-field: #fffdfe; --sh-m: rgba(120,60,90,.16);
+  --sh-m2: rgba(120,60,90,.1); --blob-a: rgba(249,168,212,.22); --blob-b: transparent;
+  --blob-c: transparent;
 }
 html[data-theme=macaron].dark {
   color-scheme: dark;
   --bg: #211a29; --side: #1c1623; --card: #2b2235; --card2: #342a40; --sunk: #251d2e; --pop: #2f2539;
-  --line: #42354f; --line2: #5a4a69; --muted: #bba7bd; --dim: #94809a; --fg: #fbeff7; --fg2: #e8d6e3;
-  --ov: #ffd6ec; --accent: #f9a8d4; --accent-soft: #fbcfe8; --tick-off: #3a2f46; --edge: #4a3b59;
+  --line: #3a3340; --line2: #504656; --muted: #bba7bd; --dim: #94809a; --fg: #fbeff7; --fg2: #e8d6e3;
+  --ov: #ffd6ec; --accent: #f9a8d4; --accent-soft: #fbcfe8; --tick-off: #3a2f46; --edge: #3f3745;
   --brand: #f9a8d4; --brand-ink: #3a1230; --brand-strong: #f9a8d4; --grain: rgba(249,168,212,.07);
-  --ink: #2d1d2b; --danger: #fb7185; --warn: #fcd34d; --hi: #9de6cf; --hi-ink: #11372b; --pick: #f472b6;
+  --ink: #2d1d2b; --danger: #fb7185; --warn: #fcd34d; --hi: #f9a8d4; --hi-ink: #3a1230; --pick: #f472b6;
   --pick-ink: #2d0b22; --nav-bg: #4a2f4a; --nav-ink: #ffe4f2; --t-amber: #fde9b4; --t-red: #fecdd6;
   --t-green: #c6f1df; --t-violet: #e4d9ff; --t-orange: #ffd9c0; --t-note: #fff1d6; --t-ok: #d4f5e7;
-  --t-wash: rgba(255,255,255,.7); --t-field: #fffafd; --sh-m: rgba(0,0,0,.45); --sh-m2: rgba(244,114,182,.18);
-  --blob-a: rgba(244,114,182,.14); --blob-b: rgba(110,231,183,.08); --blob-c: rgba(167,139,250,.12);
+  --t-wash: rgba(255,255,255,.7); --t-field: #fffafd; --sh-m: rgba(0,0,0,.45); --sh-m2: rgba(0,0,0,.25);
+  --blob-a: rgba(244,114,182,.08); --blob-b: transparent; --blob-c: transparent;
 }

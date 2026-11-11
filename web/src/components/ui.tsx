@@ -81,7 +81,7 @@ export function Segment({ items, value }: { items: { k: string; l: string; icon?
   )
 }
 
-const DOT: Record<string, string> = { running: 'bg-emerald-400 text-emerald-400', online: 'bg-emerald-400 text-emerald-400', active: 'bg-emerald-400 text-emerald-400', done: 'bg-emerald-400 text-emerald-400', deploying: 'bg-amber-400 text-amber-400', pending: 'bg-amber-400 text-amber-400', provisioning: 'bg-amber-400 text-amber-400', draining: 'bg-amber-400 text-amber-400', stopped: 'bg-zinc-500 text-zinc-500', unknown: 'bg-zinc-500 text-zinc-500', offline: 'bg-zinc-600 text-zinc-600', failed: 'bg-rose-500 text-rose-500', error: 'bg-rose-500 text-rose-500' }
+const DOT: Record<string, string> = { running: 'bg-ok text-ok', online: 'bg-ok text-ok', active: 'bg-ok text-ok', done: 'bg-ok text-ok', deploying: 'bg-amber text-amber', pending: 'bg-amber text-amber', provisioning: 'bg-amber text-amber', draining: 'bg-amber text-amber', stopped: 'bg-off text-off', unknown: 'bg-off text-off', offline: 'bg-off text-off', failed: 'bg-danger text-danger', error: 'bg-danger text-danger' }
 export function Dot({ status }: { status: string }) {
   const c = DOT[status] ?? DOT.unknown
   const glow = !['stopped', 'offline', 'unknown'].includes(status) && !!DOT[status]
@@ -97,7 +97,7 @@ export function Spark({ data, color, w = 72, h = 26 }: { data: number[]; color: 
 }
 
 export function Ticks({ value, color, n = 44 }: { value: number; color?: string; n?: number }) {
-  color = color ?? (value >= 80 ? '#f43f5e' : value >= 60 ? '#f59e0b' : '#60a5fa')
+  color = color ?? (value >= 80 ? 'var(--danger)' : value >= 60 ? 'var(--warn)' : 'var(--c-1)')
   const on = Math.round((value / 100) * n)
   return (
     <div className="flex gap-[2px] items-center h-3 min-w-0 max-w-full">
@@ -168,7 +168,7 @@ export function ProviderIcon({ provider, size = 40, online }: { provider: string
       <div className="tile w-full h-full rounded-[10px] grid place-items-center bg-card2">
         <ProviderGlyph provider={provider} size={size * 0.48} />
       </div>
-      {online !== undefined && <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', online ? 'bg-emerald-400' : 'bg-zinc-600')} />}
+      {online !== undefined && <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', online ? 'bg-ok' : 'bg-off')} />}
     </div>
   )
 }

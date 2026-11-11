@@ -88,7 +88,7 @@ type BackupVerifyEvent struct {
 	Warnings   []string           `json:"warnings,omitempty"`
 	DurationMs int64              `json:"duration_ms"`
 	StartedAt  time.Time          `json:"started_at"`
-	FinishedAt *time.Time         `json:"finished_at,omitempty"`
+	FinishedAt *time.Time         `json:"finished_at,omitzero"`
 }
 
 // BackupVerification is one recorded check or drill (GET /backup-verifications).
@@ -105,7 +105,7 @@ type BackupVerification struct {
 	Warnings   []string           `json:"warnings,omitempty"`
 	DurationMs int64              `json:"duration_ms"`
 	StartedAt  time.Time          `json:"started_at"`
-	FinishedAt *time.Time         `json:"finished_at,omitempty"`
+	FinishedAt *time.Time         `json:"finished_at,omitzero"`
 }
 
 // BackupVerifyStatus is GET /backup-verify (repository check only) and
@@ -118,8 +118,8 @@ type BackupVerifyStatus struct {
 	DrillSchedule  string              `json:"drill_schedule"` // effective cron ("" = off)
 	Timezone       string              `json:"timezone"`
 	CheckServerID  string              `json:"check_server_id,omitempty"` // node that runs the scheduled check
-	NextCheckAt    *time.Time          `json:"next_check_at,omitempty"`
-	NextDrillAt    *time.Time          `json:"next_drill_at,omitempty"` // service endpoint, when backups are enabled
+	NextCheckAt    *time.Time          `json:"next_check_at,omitzero"`
+	NextDrillAt    *time.Time          `json:"next_drill_at,omitzero"` // service endpoint, when backups are enabled
 	RepoConfigured bool                `json:"repo_configured"`
 }
 

@@ -22,7 +22,7 @@ const READY = ['rehearsed', 'rolled_back']
 export function NodeWideNote() {
   const { t } = useT()
   return (
-    <Card className="px-5 py-4 flex items-start gap-3 text-[13px] !bg-[#fde68a] text-ink">
+    <Card className="px-5 py-4 flex items-start gap-3 text-[13px] !bg-t-amber text-ink">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" />
       <div className="leading-6">{t(
         'Zeabur 的入口控制器由这台服务器上所有 Zeabur 项目共用：切换会让它们全部停止由 Zeabur 对外服务。服务器上还有其他在运行、有域名的项目时，单独切换会被拒绝——先逐个导入并演练，再一起批量切换。',

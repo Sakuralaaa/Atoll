@@ -121,7 +121,7 @@ function UserModal({ user, servers, projects, onClose }: { user?: PanelUser; ser
             return <div key={s.id}>
               <label className={box}><input type="checkbox" checked={srv.includes(s.id)} onChange={() => toggle(srv, setSrv, s.id)} />{s.name}
                 {shared.length > 0 && <span className="text-[12px] text-muted">{t(`· ${shared.length} 个项目`, `· ${shared.length} project(s)`)}</span>}</label>
-              {warn && <div role="alert" className="ml-6 mb-1 rounded-lg bg-[#fde047]/30 px-3 py-2 text-[12.5px] leading-5">
+              {warn && <div role="alert" className="ml-6 mb-1 rounded-lg bg-hi/30 px-3 py-2 text-[12.5px] leading-5">
                 {t(`这台服务器上已有 ${shared.length} 个项目（${shared.slice(0, 3).map(projName).join('、')}${shared.length > 3 ? ' 等' : ''}），分配后该子账号能看到并按权限操作它们。不想共享的话，先把它们迁到别的服务器。`,
                   `This server already runs ${shared.length} project(s) (${shared.slice(0, 3).map(projName).join(', ')}${shared.length > 3 ? ', …' : ''}). Once assigned, this sub-account sees them and can act on them within its permissions. Move them to another server first if they should stay private.`)}
               </div>}

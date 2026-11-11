@@ -70,7 +70,7 @@ type NodeLatency struct {
 	Failures      int        `json:"failures,omitempty"`
 	FailuresTotal int        `json:"failures_total,omitempty"` // failed measurements since the agent connected
 	LastError     string     `json:"last_error,omitempty"`
-	LastAttempt   *time.Time `json:"last_attempt,omitempty"`
+	LastAttempt   *time.Time `json:"last_attempt,omitzero"`
 }
 
 type JoinToken struct {
@@ -320,7 +320,7 @@ type RootDomain struct {
 	// CertStatus is what the agents actually serve: "global" | "origin" | "acme".
 	CertStatus    string     `json:"cert_status"`
 	CertError     string     `json:"cert_error,omitempty"` // why Origin CA issuance failed (auto mode)
-	CertExpiresAt *time.Time `json:"cert_expires_at,omitempty"`
+	CertExpiresAt *time.Time `json:"cert_expires_at,omitzero"`
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
@@ -341,7 +341,7 @@ type Deployment struct {
 	Commit      string     `json:"commit,omitempty"` // git services: the commit built (set once the build finished)
 	Message     string     `json:"message,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
-	FinishedAt  *time.Time `json:"finished_at,omitempty"`
+	FinishedAt  *time.Time `json:"finished_at,omitzero"`
 }
 
 type APIToken struct {
@@ -357,7 +357,7 @@ type APIToken struct {
 	RequireApproval bool       `json:"require_approval,omitempty"`
 	Prefix          string     `json:"prefix"`          // first chars, e.g. "atl_pat_3fA9"
 	Token           string     `json:"token,omitempty"` // only returned once at creation
-	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
+	LastUsedAt      *time.Time `json:"last_used_at,omitzero"`
 	CreatedAt       time.Time  `json:"created_at"`
 	// Owner is the account the token acts as (v0.1.42+); a member's token never exceeds
 	// what the member may do at the time of each request.
@@ -427,7 +427,7 @@ type LoginTwoFactorRequest struct {
 // TwoFactorStatus is GET /auth/2fa.
 type TwoFactorStatus struct {
 	Enabled           bool       `json:"enabled"`
-	EnabledAt         *time.Time `json:"enabled_at,omitempty"`
+	EnabledAt         *time.Time `json:"enabled_at,omitzero"`
 	RecoveryCodesLeft int        `json:"recovery_codes_left"`
 }
 
@@ -666,7 +666,7 @@ type MigrationJob struct {
 	Steps      []ImportStep `json:"steps"`
 	Error      string       `json:"error,omitempty"`
 	CreatedAt  time.Time    `json:"created_at"`
-	FinishedAt *time.Time   `json:"finished_at,omitempty"`
+	FinishedAt *time.Time   `json:"finished_at,omitzero"`
 }
 
 type ErrorBody struct {

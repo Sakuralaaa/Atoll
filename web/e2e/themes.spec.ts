@@ -35,3 +35,27 @@ test('a sub-account can pick a theme too', async ({ page }) => {
   await page.getByTestId('theme-macaron').click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'macaron')
 })
+
+test('the old "zeabur" theme id opens as Lagoon', async ({ page }) => {
+  await page.goto('/?demo=1#/')
+  await page.evaluate(() => localStorage.setItem('atoll-style', 'zeabur'))
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'lagoon')
+  await page.goto('/?demo=1&style=zeabur#/')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'lagoon')
+})
+
+test('the default theme has no coloured line across the top', async ({ page }) => {
+  await page.goto('/?demo=1&style=atoll&theme=light#/')
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--topline-h').trim())).toBe('0px')
+})
+
+test('the sidebar shows the whole account role', async ({ page }) => {
+  for (const style of ['atoll', 'contrast']) {
+    await page.goto(`/?demo=1&style=${style}&theme=light#/`)
+    const role = page.getByTestId('account-role')
+    await expect(role).toHaveText('演示模式')
+    // not clipped: the text fits the box it is drawn in
+    expect(await role.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= (el.closest('aside') ?? document.body).getBoundingClientRect().right)).toBe(true)
+  }
+})

@@ -138,7 +138,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
         </Card>
         <Card className="p-6">
           <div className="text-[13px] font-semibold mb-5">{L("资源使用")}</div>
-          {([['CPU', Math.round(s.cpu_pct), `${s.cpu_pct.toFixed(1)}%`, '#60a5fa'], [L("内存"), pct(s.mem_used_mb, s.mem_total_mb), `${gb(s.mem_used_mb)} / ${gb(s.mem_total_mb)}`, '#a78bfa'], [L("硬盘（数据目录所在）"), pct(s.disk_used_gb, s.disk_total_gb), `${s.disk_used_gb} / ${s.disk_total_gb} GB`, '#34d399']] as const).map(([l, v, txt, c]) => (
+          {([['CPU', Math.round(s.cpu_pct), `${s.cpu_pct.toFixed(1)}%`, 'var(--c-1)'], [L("内存"), pct(s.mem_used_mb, s.mem_total_mb), `${gb(s.mem_used_mb)} / ${gb(s.mem_total_mb)}`, 'var(--c-2)'], [L("硬盘（数据目录所在）"), pct(s.disk_used_gb, s.disk_total_gb), `${s.disk_used_gb} / ${s.disk_total_gb} GB`, 'var(--c-3)']] as const).map(([l, v, txt, c]) => (
             <div key={l} className="mb-5">
               <div className="flex justify-between gap-3 text-[13px] mb-2"><span className="text-muted truncate">{l}</span><span className="font-semibold tnum whitespace-nowrap">{txt}</span></div>
               <Ticks value={v} color={c} n={64} />
@@ -155,7 +155,7 @@ function Overview({ s, go }: { s: ControlStatus; go: (tab: string) => void }) {
           {/* fills the card to the row's height: what the data directory is made of */}
           <div className="mt-auto pt-4">
             <div className="flex justify-between gap-3 text-[12.5px] mb-2"><span className="text-muted">{L("数据库占数据目录")}</span><span className="font-semibold tnum">{pct(s.database_bytes, s.data_dir_bytes)}%</span></div>
-            <Ticks value={pct(s.database_bytes, s.data_dir_bytes)} color="#fbbf24" n={64} />
+            <Ticks value={pct(s.database_bytes, s.data_dir_bytes)} color="var(--c-5)" n={64} />
             <div className="mt-2 text-[12px] text-dim">{L("其余主要是中控备份、迁移数据包和 agent 下载文件")}</div>
           </div>
         </Card>
@@ -194,8 +194,8 @@ function Metrics() {
       {m.error && !m.data && <ErrorState error={m.error} onRetry={m.refetch} />}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 @6xl:grid-cols-3 gap-5 [&>*]:min-w-0">
         <Chart title={L("CPU 使用率")} icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" max={100} labels={labels} />
-        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => (x.mem_total_mb ? (x.mem_used_mb / x.mem_total_mb) * 100 : 0))} color="#38bdf8" max={100} labels={labels} />
-        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => (x.disk_total_gb ? (x.disk_used_gb / x.disk_total_gb) * 100 : 0))} color="#34d399" max={100} labels={labels} />
+        <Chart title={L("内存使用率")} icon={<MemoryStick size={15} />} data={d.map(x => (x.mem_total_mb ? (x.mem_used_mb / x.mem_total_mb) * 100 : 0))} color="var(--c-4)" max={100} labels={labels} />
+        <Chart title={L("硬盘空间使用率")} icon={<HardDrive size={15} />} data={d.map(x => (x.disk_total_gb ? (x.disk_used_gb / x.disk_total_gb) * 100 : 0))} color="var(--c-3)" max={100} labels={labels} />
       </div>
     </>
   )
@@ -312,7 +312,7 @@ function Progress({ s, offline, watch }: { s: ControlStatus; offline: boolean; w
       <div className="mt-4 grid grid-cols-1 @2xl:grid-cols-2 @5xl:grid-cols-4 gap-2.5">
         {steps.map((k, i) => (
           <div key={k} className={cx('rounded-lg px-3 py-2.5 flex items-center gap-2.5 text-[13px] min-w-0 border-2', i === cur ? 'border-[var(--edge)] bg-[var(--card)] font-semibold' : 'border-transparent', i > cur && 'text-dim')}>
-            {i < cur ? <CheckCircle2 size={16} className="text-emerald-500 shrink-0" /> : i === cur ? <Loader2 size={16} className="animate-spin text-accent shrink-0" /> : <Circle size={16} className="shrink-0" />}
+            {i < cur ? <CheckCircle2 size={16} className="text-ok shrink-0" /> : i === cur ? <Loader2 size={16} className="animate-spin text-accent shrink-0" /> : <Circle size={16} className="shrink-0" />}
             <span className="min-w-0">{phaseLabel[k] ?? k}</span>
           </div>
         ))}
@@ -349,7 +349,7 @@ export function ControlCard() {
       <div className="flex items-center gap-3 min-w-0 flex-1 basis-[220px]">
         <div className="relative shrink-0">
           <div className="tile h-10 w-10 rounded-[10px] grid place-items-center bg-t-violet text-ink"><ServerCog size={19} /></div>
-          <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', on ? 'bg-emerald-400' : s ? 'bg-zinc-600' : 'bg-zinc-500')} />
+          <span className={cx('absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--edge)]', on ? 'bg-ok' : s ? 'bg-off' : 'bg-off')} />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0"><span className="text-[15px] font-semibold">{L("中控")}</span>{s && <span className="font-mono text-[12.5px] text-fg2">{s.version}</span>}{s?.update_available && <Badge tone="violet">{L("可更新")}</Badge>}</div>

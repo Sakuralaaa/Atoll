@@ -26,9 +26,9 @@ export function UsageTab({ s }: { s: Service }) {
       {q.error && !q.data && <div className="mb-4"><ErrorState error={q.error} onRetry={q.refetch} /></div>}
       <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 [&>*]:min-w-0">
         <Chart title="CPU" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" labels={labels} />
-        <Chart title={L("内存")} icon={<MemoryStick size={15} />} data={d.map(x => x.mem_mb)} color="#38bdf8" unit=" MB" labels={labels} />
+        <Chart title={L("内存")} icon={<MemoryStick size={15} />} data={d.map(x => x.mem_mb)} color="var(--c-4)" unit=" MB" labels={labels} />
       </div>
-      <div className="mt-5"><Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="#34d399" unit=" MB/s" h={150} labels={labels} /></div>
+      <div className="mt-5"><Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="var(--c-3)" unit=" MB/s" h={150} labels={labels} /></div>
       <div className="text-[12.5px] text-dim mt-3">{s.name} {L("所选时段出站约")} {(tx / 1073741824).toFixed(1)} GB{d.length ? L(" · 当前 {0} 出站", bytesRate(d[d.length - 1].net_tx_bps)) : ''}</div>
     </>
   )
@@ -58,7 +58,7 @@ export function NetworkTab({ s, srv }: { s: Service; srv?: Server }) {
       </div>
       <Card className="p-4 @2xl:p-6">
         <div className="flex flex-col @4xl:flex-row items-center justify-center gap-0 py-4">
-          {([[L("用户"), <Globe key="g" size={18} />], ['Cloudflare', <Cloud key="c" size={18} className="text-[#f6821f]" />], [`Caddy · ${srv?.name.split(' ')[0] ?? '…'}`, <ShieldCheck key="s" size={18} className="text-emerald-400" />], [`${s.name}:${port?.container_port ?? '—'}`, <Box key="b" size={18} className="text-accent" />]] as const).map(([l, i], idx, a) => (
+          {([[L("用户"), <Globe key="g" size={18} />], ['Cloudflare', <Cloud key="c" size={18} className="text-[#f6821f]" />], [`Caddy · ${srv?.name.split(' ')[0] ?? '…'}`, <ShieldCheck key="s" size={18} className="text-ok" />], [`${s.name}:${port?.container_port ?? '—'}`, <Box key="b" size={18} className="text-accent" />]] as const).map(([l, i], idx, a) => (
             <div key={idx} className="flex flex-col @4xl:flex-row items-center min-w-0 max-w-full">
               <div className="rounded-xl border border-line2 bg-card2 px-4 h-12 flex items-center gap-2.5 text-[13px] font-semibold min-w-0 max-w-full [&>svg]:shrink-0">{i}<span className="truncate" title={l}>{l}</span></div>
               {idx < a.length - 1 && <><div className="@4xl:hidden h-6 border-l-2 border-dashed border-brand/60 relative"><span className="absolute -left-[5px] -bottom-[6px] text-brand text-[10px] leading-none">▼</span></div><div className="@max-4xl:hidden w-16 shrink-0 border-t-2 border-dashed border-brand/60 relative"><span className="absolute -right-1 -top-[5px] text-brand text-[10px]">▶</span></div></>}

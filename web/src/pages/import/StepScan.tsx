@@ -106,7 +106,7 @@ function ScanResult({ inv, onPick }: { inv: ZeaburInventory; onPick: (ns: string
             </div>
             {!!p.warnings?.length && (
               <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-t-amber/20 space-y-1">
-                {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
+                {p.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px] text-fg"><AlertTriangle size={13} className="text-amber mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
               </div>
             )}
             <div className="divide-y divide-line">{p.services.map(s => <ZRow key={s.service_id} s={s} names={Object.fromEntries(p.services.map(x => [x.service_id, x.name]))} />)}</div>

@@ -4,11 +4,12 @@
 (function () {
   try {
     var d = document.documentElement, q = new URLSearchParams(location.search)
-    var styles = ['atoll', 'minimal', 'zeabur', 'terminal', 'macaron', 'contrast']
+    var styles = ['atoll', 'minimal', 'lagoon', 'terminal', 'macaron', 'contrast'], renamed = { zeabur: 'lagoon' }
     var m = q.get('theme'); if (m !== 'light' && m !== 'dark') m = localStorage.getItem('atoll-theme')
     if (m !== 'light' && m !== 'dark') m = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
     d.classList.remove('dark', 'light'); d.classList.add(m)
-    var s = q.get('style'); if (styles.indexOf(s) < 0) s = localStorage.getItem('atoll-style')
+    var s = q.get('style'); s = renamed[s] || s; if (styles.indexOf(s) < 0) s = localStorage.getItem('atoll-style')
+    s = renamed[s] || s
     d.setAttribute('data-theme', styles.indexOf(s) < 0 ? 'atoll' : s)
   } catch { /* storage blocked: keep the defaults */ }
 })()

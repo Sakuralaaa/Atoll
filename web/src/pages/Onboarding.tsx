@@ -70,8 +70,8 @@ export default function Onboarding() {
                 <li key={i} className="shrink-0">
                   <button type="button" onClick={() => go(i)} aria-current={i === step ? 'step' : undefined}
                     className={cx('w-full text-left flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] font-semibold border-2 transition-colors',
-                      i === step ? 'border-[var(--edge)] bg-[#fde047] text-[#141414]' : 'border-transparent text-fg2 hover:text-fg')}>
-                    <span className={cx('h-6 w-6 shrink-0 rounded-full grid place-items-center text-[11.5px] font-mono border-2', done ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-current')}>{done ? <Check size={12} strokeWidth={3} /> : i + 1}</span>
+                      i === step ? 'border-[var(--edge)] bg-hi text-hi-ink' : 'border-transparent text-fg2 hover:text-fg')}>
+                    <span className={cx('h-6 w-6 shrink-0 rounded-full grid place-items-center text-[11.5px] font-mono border-2', done ? 'bg-ok border-ok-strong text-white' : 'border-current')}>{done ? <Check size={12} strokeWidth={3} /> : i + 1}</span>
                     <span className="whitespace-nowrap @4xl:whitespace-normal">{x.title}</span>
                     {optional[i] && <span className="ml-auto text-[11px] font-normal opacity-70 hidden @4xl:inline">{t('可选', 'optional')}</span>}
                   </button>
@@ -134,7 +134,7 @@ function StepControl({ s, onNext, onSkip }: { s: Settings; onNext: () => void; o
         </Row>
         <Row t={t('公开地址', 'Public URL')} d={t('浏览器、CLI 和其他服务器上的 Agent 用这个地址连回中控。建议用 HTTPS 域名。', 'Browsers, the CLI and agents on other servers reach the control server here. An HTTPS domain is recommended.')}>
           <TextInput mono className="w-full" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://panel.example.com" />
-          {!urlOk && <div className="text-[12px] text-[#ef4444] mt-1.5">{t('需要以 http:// 或 https:// 开头', 'Must start with http:// or https://')}</div>}
+          {!urlOk && <div className="text-[12px] text-danger mt-1.5">{t('需要以 http:// 或 https:// 开头', 'Must start with http:// or https://')}</div>}
           {urlOk && cleanUrl.startsWith('http://') && <div className="text-[12px] text-muted mt-1.5">{t('明文 HTTP 只适合私网或测试；公网请用 HTTPS。', 'Plain HTTP is only for private networks or testing; use HTTPS on the internet.')}</div>}
         </Row>
       </Card>
@@ -157,15 +157,15 @@ function StepServer({ onNext }: { onNext: (connected: boolean) => void }) {
       <Card className="p-5 @2xl:p-6">
         <div className="text-[13.5px] text-fg2 leading-6">{t('在一台 Debian 12+ / Ubuntu 22.04+ 的 VPS（amd64 或 arm64）上以 root 运行下面的命令。它会安装 Docker 和 Atoll Agent，Agent 主动连回中控，不需要开放额外端口。', 'Run this as root on a Debian 12+ / Ubuntu 22.04+ VPS (amd64 or arm64). It installs Docker and the Atoll agent; the agent connects back to the control server, no extra ports to open.')}</div>
         <div className="mt-4">
-          {err && <div className="text-[13px] text-[#ef4444]">{err}</div>}
+          {err && <div className="text-[13px] text-danger">{err}</div>}
           {!tok && !err && <div className="h-[76px] rounded-lg field grid place-items-center text-muted"><Loader2 className="animate-spin" size={18} /></div>}
           {tok && <>
             <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{tok.command}</CodeBlock></div>
             <div className="mt-3 flex items-center gap-3 text-[12.5px] text-muted"><Clock size={13} />{t('一次性令牌，{0} 前有效', 'One-time token, valid until {0}').replace('{0}', new Date(tok.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}<span className="ml-auto"><CopyButton text={tok.command} label={t('复制命令', 'Copy')} /></span></div>
           </>}
         </div>
-        <div className={cx('mt-5 rounded-lg px-4 py-3 text-[13px] flex items-center gap-2.5', ok ? 'bg-emerald-500/12 text-fg' : 'border-2 border-dashed border-line2 text-muted')} data-testid="onboarding-server-status">
-          {ok ? <><CheckCircle2 size={16} className="text-emerald-500 shrink-0" />{t('已连接：{0}', 'Connected: {0}').replace('{0}', online.map(x => x.name).join(', '))}</>
+        <div className={cx('mt-5 rounded-lg px-4 py-3 text-[13px] flex items-center gap-2.5', ok ? 'bg-ok/12 text-fg' : 'border-2 border-dashed border-line2 text-muted')} data-testid="onboarding-server-status">
+          {ok ? <><CheckCircle2 size={16} className="text-ok shrink-0" />{t('已连接：{0}', 'Connected: {0}').replace('{0}', online.map(x => x.name).join(', '))}</>
             : <><Loader2 size={15} className="animate-spin shrink-0" />{t('等待 Agent 连上中控…', 'Waiting for the agent to connect…')}</>}
         </div>
         <div className="mt-3 text-[12.5px] text-muted leading-5">{t('中控和节点在同一台机器上时，用 Docker 部署的中控请不要启用 Caddy（https profile）：节点的入口需要独占 80/443 端口。', 'If this machine is also the control server running in Docker, leave its Caddy (https profile) off: the node’s ingress needs ports 80/443 for itself.')}</div>

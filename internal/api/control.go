@@ -156,7 +156,7 @@ type ControlBackupList struct {
 	RemoteError    string          `json:"remote_error,omitempty"`
 	KeepLocal      int             `json:"keep_local"`
 	KeepRemote     int             `json:"keep_remote"`
-	NextScheduled  *time.Time      `json:"next_scheduled,omitempty"`
+	NextScheduled  *time.Time      `json:"next_scheduled,omitzero"`
 	PassphraseFrom string          `json:"passphrase_from"` // "control_backup_passphrase" | "backup_repo_password" | "generated"
 }
 

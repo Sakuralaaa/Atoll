@@ -3,7 +3,7 @@ import { cx } from './ui-utils'
 import type { Server } from '../api/types'
 
 /** Colour for a control↔agent round trip: green < 100 ms, amber < 300 ms, red from 300 ms. */
-const latencyTone = (ms: number) => ms < 100 ? 'text-emerald-600 dark:text-emerald-400' : ms < 300 ? 'text-amber-600 dark:text-amber-400' : 'text-danger'
+const latencyTone = (ms: number) => ms < 100 ? 'text-ok' : ms < 300 ? 'text-amber' : 'text-danger'
 const fmt = (ms: number) => ms < 10 ? ms.toFixed(1) : Math.round(ms).toString()
 
 /**

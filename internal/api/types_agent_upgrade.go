@@ -34,5 +34,5 @@ type AgentUpgrade struct {
 	Error      string    `json:"error,omitempty"`
 	RolledBack bool      `json:"rolled_back,omitempty"` // the new binary did not reconnect and the old one runs again
 	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
+	FinishedAt time.Time `json:"finished_at,omitzero"`
 }

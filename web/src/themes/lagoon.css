@@ -1,0 +1,43 @@
+/* Lagoon: teal brand, 8px radii, hairline borders, a faint grid and a soft teal glow at the top.
+   Was "zeabur" before v0.1.45: theme.ts and public/theme-boot.js read the old id as this one.
+   html[data-theme=lagoon] sets the shape; .light / .dark set the colours. */
+html[data-theme=lagoon] {
+  --hover-lift: none; --card-lift: translateY(-1px); --press: translateY(1px); --card-press: none;
+  --italic: normal; --bw: 1px; --bw-thin: 1px;
+  --sh-card: 0 1px 2px rgba(8,40,40,.06), 0 6px 20px -10px rgba(13,148,136,.14);
+  --sh-card-hover: 0 2px 4px rgba(8,40,40,.08), 0 12px 32px -10px rgba(13,148,136,.24);
+  --sh-btn: 0 1px 2px rgba(8,40,40,.08); --sh-btn-hover: 0 4px 14px -4px rgba(13,148,136,.3); --sh-tile: none;
+  --sh-sm: none; --sh-side: none; --sh-pop: 0 16px 40px -12px rgba(6,40,40,.3);
+  --btn-font: var(--font-sans); --btn-weight: 600; --btn-track: 0; --r-box: 8px; --r-btn: 8px; --r-chip: 6px;
+  --r-field: 8px; --r-tile: 8px; --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --canvas-bg: radial-gradient(ellipse 70% 320px at 50% -60px, var(--glow-l), transparent 70%), linear-gradient(var(--grid-l) 1px, transparent 1px), linear-gradient(90deg, var(--grid-l) 1px, transparent 1px);
+  --canvas-size: 100% 100%, 32px 32px, 32px 32px; --topline: transparent; --topline-h: 0px;
+  --topline-edge: 0 solid transparent; --focus: var(--brand);
+}
+html[data-theme=lagoon].light {
+  color-scheme: light;
+  --bg: #f6fafa; --side: #eff6f5; --card: #ffffff; --card2: #eef6f5; --sunk: #f7fbfb; --pop: #ffffff;
+  --line: #dcebe9; --line2: #c3dbd8; --muted: #52706d; --dim: #86a19e; --fg: #0f2422; --fg2: #24403d;
+  --ov: #0b2a27; --accent: #0f766e; --accent-soft: #115e59; --tick-off: #e1eeec; --edge: #d6e7e4;
+  --brand: #0f766e; --brand-ink: #ffffff; --brand-strong: #0f766e; --grain: rgba(15,118,110,.06);
+  --ink: #0f2422; --danger: #dc2626; --warn: #b45309; --hi: #d5f5ef; --hi-ink: #134e4a; --pick: #0f766e;
+  --pick-ink: #ffffff; --nav-bg: #e3f3f0; --nav-ink: #134e4a; --t-amber: #fef3c7; --t-red: #fee2e2;
+  --t-green: #dcfce7; --t-violet: #e0f2fe; --t-orange: #ffedd5; --t-note: #fffbeb; --t-ok: #f0fdf4;
+  --t-wash: rgba(255,255,255,.75); --t-field: #ffffff; --glow-l: rgba(20,184,166,.12);
+  --grid-l: rgba(15,118,110,.04);
+}
+html[data-theme=lagoon].dark {
+  color-scheme: dark;
+  --bg: #0b1315; --side: #091012; --card: #111c1f; --card2: #162427; --sunk: #0d181a; --pop: #132124;
+  --line: #1f3337; --line2: #2e4a4e; --muted: #95b1ae; --dim: #6c8986; --fg: #e8f3f1; --fg2: #c6dcd9;
+  --ov: #ffffff; --accent: #5eead4; --accent-soft: #99f6e4; --tick-off: #1b2c2f; --edge: #213639;
+  --brand: #14b8a6; --brand-ink: #03201c; --brand-strong: #5eead4; --grain: rgba(94,234,212,.05);
+  --ink: #0f2422; --danger: #f87171; --warn: #fbbf24; --hi: #5eead4; --hi-ink: #042f2e; --pick: #14b8a6;
+  --pick-ink: #03201c; --nav-bg: #14302f; --nav-ink: #e8f3f1; --t-amber: #fde68a; --t-red: #fecaca;
+  --t-green: #bbf7d0; --t-violet: #bae6fd; --t-orange: #fed7aa; --t-note: #fef3c7; --t-ok: #dcfce7;
+  --t-wash: rgba(255,255,255,.7); --t-field: #f6fafa; --glow-l: rgba(20,184,166,.14);
+  --grid-l: rgba(94,234,212,.035);
+}
+html[data-theme=lagoon] .canvas { background-repeat: no-repeat, repeat, repeat; }
+html[data-theme=lagoon] .btn-primary:hover { filter: brightness(1.08); }

@@ -155,7 +155,7 @@ function GroupCard({ g, serverId, onCreated }: { g: DockerGroup; serverId: strin
         <Button variant="primary" disabled={!g.adoptable || !picked.length || busy} onClick={adopt}>{busy && <Loader2 size={14} className="animate-spin" />}{t('接管这一组', 'Adopt this group')}<ArrowRight size={14} /></Button>
       </div>
       {!!g.warnings?.length && <div className="px-4 @2xl:px-6 py-3 border-b border-line bg-t-amber/20 space-y-1">
-        {g.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px]"><AlertTriangle size={13} className="text-[#d97706] mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
+        {g.warnings.map(w => <div key={w} className="flex items-start gap-1.5 text-[12.5px]"><AlertTriangle size={13} className="text-amber mt-0.5 shrink-0" /><span className="min-w-0 break-words">{bt(w)}</span></div>)}
       </div>}
       <div className="divide-y divide-line">
         {g.containers.map(c => <ContainerRow key={c.id} c={c} checked={picked.includes(c.name)} onToggle={() => setPicked(p => p.includes(c.name) ? p.filter(x => x !== c.name) : [...p, c.name])} />)}

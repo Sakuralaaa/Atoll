@@ -29,7 +29,7 @@ function Mark({ text, q }: { text: string; q: string }) {
   let i = 0
   for (let j = lo.indexOf(ql); j >= 0 && parts.length < 200; j = lo.indexOf(ql, i)) {
     if (j > i) parts.push(text.slice(i, j))
-    parts.push(<mark key={j} className="bg-amber-400/35 text-fg rounded-[2px]">{text.slice(j, j + q.length)}</mark>)
+    parts.push(<mark key={j} className="bg-amber/35 text-fg rounded-[2px]">{text.slice(j, j + q.length)}</mark>)
     i = j + q.length
   }
   parts.push(text.slice(i))
@@ -138,12 +138,12 @@ function Logs({ sid, name, actions }: { sid?: string; name?: string; actions: HT
           const k = n > 1 ? `${base}#${n}` : base, lv = level(l), isOpen = open.has(k)
           return (
             <div key={k} onClick={() => toggle(k)} className={cx('grid grid-cols-[84px_minmax(0,1fr)] md:grid-cols-[130px_150px_minmax(0,1fr)] px-4 border-b border-line/60 hover:bg-ov/[0.02] cursor-pointer', isOpen ? 'py-2 items-start' : 'h-[33px] items-center')}>
-              <span className="flex items-center gap-2 h-[17px]">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-rose-500' : lv === 'WARN' ? 'bg-amber-400' : 'bg-sky-500')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
+              <span className="flex items-center gap-2 h-[17px]">{isOpen ? <ChevronDown size={14} className="text-dim" /> : <ChevronRight size={14} className="text-dim" />}<span className={cx('h-2 w-2 rounded-full', lv === 'ERROR' ? 'bg-danger' : lv === 'WARN' ? 'bg-amber' : 'bg-c-4')} /><span className="text-[11.5px] font-semibold">{lv}</span></span>
               <span className="text-muted max-md:hidden">{fmt(l.at)}</span><span className={cx('text-fg2 min-w-0', isOpen ? 'whitespace-pre-wrap break-all' : 'truncate')}><Mark text={l.line} q={query} />{isOpen && <span className="block text-dim text-[12px] mt-1">{l.stream} · {l.at}</span>}</span>
             </div>
           )
         })}
-        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans">{frozen ? <><span className="h-2 w-2 rounded-full bg-amber-400" />{L("已暂停，")}{Math.max(0, live$.length - frozen.length)} {L("条新日志未显示")}</> : <><span className={cx('h-2 w-2 rounded-full', live ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />{live ? t('正在实时接收日志', 'Streaming logs') : t('连接中…', 'Connecting…')}</>}</div>
+        <div className="h-10 flex items-center justify-center text-[13px] text-muted gap-2 font-sans">{frozen ? <><span className="h-2 w-2 rounded-full bg-amber" />{L("已暂停，")}{Math.max(0, live$.length - frozen.length)} {L("条新日志未显示")}</> : <><span className={cx('h-2 w-2 rounded-full', live ? 'bg-ok animate-pulse' : 'bg-off')} />{live ? t('正在实时接收日志', 'Streaming logs') : t('连接中…', 'Connecting…')}</>}</div>
         {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="sticky float-right right-6 bottom-4 mr-6 h-10 w-10 rounded-full bg-card2 ring-1 ring-line2 grid place-items-center"><ArrowDown size={17} /></button>}
       </div>
     </>

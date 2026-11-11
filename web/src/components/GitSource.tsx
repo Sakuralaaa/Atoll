@@ -309,7 +309,7 @@ export function BuildLogModal({ s, d, onClose }: { s: Service; d: Deployment; on
           {!loaded && <div className="space-y-2"><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /><Skeleton className="h-3 w-3/5" /></div>}
           {loaded && !lines.length && <div className="text-dim font-sans text-[13px]">{error ? error.message : live ? t('等待构建输出…', 'Waiting for build output…') : t('这次部署没有构建日志（只保留最近 10 次部署的日志）', 'No build log for this deployment (logs are kept for the 10 newest deployments)')}</div>}
           {lines.map(l => <div key={l.seq} className={cx('whitespace-pre-wrap break-all', /\b(error|failed|fatal)\b/i.test(l.line) ? 'text-danger' : 'text-fg2')}>{l.line}</div>)}
-          {live && loaded && <div className="mt-2 flex items-center gap-2 text-muted font-sans text-[12px]"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />{t('实时输出中', 'Live')}</div>}
+          {live && loaded && <div className="mt-2 flex items-center gap-2 text-muted font-sans text-[12px]"><span className="h-2 w-2 rounded-full bg-ok animate-pulse" />{t('实时输出中', 'Live')}</div>}
           {!live && st === 'failed' && d.message && <div className="mt-3 text-danger whitespace-pre-wrap break-all">{d.message}</div>}
         </div>
         {!follow && <button onClick={() => { setFollow(true); box.current?.scrollTo({ top: box.current.scrollHeight }) }} className="absolute right-4 bottom-4 h-9 w-9 rounded-full tile bg-card2 grid place-items-center"><ArrowDown size={16} /></button>}

@@ -23,7 +23,7 @@ type State struct {
 	// 0 so they do not revert the parked ingress; their replicas are in Workloads.
 	ParkedOperators []string `json:"parked_operators,omitempty"`
 	// CutoverAt is set when the Zeabur ingress was parked (the last cutover step on this host).
-	CutoverAt    *time.Time `json:"cutover_at,omitempty"`
+	CutoverAt    *time.Time `json:"cutover_at,omitzero"`
 	K3sRemoved   bool       `json:"k3s_removed"`
 	K3sRemovedAt *time.Time `json:"k3s_removed_at,omitempty"`
 	BackupDir    string     `json:"backup_dir,omitempty"`

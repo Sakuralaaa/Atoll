@@ -22,19 +22,21 @@ export function applyTheme(t: Theme) {
 }
 export function currentTheme(): Theme { return document.documentElement.classList.contains('light') ? 'light' : 'dark' }
 
-export const STYLES = ['atoll', 'minimal', 'zeabur', 'terminal', 'macaron', 'contrast'] as const
+export const STYLES = ['atoll', 'minimal', 'lagoon', 'terminal', 'macaron', 'contrast'] as const
 export type Style = typeof STYLES[number]
 export const DEFAULT_STYLE: Style = 'atoll'
 const STYLE_KEY = 'atoll-style'
 export const isStyle = (v: unknown): v is Style => typeof v === 'string' && (STYLES as readonly string[]).includes(v)
+/** Ids a theme had before (saved on accounts and devices): zeabur became lagoon in v0.1.45. */
+const RENAMED: Record<string, Style> = { zeabur: 'lagoon' }
+export const toStyle = (v: unknown): Style | undefined => isStyle(v) ? v : typeof v === 'string' ? RENAMED[v] : undefined
 
 /** ?style= in the address pins the style for this page load (screenshots, sharing a look). */
-const urlStyle = (() => { const q = new URLSearchParams(location.search).get('style'); return isStyle(q) ? q : undefined })()
+const urlStyle = (() => toStyle(new URLSearchParams(location.search).get('style')))()
 
 export function initialStyle(): Style {
   if (urlStyle) return urlStyle
-  const s = localStorage.getItem(STYLE_KEY)
-  return isStyle(s) ? s : DEFAULT_STYLE
+  return toStyle(localStorage.getItem(STYLE_KEY)) ?? DEFAULT_STYLE
 }
 export function currentStyle(): Style {
   const v = document.documentElement.dataset.theme
@@ -48,8 +50,9 @@ export function applyStyle(s: Style, remember = true) {
 /** The account's saved theme from /auth/me. Empty (never chosen) or an id this panel does
  *  not know keeps the device's choice; ?style= wins for the page load. */
 export function applyAccountStyle(id?: string) {
-  if (urlStyle || !isStyle(id) || id === currentStyle()) return
-  applyStyle(id)
+  const s = toStyle(id)
+  if (urlStyle || !s || s === currentStyle()) return
+  applyStyle(s)
 }
 
 const subs = new Set<() => void>()

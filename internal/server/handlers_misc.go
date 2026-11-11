@@ -369,7 +369,7 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.exec", svc.ID, req.Cmd)
+	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service.exec", svc.ID, auditExecDetail(req.Cmd))
 	res, err := s.hub.Request(r.Context(), nodeID, api.MsgExec, api.ExecPayload{ServiceID: svc.ID, Cmd: req.Cmd, TimeoutSec: req.TimeoutSec},
 		time.Duration(req.TimeoutSec+10)*time.Second)
 	if err != nil {

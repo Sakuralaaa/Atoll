@@ -53,17 +53,17 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
                 <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><ProviderIcon p={s.git.provider ?? inferProvider(s.git.repo)} size={14} /><span className="truncate" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">{L("源码构建")}</span></span>
                 <span className="text-muted">{L("提交")}</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit, s.git.provider)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
               </> : <>
-                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-[#60a5fa] shrink-0" /><ImageRef s={s} /></span>
+                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-c-1 shrink-0" /><ImageRef s={s} /></span>
                 <span className="text-muted">{L("镜像摘要")}</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">{L("服务器")}</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
-              <span className="text-muted">{L("资源")}</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? L("{0} 核", s.cpu_limit) : L("不限")} {L("· 内存")} {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber-500" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && canDeploy && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} {L("· 进程数上限 4096 · 重启策略 unless-stopped")}</span>
+              <span className="text-muted">{L("资源")}</span><span className="[overflow-wrap:anywhere]">CPU {s.cpu_limit ? L("{0} 核", s.cpu_limit) : L("不限")} {L("· 内存")} {s.mem_limit_mb ? `${s.mem_limit_mb} MB` : <span className="text-amber" title={t('没有内存上限：这个服务内存泄漏时可能拖垮整台机器。可在服务「设置」里填写上限，或套用默认上限。', 'No memory limit: a memory leak in this service can take the whole server down. Set one in the service settings or apply the default limits.')}>{t('未限制', 'unlimited')}</span>}{offerDefaults && canDeploy && <button type="button" className="ml-1.5 text-accent hover:underline disabled:opacity-50" disabled={busy} onClick={() => setApplyDef(true)}>{t('套用默认值', 'Apply defaults')}</button>} {L("· 进程数上限 4096 · 重启策略 unless-stopped")}</span>
             </div>
           </div>
           <div className="w-full @5xl:w-[380px] @5xl:shrink-0 grid grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @5xl:grid-cols-1 gap-3">
             {isDemo() ? <Uptime failed={s.status === 'failed'} /> : <RecentDeploys deps={deps.data} />}
             <div className="grid grid-cols-2 gap-3">
-              {([['CPU', cpu.length ? `${cpu[cpu.length - 1].toFixed(1)}%` : '—', cpu, '#8b5cf6'], [L("内存"), mem.length ? `${Math.round(mem[mem.length - 1])} MB` : '—', mem, '#38bdf8']] as const).map(([l, v, d, c]) => (
+              {([['CPU', cpu.length ? `${cpu[cpu.length - 1].toFixed(1)}%` : '—', cpu, 'var(--c-2)'], [L("内存"), mem.length ? `${Math.round(mem[mem.length - 1])} MB` : '—', mem, 'var(--c-4)']] as const).map(([l, v, d, c]) => (
                 <div key={l} className="rounded-xl field px-4 py-3">
                   <div className="text-[12px] text-muted">{l}</div>
                   <div className="flex items-end justify-between gap-2 mt-1 min-w-0"><span className="text-[17px] font-semibold tnum whitespace-nowrap">{v}</span><span className="min-w-0 overflow-hidden"><Spark data={[...d]} color={c} /></span></div>
@@ -124,7 +124,7 @@ function Uptime({ failed }: { failed: boolean }) {
       <div className="flex items-center text-[12px] text-muted">{L("最近 30 天可用性")}<span className="ml-auto text-fg font-semibold tnum">{failed ? '97.82%' : '99.98%'}</span></div>
       <div className="mt-2.5 flex gap-[3px]">{Array.from({ length: 30 }, (_, i) => {
         const bad = failed ? i > 26 : i === 11
-        return <span key={i} className={cx('flex-1 h-6 rounded-[3px]', bad ? (failed && i > 27 ? 'bg-rose-500/80' : 'bg-amber-400/80') : 'bg-emerald-500/70')} />
+        return <span key={i} className={cx('flex-1 h-6 rounded-[3px]', bad ? (failed && i > 27 ? 'bg-danger/80' : 'bg-amber/80') : 'bg-ok/70')} />
       })}</div>
       <div className="mt-1.5 flex justify-between text-[10.5px] text-dim"><span>{L("30 天前")}</span><span>{L("今天")}</span></div>
     </div>
@@ -137,7 +137,7 @@ function RecentDeploys({ deps }: { deps?: Deployment[] }) {
       <div className="flex items-center text-[12px] text-muted">{L("最近部署")}<span className="ml-auto text-fg font-semibold tnum">{deps?.length ?? 0} {L("次")}</span></div>
       <div className="mt-2.5 flex gap-[3px]">{Array.from({ length: 10 }, (_, i) => {
         const d = list[i - (10 - list.length)]
-        return <span key={i} title={d ? `${dateTime(d.started_at)} · ${deployStatusText[d.status] ?? d.status}` : ''} className={cx('flex-1 h-6 rounded-[3px]', !d ? 'bg-ov/[0.06]' : d.status === 'failed' ? 'bg-rose-500/80' : ['running', 'superseded'].includes(d.status) ? 'bg-emerald-500/70' : 'bg-amber-400/80')} />
+        return <span key={i} title={d ? `${dateTime(d.started_at)} · ${deployStatusText[d.status] ?? d.status}` : ''} className={cx('flex-1 h-6 rounded-[3px]', !d ? 'bg-ov/[0.06]' : d.status === 'failed' ? 'bg-danger/80' : ['running', 'superseded'].includes(d.status) ? 'bg-ok/70' : 'bg-amber/80')} />
       })}</div>
       <div className="mt-1.5 flex justify-between text-[10.5px] text-dim"><span>{L("更早")}</span><span>{L("最新")}</span></div>
     </div>

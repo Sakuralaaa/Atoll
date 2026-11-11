@@ -275,7 +275,7 @@ function RestoreStatus({ s }: { s: Service }) {
   return (
     <Card className={cx('mt-6 px-4 @2xl:px-6 py-4', j.status === 'failed' && '!bg-t-red text-ink')}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-        {active ? <Loader2 size={16} className="animate-spin text-accent" /> : j.status === 'done' ? <CheckCircle2 size={16} className="text-[#22c55e]" /> : <XCircle size={16} />}
+        {active ? <Loader2 size={16} className="animate-spin text-accent" /> : j.status === 'done' ? <CheckCircle2 size={16} className="text-ok" /> : <XCircle size={16} />}
         <span className="font-semibold">{active ? L("正在还原") : j.status === 'done' ? L("还原完成") : L("还原失败")}</span>
         <span className={j.status === 'failed' ? '' : 'text-muted'}>{ago(j.created_at)} {L("开始")}{j.to_server_id !== j.from_server_id ? L(" · 跨服务器灾难恢复") : ''}</span>
         <span className="ml-auto"><CopyId v={j.id} /></span>

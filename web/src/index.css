@@ -4,7 +4,7 @@
 @import "@fontsource-variable/jetbrains-mono";
 /* preset themes (atoll is the default below); each sets html[data-theme=<id>] */
 @import "./themes/minimal.css";
-@import "./themes/zeabur.css";
+@import "./themes/lagoon.css";
 @import "./themes/terminal.css";
 @import "./themes/macaron.css";
 @import "./themes/contrast.css";
@@ -24,6 +24,8 @@
   --nav-bg: color-mix(in srgb, #8b5cf6 30%, var(--card)); --nav-ink: var(--fg);
   --t-amber: #fcd34d; --t-red: #fca5a5; --t-green: #86efac; --t-violet: #c4b5fd; --t-orange: #fdba74;
   --t-note: #fef3c7; --t-ok: #bbf7d0; --t-wash: rgba(255,255,255,.7); --t-field: #fffdf8;
+  --ok: #34d399; --ok-strong: #10b981; --amber: #fbbf24; --off: #52525b;
+  --c-1: #60a5fa; --c-2: #a78bfa; --c-3: #34d399; --c-4: #38bdf8; --c-5: #fbbf24; --c-6: #f87171; --c-7: #fb923c;
 }
 .light {
   color-scheme: light;
@@ -37,6 +39,8 @@
   --nav-bg: #fde68a; --nav-ink: var(--fg);
   --t-amber: #fcd34d; --t-red: #fca5a5; --t-green: #86efac; --t-violet: #c4b5fd; --t-orange: #fdba74;
   --t-note: #fef3c7; --t-ok: #bbf7d0; --t-wash: rgba(255,255,255,.7); --t-field: #fffdf8;
+  --ok: #059669; --ok-strong: #047857; --amber: #d97706; --off: #a1a1aa;
+  --c-1: #3b82f6; --c-2: #8b5cf6; --c-3: #10b981; --c-4: #0ea5e9; --c-5: #eab308; --c-6: #ef4444; --c-7: #f97316;
 }
 
 /* Shape of the look (borders, shadows, motion, type). Atoll's neo-brutal defaults; a preset
@@ -53,7 +57,7 @@
   --italic: italic; --btn-font: var(--font-mono); --btn-weight: 700; --btn-track: -0.01em;
   --r-box: 5px; --r-btn: 4px; --r-chip: 8px; --r-field: 4px; --r-tile: 4px;
   --canvas-bg: radial-gradient(var(--grain) 1px, transparent 1.3px); --canvas-size: 18px 18px; --canvas-fixed: scroll;
-  --topline: var(--brand); --topline-h: 4px; --topline-edge: 2px solid var(--edge);
+  --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent;
   --focus: var(--brand); --focus-ring: none;
 }
 
@@ -90,6 +94,17 @@
   --color-t-ok: var(--t-ok);
   --color-t-wash: var(--t-wash);
   --color-t-field: var(--t-field);
+  --color-ok: var(--ok);
+  --color-ok-strong: var(--ok-strong);
+  --color-amber: var(--amber);
+  --color-off: var(--off);
+  --color-c-1: var(--c-1);
+  --color-c-2: var(--c-2);
+  --color-c-3: var(--c-3);
+  --color-c-4: var(--c-4);
+  --color-c-5: var(--c-5);
+  --color-c-6: var(--c-6);
+  --color-c-7: var(--c-7);
   --shadow-hard: var(--sh-btn);
   --shadow-hard-md: var(--sh-tile);
   --shadow-hard-sm: var(--sh-sm);

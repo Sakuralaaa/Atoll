@@ -113,7 +113,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
           <div className="flex justify-between"><span className="text-muted">{L("数据")}</span><span className="font-semibold tnum">{bytes(data)}</span></div>
           <div className="flex justify-between"><span className="text-muted">{L("新域名")}</span><span className="font-semibold">{zHosts.filter(h => target(h)).length} {L("个")}</span></div>
         </div>
-        <div className="mt-5 rounded-lg field px-4 py-3 text-[12.5px] text-fg2 leading-5 flex gap-2"><ShieldCheck size={15} className="text-emerald-500 shrink-0 mt-0.5" />{L("下一步只是演练：Atoll 在本机起一套副本、复制数据并核对行数，不接公网流量，Zeabur 继续对外服务。")}</div>
+        <div className="mt-5 rounded-lg field px-4 py-3 text-[12.5px] text-fg2 leading-5 flex gap-2"><ShieldCheck size={15} className="text-ok shrink-0 mt-0.5" />{L("下一步只是演练：Atoll 在本机起一套副本、复制数据并核对行数，不接公网流量，Zeabur 继续对外服务。")}</div>
         <div className="mt-5 flex gap-2">
           <Button onClick={onBack}>{L("返回")}</Button>
           {needCf ? <Link to="/settings" className="flex-1"><Button className="w-full">{L("先完成域名设置")}</Button></Link>

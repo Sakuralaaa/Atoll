@@ -46,8 +46,8 @@ type ImageUpdate struct {
 	ChangelogURL string     `json:"changelog_url,omitempty"`
 	Error        string     `json:"error,omitempty"`
 	Note         string     `json:"note,omitempty"` // e.g. why auto-update is waiting or paused
-	CheckedAt    *time.Time `json:"checked_at,omitempty"`
-	NextCheckAt  *time.Time `json:"next_check_at,omitempty"`
+	CheckedAt    *time.Time `json:"checked_at,omitzero"`
+	NextCheckAt  *time.Time `json:"next_check_at,omitzero"`
 	// LastAutoDigest is the last digest auto-update deployed (never retried automatically).
 	LastAutoDigest string `json:"last_auto_digest,omitempty"`
 }

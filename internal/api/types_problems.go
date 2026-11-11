@@ -41,8 +41,8 @@ type Problem struct {
 	ServerID    string     `json:"server_id,omitempty"`
 	Message     string     `json:"message"`
 	Since       time.Time  `json:"since"`
-	FiringAt    *time.Time `json:"firing_at,omitempty"`
-	ResolvedAt  *time.Time `json:"resolved_at,omitempty"`
+	FiringAt    *time.Time `json:"firing_at,omitzero"`
+	ResolvedAt  *time.Time `json:"resolved_at,omitzero"`
 }
 
 // NotificationChannel is one place problems are sent to. Secrets (BotToken, Password, and the

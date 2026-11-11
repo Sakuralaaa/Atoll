@@ -124,12 +124,12 @@ function UserRow() {
   const logout = async () => { await api.logout().catch(() => {}); location.hash = '#/login' }
   const row = 'w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-[13px] font-medium text-fg2 hover:bg-ov/5 text-left'
   return (
-    <div ref={ref} className="relative flex items-center gap-2.5 px-1">
-      <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} title={L("账户")} className="flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-ov/5 -mx-1 px-1 py-0.5">
+    <div ref={ref} className="relative flex items-center gap-1.5 px-1">
+      <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} title={L("账户")} className="flex items-center gap-2 min-w-0 flex-1 rounded-lg hover:bg-ov/5 -mx-1 px-1 py-0.5">
         {me?.avatar ? <Avatar size={32} src={me.avatar} className="rounded-lg" /> : <span className="tile h-8 w-8 shrink-0 rounded-lg bg-hi grid place-items-center text-[13px] font-extrabold font-mono text-hi-ink">{(me?.username ?? 'A')[0].toUpperCase()}</span>}
-        <span className="min-w-0 leading-tight text-left"><span className="block text-[13px] font-medium truncate">{me?.username ?? '…'}</span><span className="block text-[11.5px] text-dim truncate whitespace-nowrap">{isDemo() ? L("演示模式") : L("管理员")}</span></span>
+        <span className="min-w-0 leading-tight text-left"><span className="block text-[13px] font-medium truncate">{me?.username ?? '…'}</span><span className="block text-[11px] text-dim whitespace-nowrap" data-testid="account-role">{isDemo() ? L("演示模式") : L("管理员")}</span></span>
       </button>
-      <div className="ml-auto flex items-center gap-1.5"><LangButton /><ThemeToggle /></div>
+      <div className="ml-auto flex shrink-0 items-center gap-1"><LangButton /><ThemeToggle /></div>
       {open && (
         <div role="menu" className="rise surface bg-pop absolute left-0 bottom-full mb-2 w-[220px] p-1.5 z-50">
           <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />{L("账户与安全")}</Link>
@@ -274,7 +274,7 @@ export function ProjectShell({ project, active, children }: { project: Project; 
         </div>
         </div>
         <div className="shrink-0 pt-3 border-t border-line px-2 flex items-center gap-2"><div className="min-w-0"><div className="text-[11.5px] text-dim">{L("项目 ID")}</div>
-        <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg max-w-full"><span className="truncate">{project.id}</span><Copy size={11} className="shrink-0" /></button></div><div className="ml-auto flex items-center gap-1.5"><LangButton /><ThemeToggle /></div></div>
+        <button onClick={() => navigator.clipboard?.writeText(project.id)} className="mt-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted hover:text-fg max-w-full"><span className="truncate">{project.id}</span><Copy size={11} className="shrink-0" /></button></div><div className="ml-auto flex shrink-0 items-center gap-1"><LangButton /><ThemeToggle /></div></div>
     </>}>{children}</Frame>
   )
 }

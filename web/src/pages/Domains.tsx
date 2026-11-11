@@ -105,7 +105,7 @@ function CloudTag({ d, onClick }: { d: Domain; onClick?: () => void }) {
     : t('仅 DNS（灰云）：直连服务器，没有超时限制、任何协议都行；会暴露源站 IP', 'DNS only (grey cloud): straight to the server, no timeout, any protocol; exposes the origin IP')
   const body = <>
     <span className={`${tagCls} ${d.proxied ? 'bg-t-orange text-ink' : 'bg-card2 text-fg2'}`}>{d.proxied ? <Cloud size={11} strokeWidth={2.5} /> : <CloudOff size={11} strokeWidth={2.5} />}{d.proxied ? t('橙云', 'Proxied') : t('灰云', 'DNS only')}</span>
-    <span className={`text-[11.5px] ${d.proxied ? 'text-dim' : 'text-[#d97706]'}`}>{d.proxied ? t('100 秒超时', '100 s timeout') : t('会暴露源站 IP', 'exposes origin IP')}</span>
+    <span className={`text-[11.5px] ${d.proxied ? 'text-dim' : 'text-amber'}`}>{d.proxied ? t('100 秒超时', '100 s timeout') : t('会暴露源站 IP', 'exposes origin IP')}</span>
   </>
   if (!onClick) return <span className="inline-flex items-center gap-1.5" title={tip}>{body}</span>
   return <button type="button" onClick={onClick} title={`${tip}\n${t('点击切换', 'Click to switch')}`} className="inline-flex items-center gap-1.5 rounded-[3px] hover:opacity-80">{body}</button>
@@ -128,8 +128,8 @@ function TokenPerms({ c }: { c?: CloudflareTokenCheck }) {
   const chip = (state: string | undefined, label: string, warn: string, err?: string) => {
     const ok = state === 'ok', missing = state === 'missing'
     return (
-      <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] whitespace-nowrap ${missing ? 'border-[#d97706]/50 bg-t-amber/20 text-[#b45309] dark:text-[#fbbf24]' : 'border-line bg-sunk text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
-        {!c ? <Loader2 size={13} className="animate-spin text-muted" /> : ok ? <ShieldCheck size={13} className="text-emerald-500" /> : <ShieldAlert size={13} className={missing ? '' : 'text-muted'} />}
+      <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] whitespace-nowrap ${missing ? 'border-amber/50 bg-t-amber/20 text-amber' : 'border-line bg-sunk text-fg2'}`} title={missing ? `${warn}${err ? `\n${err}` : ''}` : err}>
+        {!c ? <Loader2 size={13} className="animate-spin text-muted" /> : ok ? <ShieldCheck size={13} className="text-ok" /> : <ShieldAlert size={13} className={missing ? '' : 'text-muted'} />}
         {label}{c && !ok && <span className="font-semibold">{missing ? t(' · 缺失', ' · missing') : t(' · 未知', ' · unknown')}</span>}
       </span>
     )
@@ -141,7 +141,7 @@ function TokenPerms({ c }: { c?: CloudflareTokenCheck }) {
         {chip(c?.dns, t('Zone.DNS 编辑', 'Zone.DNS Edit'), t('缺少 Zone.DNS 编辑权限：绑定域名时无法自动建 DNS 记录', 'Missing Zone.DNS Edit: DNS records cannot be created when binding a domain'), c?.dns_error)}
         {c?.ssl && chip(c.ssl, t('SSL 证书编辑', 'SSL and Certificates Edit'), t(`缺少 Zone.SSL and Certificates 编辑权限：${c.ssl_roots?.join('、')} 签 Origin CA 证书会报 1016，只能退回 ACME`, `Missing Zone.SSL and Certificates Edit: issuing Origin CA certificates for ${c.ssl_roots?.join(', ')} fails with 1016 and falls back to ACME`), c.ssl_error)}
       </div>
-      {(c?.dns === 'missing' || c?.ssl === 'missing') && <div className="flex items-start gap-2 text-[12.5px] leading-5 text-[#b45309] dark:text-[#fbbf24]">
+      {(c?.dns === 'missing' || c?.ssl === 'missing') && <div className="flex items-start gap-2 text-[12.5px] leading-5 text-amber">
         <ShieldAlert size={14} className="mt-0.5 shrink-0" />
         <div className="min-w-0 space-y-0.5">
           {c.dns === 'missing' && <div>{t('缺少 Zone.DNS 编辑权限：绑定域名时无法自动建 DNS 记录，需要在 Cloudflare 给令牌补上。', 'Missing Zone.DNS Edit: DNS records cannot be created when binding a domain; add it to the token in Cloudflare.')}</div>}
@@ -169,7 +169,7 @@ function ProxyFlip({ d, roots, onClose }: { d: Domain; roots: RootDomain[]; onCl
           : t('直连后没有 100 秒超时、可用于长请求和非 HTTP 协议，但会暴露源站 IP，也没有 Cloudflare 防护。', 'Direct: no 100-second timeout, fine for long requests and non-HTTP, but the origin IP is exposed and Cloudflare protection is gone.')}</div>
         {!to && originRoot && <div className="mt-3 text-[13px] text-fg2">{t('根域名 ', 'Root ')}<b>{root!.name}</b>{t(' 用的是 Cloudflare Origin CA 证书，浏览器直连时不信任：这个域名会改用 ACME（Let\'s Encrypt）证书，DNS 生效后自动签发，可能需要一两分钟。', ' uses a Cloudflare Origin CA certificate, which browsers reject on a direct connection: this host switches to an ACME (Let\'s Encrypt) certificate, issued once DNS has updated (a minute or two).')}</div>}
         {to && originRoot && <div className="mt-3 text-[13px] text-fg2">{t('这个域名会改回根域名的 Origin CA 证书。', 'This host goes back to the root\'s Origin CA certificate.')}</div>}
-        {!to && globalOrigin && <div className="mt-3 text-[13px] text-[#d97706]">{t('这个域名跟随全局证书（Origin CA），直连时浏览器会报证书错误。请先在 设置 → 根域名 把它的证书模式改为「自动」或 ACME。', 'This host follows the global certificate (Origin CA): browsers will show a certificate error on a direct connection. Set its root to "Auto" or ACME in Settings → Root domains first.')}</div>}
+        {!to && globalOrigin && <div className="mt-3 text-[13px] text-amber">{t('这个域名跟随全局证书（Origin CA），直连时浏览器会报证书错误。请先在 设置 → 根域名 把它的证书模式改为「自动」或 ACME。', 'This host follows the global certificate (Origin CA): browsers will show a certificate error on a direct connection. Set its root to "Auto" or ACME in Settings → Root domains first.')}</div>}
       </>} />
   )
 }

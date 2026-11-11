@@ -37,9 +37,24 @@ sudo atoll-server admin reset-2fa <用户名>
 
 ## 校验下载的文件
 
-Release 附带 `SHA256SUMS` 和 GitHub 构建来源证明：
+Release 附带 `SHA256SUMS`、它的 Sigstore 签名 `SHA256SUMS.sigstore.json`（v0.1.45 起）和 GitHub 构建来源证明。先验签名，再验文件：
 
 ```sh
+cosign verify-blob --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/Sakuralaaa/Atoll/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 gh attestation verify atoll-server-linux-amd64 --repo Sakuralaaa/Atoll
 ```
+
+签名是 GitHub Actions 发版工作流的无密钥签名（证书身份就是上面的 release.yml），不需要导入公钥。中控镜像 `ghcr.io/sakuralaaa/atoll-server` 也按 digest 签名：
+
+```sh
+cosign verify ghcr.io/sakuralaaa/atoll-server:v0.1.45 \
+  --certificate-identity-regexp '^https://github.com/Sakuralaaa/Atoll/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+## 审计日志
+
+`exec` 的审计记录只保存程序名、参数个数和整条命令的 SHA-256，不保存命令原文（命令里常带口令）。v0.1.45 之前记录的原文由迁移 0031 清掉。

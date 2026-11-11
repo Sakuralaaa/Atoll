@@ -25,9 +25,9 @@ type BackupPolicy struct {
 	// IncludeVolumes also snapshots the service's volume dirs. Database templates always back
 	// up a logical dump; for other services the volumes are the backup (forced on).
 	IncludeVolumes bool       `json:"include_volumes"`
-	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitzero"`
 	// read-only, computed
-	NextRunAt      *time.Time `json:"next_run_at,omitempty"`
+	NextRunAt      *time.Time `json:"next_run_at,omitzero"`
 	RepoConfigured bool       `json:"repo_configured"`
 	Parts          []string   `json:"parts,omitempty"` // what a run backs up: "dump" and/or "volumes"
 }
@@ -55,7 +55,7 @@ type Backup struct {
 	Error      string           `json:"error,omitempty"`
 	Warnings   []string         `json:"warnings,omitempty"`
 	StartedAt  time.Time        `json:"started_at"`
-	FinishedAt *time.Time       `json:"finished_at,omitempty"`
+	FinishedAt *time.Time       `json:"finished_at,omitzero"`
 }
 
 // BackupRestoreRequest is the body of POST /api/v1/backups/{id}/restore. An empty target (or
@@ -78,7 +78,7 @@ type RestoreJob struct {
 	Steps      []ImportStep `json:"steps"`
 	Error      string       `json:"error,omitempty"`
 	CreatedAt  time.Time    `json:"created_at"`
-	FinishedAt *time.Time   `json:"finished_at,omitempty"`
+	FinishedAt *time.Time   `json:"finished_at,omitzero"`
 }
 
 // BackupTestResult is POST /api/v1/settings/backup/test.
@@ -175,7 +175,7 @@ type BackupRunPayload struct {
 	Target   BackupTarget `json:"target"`
 	Repo     BackupRepo   `json:"repo"`
 	// Since (catch-up only): skip when this agent already ran the service at or after Since.
-	Since *time.Time `json:"since,omitempty"`
+	Since *time.Time `json:"since,omitzero"`
 }
 
 // BackupEvent reports a run's progress (status "running") and outcome ("done" | "failed").
@@ -191,7 +191,7 @@ type BackupEvent struct {
 	Error      string           `json:"error,omitempty"`
 	Warnings   []string         `json:"warnings,omitempty"`
 	StartedAt  time.Time        `json:"started_at"`
-	FinishedAt *time.Time       `json:"finished_at,omitempty"`
+	FinishedAt *time.Time       `json:"finished_at,omitzero"`
 	Pruned     []string         `json:"pruned,omitempty"` // snapshot ids removed by retention
 }
 

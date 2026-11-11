@@ -14,7 +14,7 @@ export function StarButton({ id, prefs, size = 16, className }: { id: string; pr
   const on = prefs.isFav(id)
   return (
     <button type="button" onClick={stop(() => prefs.toggleFav(id))} aria-pressed={on} title={on ? t('取消收藏', 'Unfavorite') : t('收藏', 'Favorite')}
-      className={cx('h-8 w-8 grid place-items-center rounded-md shrink-0 transition-colors hover:bg-ov/5', on ? 'text-[#eab308]' : 'text-dim hover:text-fg2', className)}>
+      className={cx('h-8 w-8 grid place-items-center rounded-md shrink-0 transition-colors hover:bg-ov/5', on ? 'text-amber' : 'text-dim hover:text-fg2', className)}>
       <Star size={size} fill={on ? 'currentColor' : 'none'} strokeWidth={on ? 2.2 : 2} />
     </button>
   )

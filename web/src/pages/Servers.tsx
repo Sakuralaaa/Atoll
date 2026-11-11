@@ -72,7 +72,7 @@ export default function Servers() {
                     <div className="min-w-0 flex-1">
                       {/* full name, wrapping; badges live in the footer so nothing squeezes it */}
                       <div className="text-[15px] font-semibold leading-snug [overflow-wrap:anywhere]">{s.name}</div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-fg2"><span className={on ? 'h-2 w-2 rounded-full bg-emerald-500' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-danger' : 'h-2 w-2 rounded-full bg-zinc-500'} />{on ? t('在线 · Docker', 'Online · Docker') : s.status === 'offline' ? <span className="text-danger font-semibold">{t('离线', 'Offline')}</span> : s.status === 'pending' ? t('等待连接', 'Waiting') : t('离线', 'Offline')}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-fg2"><span className={on ? 'h-2 w-2 rounded-full bg-ok' : s.status === 'offline' ? 'h-2 w-2 rounded-full bg-danger' : 'h-2 w-2 rounded-full bg-off'} />{on ? t('在线 · Docker', 'Online · Docker') : s.status === 'offline' ? <span className="text-danger font-semibold">{t('离线', 'Offline')}</span> : s.status === 'pending' ? t('等待连接', 'Waiting') : t('离线', 'Offline')}</div>
                       <div className="mt-0.5 text-[12.5px] text-muted [overflow-wrap:anywhere]" title={t('系统版本', 'OS')}>{s.os || '—'}</div>
                     </div>
                   </div>

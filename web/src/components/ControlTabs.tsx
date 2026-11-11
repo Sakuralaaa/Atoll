@@ -15,7 +15,7 @@ import { cx, installServerURL } from './ui-utils'
 // ---------- 日志 ----------
 const SINCE = [{ k: '15m', l: L("最近 15 分钟") }, { k: '1h', l: L("最近 1 小时") }, { k: '6h', l: L("最近 6 小时") }, { k: '24h', l: L("最近 24 小时") }, { k: '', l: L("不限时间") }]
 const TAIL = [200, 1000, 5000]
-const lineTone = (l: string) => /level=(ERROR|FATAL)|\b(ERROR|panic)\b/.test(l) ? 'text-[#f87171]' : /level=WARN|\bWARN\b/.test(l) ? 'text-[#fbbf24]' : 'text-fg2'
+const lineTone = (l: string) => /level=(ERROR|FATAL)|\b(ERROR|panic)\b/.test(l) ? 'text-danger' : /level=WARN|\bWARN\b/.test(l) ? 'text-amber' : 'text-fg2'
 
 export function LogsTab() {
   const [since, setSince] = useState('1h')
@@ -207,7 +207,7 @@ export function MigrateTab({ s }: { s: ControlStatus }) {
           [L("agent 控制连接"), L("主地址失败 3 次后切到备用地址，通常一两分钟内重连"), false],
         ] as const).map(([k, v, ok]) => (
           <div key={k} className="grid grid-cols-1 @2xl:grid-cols-[240px_minmax(0,1fr)] gap-x-4 gap-y-0.5 px-5 py-3 text-[13px] border-b border-line last:border-0">
-            <span className="font-semibold">{k}</span><span className={ok ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-fg2'}>{v}</span>
+            <span className="font-semibold">{k}</span><span className={ok ? 'text-ok font-semibold' : 'text-fg2'}>{v}</span>
           </div>
         ))}
       </Card>

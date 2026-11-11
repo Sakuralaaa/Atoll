@@ -14,10 +14,10 @@ import { parseEnvText, quoteEnvValue } from '../api/dotenv'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'docker'; i: React.ReactNode; t: string; d: string }[] = [
-  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: L("Docker 容器镜像 / Git 仓库"), d: L("从 Docker Hub、GHCR、私有仓库部署，或从 GitHub、GitLab、Gitea 等 Git 仓库源码构建（无 Dockerfile 也可）") },
-  { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: L("数据库"), d: L("PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量") },
+  { k: 'image', i: <Box size={20} className="text-c-1" />, t: L("Docker 容器镜像 / Git 仓库"), d: L("从 Docker Hub、GHCR、私有仓库部署，或从 GitHub、GitLab、Gitea 等 Git 仓库源码构建（无 Dockerfile 也可）") },
+  { k: 'db', i: <Database size={20} className="text-c-4" />, t: L("数据库"), d: L("PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量") },
   // not a step here: opens the adoption wizard (/import/docker) on the project's server
-  { k: 'docker', i: <Boxes size={20} className="text-[#a78bfa]" />, t: L("从已有 Docker 容器接管"), d: L("服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据") },
+  { k: 'docker', i: <Boxes size={20} className="text-c-2" />, t: L("从已有 Docker 容器接管"), d: L("服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据") },
 ]
 
 export default function AddServiceModal({ projectId, onClose, onCreated }: { projectId: string; onClose: () => void; onCreated?: (s: Service) => void }) {

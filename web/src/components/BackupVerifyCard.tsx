@@ -59,7 +59,7 @@ function Row({ t, title, desc, v, next, off, action }: {
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="flex-1 min-w-[min(100%,260px)]">
           <div className="flex flex-wrap items-center gap-2 text-[13px]">
-            <Icon size={16} className={v?.status === 'done' ? 'text-[#22c55e]' : v?.status === 'failed' ? 'text-danger' : v?.status === 'running' ? 'animate-spin text-accent' : 'text-dim'} />
+            <Icon size={16} className={v?.status === 'done' ? 'text-ok' : v?.status === 'failed' ? 'text-danger' : v?.status === 'running' ? 'animate-spin text-accent' : 'text-dim'} />
             <span className="font-semibold">{title}</span>
             <Badge tone={tone(v?.status)}>{statusLabel(t, v)}</Badge>
             {v && <span className="text-[12.5px] text-muted">{dateTime(v.started_at)} · {ago(v.started_at)}{v.trigger === 'manual' ? t(' · 手动', ' · manual') : t(' · 定时', ' · scheduled')}{v.duration_ms ? ` · ${duration(v.duration_ms)}` : ''}</span>}

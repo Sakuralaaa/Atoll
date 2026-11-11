@@ -26,5 +26,5 @@ export function DomainNote({ d }: { d: Domain }) {
   const { t } = useT()
   if (d.status === 'provisioning') return <div className="text-[12px] text-muted truncate">{t('等待 DNS 生效并签发证书…', 'Waiting for DNS, then the certificate…')}</div>
   if (!d.error) return null
-  return <div className={d.status === 'error' ? 'text-[12px] text-danger truncate' : 'text-[12px] text-[#d97706] truncate'} title={d.error}>{d.error}</div>
+  return <div className={d.status === 'error' ? 'text-[12px] text-danger truncate' : 'text-[12px] text-amber truncate'} title={d.error}>{d.error}</div>
 }
