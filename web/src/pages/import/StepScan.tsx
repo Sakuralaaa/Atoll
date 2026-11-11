@@ -21,18 +21,19 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
   const list = (q.data ?? []).filter(s => s.role !== 'control')
   const [tok, setTok] = useState<JoinToken>(); const [busy, wrap] = useBusy()
   return (
-    <div className="grid grid-cols-1 @5xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start [&>*]:min-w-0">
+    <div>
+      <div className="text-[15px] font-semibold mb-1">{L("Zeabur 托管的是哪台服务器？")}</div>
+      <div className="text-[13px] text-muted mb-4">{L("选择已经装好 Atoll Agent 的那台 VPS，下一步会读取本机 k3s 里的 Zeabur 项目。只读，不会改动任何东西。")}</div>
+      <div className="grid grid-cols-1 @5xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start [&>*]:min-w-0">
       <div>
-        <div className="text-[15px] font-semibold mb-1">{L("Zeabur 托管的是哪台服务器？")}</div>
-        <div className="text-[13px] text-muted mb-4">{L("选择已经装好 Atoll Agent 的那台 VPS，下一步会读取本机 k3s 里的 Zeabur 项目。只读，不会改动任何东西。")}</div>
         {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
         {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={L("还没有连上的服务器")} desc={L("先在右侧生成安装命令，在 Zeabur 托管的 VPS 上运行。")} />}
-        <div className="space-y-3">
+        {!!list.length && <Card className="divide-y divide-line overflow-hidden">
           {list.map(s => <ServerPick key={s.id} s={s} onPick={() => onPick(s.id)} />)}
-        </div>
+        </Card>}
       </div>
-      <Card className="p-6">
+      <Card className="p-5">
         <div className="text-[13px] font-semibold flex items-center gap-2"><Box size={16} />{L("还没装 Agent？")}</div>
         <div className="text-[13px] text-muted mt-1.5 leading-6">{L("在 Zeabur 托管的 VPS 上以 root 运行安装命令。Agent 与 Zeabur 的 k3s 并存，不占 80/443，直到你确认切换。")}</div>
         <div className="mt-4">
@@ -42,13 +43,14 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
           </> : <Button variant="primary" disabled={busy} onClick={() => wrap(async () => { const t = await run(api.joinToken); if (t) setTok(t) })}>{busy && <Loader2 size={14} className="animate-spin" />}{L("生成安装命令")}</Button>}
         </div>
       </Card>
+      </div>
     </div>
   )
 }
 function ServerPick({ s, onPick }: { s: Server; onPick: () => void }) {
   const u = usagePct(s), on = s.status === 'online'
   return (
-    <button disabled={!on} onClick={onPick} className={cx('w-full text-left rounded-2xl surface px-4 @2xl:px-5 py-4 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-3', on ? 'surface-hover' : 'opacity-60')}>
+    <button disabled={!on} onClick={onPick} className={cx('w-full text-left px-4 @2xl:px-5 py-4 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-3', on ? 'hover:bg-ov/[0.03]' : 'opacity-55 cursor-not-allowed')}>
       <ProviderIcon provider={providerOf(s)} online={on} />
       <div className="flex-1 min-w-[min(100%,180px)]">
         <div className="text-[15px] font-semibold truncate">{s.name}</div>
