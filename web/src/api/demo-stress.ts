@@ -21,6 +21,9 @@ export function addStressData(d: {
     // pings and the fallback both time out: the panel shows 「超时」 with the error in the tooltip
     latency: { last_ms: 0, avg_ms: 0, samples: 0, measured_at: '', failures: 3, failures_total: 3, last_attempt: iso(9e3), last_error: 'WebSocket ping: no pong within 20s; fallback: no answer within 20s' },
   })
+  // a fleet of small boxes so server pickers (migration wizards) have more rows than fit and must scroll
+  for (const [i, [name, region]] of [['Hetzner CX22 Helsinki', 'Helsinki, FI'], ['Vultr Seoul', 'Seoul, KR'], ['Linode Mumbai', 'Mumbai, IN'], ['OVH Gravelines', 'Gravelines, FR'], ['BuyVM Las Vegas', 'Las Vegas, US'], ['Contabo Sydney', 'Sydney, AU']].entries())
+    d.servers.push({ ...base, id: `fleet${i}`, name, region, public_ipv4: `203.0.113.${110 + i}`, tailnet_ip: undefined, network: { provider: '', state: 'not_installed', via_tailnet: false, control_url: 'https://panel.example.com' } })
   // many small projects on the long-named machine: its 按服务器分组 card clamps the names to two lines with "+N"
   for (const [i, n] of ['billing', 'auth-service', 'analytics-dashboard', 'image-resizer', 'docs', 'status-page', 'internal-tools-admin', 'newsletter', 'feature-flags'].entries())
     d.projects.push({ id: `stressp${i}`, name: n, server_id: 'longsrv', created_at: iso((i + 4) * 864e5) })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ScrollRows } from '../components/ScrollRows'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Server as ServerIcon, FlaskConical, Power, Check, X, ArrowLeft, ArrowRight, RotateCcw, Loader2, Circle, Minus, AlertTriangle, ShieldAlert, ShieldCheck, HardDrive, Undo2, Boxes, Box } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -73,7 +74,7 @@ function PickServer({ onPick }: { onPick: (id: string) => void }) {
       {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
       {!q.data && !q.error && <RowsSkeleton n={3} />}
       {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={t('还没有连上的服务器', 'No servers yet')} desc={t('先在「服务器」页添加一台。', 'Add one on the Servers page first.')} />}
-      {!!list.length && <Card className="divide-y divide-line overflow-hidden">
+      {!!list.length && <Card className="overflow-hidden"><ScrollRows testId="import-server-list">
         {list.map(s => {
           const on = s.status === 'online'
           return (
@@ -84,7 +85,7 @@ function PickServer({ onPick }: { onPick: (id: string) => void }) {
             </button>
           )
         })}
-      </Card>}
+      </ScrollRows></Card>}
     </>
   )
 }

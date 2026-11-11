@@ -1,4 +1,5 @@
 import { L } from '../../i18n'
+import { ScrollRows } from '../../components/ScrollRows'
 import { useState } from 'react'
 import { IP } from '../../components/IP'
 import { Server as ServerIcon, ScanSearch, ListChecks, Loader2, HardDrive, MemoryStick, Cpu, AlertTriangle, RotateCcw, Box, ArrowRight } from 'lucide-react'
@@ -29,9 +30,9 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
         {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
         {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={L("还没有连上的服务器")} desc={L("先在下方生成安装命令，在 Zeabur 托管的 VPS 上运行。")} />}
-        {!!list.length && <Card className="divide-y divide-line overflow-hidden">
+        {!!list.length && <Card className="overflow-hidden"><ScrollRows testId="import-server-list">
           {list.map(s => <ServerPick key={s.id} s={s} onPick={() => onPick(s.id)} />)}
-        </Card>}
+        </ScrollRows></Card>}
       </div>
       <Card className="px-4 @2xl:px-5 py-4">
         <div className="flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-3">

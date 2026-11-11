@@ -284,6 +284,9 @@ imports.unshift(
   localJob('imp_zl_live', 'live', localSteps(10), VERIFY, 2 * H),
 )
 
+// stress: a long migration history, so the 迁移记录 list has to scroll
+if (stressEnabled()) { const old = imports[imports.length - 1]; for (let i = 0; i < 8; i++) imports.push({ ...old, id: `imp_old${i}`, created_at: iso((5 + i * 3) * D) }) }
+
 // mail-relay's config.yaml is an Atoll config-file mount (read-only in the container, edited through the spec); exec runs against demo-exec.ts
 services.filter(s => s.project_id === 'mailrelay' && s.kind === 'image').forEach(s => { s.configs = [{ path: '/app/config.yaml', content: CONFIG }] })
 

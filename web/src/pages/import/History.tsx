@@ -10,6 +10,7 @@ import { ago, bytes } from '../../api/view'
 import type { ImportPlan } from '../../api/types'
 import { cx } from '../../components/ui-utils'
 import { useBackendText } from '../../api/backendText'
+import { ScrollRows } from '../../components/ScrollRows'
 
 // ---------------- history & advanced ----------------
 const JOB_TEXT: Record<string, [string, 'green' | 'amber' | 'red' | 'zinc' | 'violet']> = {
@@ -23,8 +24,8 @@ export function History({ current }: { current: string | null }) {
   if (!q.data?.length) return null
   return (
     <div className="mt-12">
-      <div className="text-[13px] font-semibold mb-3">{L("迁移记录")}</div>
-      <Card className="divide-y divide-line">
+      <div className="text-[13px] font-semibold mb-3">{L("迁移记录")}{q.data.length > 5 && <span className="ml-1.5 text-muted font-normal tnum">{q.data.length}</span>}</div>
+      <Card className="overflow-hidden"><ScrollRows testId="import-history">
         {q.data.map(j => {
           const [t, tone] = JOB_TEXT[j.status] ?? [j.status, 'zinc']
           const done = j.steps.filter(s => s.status === 'done').length
@@ -39,7 +40,7 @@ export function History({ current }: { current: string | null }) {
             </button>
           )
         })}
-      </Card>
+      </ScrollRows></Card>
     </div>
   )
 }
