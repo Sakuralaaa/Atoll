@@ -30,8 +30,8 @@ test('stepper rule reaches the last dot', async ({ page }) => {
   expect(dot!.x - (rule!.x + rule!.width)).toBeLessThanOrEqual(12)
 })
 
-test('long audit log and domain list scroll inside their box', async ({ page }) => {
-  for (const [url, id] of [['/?demo=1&stress=1#/control?tab=audit', 'audit-list'], ['/?demo=1&stress=1#/domains', 'domain-list']]) {
+test('long audit log, domains, deploy history and tokens scroll inside their box', async ({ page }) => {
+  for (const [url, id] of [['/?demo=1&stress=1#/control?tab=audit', 'audit-list'], ['/?demo=1&stress=1#/domains', 'domain-list'], ['/?demo=1&stress=1#/projects/stress/services/stress0/logs?view=deploys', 'deploy-list'], ['/?demo=1&stress=1#/developer', 'token-list']]) {
     await page.goto(url)
     const box = page.getByTestId(id)
     await expect(box).toBeVisible()

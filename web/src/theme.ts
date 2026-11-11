@@ -22,13 +22,14 @@ export function applyTheme(t: Theme) {
 }
 export function currentTheme(): Theme { return document.documentElement.classList.contains('light') ? 'light' : 'dark' }
 
-export const STYLES = ['atoll', 'minimal', 'lagoon', 'terminal', 'macaron', 'contrast'] as const
+export const STYLES = ['atoll', 'minimal', 'lagoon', 'macaron', 'contrast'] as const
 export type Style = typeof STYLES[number]
 export const DEFAULT_STYLE: Style = 'atoll'
 const STYLE_KEY = 'atoll-style'
 export const isStyle = (v: unknown): v is Style => typeof v === 'string' && (STYLES as readonly string[]).includes(v)
-/** Ids a theme had before (saved on accounts and devices): zeabur became lagoon in v0.1.45. */
-const RENAMED: Record<string, Style> = { zeabur: 'lagoon' }
+/** Ids a theme had before (saved on accounts and devices): zeabur became lagoon in v0.1.45;
+ *  terminal was dropped in v0.1.46 and falls back to atoll. */
+const RENAMED: Record<string, Style> = { zeabur: 'lagoon', terminal: 'atoll' }
 export const toStyle = (v: unknown): Style | undefined => isStyle(v) ? v : typeof v === 'string' ? RENAMED[v] : undefined
 
 /** ?style= in the address pins the style for this page load (screenshots, sharing a look). */

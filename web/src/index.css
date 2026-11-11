@@ -5,7 +5,6 @@
 /* preset themes (atoll is the default below); each sets html[data-theme=<id>] */
 @import "./themes/minimal.css";
 @import "./themes/lagoon.css";
-@import "./themes/terminal.css";
 @import "./themes/macaron.css";
 @import "./themes/contrast.css";
 

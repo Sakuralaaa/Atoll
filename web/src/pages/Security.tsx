@@ -4,7 +4,7 @@ import { useSettingsGroup, type SettingsGroup } from '../components/settings-gro
 import { Gauge, Bell } from 'lucide-react'
 import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
-import { NavLink } from 'react-router-dom'
+import { Navigate, NavLink, useLocation } from 'react-router-dom'
 import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound, ImageUp, Trash2 } from 'lucide-react'
 import { MainShell } from '../components/Shell'
 import { Avatar, Badge, Button, Card } from '../components/ui'
@@ -48,6 +48,8 @@ export default function Security() {
     ...(member ? [{ k: 'quota', l: t('配额', 'Quota'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
   ]
   const g = useSettingsGroup(groups)
+  // the theme moved to 通用 → 显示 in v0.1.46; keep old links working
+  if (useLocation().hash === '#appearance') return <Navigate replace to={{ pathname: '/settings', hash: '#appearance' }} />
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">

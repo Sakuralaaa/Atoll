@@ -1,3 +1,4 @@
+import { ScrollRows } from '../components/ScrollRows'
 import { useState } from 'react'
 import { Plus, Terminal, KeyRound, Trash2, Bot, AlertTriangle, Pencil, ShieldAlert, FolderLock } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -46,7 +47,7 @@ export default function Developer() {
         {q.data && q.data.length > 0 && (
           <Card className="divide-y divide-line">
             <div className="hidden px-6 h-10 @4xl:grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,0.8fr)_72px] gap-4 items-center text-[12.5px] text-muted"><span>{t('名称', 'Name')}</span><span>{t('令牌', 'Token')}</span><span>{t('权限', 'Permissions')}</span><span>{t('项目范围', 'Projects')}</span><span>{t('最近使用', 'Last used')}</span><span /></div>
-            {q.data.map(tk => {
+            <ScrollRows visible={8} testId="token-list">{q.data.map(tk => {
               const perms = permsOf(tk)
               const scoped = !!tk.projects?.length
               const names = (tk.projects ?? []).map(id => projects.find(p => p.id === id)?.name ?? id)
@@ -66,7 +67,7 @@ export default function Developer() {
                   </div>
                 </div>
               )
-            })}
+            })}</ScrollRows>
           </Card>
         )}
 

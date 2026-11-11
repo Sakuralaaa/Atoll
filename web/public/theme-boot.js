@@ -4,7 +4,7 @@
 (function () {
   try {
     var d = document.documentElement, q = new URLSearchParams(location.search)
-    var styles = ['atoll', 'minimal', 'lagoon', 'terminal', 'macaron', 'contrast'], renamed = { zeabur: 'lagoon' }
+    var styles = ['atoll', 'minimal', 'lagoon', 'macaron', 'contrast'], renamed = { zeabur: 'lagoon', terminal: 'atoll' }
     var m = q.get('theme'); if (m !== 'light' && m !== 'dark') m = localStorage.getItem('atoll-theme')
     if (m !== 'light' && m !== 'dark') m = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
     d.classList.remove('dark', 'light'); d.classList.add(m)

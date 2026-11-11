@@ -1,3 +1,4 @@
+import { ScrollRows } from './ScrollRows'
 import { useState } from 'react'
 import { AlertTriangle, FolderLock, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Badge, Button, Card, Hint } from './ui'
@@ -41,7 +42,7 @@ export default function MemberTokens() {
       <Card className="divide-y divide-line">
         {!q.data && <div className="px-6 py-5 text-[13px] text-dim">{q.error ? t(`加载失败：${q.error.message}`, `Failed to load: ${q.error.message}`) : t('加载中…', 'Loading…')}</div>}
         {q.data && !q.data.length && <div className="px-6 py-5 text-[13px] text-muted">{t('还没有令牌。', 'No tokens yet.')}</div>}
-        {q.data?.map(tk => {
+        {!!q.data?.length && <ScrollRows visible={6} testId="member-tokens">{q.data.map(tk => {
           const names = (tk.projects ?? []).map(id => projects.find(p => p.id === id)?.name ?? id)
           return (
             <div key={tk.id} className="px-4 @2xl:px-6 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
@@ -54,7 +55,7 @@ export default function MemberTokens() {
               </div>
             </div>
           )
-        })}
+        })}</ScrollRows>}
       </Card>
       {create && <TokenDialog onClose={() => setCreate(false)} onSaved={tk => { setFresh(tk); setCreate(false) }} />}
       {edit && <TokenDialog token={edit} onClose={() => setEdit(undefined)} onSaved={() => setEdit(undefined)} />}

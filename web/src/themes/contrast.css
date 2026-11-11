@@ -1,5 +1,5 @@
-/* High contrast: black on white (light) or off-white on near-black (dark, softened in v0.1.45
-   so it stays readable at night), 2px borders, yellow focus, no shadows.
+/* High contrast: black on white (light), or a calm dark with grey borders and no light blocks
+   (dark, reworked in v0.1.46 so it doesn't glare at night), 2px borders, yellow focus, no shadows.
    html[data-theme=contrast] sets the shape; .light / .dark set the colours. */
 html[data-theme=contrast] {
   --hover-lift: none; --card-lift: none; --press: none; --card-press: none; --italic: normal; --bw: 2px;
@@ -23,19 +23,22 @@ html[data-theme=contrast].light {
   --ok: #006b2e; --amber: #7a4a00; --c-1: #0047b3; --c-2: #5b21b6; --c-3: #006b2e; --c-4: #00607a; --c-5: #7a5a00; --c-6: #b00000; --c-7: #9a3d00;
 }
 html[data-theme=contrast].dark {
+  /* calm at night (v0.1.46): no large light areas. Text ~12:1, borders mid-grey, tags and primary
+     buttons are dark tinted fills with light text instead of pastel blocks. */
   color-scheme: dark;
-  --bg: #121212; --side: #121212; --card: #181818; --card2: #1e1e1e; --sunk: #141414; --pop: #1c1c1c;
-  --line: #bdbdbd; --line2: #d6d6d6; --muted: #d0d0d0; --dim: #ababab; --fg: #ececec; --fg2: #e0e0e0;
-  --ov: #ffffff; --accent: #ececec; --accent-soft: #ececec; --tick-off: #3a3a3a; --edge: #bdbdbd;
-  --brand: #ececec; --brand-ink: #121212; --brand-strong: #ececec; --grain: transparent; --ink: #121212;
-  --danger: #ff8a80; --warn: #f2c94c; --hi: #f2d64b; --hi-ink: #121212; --pick: #ececec; --pick-ink: #121212;
-  --nav-bg: #2a2a2a; --nav-ink: #f2d64b; --t-amber: #e9d27a; --t-red: #f2b8b3; --t-green: #a9e5b8;
-  --t-violet: #d4cbef; --t-orange: #f0c79a; --t-note: #ececec; --t-ok: #ececec; --t-wash: #ececec;
-  --t-field: #ececec; --focus: #f2d64b; --focus-ring: 0 0 0 5px #121212;
-  --ok: #7ee2a0; --c-1: #8cc4ff; --c-2: #c9b6ff; --c-3: #7ee2a0; --c-4: #7fd6f0; --c-5: #f2d64b; --c-6: #ff8a80; --c-7: #ffb27a;
+  --bg: #16181b; --side: #16181b; --card: #1c1f23; --card2: #212429; --sunk: #131518; --pop: #22252a;
+  --line: #4f545b; --line2: #62676f; --muted: #b4b8be; --dim: #8f949b; --fg: #d6d8dc; --fg2: #c8cbd0;
+  --ov: #ffffff; --accent: #d6d8dc; --accent-soft: #d6d8dc; --tick-off: #34383e; --edge: #62676f;
+  --brand: #2c3036; --brand-ink: #e8e9eb; --brand-strong: #383d44; --grain: transparent; --ink: #e2e4e7;
+  --danger: #f08a80; --warn: #e3c062; --hi: #d9bf4e; --hi-ink: #16181b; --pick: #d6d8dc; --pick-ink: #16181b;
+  --nav-bg: #262a30; --nav-ink: #e3c95e; --t-amber: #3a331c; --t-red: #44231f; --t-green: #1f3627;
+  --t-violet: #2d2a42; --t-orange: #40301f; --t-note: #2a2a20; --t-ok: #1f3627; --t-wash: #1a1d21;
+  --t-field: #131518; --focus: #d9bf4e; --focus-ring: 0 0 0 5px #16181b;
+  --ok: #7ccf98; --amber: #e3c062; --c-1: #86b8ec; --c-2: #b9a8ec; --c-3: #7ccf98; --c-4: #7cc6dc; --c-5: #dcc25a; --c-6: #f08a80; --c-7: #eda877;
 }
 html[data-theme=contrast] a:hover { text-decoration: underline; }
 html[data-theme=contrast] .nav-active .text-muted, html[data-theme=contrast] .nav-active .text-dim { color: var(--nav-ink); }
 html[data-theme=contrast].light .nav-active [class*="bg-ov/"] { background-color: rgba(0,0,0,.14); }
 html[data-theme=contrast].dark .nav-active { border-color: var(--hi); }
 html[data-theme=contrast] .btn-primary:hover, html[data-theme=contrast] .btn-secondary:hover, html[data-theme=contrast] .btn-danger:hover { outline: 2px solid var(--hi); outline-offset: 2px; }
+html[data-theme=contrast].dark .btn-primary { border-color: var(--hi); }

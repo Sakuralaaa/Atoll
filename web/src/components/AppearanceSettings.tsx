@@ -25,18 +25,14 @@ const PREVIEW: Record<Style, Preview> = {
     shadow: s => `3px 3px 0 0 ${s.edge}`,
     light: { bg: '#eef3ea', card: '#f7faf4', edge: '#2c4a27', brand: '#1a7f1f', ink: '#f2fff0', fg: '#0e2a0b', muted: '#6c8762', hi: '#d4e8cc' },
     dark: { bg: '#1c211d', card: '#232924', edge: '#0d110e', brand: '#8db68f', ink: '#182019', fg: '#c3cdc1', muted: '#6f7a6e', hi: '#2e382f' } },
-  terminal: { name: ['终端', 'Terminal'], desc: ['等宽字体、直角、柔和绿', 'Mono, square, soft green'], radius: 0, bw: 1, mono: true,
-    shadow: () => 'none',
-    light: { bg: '#eef3ea', card: '#f7faf4', edge: '#527a49', brand: '#1a7f1f', ink: '#f2fff0', fg: '#0e2a0b', muted: '#6c8762', hi: '#d4e8cc' },
-    dark: { bg: '#0f1411', card: '#141b17', edge: '#2a3a30', brand: '#6fbf7f', ink: '#0b1a0f', fg: '#d3e2d6', muted: '#687d6f', hi: '#1b2a20' } },
   macaron: { name: ['马卡龙', 'Macaron'], desc: ['块状 · 玫红', 'Blocky · rose red'], radius: 4, bw: 2, italic: true,
     shadow: s => `3px 3px 0 0 ${s.edge}`,
     light: { bg: '#f9eef2', card: '#fdf6f9', edge: '#5a1f38', brand: '#d81b60', ink: '#fff5f8', fg: '#3d2430', muted: '#a5838f', hi: '#f8c9da' },
     dark: { bg: '#231a1e', card: '#2d2228', edge: '#100a0d', brand: '#e94f86', ink: '#2a0a17', fg: '#e6d3db', muted: '#826c77', hi: '#462a37' } },
-  contrast: { name: ['高对比', 'High contrast'], desc: ['黑白、2px 边框、黄色焦点', 'B/W, 2px borders, yellow focus'], radius: 3, bw: 2,
+  contrast: { name: ['高对比', 'High contrast'], desc: ['2px 边框、黄色焦点、夜间不刺眼', '2px borders, yellow focus, calm at night'], radius: 3, bw: 2,
     shadow: () => 'none',
     light: { bg: '#ffffff', card: '#ffffff', edge: '#000000', brand: '#000000', ink: '#ffffff', fg: '#000000', muted: '#3d3d3d', hi: '#ffe600' },
-    dark: { bg: '#121212', card: '#181818', edge: '#bdbdbd', brand: '#ececec', ink: '#121212', fg: '#ececec', muted: '#ababab', hi: '#2a2a2a' } },
+    dark: { bg: '#16181b', card: '#1c1f23', edge: '#62676f', brand: '#2c3036', ink: '#e8e9eb', fg: '#d6d8dc', muted: '#8f949b', hi: '#262a30' } },
 }
 
 /** A tiny page in the theme's colours: sidebar, a card and a button. */

@@ -1,3 +1,4 @@
+import { ScrollRows } from '../components/ScrollRows'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
@@ -161,7 +162,7 @@ function Deploys({ s }: { s: Service }) {
   return (
     <div className="flex-1 overflow-auto px-4 md:px-10 py-6">
       {!q.data ? <RowsSkeleton n={4} /> : !q.data.length ? <div className="text-[13px] text-muted">{L("还没有部署记录")}</div> : (
-        <div className="surface divide-y divide-line">
+        <div className="surface overflow-hidden"><ScrollRows visible={10} testId="deploy-list">
           {q.data.map((d, i) => (
             <div key={d.id} className="px-4 md:px-6 py-3 min-h-16 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
@@ -171,7 +172,7 @@ function Deploys({ s }: { s: Service }) {
               {i > 0 && d.image_digest && canDeploy ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
-        </div>
+        </ScrollRows></div>
       )}
       {target && <ConfirmDialog title={L("回滚部署")} action={L("确认回滚")} danger={false} onClose={() => setTarget(undefined)}
         description={<>{L("将用")} {dateTime(target.started_at)} {L("的镜像摘要重新部署")} {s.name}{L("。")}</>}

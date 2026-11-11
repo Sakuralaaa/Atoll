@@ -18,8 +18,9 @@ test('preset theme switches live, survives a reload and keeps light/dark separat
   // the boot script applies the look before the app renders: no flash of the default theme
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bw').trim())).toBe('1px')
 
-  await page.getByTestId('theme-terminal').click()
-  await expect(html).toHaveAttribute('data-theme', 'terminal')
+  await page.getByTestId('theme-lagoon').click()
+  await expect(html).toHaveAttribute('data-theme', 'lagoon')
+  await expect(page.getByTestId('theme-terminal')).toHaveCount(0)
   await page.getByTestId('theme-atoll').click()
   await expect(html).toHaveAttribute('data-theme', 'atoll')
 })
@@ -69,10 +70,9 @@ test('Lagoon and Macaron keep Atoll\'s block shape; Lagoon by day uses Terminal\
       expect(await css('--sh-card')).not.toContain('rgba')
     }
   }
+  // terminal was dropped in v0.1.46: a saved or linked id falls back to atoll
   await page.goto('/?demo=1&style=terminal&theme=light#/')
-  const terminal = [await css('--bg'), await css('--brand')]
-  await page.goto('/?demo=1&style=lagoon&theme=light#/')
-  expect([await css('--bg'), await css('--brand')]).toEqual(terminal)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'atoll')
   await page.goto('/?demo=1&style=macaron&theme=light#/')
   expect(await css('--brand')).toBe('#d81b60')
 })

@@ -1,3 +1,4 @@
+import { ScrollRows } from '../../components/ScrollRows'
 import { useState } from 'react'
 import { IP } from '../../components/IP'
 import { Link } from 'react-router-dom'
@@ -150,7 +151,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
   return (
     <Modal title={<><History size={17} />{L("部署记录 ·")} {s.name}</>} width={760} onClose={onClose}>
       {!deps ? <RowsSkeleton n={3} /> : !deps.length ? <div className="text-[13px] text-muted">{L("还没有部署记录")}</div> : (
-        <div className="divide-y divide-line -my-2">
+        <ScrollRows visible={8} testId="deploy-history" className="-my-2">
           {deps.map((d, i) => (
             <div key={d.id} className="py-3 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 text-[13px]">
               <Dot status={d.status === 'running' ? 'running' : d.status === 'failed' ? 'failed' : d.status === 'superseded' ? 'stopped' : 'deploying'} />
@@ -161,7 +162,7 @@ function DeployHistory({ s, deps, onClose }: { s: Service; deps?: Deployment[]; 
               {i > 0 && d.image_digest && canDeploy ? <Button size="sm" className="max-sm:ml-auto" onClick={() => setTarget(d)}><Undo2 size={13} />{L("回滚")}</Button> : <span className="w-[74px] max-sm:hidden" />}
             </div>
           ))}
-        </div>
+        </ScrollRows>
       )}
       {target && <ConfirmDialog title={L("回滚部署")} action={L("确认回滚")} danger={false} onClose={() => setTarget(undefined)}
         description={<>{L("将用")} <span className="font-mono">{target.image_digest?.slice(0, 19)}</span>{L("（")}{dateTime(target.started_at)}{L("）重新部署")} {s.name}{L("。")}</>}
