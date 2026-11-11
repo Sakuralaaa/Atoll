@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <a href="https://sakuralaaa.github.io/Atoll/"><strong>文档站</strong></a> · <a href="https://sakuralaaa.github.io/Atoll/demo/?demo=1"><strong>在线演示</strong></a> · <a href="./docs/install-docker.md">Docker 安装</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Sakuralaaa/Atoll/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Sakuralaaa/Atoll?include_prereleases&label=release&color=8b5cf6" /></a>
   <a href="./go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
   <a href="./web/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>
@@ -302,11 +306,13 @@ git tag v0.1.0 && git push --tags
 
 ## 文档索引
 
+- [文档站](https://sakuralaaa.github.io/Atoll/)（由 `docs/` 生成）· [在线演示](https://sakuralaaa.github.io/Atoll/demo/?demo=1)
 - [docs/README.md](docs/README.md)：文档总览；[快速开始](docs/quick-start.md) · [功能概览](docs/features.md) · [运维参考](docs/operations.md) · [故障排查](docs/troubleshooting.md) · [常见问题](docs/faq.md)
 - [docs/api.md](docs/api.md)：REST API、agent 协议、权限、备份、构建
 - [docs/control.md](docs/control.md)：中控的备份、自更新、迁移、灾难恢复
 - [docs/compatibility.md](docs/compatibility.md)：版本兼容与升级承诺（stable/beta 通道、直升、降级、中控与 agent 版本差）
 - [docs/security-review-2026-11.md](docs/security-review-2026-11.md)：2026-11 安全自审：检查项、已修问题与遗留风险
+- [docs/install-docker.md](docs/install-docker.md)：用 Docker / Compose 运行中控
 - [docs/migrate-from-zeabur.md](docs/migrate-from-zeabur.md)：从 Zeabur 迁移
 - [docs/adopt-docker.md](docs/adopt-docker.md)：接管自己用 Docker 启动的容器
 - [docs/ui-guide.md](docs/ui-guide.md)：面板界面约定

@@ -74,7 +74,7 @@ Control server operations: [control.md](control.md).
   card shows it (e.g. `1.2.5`) next to the digest. The label is read once per digest.
 - **Pinned** (已固定版本): an image written as `name@sha256:…` (by hand, or left by a rollback)
   is pinned. A pinned service is never reported as having an update and is never auto-updated.
-  「改回跟随 <tag>」 (or `POST /services/{id}/image-update/apply`) unpins it: the service goes back
+  「改回跟随 &lt;tag&gt;」 (or `POST /services/{id}/image-update/apply`) unpins it: the service goes back
   to `name:<tag>` and deploys that tag's current digest. Setting the image back to `name:latest`
   in the service settings does the same on the next deploy.
 - Every update is a new deployment; the previous one stays in 部署记录 for rollback.

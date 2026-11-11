@@ -626,6 +626,34 @@ func TestControlRollbackEndpoint(t *testing.T) {
 	}
 }
 
+func TestControlContainerDeployment(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "atoll-server")
+	os.WriteFile(bin, []byte("#!/bin/sh\necho v0.0.1\n"), 0o755)
+	os.WriteFile(selfupdate.PrevPath(bin), []byte("#!/bin/sh\necho v0.0.0\n"), 0o755)
+	spawnedAny := false
+	e := newTestEnvWith(t, func(c *Config) {
+		c.Container = true
+		c.BinaryPath = bin
+		c.GitHubAPI = "http://127.0.0.1:1" // unreachable; status still answers
+		c.SpawnHelper = func(context.Context, []string) error { spawnedAny = true; return nil }
+	})
+	e.setup()
+	var st api.ControlStatus
+	e.mustDo("GET", "/api/v1/control", nil, &st, 200)
+	if st.Deployment != "docker" || st.SelfUpdate {
+		t.Fatalf("container status: deployment=%q self_update=%v", st.Deployment, st.SelfUpdate)
+	}
+	for _, path := range []string{"/api/v1/control/update", "/api/v1/control/rollback"} {
+		code, b := e.rawDo("POST", path, api.ControlUpdateRequest{Version: "v9.9.9", ReauthFields: api.ReauthFields{Password: testPass}})
+		if code != 409 || errCode(b) != "self_update_unsupported" || !strings.Contains(string(b), "docker compose pull") {
+			t.Fatalf("%s in a container: %d %s", path, code, b)
+		}
+	}
+	if spawnedAny {
+		t.Fatal("helper spawned inside a container")
+	}
+}
+
 func goarch() string { return runtime.GOARCH }
 
 func TestVersionLess(t *testing.T) {

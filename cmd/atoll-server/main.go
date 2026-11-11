@@ -56,6 +56,10 @@ Flags (serve):
                      at this host's public IPv4 on start (env ATOLL_ADOPT_PUBLIC_IP=1;
                      ATOLL_PUBLIC_IP overrides detection). Used after moving the control server.
 
+Deployment, env only:
+  ATOLL_DEPLOYMENT=docker             running from the container image (also guessed from /.dockerenv):
+                                      self-update is off; update with docker compose pull && up -d
+
 Private network (Tailscale), env only:
   ATOLL_AGENT_LISTEN=tailscale:7301   extra listener for agent endpoints on this host's tailnet IP
   ATOLL_AGENT_TAILNET_ONLY=1          stop answering /agent/* publicly (bootstrap stays public)
@@ -135,7 +139,7 @@ func serve(args []string) int {
 	srv, err := server.New(server.Config{DataDir: *data, PublicURL: *public, Logger: log, TrustedProxies: tp,
 		ListenAddr: *listen, ServerEnvPath: env("ATOLL_SERVER_ENV", server.DefaultServerEnvPath),
 		CaddyfilePath: env("ATOLL_CADDYFILE", server.DefaultCaddyfilePath), UnitName: env("ATOLL_SYSTEMD_UNIT", "atoll-server"),
-		AdoptPublicIP: *adopt, PublicIP: env("ATOLL_PUBLIC_IP", "")})
+		AdoptPublicIP: *adopt, PublicIP: env("ATOLL_PUBLIC_IP", ""), Container: inContainer()})
 	if err != nil {
 		log.Error("start", "err", err)
 		return 1
@@ -225,6 +229,16 @@ func admin(args []string) int {
 	}
 	fmt.Printf("two-factor authentication for %s turned off; all sessions signed out\nlog in with the password and enable it again under Settings -> Security\n", name)
 	return 0
+}
+
+// inContainer: ATOLL_DEPLOYMENT=docker (set by the official image), or a Docker container marker.
+// ATOLL_DEPLOYMENT=systemd (or any other value) turns the /.dockerenv guess off.
+func inContainer() bool {
+	if d := strings.ToLower(strings.TrimSpace(os.Getenv("ATOLL_DEPLOYMENT"))); d != "" {
+		return d == "docker" || d == "container"
+	}
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
 }
 
 func truthy(v string) bool {

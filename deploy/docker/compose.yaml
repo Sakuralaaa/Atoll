@@ -1,0 +1,69 @@
+# Atoll control server (中控) with Docker Compose. See docs/install-docker.md.
+#
+#   cp .env.example .env        # edit it
+#   docker compose up -d                        # panel only, on ${ATOLL_BIND}:${ATOLL_PORT}
+#   docker compose --profile https up -d        # plus Caddy with automatic HTTPS on 80/443
+#
+# Update:  docker compose pull && docker compose up -d   (self-update in the panel is off here)
+#
+# Names: containers start with "atoll-" so an agent on the same host leaves them out of its
+# docker adoption scan; nothing is called "atoll-caddy" (the node's own ingress container) and the
+# network is not "atoll-*" (agent-managed project networks). Do not start the https profile on a
+# host that is also an Atoll node: the node's atoll-caddy needs 80/443 for itself.
+name: atoll
+
+services:
+  server:
+    image: ${ATOLL_IMAGE:-ghcr.io/sakuralaaa/atoll-server}:${ATOLL_VERSION:-latest}
+    container_name: atoll-control
+    restart: unless-stopped
+    environment:
+      ATOLL_PUBLIC_URL: ${ATOLL_PUBLIC_URL:-}
+      ATOLL_LOG_LEVEL: ${ATOLL_LOG_LEVEL:-info}
+      # X-Forwarded-For is believed only from loopback and the Caddy container below.
+      ATOLL_TRUSTED_PROXIES: 127.0.0.1/32,::1/128,${ATOLL_PROXY_IP:-172.30.73.10}/32
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${ATOLL_BIND:-127.0.0.1}:${ATOLL_PORT:-7300}:7300"
+    volumes:
+      - data:/var/lib/atoll
+    networks:
+      control: {}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  caddy:
+    profiles: [https]
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    container_name: atoll-control-proxy
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      ATOLL_DOMAIN: ${ATOLL_DOMAIN:-}  # required for the https profile
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      control:
+        ipv4_address: ${ATOLL_PROXY_IP:-172.30.73.10}
+
+networks:
+  control:
+    name: atoll_control
+    ipam:
+      config:
+        - subnet: ${ATOLL_SUBNET:-172.30.73.0/24}
+
+volumes:
+  data:
+  caddy-data:
+  caddy-config:

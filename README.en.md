@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <a href="https://sakuralaaa.github.io/Atoll/en/"><strong>Documentation</strong></a> · <a href="https://sakuralaaa.github.io/Atoll/demo/?demo=1&lang=en"><strong>Live demo</strong></a> · <a href="./docs/install-docker.md">Docker install</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Sakuralaaa/Atoll/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Sakuralaaa/Atoll?include_prereleases&label=release&color=8b5cf6" /></a>
   <a href="./go.mod"><img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" /></a>
   <a href="./web/package.json"><img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" /></a>
@@ -301,6 +305,8 @@ git tag v0.1.0 && git push --tags
 
 ## Documentation
 
+- [Documentation site](https://sakuralaaa.github.io/Atoll/en/) (built from `docs/`) · [live demo](https://sakuralaaa.github.io/Atoll/demo/?demo=1&lang=en)
+- [docs/install-docker.md](docs/install-docker.md): run the control server with Docker / Compose (Chinese)
 - [docs/README.md](docs/README.md): docs overview; [quick start](docs/quick-start.md) · [features](docs/features.md) · [operations](docs/operations.md) · [troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
 - [docs/api.md](docs/api.md): REST API, agent protocol, scopes, backups, builds
 - [docs/control.md](docs/control.md): control plane backups, self-update, migration, disaster recovery

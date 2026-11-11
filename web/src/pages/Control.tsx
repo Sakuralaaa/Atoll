@@ -252,17 +252,21 @@ function UpdateTab({ s, offline, watch, setWatch }: { s: ControlStatus; offline:
           <Button onClick={check} disabled={checking || busy}>{checking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}{L("检查更新")}</Button>
           {rel && <span className="text-[12.5px] text-dim">{L("上次检查")} {ago(rel.checked_at)} {L("· 每 6 小时自动检查")}</span>}
         </div>
-        {!s.self_update_supported && <div className="mt-5">
+        {!s.self_update_supported && (s.deployment === 'docker' ? <div className="mt-5" data-testid="control-docker-update">
+          <div className="text-[13px] text-fg2 mb-2 leading-6">{L("atoll-server 运行在 Docker 容器里，二进制随镜像更新，面板里不能自更新或回滚。请在中控主机的 compose 目录里执行：")}</div>
+          <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{'docker compose pull && docker compose up -d'}</CodeBlock></div>
+          <div className="text-[12.5px] text-dim mt-2 leading-5">{L("固定版本时把 .env 里的 ATOLL_VERSION 改成 {0} 再执行。数据在卷里，重建容器不会丢。", rel?.tag ?? 'vX.Y.Z')}</div>
+        </div> : <div className="mt-5">
           <div className="text-[13px] text-fg2 mb-2 leading-6">{L("atoll-server 不是以 systemd 服务运行，无法在面板里自更新。请在中控主机上用安装脚本升级：")}</div>
           <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere]"><CodeBlock>{`curl -fsSL ${installServerURL(rel?.tag ?? 'main')} | sudo sh -s -- --version ${rel?.tag ?? 'vX.Y.Z'}`}</CodeBlock></div>
-        </div>}
+        </div>)}
       </Card>
-      <Card className="p-5 flex gap-3 items-start">
+      {s.deployment !== 'docker' && <Card className="p-5 flex gap-3 items-start">
         <Info size={17} className="text-accent mt-0.5 shrink-0" />
         <div className="text-[13px] text-fg2 leading-6 min-w-0">
           <b>{L("升级期间各服务器上的服务照常运行。")}</b>{L("中控重启时面板和 API 会中断几秒，agent 会自动重连；业务容器、对外域名和 HTTPS 都在各 worker 上，不受影响。\n          升级前会自动做一份")} <span className="font-mono">pre-update</span> {L("中控备份；新版本 60 秒内没有通过健康检查会自动换回旧版本。")}
         </div>
-      </Card>
+      </Card>}
       {s.last_update_result && <LastResult r={s.last_update_result} />}
       <Card className="p-5 @2xl:p-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

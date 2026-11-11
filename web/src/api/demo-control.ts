@@ -2,6 +2,7 @@ import { L } from '../i18n'
 // Demo backend for 中控 / Control (/control*, /audit). In memory, example.com values.
 // Re-auth: any password passes except "wrong"; 3 wrong in a row lock for 30 s (429 + Retry-After).
 // `#…&2fa=1` (or 2FA enabled in Settings → Security) also asks for a 6-digit code.
+// `?docker=1` makes it a container deployment (self-update off, compose upgrade shown).
 // `?stress=1` swaps in long hostnames/paths/errors and a long backup list; `#…&nojournal=1` makes logs unavailable.
 import { ApiError } from './client'
 import type { AuditEntry, ControlBackup, ControlStatus, NodeMetrics, Server, Settings, UpdateResult } from './types'
@@ -15,6 +16,8 @@ const hex = (k: number) => Array.from({ length: 64 }, (_, i) => '0123456789abcde
 
 export function makeDemoControl(o: { now: number; servers: Server[]; settings: Settings; stress: boolean; twoFactor: () => boolean }) {
   const { now, servers, settings, stress } = o
+  // `?docker=1` shows a control server running from the container image (no self-update).
+  const docker = new URLSearchParams(location.search).get('docker') === '1'
   const iso = (ago: number) => new Date(now - ago).toISOString()
   const prefix = stress ? 'enterprise-customer-portal/production/eu-central-1/atoll' : 'atoll'
   const publicURL = () => stress ? 'https://atoll-control-panel.enterprise-customer-portal.eu-central.example.com' : settings.public_url || 'https://panel.example.com'
@@ -77,7 +80,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
       last_backup: backups[0],
       latest_release: { tag: latest, name: `Atoll ${latest}`, url: `https://github.com/example/atoll/releases/tag/${latest}`, published_at: iso(26 * H), checked_at: new Date(checkedAt).toISOString() },
       update_available: version !== latest, release_error: stress ? 'GET https://api.github.com/repos/example/atoll/releases?per_page=10: 403 Forbidden: API rate limit exceeded for 203.0.113.40 (showing the cached result from the last successful check)' : undefined,
-      self_update_supported: true, update_in_progress: !!job, update_phase: phase, update_target: job?.to,
+      self_update_supported: !docker, deployment: docker ? 'docker' : 'systemd', update_in_progress: !!job, update_phase: phase, update_target: job?.to,
       last_update_result: lastUpdate, rollback_version: rollbackVersion,
     }
   }
@@ -187,6 +190,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
     }
     if (P && p === 'update/check') { checkedAt = Date.now(); const s = status(); return { latest_release: s.latest_release, current: s.version, update_available: s.update_available, release_error: s.release_error } }
     if (P && p === 'update') {
+      if (docker) fail(409, 'atoll-server runs in a container; update it on the host with: docker compose pull && docker compose up -d', 'self_update_unsupported')
       reauth(body, true)
       if (job) fail(409, 'an update is already running', 'update_in_progress')
       const to = body?.version || latest
@@ -195,6 +199,7 @@ export function makeDemoControl(o: { now: number; servers: Server[]; settings: S
       return { mode: 'update', version: to, phase: 'downloading' }
     }
     if (P && p === 'rollback') {
+      if (docker) fail(409, 'atoll-server runs in a container; update it on the host with: docker compose pull && docker compose up -d', 'self_update_unsupported')
       reauth(body, true)
       if (job) fail(409, 'an update is already running', 'update_in_progress')
       const prev = rollbackVersion ?? fail(409, 'there is no previous binary to roll back to', 'no_previous_binary')

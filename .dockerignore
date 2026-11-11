@@ -1,0 +1,16 @@
+# docker build context (deploy/docker/Dockerfile builds from the repository root)
+.git
+**/node_modules
+web/dist
+web/playwright-report
+web/test-results
+dist
+bin
+android
+notes
+docs/.vitepress/cache
+docs/.vitepress/dist
+internal/server/webui/dist/assets
+*.db
+*.db-*
+.env

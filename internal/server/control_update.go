@@ -70,8 +70,25 @@ func (s *Server) binaryPath() (string, error) {
 	return p, nil
 }
 
+// ContainerUpdateHint is the reason self-update is off inside a container.
+const ContainerUpdateHint = "atoll-server runs in a container; update it on the host with: docker compose pull && docker compose up -d"
+
+// deployment names how atoll-server runs, for GET /control: "docker", "systemd" or "".
+func (s *Server) deployment() string {
+	if s.cfg.Container {
+		return "docker"
+	}
+	if os.Getenv("INVOCATION_ID") != "" {
+		return "systemd"
+	}
+	return ""
+}
+
 // selfUpdateSupported: running as a systemd service with systemd-run available (or a test hook).
 func (s *Server) selfUpdateSupported() (bool, string) {
+	if s.cfg.Container {
+		return false, ContainerUpdateHint
+	}
 	if s.cfg.SpawnHelper != nil {
 		return true, ""
 	}
@@ -117,6 +134,7 @@ func (c *controlState) phase() (string, string, string) {
 // fillUpdateStatus adds self-update state to GET /control.
 func (s *Server) fillUpdateStatus(st *api.ControlStatus) {
 	st.SelfUpdate, _ = s.selfUpdateSupported()
+	st.Deployment = s.deployment()
 	res, _ := selfupdate.ReadResult(filepath.Join(s.updateDir(), "result.json"))
 	st.LastUpdate = res
 	p := s.readPending()
