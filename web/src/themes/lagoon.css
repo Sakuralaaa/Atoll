@@ -1,26 +1,15 @@
-/* Lagoon: eye-care sage green (low contrast, no pure white), 8px radii, hairline borders.
-   Was "zeabur" before v0.1.45: theme.ts and public/theme-boot.js read the old id as this one.
-   html[data-theme=lagoon] sets the shape; .light / .dark set the colours. */
+/* Lagoon: Atoll's block shape (2px borders, hard offset shadows) in an eye-care sage green with
+   softened contrast (no pure white or black). Was "zeabur" before v0.1.45: theme.ts and
+   public/theme-boot.js read the old id as this one. .light / .dark set the colours. */
 html[data-theme=lagoon] {
-  --hover-lift: none; --card-lift: translateY(-1px); --press: translateY(1px); --card-press: none;
-  --italic: normal; --bw: 1px; --bw-thin: 1px;
-  --sh-card: 0 1px 2px rgba(8,40,40,.06), 0 6px 20px -10px rgba(40,70,45,.10);
-  --sh-card-hover: 0 2px 4px rgba(8,40,40,.08), 0 12px 32px -10px rgba(40,70,45,.16);
-  --sh-btn: 0 1px 2px rgba(8,40,40,.08); --sh-btn-hover: 0 4px 14px -4px rgba(40,70,45,.2); --sh-tile: none;
-  --sh-sm: none; --sh-side: none; --sh-pop: 0 16px 40px -12px rgba(6,40,40,.3);
-  --btn-font: var(--font-sans); --btn-weight: 600; --btn-track: 0; --r-box: 8px; --r-btn: 8px; --r-chip: 6px;
-  --r-field: 8px; --r-tile: 8px; --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 8px;
-  --radius-2xl: 10px;
-  --canvas-bg: radial-gradient(ellipse 70% 320px at 50% -60px, var(--glow-l), transparent 70%), linear-gradient(var(--grid-l) 1px, transparent 1px), linear-gradient(90deg, var(--grid-l) 1px, transparent 1px);
-  --canvas-size: 100% 100%, 32px 32px, 32px 32px; --topline: transparent; --topline-h: 0px;
-  --topline-edge: 0 solid transparent; --focus: var(--brand);
+  --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent; --focus: var(--brand);
 }
 html[data-theme=lagoon].light {
   color-scheme: light;
   --bg: #e4ede0; --side: #dbe6d6; --card: #edf3e9; --card2: #e2ebdd; --sunk: #e8f0e4; --pop: #eff5ec;
   --line: #ccdac6; --line2: #b6c8af; --muted: #5d6d5c; --dim: #879685; --fg: #2e3a2f; --fg2: #435043;
-  --ov: #243024; --accent: #4f7f55; --accent-soft: #436d48; --tick-off: #d3dfce; --edge: #c8d7c2;
-  --brand: #5c8c62; --brand-ink: #f4f8f2; --brand-strong: #4f7f55; --grain: transparent;
+  --ov: #243024; --accent: #4f7f55; --accent-soft: #436d48; --tick-off: #d3dfce; --edge: #3d4e3f;
+  --brand: #5c8c62; --brand-ink: #f4f8f2; --brand-strong: #4f7f55; --grain: rgba(40,70,45,.08);
   --ink: #2e3a2f; --danger: #b8574d; --warn: #9a6b22; --hi: #d2e3cb; --hi-ink: #2e4a31; --pick: #5c8c62;
   --pick-ink: #f4f8f2; --nav-bg: #d2e2cc; --nav-ink: #2b3d2d; --t-amber: #efe0b0; --t-red: #ecc8c1;
   --t-green: #cfe4c6; --t-violet: #d8d6e8; --t-orange: #edd5b8; --t-note: #f1e9cf; --t-ok: #d6e8cf;
@@ -32,8 +21,8 @@ html[data-theme=lagoon].dark {
   color-scheme: dark;
   --bg: #1c211d; --side: #191d1a; --card: #232924; --card2: #29302a; --sunk: #1f2420; --pop: #272d28;
   --line: #313932; --line2: #414b42; --muted: #949f92; --dim: #6f7a6e; --fg: #c3cdc1; --fg2: #a9b4a7;
-  --ov: #dbe3d9; --accent: #9cc29c; --accent-soft: #b0cfaf; --tick-off: #2c332d; --edge: #343c35;
-  --brand: #8db68f; --brand-ink: #182019; --brand-strong: #9cc29c; --grain: transparent;
+  --ov: #dbe3d9; --accent: #9cc29c; --accent-soft: #b0cfaf; --tick-off: #2c332d; --edge: #0d110e;
+  --brand: #8db68f; --brand-ink: #182019; --brand-strong: #9cc29c; --grain: rgba(200,230,200,.05);
   --ink: #182019; --danger: #d38a80; --warn: #ceb06c; --hi: #8db68f; --hi-ink: #182019; --pick: #8db68f;
   --pick-ink: #182019; --nav-bg: #2e382f; --nav-ink: #dbe3d9; --t-amber: #dcca93; --t-red: #dcaba3;
   --t-green: #b4d0ae; --t-violet: #c3bfdc; --t-orange: #dbbb95; --t-note: #e0d8bb; --t-ok: #c2d9bb;
@@ -41,5 +30,4 @@ html[data-theme=lagoon].dark {
   --ok: #8db68f; --ok-strong: #7aa47c; --amber: #ceb06c; --off: #4c554c;
   --c-1: #8ea8c8; --c-2: #a99cc6; --c-3: #8db68f; --c-4: #84b3ad; --c-5: #ceb46e; --c-6: #d38a80; --c-7: #d2a079;
 }
-html[data-theme=lagoon] .canvas { background-repeat: no-repeat, repeat, repeat; }
 html[data-theme=lagoon] .btn-primary:hover { filter: brightness(1.08); }

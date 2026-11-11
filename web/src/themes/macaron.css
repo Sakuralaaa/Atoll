@@ -1,27 +1,14 @@
-/* Macaron: rose pink on blush, 18px radii, gentle shadows. Since v0.1.45 one accent colour
-   (rose) with neutral borders; mint and lavender stay only as status tints.
-   html[data-theme=macaron] sets the shape; .light / .dark set the colours. */
+/* Macaron: Atoll's block shape (2px borders, hard offset shadows) in rose pink on blush, with
+   softened contrast; one accent colour, status tints stay muted. .light / .dark set the colours. */
 html[data-theme=macaron] {
-  --hover-lift: translateY(-1px); --card-lift: translateY(-2px); --press: translateY(1px); --card-press: none;
-  --italic: normal; --bw: 1.5px; --bw-thin: 1px;
-  --sh-card: 0 8px 24px -12px var(--sh-m), 0 2px 6px -2px var(--sh-m2);
-  --sh-card-hover: 0 14px 34px -12px var(--sh-m), 0 3px 8px -2px var(--sh-m2);
-  --sh-btn: 0 4px 12px -4px var(--sh-m); --sh-btn-hover: 0 8px 18px -6px var(--sh-m);
-  --sh-tile: 0 3px 8px -3px var(--sh-m2); --sh-sm: 0 2px 6px -2px var(--sh-m2); --sh-side: none;
-  --sh-pop: 0 18px 40px -14px var(--sh-m); --btn-font: var(--font-sans); --btn-weight: 700; --btn-track: 0;
-  --r-box: 18px; --r-btn: 12px; --r-chip: 999px; --r-field: 12px; --r-tile: 12px; --radius-sm: 8px;
-  --radius-md: 10px; --radius-lg: 14px; --radius-xl: 18px; --radius-2xl: 22px;
-  --canvas-bg: radial-gradient(700px 380px at 0% -10%, var(--blob-a), transparent 70%);
-  --canvas-size: 100% 100%; --canvas-fixed: fixed;
-  --topline: transparent; --topline-h: 0px;
-  --topline-edge: 0 solid transparent; --focus: var(--brand);
+  --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent; --focus: var(--brand);
 }
 html[data-theme=macaron].light {
   color-scheme: light;
   --bg: #f8eff2; --side: #f3e6eb; --card: #fcf6f8; --card2: #f6eaef; --sunk: #faf2f5; --pop: #fdf8fa;
   --line: #ead9e0; --line2: #dcc4ce; --muted: #775f69; --dim: #a28c95; --fg: #3d2c33; --fg2: #56434b;
-  --ov: #5a2238; --accent: #b84a72; --accent-soft: #a03f63; --tick-off: #efdfe6; --edge: #e6d3db;
-  --brand: #c95c84; --brand-ink: #fff7fa; --brand-strong: #b84a72; --grain: transparent;
+  --ov: #5a2238; --accent: #b84a72; --accent-soft: #a03f63; --tick-off: #efdfe6; --edge: #5c3b49;
+  --brand: #c95c84; --brand-ink: #fff7fa; --brand-strong: #b84a72; --grain: rgba(110,50,75,.08);
   --ink: #3d2c33; --danger: #c0443f; --warn: #a06a1c; --hi: #f3d3df; --hi-ink: #6a2643; --pick: #c95c84;
   --pick-ink: #fff7fa; --nav-bg: #f2d9e3; --nav-ink: #5a2238; --t-amber: #f3e2b4; --t-red: #f3cbcf;
   --t-green: #d3e9d6; --t-violet: #e2d8ef; --t-orange: #f3d6be; --t-note: #f7ecd5; --t-ok: #dcefe0;
@@ -34,8 +21,8 @@ html[data-theme=macaron].dark {
   color-scheme: dark;
   --bg: #221b1f; --side: #1e181b; --card: #2b2328; --card2: #322930; --sunk: #251e22; --pop: #2e262b;
   --line: #3b3137; --line2: #4d4148; --muted: #a8949e; --dim: #7f6d76; --fg: #e3d5db; --fg2: #c9b9c0;
-  --ov: #f0e2e8; --accent: #e08aa8; --accent-soft: #e9a3bb; --tick-off: #352b31; --edge: #3d3239;
-  --brand: #d97a9b; --brand-ink: #2a1019; --brand-strong: #e08aa8; --grain: transparent;
+  --ov: #f0e2e8; --accent: #e08aa8; --accent-soft: #e9a3bb; --tick-off: #352b31; --edge: #100b0d;
+  --brand: #d97a9b; --brand-ink: #2a1019; --brand-strong: #e08aa8; --grain: rgba(240,200,215,.05);
   --ink: #2a1019; --danger: #e0827a; --warn: #d4b06a; --hi: #d97a9b; --hi-ink: #2a1019; --pick: #d97a9b;
   --pick-ink: #2a1019; --nav-bg: #3e2c35; --nav-ink: #f0e2e8; --t-amber: #e2cc93; --t-red: #e2aaa9;
   --t-green: #b8d4bc; --t-violet: #cbbfdd; --t-orange: #e0bb96; --t-note: #e6dabb; --t-ok: #c6dccb;
