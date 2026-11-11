@@ -1,6 +1,17 @@
 // English strings for L('中文'). Keys are the Chinese source text; generated from the UI and kept in sync by hand.
 // Placeholders {0}, {1}… are filled by L's extra arguments.
 const en: Record<string, string> = {
+ "旧中控导出": "Export on the old control plane",
+ "新机器恢复": "Restore on the new machine",
+ "agent 重连": "Agents reconnect",
+ "导出后不要再在旧面板上改动。": "Don't change anything on the old panel after exporting.",
+ "用了 --adopt-public-ip 会自动改面板域名的 A 记录；业务域名不用动。": "With --adopt-public-ip the panel domain's A record is updated for you; service domains stay as they are.",
+ "页确认全部在线。没回来的那台上执行：": "page and check every server is online. On any that isn't, run:",
+ "在旧机器上执行，务必关掉，否则两个中控会同时管理同一批服务器。": "Run this on the old machine. Do shut it down, or two control planes will manage the same servers.",
+ "完整说明": "Full guide",
+ "· agent 会跟着它找到新中控": "· agents follow it to the new control plane",
+ "面板用 IP 访问，迁移后要逐台切换地址。建议先把 ATOLL_PUBLIC_URL 改成域名。": "The panel is reached by IP, so each server has to be switched by hand after the move. Set ATOLL_PUBLIC_URL to a domain first.",
+ "上一步": "Back",
  "博客": "Blog",
  "首次启动向导": "First-run guide",
  "重新打开向导": "Reopen the guide",

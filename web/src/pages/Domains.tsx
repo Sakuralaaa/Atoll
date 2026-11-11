@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
 import { svcName } from '../api/view'
 import { Link } from 'react-router-dom'
@@ -59,6 +60,7 @@ export default function Domains() {
         {q.data && q.data.length > 0 && (
           <Card className="overflow-hidden">
             <div className="hidden @4xl:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_110px_72px] gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]"><span>{L("域名")}</span><span>{L("服务")}</span><span>{L("指向服务器")}</span><span>{L("记录")}</span><span>{L("状态")}</span><span /></div>
+            <ScrollRows visible={10} divide={false} testId="domain-list">
             {q.data.map(d => {
               const o = svcOf(d), srv = servers?.find(x => x.id === o?.p.server_id)
               return (
@@ -77,6 +79,7 @@ export default function Domains() {
                 </div>
               )
             })}
+            </ScrollRows>
           </Card>
         )}
       </div>

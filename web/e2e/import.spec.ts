@@ -29,3 +29,25 @@ test('stepper rule reaches the last dot', async ({ page }) => {
   const dot = await steps.nth(n - 1).locator('span').first().boundingBox()
   expect(dot!.x - (rule!.x + rule!.width)).toBeLessThanOrEqual(12)
 })
+
+test('long audit log and domain list scroll inside their box', async ({ page }) => {
+  for (const [url, id] of [['/?demo=1&stress=1#/control?tab=audit', 'audit-list'], ['/?demo=1&stress=1#/domains', 'domain-list']]) {
+    await page.goto(url)
+    const box = page.getByTestId(id)
+    await expect(box).toBeVisible()
+    const [h, sh, vh] = await box.evaluate(e => [e.clientHeight, e.scrollHeight, window.innerHeight])
+    expect(sh).toBeGreaterThan(h)
+    expect(h).toBeLessThanOrEqual(Math.max(320, Math.round(vh * 0.6)) + 1)
+  }
+})
+
+test('control migration shows one step at a time', async ({ page }) => {
+  await page.goto('/?demo=1#/control?tab=migrate')
+  const step = page.getByTestId('control-migrate-step')
+  await expect(step).toContainText('atoll-server export')
+  await page.getByRole('button', { name: '下一步' }).click()
+  await expect(step).toContainText('--restore')
+  await expect(step).not.toContainText('atoll-server export')
+  await page.getByTestId('control-migrate-steps').getByRole('button', { name: '关闭旧中控' }).click()
+  await expect(step).toContainText('systemctl disable --now atoll-server')
+})

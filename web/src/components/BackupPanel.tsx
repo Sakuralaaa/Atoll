@@ -1,4 +1,5 @@
 import { L } from '../i18n'
+import { ScrollRows } from './ScrollRows'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArchiveRestore, CalendarClock, CheckCircle2, Database, HardDrive, Loader2, Play, RefreshCw, RotateCcw, Save, Settings as Cog, XCircle } from 'lucide-react'
@@ -166,7 +167,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore?: (b: Ba
       <div className="grid grid-cols-[170px_150px_150px_100px_110px_minmax(0,1fr)_96px] gap-4 px-6 h-11 items-center text-[12px] font-semibold text-muted border-b-2 border-[var(--edge)] bg-ov/5">
         <span>{L("时间")}</span><span>{L("类型")}</span><span>{L("大小")}</span><span>{L("耗时")}</span><span>{L("状态")}</span><span>{L("快照 ID")}</span><span />
       </div>
-      <div className="divide-y divide-line">
+      <ScrollRows visible={8} testId="backup-list">
         {list.map(b => {
           const [label, tone] = STATUS[b.status] ?? [b.status, 'zinc']
           const restorable = b.status === 'done' && live(b).length > 0
@@ -202,7 +203,7 @@ function SnapshotTable({ list, onRestore }: { list: Backup[]; onRestore?: (b: Ba
             </div>
           )
         })}
-      </div>
+      </ScrollRows>
     </div></Card>
   )
 }

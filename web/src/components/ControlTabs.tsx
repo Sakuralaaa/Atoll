@@ -1,5 +1,7 @@
 import { L } from '../i18n'
 // 中控 → 日志 / 审计日志 / 迁移.
+import { ScrollRows } from './ScrollRows'
+import { ImportStepper } from './ImportStepper'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IP } from './IP'
 import { Link } from 'react-router-dom'
@@ -108,6 +110,7 @@ export function AuditTab() {
       {rows && rows.length > 0 && (
         <Card className="overflow-hidden">
           <div className={cx('hidden @4xl:grid gap-4 px-6 h-11 items-center text-[12.5px] text-muted border-b-2 border-[var(--edge)]', COLS)}><span>{L("时间")}</span><span>{L("操作者")}</span><span>{L("操作")}</span><span>{L("对象")}</span><span>IP</span><span>{L("令牌 / 会话")}</span></div>
+          <ScrollRows visible={10} divide={false} testId="audit-list">
           {rows.map(r => {
             const k = KIND[r.actor_kind] ?? [r.actor_kind, 'zinc']
             const hasDetail = r.detail !== null && r.detail !== undefined && !(typeof r.detail === 'object' && !Object.keys(r.detail as object).length)
@@ -129,6 +132,7 @@ export function AuditTab() {
               </div>
             )
           })}
+          </ScrollRows>
         </Card>
       )}
       {rows && rows.length > 0 && <div className="mt-4 flex items-center justify-center gap-3 text-[12.5px] text-dim">
@@ -141,19 +145,16 @@ export function AuditTab() {
 
 // ---------- 迁移 ----------
 
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-x-4">
-      <div className="flex flex-col items-center"><span className="tile h-8 w-8 rounded-lg bg-hi text-hi-ink grid place-items-center font-mono font-extrabold text-[14px]">{n}</span><span className="flex-1 w-[2px] bg-line mt-2" /></div>
-      <div className="pb-8 min-w-0"><div className="text-[15px] font-semibold mt-1 mb-2">{title}</div><div className="text-[13px] text-fg2 leading-6 space-y-3">{children}</div></div>
-    </div>
-  )
-}
 function Cmd({ children }: { children: string }) {
   return <div className="[&>div]:whitespace-pre-wrap [&>div]:[overflow-wrap:anywhere] [&>div]:text-[12.5px]"><CodeBlock>{children}</CodeBlock></div>
 }
 
+const MIGRATE_DOCS = 'https://sakuralaaa.github.io/Atoll/control#把中控迁移到另一台机器'
+
+// Terse on purpose: the why and the edge cases live in docs/control.md; the
+// tab only shows the five commands, one step at a time.
 export function MigrateTab({ s }: { s: ControlStatus }) {
+  const [step, setStep] = useState(0)
   const pub = s.public_url || 'https://panel.example.com'
   const dom = domainOf(s.public_url)
   const data = s.data_dir || '/var/lib/atoll'
@@ -161,56 +162,44 @@ export function MigrateTab({ s }: { s: ControlStatus }) {
   const tagged = /^v\d+\.\d+\.\d+/.test(s.version)
   const INSTALL = installServerURL(s.version)
   const ver = tagged ? ` --version ${s.version}` : ''
+  const steps: { t: string; body: React.ReactNode }[] = [
+    { t: L("旧中控导出"), body: <>
+      <Cmd>{L("printf '%s\\n' '你的口令至少12个字符' > /root/pass && chmod 600 /root/pass\nsudo atoll-server export --data {0} --out /root/atoll-control.atollbak --passphrase-file /root/pass", data)}</Cmd>
+      <Cmd>{L("scp /root/atoll-control.atollbak /root/pass root@<新机器 IP>:/root/")}</Cmd>
+      <p className="text-muted">{L("导出后不要再在旧面板上改动。")}</p>
+    </> },
+    { t: L("新机器恢复"), body: <Cmd>{`curl -fsSL ${INSTALL} \\\n  | sudo sh -s -- --restore /root/atoll-control.atollbak --restore-passphrase-file /root/pass \\\n      --adopt-public-ip${ver}${ts}`}</Cmd> },
+    { t: L("DNS 切换"), body: <>
+      {dom ? <Cmd>{`dig +short ${dom}`}</Cmd> : null}
+      <p className="text-muted">{L("用了 --adopt-public-ip 会自动改面板域名的 A 记录；业务域名不用动。")}</p>
+    </> },
+    { t: L("agent 重连"), body: <>
+      <p className="text-muted">{L("在")} <Link to="/servers" className="text-accent hover:underline">{L("服务器")}</Link> {L("页确认全部在线。没回来的那台上执行：")}</p>
+      <Cmd>{`sudo atoll-agent tailnet switch --url ${pub}`}</Cmd>
+    </> },
+    { t: L("关闭旧中控"), body: <>
+      <Cmd>{`sudo systemctl disable --now atoll-server`}</Cmd>
+      <p className="text-muted">{L("在旧机器上执行，务必关掉，否则两个中控会同时管理同一批服务器。")}</p>
+    </> },
+  ]
   return (
     <div className="max-w-[920px]">
-      <h2 className="text-[18px] font-semibold tracking-tight">{L("把中控迁移到另一台机器")}</h2>
-      <p className="text-[13px] text-muted mt-1.5 leading-6">{L("中控 VPS 到期、换配置或换机房时使用。全程业务不停，只有面板 / API 和 agent 的控制连接中断几分钟。本页只是操作指南，命令需要在服务器上执行。")}</p>
-      {dom
-        ? <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-t-ok text-ink px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><CheckCircle2 size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板用域名")} <b className="font-mono">{dom}</b> {L("访问：中控会把它推送给每个 agent 作为备用地址，迁移后 agent 靠它找到新中控。迁移前请确认所有服务器都已在线连过当前中控。")}</span></div>
-        : <div className="mt-4 rounded-lg border-2 border-[var(--edge)] bg-t-red text-ink px-4 py-3 text-[13px] flex items-start gap-2.5 [overflow-wrap:anywhere]"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span className="min-w-0">{L("面板当前用 IP 访问（")}<span className="font-mono">{pub}</span>{L("）。agent 没有可以跟着走的域名，迁移后需要在每台服务器上手动切换地址（第 4 步）。强烈建议先把")} <span className="font-mono">ATOLL_PUBLIC_URL</span> {L("改成 Cloudflare 区域里的域名。")}</span></div>}
-      <div className="mt-8">
-        <Step n={1} title={L("在旧中控导出")}>
-          <p>{L("在「备份」里点")} <b>{L("导出加密包")}</b>{L("（需要密码和验证码，再设置导出口令），或在旧主机上离线导出：")}</p>
-          <Cmd>{L("printf '%s\\n' '你的口令至少12个字符' > /root/pass && chmod 600 /root/pass\nsudo atoll-server export --data {0} --out /root/atoll-control.atollbak --passphrase-file /root/pass", data)}</Cmd>
-          <p>{L("导出后")}<b>{L("不要再在旧面板上做改动")}</b>{L("。想做到零丢失，先")} <span className="font-mono">sudo systemctl stop atoll-server</span> {L("再离线导出——停掉中控不影响业务。然后把备份包和口令文件拷到新机器：")}</p>
-          <Cmd>{L("scp /root/atoll-control.atollbak /root/pass root@<新机器 IP>:/root/")}</Cmd>
-        </Step>
-        <Step n={2} title={L("在新 VPS 上安装并恢复")}>
-          <Cmd>{`curl -fsSL ${INSTALL} \\\n  | sudo sh -s -- --restore /root/atoll-control.atollbak --restore-passphrase-file /root/pass \\\n      --adopt-public-ip${ver}${ts}`}</Cmd>
-          <p>{L("安装脚本会在第一次启动前把备份恢复到数据目录，合并备份里的")} <span className="font-mono">server.env</span>{L("，公网地址是域名时自动装 Caddy 并签证书，然后启动。")}</p>
-          <ul className="list-disc pl-5 space-y-1.5 text-[12.5px] text-muted">
-            <li><span className="font-mono text-fg2">--adopt-public-ip</span>{L("：新中控第一次启动时把")} {dom ? <b className="font-mono">{dom}</b> : L("面板域名")} {L("的 A 记录改成本机公网 IPv4（保留代理开关）。不想自动改 DNS 就去掉，第 3 步手动改。")}</li>
-            {s.tailnet && <li><span className="font-mono text-fg2">--tailscale-authkey</span>{L("：当前中控在 tailnet 上，新中控也要加入，agent 才能回到私网连接。")}</li>}
-            <li>{L("恢复时会清掉旧的 tailnet IP 地址，也不会带过来")} <span className="font-mono">ATOLL_AGENT_TAILNET_ONLY=1</span>{L("：迁移期间 agent 要从公网域名找到新中控。")}</li>
-          </ul>
-        </Step>
-        <Step n={3} title={L("DNS 切换")}>
-          <p>{L("用了")} <span className="font-mono">--adopt-public-ip</span> {L("且域名在 Cloudflare 区域内：新中控启动后自动完成，审计日志里记为")} <span className="font-mono">control.dns_adopt</span>{L("。否则手动把")} {dom ? <b className="font-mono">{dom}</b> : L("面板域名")} {L("的 A 记录改为新机器 IP。业务域名指向各 worker，")}<b>{L("不需要改")}</b>{L("。")}</p>
-          {dom && <Cmd>{`dig +short ${dom}`}</Cmd>}
-        </Step>
-        <Step n={4} title={L("agent 自动重连")}>
-          <p>{L("每个 agent 先试主地址（旧中控，连不上），再试备用地址")} <span className="font-mono">{pub}</span>{L("（现在指向新中控）。在")} <Link to="/servers" className="text-accent hover:underline">{L("服务器")}</Link> {L("页确认全部恢复在线。没收到过备用地址的 agent，在那台服务器上执行：")}</p>
-          <Cmd>{`sudo atoll-agent tailnet switch --url ${pub}`}</Cmd>
-        </Step>
-        <Step n={5} title={L("关闭旧中控")}>
-          <p>{L("所有 agent 都连上新中控后，在")}<b>{L("旧机器")}</b>{L("上执行。务必关闭：旧中控还开着时，经旧 tailnet 地址连接的 agent 会一直连在它上面（两个中控同时管理同一批服务器）。确认无误后再退订旧 VPS。")}</p>
-          <Cmd>{`sudo systemctl disable --now atoll-server`}</Cmd>
-        </Step>
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-[18px] font-semibold tracking-tight mr-auto">{L("把中控迁移到另一台机器")}</h2>
+        <a href={MIGRATE_DOCS} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] text-fg2 hover:text-fg"><Info size={14} />{L("完整说明")}</a>
       </div>
-      <Card className="overflow-hidden">
-        <div className="px-5 h-11 flex items-center gap-2 text-[13px] font-semibold border-b-2 border-[var(--edge)]"><Info size={15} />{L("停机影响")}</div>
-        {([
-          [L("业务容器、对外域名、HTTPS"), L("不受影响（入口和证书都在各 worker 上）"), true],
-          [L("定时服务备份"), L("不受影响（agent 本地调度，重连后补报结果）"), true],
-          [L("面板 / API / CLI / MCP"), L("旧中控停止到新中控启动、DNS 生效，通常几分钟"), false],
-          [L("部署、迁移、域名变更"), L("中控不可用期间无法操作"), false],
-          [L("agent 控制连接"), L("主地址失败 3 次后切到备用地址，通常一两分钟内重连"), false],
-        ] as const).map(([k, v, ok]) => (
-          <div key={k} className="grid grid-cols-1 @2xl:grid-cols-[240px_minmax(0,1fr)] gap-x-4 gap-y-0.5 px-5 py-3 text-[13px] border-b border-line last:border-0">
-            <span className="font-semibold">{k}</span><span className={ok ? 'text-ok font-semibold' : 'text-fg2'}>{v}</span>
-          </div>
-        ))}
-      </Card>
+      {dom
+        ? <div className="mt-3 text-[13px] text-fg2 flex items-center gap-2 min-w-0"><CheckCircle2 size={15} className="text-ok shrink-0" /><span className="truncate">{L("面板域名")} <b className="font-mono">{dom}</b> {L("· agent 会跟着它找到新中控")}</span></div>
+        : <div className="mt-3 text-[13px] text-danger flex items-center gap-2 min-w-0"><AlertTriangle size={15} className="shrink-0" /><span className="min-w-0">{L("面板用 IP 访问，迁移后要逐台切换地址。建议先把 ATOLL_PUBLIC_URL 改成域名。")}</span></div>}
+      <div className="mt-6" data-testid="control-migrate-steps"><ImportStepper steps={steps.map(x => x.t)} step={step + 1} onPick={i => setStep(i)} /></div>
+      <div data-testid="control-migrate-step"><Card className="mt-6 p-5 text-[13px] leading-6 space-y-3">
+        <div className="text-[15px] font-semibold">{step + 1}. {steps[step].t}</div>
+        {steps[step].body}
+        <div className="flex items-center pt-1">
+          {step > 0 && <Button size="sm" onClick={() => setStep(step - 1)}>{L("上一步")}</Button>}
+          {step < steps.length - 1 && <Button size="sm" className="ml-auto" onClick={() => setStep(step + 1)}>{L("下一步")}</Button>}
+        </div>
+      </Card></div>
     </div>
   )
 }

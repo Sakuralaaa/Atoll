@@ -62,6 +62,8 @@ export function addStressData(d: {
     { id: 'dom_stress0', service_id: 'stress0', hostname: 'customer-notification-delivery-pipeline.eu-central.production.example.com', port_name: 'web', proxied: true, status: 'active', created_at: iso(864e5) },
     { id: 'dom_stress1', service_id: 'stress1', hostname: 'notification-api-gateway-enterprise-customer-portal.example.com', port_name: 'web', proxied: false, status: 'error', error: 'TLS certificate issuance failed: ACME challenge for notification-api-gateway-enterprise-customer-portal.example.com returned 403 Forbidden (DNS points to 198.51.100.200, expected 203.0.113.99)', created_at: iso(864e5) },
   )
+  // one domain per batch worker, so the 域名 list runs past ten rows and scrolls
+  for (let k = 3; k < 16; k++) d.domains.push({ id: `dom_stress${k}`, service_id: `stress${k}`, hostname: `worker-${k}.example.com`, port_name: 'web', proxied: true, status: 'active', created_at: iso(k * 864e5) })
   d.tokens.push({ id: 'tok_stress', name: 'github-actions-enterprise-customer-portal-production-deployer', scope: 'deploy', permissions: ['read', 'deploy', 'domains', 'restore'], projects: [pid, 'acme', 'linkproxy', 'mailrelay'], require_approval: true, prefix: 'atl_pat_Lq9z', last_used_at: iso(3e5), created_at: iso(2 * 864e5) })
   d.confirmations.unshift({ id: 'cfm_stress', action: 'service.update', target: LONG_NAME, summary: L("更新 enterprise-customer-portal-production-environment-eu-central / {0} 的镜像为 registry.example.com/platform-team/customer-notification-delivery-pipeline-worker@{1}", LONG_NAME, DIGEST), status: 'pending', created_by: 'github-actions-enterprise-customer-portal-production-deployer', created_at: iso(6e4) })
 }

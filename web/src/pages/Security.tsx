@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
 import { Loader2, ShieldCheck, ShieldOff, KeyRound, RefreshCw, Download, Copy, Check, Monitor, Smartphone, LogOut, AlertTriangle, Terminal, LockKeyhole, UserRound, ImageUp, Trash2 } from 'lucide-react'
@@ -403,6 +404,7 @@ function Sessions() {
       {q.error && !q.data && <div className="p-5"><ErrorState error={q.error} onRetry={q.refetch} /></div>}
       {!q.data && !q.error && <div className="p-5 space-y-3"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>}
       {q.data && <div className="divide-y divide-line">
+        <ScrollRows visible={6} testId="session-list">
         {q.data.map(s => { const d = device(s.user_agent); return (
           <div key={s.id} className="px-4 @2xl:px-6 py-4 flex items-center gap-3 @2xl:gap-4">
             <div className="h-9 w-9 rounded-[4px] border-2 border-[var(--edge)] bg-sunk grid place-items-center shrink-0">{d.mobile ? <Smartphone size={16} /> : <Monitor size={16} />}</div>
@@ -413,6 +415,7 @@ function Sessions() {
             {!s.current && <Button size="sm" disabled={busy} onClick={() => revoke(s)}>{t('退出', 'Sign out')}</Button>}
           </div>
         ) })}
+        </ScrollRows>
         {isDemo() && <div className="px-6 py-3 text-[12px] text-dim">{t('演示数据', 'Demo data')}</div>}
       </div>}
     </Section>

@@ -1,4 +1,5 @@
 import { L } from '../i18n'
+import { ScrollRows } from '../components/ScrollRows'
 import { useState } from 'react'
 import { type LucideIcon, ShieldAlert, Check, X, Loader2, Trash2, Globe, ArrowRightLeft, Server, Bot, ShieldCheck } from 'lucide-react'
 import { MainShell } from '../components/Shell'
@@ -38,7 +39,7 @@ export default function Confirmations() {
         <div className="space-y-4">{pending.map(c => <PendingCard key={c.id} c={c} />)}</div>
         {done.length > 0 && <>
           <div className="text-[13px] font-semibold mt-12 mb-3">{L("历史")}</div>
-          <Card className="divide-y divide-line">
+          <Card className="overflow-hidden"><ScrollRows visible={10} testId="approval-history">
             {done.map(c => {
               const [st, tone] = STATUS[c.status] ?? [c.status, 'zinc']
               return (
@@ -51,7 +52,7 @@ export default function Confirmations() {
                 </div>
               )
             })}
-          </Card>
+          </ScrollRows></Card>
         </>}
       </div>
     </MainShell>
