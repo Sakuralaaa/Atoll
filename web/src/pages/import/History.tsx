@@ -13,7 +13,7 @@ import { useBackendText } from '../../api/backendText'
 
 // ---------------- history & advanced ----------------
 const JOB_TEXT: Record<string, [string, 'green' | 'amber' | 'red' | 'zinc' | 'violet']> = {
-  planned: [L("待开始"), 'zinc'], rehearsing: [L("演练中"), 'amber'], rehearsed: [L("演练通过"), 'violet'], cutting_over: [L("切换中"), 'amber'], live: [L("已接管"), 'green'],
+  planned: [L("待开始"), 'zinc'], rehearsing: [L("演练中"), 'amber'], rehearsed: [L("演练通过"), 'green'], cutting_over: [L("切换中"), 'amber'], live: [L("已接管"), 'green'],
   rolling_back: [L("回滚中"), 'amber'], rolled_back: [L("已回滚"), 'zinc'], cleaning: [L("移除 k3s 中"), 'amber'], cleaned: [L("已完成"), 'green'],
   uploading: [L("上传中"), 'amber'], deploying: [L("部署中"), 'amber'], verifying: [L("校验中"), 'amber'], done: [L("已完成"), 'green'], failed: [L("失败"), 'red'],
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Server as ServerIcon, ScanSearch, FlaskConical, Power, Check, X, ChevronRight, ArrowLeft, ArrowRight, RotateCcw, Loader2, Circle, Minus, AlertTriangle, ShieldAlert, ShieldCheck, HardDrive, Undo2, Boxes, Box } from 'lucide-react'
+import { Server as ServerIcon, FlaskConical, Power, Check, X, ArrowLeft, ArrowRight, RotateCcw, Loader2, Circle, Minus, AlertTriangle, ShieldAlert, ShieldCheck, HardDrive, Undo2, Boxes, Box } from 'lucide-react'
 import { MainShell } from '../components/Shell'
+import { ImportStepper } from '../components/ImportStepper'
 import { Badge, Button, Card, Dot } from '../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Load, RowsSkeleton } from '../components/feedback'
 import { IP } from '../components/IP'
@@ -34,12 +35,7 @@ export default function ImportDocker() {
   const job = useQuery(jobId ? `imports:${jobId}` : null, () => api.importJob(jobId!), { interval: 2000 })
   const st = job.data?.status
   const step = jobId ? (st === 'live' || st === 'cutting_over' || (st === 'rolled_back' && job.data?.steps.some(s => s.name.startsWith('Stop old') && s.status !== 'pending')) ? 4 : 3) : server ? 2 : 1
-  const steps = [
-    { n: 1, l: t('选择服务器', 'Server'), i: <ServerIcon size={15} /> },
-    { n: 2, l: t('扫描容器', 'Scan'), i: <ScanSearch size={15} /> },
-    { n: 3, l: t('演练', 'Rehearse'), i: <FlaskConical size={15} /> },
-    { n: 4, l: t('切换', 'Cut over'), i: <Power size={15} /> },
-  ]
+  const steps = [t('选择服务器', 'Server'), t('扫描容器', 'Scan'), t('演练', 'Rehearse'), t('切换', 'Cut over')]
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
@@ -47,27 +43,14 @@ export default function ImportDocker() {
           : <Link to={backTo('/import/docker', '/import')} state={BACK} className="inline-flex items-center gap-1.5 text-[13.5px] text-fg2 hover:text-fg"><ArrowLeft size={15} />{backLabel(backTo('/import/docker', '/import'))}</Link>}
         <div className="flex flex-wrap items-end justify-between gap-3 mt-2 mb-2">
           <div className="min-w-0">
-            <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{t('接管 Docker 容器', 'Adopt Docker containers')}<Badge tone="violet">{t('原地接管', 'In place')}</Badge></h1>
+            <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{t('接管 Docker 容器', 'Adopt Docker containers')}</h1>
             <p className="text-[13.5px] text-muted mt-2 max-w-[780px] leading-6">{t(
               '把你自己用 docker run 或 docker compose 启动的容器交给 Atoll 管理：同样的端口，同样的绑定目录和数据卷原地挂载，不复制数据。旧容器、镜像和卷永远保留，随时可以回滚。',
               'Hand the containers you started with docker run or docker compose to Atoll: same host ports, the same bind mounts and volumes mounted in place, no data copy. Your old containers, images and volumes are always kept, so you can roll back any time.')}</p>
           </div>
           {(jobId || server) && <Button onClick={() => keep({})}><X size={14} />{t('重新开始', 'Start over')}</Button>}
         </div>
-        <div className="mt-7 flex items-center gap-2 flex-wrap">
-          {steps.map((s, i) => {
-            const done = s.n < step, active = s.n === step
-            return (
-              <div key={s.n} className="flex items-center gap-2">
-                <div className={cx('h-10 pl-1.5 pr-3.5 rounded-lg inline-flex items-center gap-2 text-[13px] font-semibold border-2', active ? 'nav-active' : done ? 'border-[var(--edge)] bg-card text-fg' : 'border-dashed border-line2 text-muted')}>
-                  <span className={cx('h-6 w-6 rounded-[4px] grid place-items-center text-[12px] font-extrabold font-mono border-[1.5px] border-[var(--edge)]', done ? 'bg-t-green text-ink' : active ? 'bg-pick text-pick-ink' : 'bg-sunk text-muted')}>{done ? <Check size={13} strokeWidth={3} /> : s.n}</span>
-                  {s.l}
-                </div>
-                {i < steps.length - 1 && <ChevronRight size={15} className="text-dim" />}
-              </div>
-            )
-          })}
-        </div>
+        <ImportStepper steps={steps} step={step} />
         <div className="mt-7">
           {fromProject && !jobId && <div className="mb-5 rounded-lg border-2 border-dashed border-line2 px-4 py-3 text-[12.5px] text-muted leading-6">{t('接管会为每组容器新建一个 Atoll 项目（compose 项目名），不会并入当前项目；接管完成后可以在项目页继续管理。', 'Adoption creates a new Atoll project per container group (the compose project name); it is not merged into the current project.')}</div>}
           {!jobId && !server && <PickServer onPick={id => keep({ server: id })} />}
