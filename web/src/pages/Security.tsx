@@ -139,33 +139,36 @@ function UsernameCard({ twoFactor }: { twoFactor?: boolean }) {
   const { t } = useT()
   const me = useQuery('me', api.me).data
   const [name, setName] = useState<string>()
-  const [cur, setCur] = useState(''); const [code, setCode] = useState('')
+  const [cur, setCur] = useState('')
   const [err, setErr] = useState<string>()
+  const [ask, setAsk] = useState(false)
   const [busy, wrap] = useBusy()
   const value = name ?? me?.username ?? ''
-  const code6 = code.replace(/\s/g, '')
   const valid = /^[A-Za-z0-9_.@-]{1,64}$/.test(value.trim())
   const changed = !!me && value.trim() !== me.username
-  const ok = changed && valid && !!cur && (!twoFactor || /^\d{6}$/.test(code6))
-  const go = () => wrap(async () => {
+  const ok = changed && valid && !!cur
+  const go = (code?: string) => wrap(async (): Promise<string | null | undefined> => {
     setErr(undefined)
     try {
-      await api.changeUsername({ username: value.trim(), current_password: cur, ...(twoFactor ? { code: code6 } : {}) })
-      setName(undefined); setCur(''); setCode('')
+      await api.changeUsername({ username: value.trim(), current_password: cur, ...(code ? { code } : {}) })
+      setName(undefined); setCur('')
       invalidate('me')
       toast(t('用户名已修改，下次登录请用新用户名', 'Username changed; sign in with it next time'), 'ok')
+      return undefined
     } catch (x) {
       const e = x as ApiError
+      if (code !== undefined && (e.code === 'invalid_code' || e.code === 'code_required')) return t('验证码不正确或已过期', 'Wrong or expired code')
+      if (e.code === 'code_required') { setAsk(true); return null }
       if (e.code === 'invalid_credentials') setErr(t('当前密码不正确', 'Current password is wrong'))
-      else if (e.code === 'code_required') setErr(t('已启用两步验证，请输入验证码', '2FA is on — enter the code'))
       else if (e.status === 409) setErr(t('这个用户名已被占用', 'That username is taken'))
       else setErr(errText(t, x))
-      setCode('')
+      return null
     }
   })
+  const submit = () => { if (!ok || busy) return; if (twoFactor) setAsk(true); else go() }
   return (
     <Section icon={<UserRound size={17} />} title={t('用户名', 'Username')}>
-      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
+      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); submit() }}>
         <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-x-5 gap-y-4">
           <label>
             <div className="text-[13px] font-semibold mb-1.5">{t('登录用户名', 'Login name')}</div>
@@ -175,49 +178,49 @@ function UsernameCard({ twoFactor }: { twoFactor?: boolean }) {
             <div className="text-[13px] font-semibold mb-1.5">{t('当前密码', 'Current password')}</div>
             <TextInput type="password" autoComplete="current-password" className="w-full" value={cur} onChange={e => setCur(e.target.value)} />
           </label>}
-          {changed && twoFactor && <label>
-            <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
-            <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
-          </label>}
         </div>
         {changed && !valid && <div className="mt-3 text-[12.5px] text-muted font-semibold">{t('1–64 个字符：字母、数字、_ . @ -', '1–64 characters: letters, digits, _ . @ -')}</div>}
         {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
         {changed && <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}{t('保存用户名', 'Save username')}</Button>}
       </form>
+      {ask && <CodeDialog title={t('修改用户名', 'Change username')} onClose={() => setAsk(false)} onCode={async c => { const r = await go(c); if (r !== undefined && r !== null) return r; setAsk(false) }} />}
     </Section>
   )
 }
 
 function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
   const { t } = useT()
-  const [cur, setCur] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [code, setCode] = useState('')
+  const [cur, setCur] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState('')
   const [err, setErr] = useState<string>()
+  const [ask, setAsk] = useState(false)
   const [busy, wrap] = useBusy()
-  const code6 = code.replace(/\s/g, '')
   const tooShort = pw.length > 0 && pw.length < 8
   const tooLong = pw.length > 72
   const mismatch = pw2.length > 0 && pw !== pw2
   const same = pw.length > 0 && pw === cur
-  const ok = !!cur && pw.length >= 8 && !tooLong && pw === pw2 && !same && (!twoFactor || /^\d{6}$/.test(code6))
-  const go = () => wrap(async () => {
+  const ok = !!cur && pw.length >= 8 && !tooLong && pw === pw2 && !same
+  const go = (code?: string) => wrap(async (): Promise<string | null | undefined> => {
     setErr(undefined)
     try {
-      await api.changePassword({ current_password: cur, new_password: pw, ...(twoFactor ? { code: code6 } : {}) })
-      setCur(''); setPw(''); setPw2(''); setCode('')
+      await api.changePassword({ current_password: cur, new_password: pw, ...(code ? { code } : {}) })
+      setCur(''); setPw(''); setPw2('')
       invalidate('auth:sessions', 'me')
       toast(t('密码已修改，其他设备已退出', 'Password changed; other devices were signed out'), 'ok')
+      return undefined
     } catch (x) {
       const e = x as ApiError
+      if (code !== undefined && (e.code === 'invalid_code' || e.code === 'code_required')) return t('验证码不正确或已过期', 'Wrong or expired code')
+      if (e.code === 'code_required') { setAsk(true); return null }
       if (e.code === 'invalid_credentials') setErr(t('当前密码不正确', 'Current password is wrong'))
-      else if (e.code === 'code_required') setErr(t('已启用两步验证，请输入验证码', '2FA is on — enter the code'))
       else setErr(errText(t, x))
-      setCode('')
+      return null
     }
   })
+  const submit = () => { if (!ok || busy) return; if (twoFactor) setAsk(true); else go() }
   const hint = tooShort ? t('新密码至少 8 个字符', 'At least 8 characters') : tooLong ? t('新密码最多 72 个字符', 'At most 72 characters') : same ? t('新密码不能和当前密码相同', 'Must differ from the current password') : mismatch ? t('两次输入的新密码不一致', 'The new passwords do not match') : undefined
   return (
     <Section icon={<LockKeyhole size={17} />} title={t('修改密码', 'Change password')}>
-      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); if (ok && !busy) go() }}>
+      <form className="px-4 @2xl:px-6 py-5" onSubmit={e => { e.preventDefault(); submit() }}>
         <div className="text-[13.5px] text-fg2 leading-6">{t('修改后当前设备保持登录，其他设备上的会话会全部退出。', 'This device stays signed in; every other session is signed out.')}</div>
         <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-x-5 gap-y-4 mt-4">
           <label className="@2xl:col-span-2 @2xl:max-w-[calc(50%-10px)]">
@@ -232,16 +235,41 @@ function ChangePasswordCard({ twoFactor }: { twoFactor?: boolean }) {
             <div className="text-[13px] font-semibold mb-1.5">{t('确认新密码', 'Confirm new password')}</div>
             <TextInput type="password" autoComplete="new-password" className="w-full" value={pw2} onChange={e => setPw2(e.target.value)} />
           </label>
-          {twoFactor && <label className="@2xl:col-span-2 @2xl:max-w-[calc(50%-10px)]">
-            <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
-            <TextInput mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
-          </label>}
         </div>
         {hint && <div className="mt-3 text-[12.5px] text-muted font-semibold">{hint}</div>}
         {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
         <Button type="submit" variant="primary" className="mt-5" disabled={!ok || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}{t('修改密码', 'Change password')}</Button>
       </form>
+      {ask && <CodeDialog title={t('修改密码', 'Change password')} onClose={() => setAsk(false)} onCode={async c => { const r = await go(c); if (r !== undefined && r !== null) return r; setAsk(false) }} />}
     </Section>
+  )
+}
+
+/** Pops up for the 6-digit code when 2FA is on; `onCode` resolves to an error to show, or nothing to close. */
+function CodeDialog({ title, onClose, onCode }: { title: string; onClose: () => void; onCode: (code: string) => Promise<string | undefined> }) {
+  const { t } = useT()
+  const [code, setCode] = useState('')
+  const [err, setErr] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  const code6 = code.replace(/\s/g, '')
+  const ok = /^\d{6}$/.test(code6) && !busy
+  const go = async () => {
+    if (!ok) return
+    setBusy(true); setErr(undefined)
+    try { const e = await onCode(code6); if (e) { setErr(e); setCode('') } } finally { setBusy(false) }
+  }
+  return (
+    <Modal width={400} title={<><ShieldCheck size={17} className="text-accent" />{title}</>} onClose={onClose}
+      footer={<><Button size="sm" onClick={onClose}>{t('取消', 'Cancel')}</Button><Button size="sm" variant="primary" disabled={!ok} onClick={go}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}{t('验证', 'Verify')}</Button></>}>
+      <form onSubmit={ev => { ev.preventDefault(); go() }}>
+        <label className="block">
+          <div className="text-[13px] font-semibold mb-1.5">{t('两步验证码', '2FA code')}</div>
+          <TextInput autoFocus mono inputMode="numeric" autoComplete="one-time-code" maxLength={7} className="w-full tracking-[0.25em]" value={code} onChange={ev => setCode(ev.target.value.replace(/[^\d ]/g, ''))} placeholder="000000" />
+        </label>
+        {err && <div role="alert" className="mt-3 text-[12.5px] text-danger font-semibold flex items-center gap-1.5"><AlertTriangle size={14} />{err}</div>}
+        <button type="submit" hidden />
+      </form>
+    </Modal>
   )
 }
 

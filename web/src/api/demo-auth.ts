@@ -27,6 +27,8 @@ export function makeDemoAuth(demoUsers: ReturnType<typeof makeDemoUsers>) {
       if (P && m('auth/login/2fa')) { if (!/^\d{6}$|^[a-z2-9]{5}-?[a-z2-9]{5}$/i.test(String(body?.code ?? '').trim())) fail(401, 'invalid verification code'); return { id: 'usr_demo', username: 'demo' } }
       if (P && m('auth/username')) {
         if (!body?.current_password) throw new ApiError(401, 'current password is wrong', 'invalid_credentials')
+        if (demo2fa.enabled && !body?.code) throw new ApiError(401, 'two-factor code required', 'code_required')
+        if (demo2fa.enabled && !/^\d{6}$/.test(String(body?.code))) throw new ApiError(401, 'invalid verification code', 'invalid_code')
         const n = String(body?.username ?? '').trim()
         if (!/^[A-Za-z0-9_.@-]{1,64}$/.test(n)) fail(400, 'username must be 1-64 characters: letters, digits, _ . @ -')
         demoUser.name = n; return { username: n, auth: 'session', scope: 'session', permissions: [] }
@@ -48,7 +50,8 @@ export function makeDemoAuth(demoUsers: ReturnType<typeof makeDemoUsers>) {
       if (P && m('auth/2fa/recovery-codes')) { if (!body?.password || !body?.code) fail(401, 'wrong password or code'); demo2fa.left = 10; return { recovery_codes: demoCodes() } }
       if (P && m('auth/password')) {
         if (!body?.current_password) throw new ApiError(401, 'invalid credentials', 'invalid_credentials')
-        if (demo2fa.enabled && !/^\d{6}$/.test(String(body?.code ?? ''))) throw new ApiError(400, 'two-factor code required', 'code_required')
+        if (demo2fa.enabled && !body?.code) throw new ApiError(401, 'two-factor code required', 'code_required')
+        if (demo2fa.enabled && !/^\d{6}$/.test(String(body?.code))) throw new ApiError(401, 'invalid verification code', 'invalid_code')
         const np = String(body?.new_password ?? '')
         if (np.length < 8 || np.length > 72) fail(400, 'new password must be 8-72 characters')
         if (np === body.current_password) fail(400, 'new password must differ from the current one')

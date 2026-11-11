@@ -28,7 +28,7 @@ export function Modal({ title, onClose, children, width = 560, footer }: { title
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   return (
     <div className="fixed inset-0 z-50 bg-black/65 flex items-start justify-center pt-[12vh]" onClick={onClose}>
-      <div style={{ width }} className="rise surface bg-pop overflow-hidden max-h-[80vh] max-w-[calc(100vw-32px)] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" style={{ width }} className="rise surface bg-pop overflow-hidden max-h-[80vh] max-w-[calc(100vw-32px)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-5 h-14 border-b-2 border-[var(--edge)] shrink-0">
           <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex-1 min-w-0 flex items-center gap-2 [&>svg]:shrink-0"><span className="contents">{title}</span></div>
           <button onClick={onClose} className="text-muted hover:text-fg"><X size={18} /></button>
