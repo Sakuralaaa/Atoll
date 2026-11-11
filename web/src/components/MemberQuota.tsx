@@ -50,7 +50,7 @@ export function QuotaUsage({ quota, usage, compact }: { quota?: MemberQuota; usa
   )
 }
 
-/** Settings → 账号与安全, for a sub-account with a quota. */
+/** Settings → 账号, for a sub-account with a quota. */
 export function MyQuotaCard({ quota, usage }: { quota?: MemberQuota; usage?: MemberUsage }) {
   const { t } = useT()
   if (!quota || !usage) return null

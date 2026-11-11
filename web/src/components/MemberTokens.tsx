@@ -11,7 +11,7 @@ import { useT } from '../i18n'
 import { TokenDialog } from './TokenDialog'
 import { permInfo, permTone, permsOf } from '../api/tokenPerms'
 
-/** Settings → 账号与安全 → API 令牌, for a sub-account: its own tokens for the CLI, MCP or
+/** Settings → 账号 → API 令牌, for a sub-account: its own tokens for the CLI, MCP or
  *  scripts. GET /tokens answers a member with its own tokens only; each one is limited to the
  *  member's permissions and servers at every request (sub-accounts B2). */
 export default function MemberTokens() {

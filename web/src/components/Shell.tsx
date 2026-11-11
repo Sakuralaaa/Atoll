@@ -132,7 +132,7 @@ function UserRow() {
       <div className="ml-auto flex shrink-0 items-center gap-1"><LangButton /><ThemeToggle /></div>
       {open && (
         <div role="menu" className="rise surface bg-pop absolute left-0 bottom-full mb-2 w-[220px] p-1.5 z-50">
-          <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />{L("账户与安全")}</Link>
+          <Link role="menuitem" to="/settings/security" onClick={() => setOpen(false)} className={row}><KeyRound size={15} />{L("账号")}</Link>
           <Link role="menuitem" to={{ pathname: '/settings/security', hash: '#appearance' }} onClick={() => setOpen(false)} className={row}><Palette size={15} />{L("外观")}</Link>
           <Link role="menuitem" to="/settings" onClick={() => setOpen(false)} className={row}><SlidersHorizontal size={15} />{L("设置")}</Link>
           <div className="h-px bg-line my-1" />

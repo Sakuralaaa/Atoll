@@ -15,7 +15,7 @@ type Item = { id: string; group: string; label: string; hint?: string; icon: Rea
 
 const pages: [string, string][] = [
   ['/', L("项目")], ['/servers', L("服务器")], ['/control', L("中控")], ['/domains', L("域名")], ['/developer', L("连接")],
-  ['/confirmations', L("审批")], ['/import', L("迁移")], ['/settings', L("设置")], ['/settings/security', L("账户与安全")],
+  ['/confirmations', L("审批")], ['/import', L("迁移")], ['/settings', L("设置")], ['/settings/security', L("账号")],
 ]
 
 export function CommandPalette() {

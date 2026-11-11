@@ -25,11 +25,11 @@ import { cx } from '../components/ui-utils'
 
 const GROUPS: SettingsGroup[] = [
   { k: 'general', l: L("常规"), icon: <Link2 /> },
-  { k: 'domains', l: L("域名与证书"), icon: <Globe /> },
+  { k: 'domains', l: L("域名"), icon: <Globe /> },
   { k: 'notify', l: L("通知"), icon: <Bell /> },
-  { k: 'backup', l: L("备份存储"), icon: <Archive /> },
+  { k: 'backup', l: L("备份"), icon: <Archive /> },
   { k: 'network', l: L("网络"), icon: <Network /> },
-  { k: 'services', l: L("服务默认"), icon: <Cpu /> },
+  { k: 'services', l: L("服务"), icon: <Cpu /> },
   { k: 'display', l: L("显示"), icon: <Eye /> },
 ]
 
@@ -108,7 +108,7 @@ function Form({ s, part }: { s: S; part: 'panel' | 'domains' }) {
     const r = await run(() => api.putSettings(body), { ok: L("设置已保存"), invalidate: ['settings', 'domains'] })
     if (r) { setToken(''); setCert(''); setKey('') }
   })
-  const area = 'w-full rounded-lg field px-3.5 py-3 font-mono text-[12px] leading-5 outline-none text-fg placeholder:text-dim resize-y'
+  const area = 'w-full rounded-lg field px-3.5 py-2.5 font-mono text-[12px] leading-5 outline-none text-fg placeholder:text-dim resize-y'
   return (
     <>
       {part === 'panel' && <Section icon={<Link2 size={17} />} t={L("面板")}>
@@ -138,10 +138,10 @@ function Form({ s, part }: { s: S; part: 'panel' | 'domains' }) {
           </Field>
         ) : <>
           <Field t={L("Origin 证书")} right={<Saved on={s.has_origin_cert} />} d={L("PEM 格式，Cloudflare → SSL/TLS → 源服务器 → 创建证书")}>
-            <textarea rows={4} className={area} value={cert} onChange={e => setCert(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN CERTIFICATE-----'} spellCheck={false} />
+            <textarea rows={2} className={area} value={cert} onChange={e => setCert(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN CERTIFICATE-----'} spellCheck={false} />
           </Field>
           <Field t={L("私钥")} right={<KeyRound size={13} className="text-muted" />}>
-            <textarea rows={4} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
+            <textarea rows={2} className={area} value={key} onChange={e => setKey(e.target.value)} placeholder={s.has_origin_cert ? L("已设置，留空保持不变") : '-----BEGIN PRIVATE KEY-----'} spellCheck={false} />
             {!certPair && <div className="text-[12px] text-danger mt-1.5">{L("证书和私钥需要一起填写")}</div>}
             {certPair && !certLooksOk && <div className="text-[12px] text-danger mt-1.5">{L("看起来不是 PEM 格式")}</div>}
           </Field>

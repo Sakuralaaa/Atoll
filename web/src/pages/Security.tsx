@@ -30,8 +30,8 @@ export function SettingsTabs() {
   return (
     <div className="flex flex-wrap justify-center gap-2 mt-5 mb-6">
       {admin && <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>}
-      <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
-      {admin && <NavLink to="/settings/users" className={tab}>{t('子账号', 'Sub-accounts')}</NavLink>}
+      <NavLink to="/settings/security" className={tab}>{t('账号', 'Account')}</NavLink>
+      {admin && <NavLink to="/settings/users" className={tab}>{t('团队', 'Team')}</NavLink>}
     </div>
   )
 }
@@ -44,11 +44,11 @@ export default function Security() {
   const q = useQuery('auth:2fa', api.twoFactor)
   const member = me.data?.role === 'member'
   const groups: SettingsGroup[] = [
-    { k: 'profile', l: t('个人资料', 'Profile'), icon: <UserRound /> },
+    { k: 'profile', l: t('资料', 'Profile'), icon: <UserRound /> },
     { k: 'appearance', l: t('外观', 'Appearance'), icon: <Palette /> },
-    { k: 'login', l: t('密码与两步验证', 'Password & 2FA'), icon: <LockKeyhole /> },
-    { k: 'sessions', l: t('登录会话', 'Sessions'), icon: <MonitorSmartphone /> },
-    ...(member ? [{ k: 'quota', l: t('配额与令牌', 'Quota & tokens'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
+    { k: 'login', l: t('登录', 'Sign-in'), icon: <LockKeyhole /> },
+    { k: 'sessions', l: t('会话', 'Sessions'), icon: <MonitorSmartphone /> },
+    ...(member ? [{ k: 'quota', l: t('配额', 'Quota'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
   ]
   const g = useSettingsGroup(groups)
   return (
