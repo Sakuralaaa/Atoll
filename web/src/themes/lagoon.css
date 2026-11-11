@@ -1,21 +1,21 @@
-/* Lagoon: Atoll's block shape (2px borders, hard offset shadows) in an eye-care sage green with
-   softened contrast (no pure white or black). Was "zeabur" before v0.1.45: theme.ts and
+/* Lagoon: Atoll's block shape (2px borders, hard offset shadows) with Terminal-light greens by day and a
+   low-glare sage at night. Was "zeabur" before v0.1.45: theme.ts and
    public/theme-boot.js read the old id as this one. .light / .dark set the colours. */
 html[data-theme=lagoon] {
   --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent; --focus: var(--brand);
 }
 html[data-theme=lagoon].light {
   color-scheme: light;
-  --bg: #e4ede0; --side: #dbe6d6; --card: #edf3e9; --card2: #e2ebdd; --sunk: #e8f0e4; --pop: #eff5ec;
-  --line: #ccdac6; --line2: #b6c8af; --muted: #5d6d5c; --dim: #879685; --fg: #2e3a2f; --fg2: #435043;
-  --ov: #243024; --accent: #4f7f55; --accent-soft: #436d48; --tick-off: #d3dfce; --edge: #3d4e3f;
-  --brand: #5c8c62; --brand-ink: #f4f8f2; --brand-strong: #4f7f55; --grain: rgba(40,70,45,.08);
-  --ink: #2e3a2f; --danger: #b8574d; --warn: #9a6b22; --hi: #d2e3cb; --hi-ink: #2e4a31; --pick: #5c8c62;
-  --pick-ink: #f4f8f2; --nav-bg: #d2e2cc; --nav-ink: #2b3d2d; --t-amber: #efe0b0; --t-red: #ecc8c1;
-  --t-green: #cfe4c6; --t-violet: #d8d6e8; --t-orange: #edd5b8; --t-note: #f1e9cf; --t-ok: #d6e8cf;
-  --t-wash: rgba(250,253,248,.7); --t-field: #edf3e9; --glow-l: transparent; --grid-l: transparent;
-  --ok: #4f8a57; --ok-strong: #427549; --amber: #9a6b22; --off: #a9b5a5;
-  --c-1: #5b7fa8; --c-2: #8a76ad; --c-3: #4f8a57; --c-4: #4b8c8a; --c-5: #a88a35; --c-6: #b8574d; --c-7: #bc7a45;
+  --bg: #eef3ea; --side: #e6ede1; --card: #f7faf4; --card2: #edf3e8; --sunk: #f2f7ee; --pop: #f7faf4;
+  --line: #bccdb2; --line2: #7f9a74; --muted: #41603a; --dim: #6c8762; --fg: #0e2a0b; --fg2: #1d3d18;
+  --ov: #0e2a0b; --accent: #16781a; --accent-soft: #0f5c12; --tick-off: #d6e2cf; --edge: #2c4a27;
+  --brand: #1a7f1f; --brand-ink: #f2fff0; --brand-strong: #16781a; --grain: rgba(20,90,20,.08);
+  --ink: #0b2109; --danger: #c62828; --warn: #8a5000; --hi: #d4e8cc; --hi-ink: #0b2109; --pick: #1a7f1f;
+  --pick-ink: #f2fff0; --nav-bg: #d4e8cc; --nav-ink: #0b2109; --t-amber: #f3dc8a; --t-red: #f2b8b0;
+  --t-green: #b8e6a8; --t-violet: #cfc3ee; --t-orange: #f2c79a; --t-note: #f4ecc6; --t-ok: #d7efcc;
+  --t-wash: rgba(255,255,255,.6); --t-field: #f7faf4; --glow-l: transparent; --grid-l: transparent;
+  --ok: #1a7f1f; --ok-strong: #16781a; --amber: #8a5000; --off: #9fb396;
+  --c-1: #3b6fb0; --c-2: #7a5cb0; --c-3: #1a7f1f; --c-4: #1f7f88; --c-5: #a07d12; --c-6: #c62828; --c-7: #c0631e;
 }
 html[data-theme=lagoon].dark {
   color-scheme: dark;

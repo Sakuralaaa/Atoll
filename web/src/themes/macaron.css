@@ -1,33 +1,33 @@
-/* Macaron: Atoll's block shape (2px borders, hard offset shadows) in rose pink on blush, with
+/* Macaron: Atoll's block shape (2px borders, hard offset shadows) in rose red on blush, with
    softened contrast; one accent colour, status tints stay muted. .light / .dark set the colours. */
 html[data-theme=macaron] {
   --topline: transparent; --topline-h: 0px; --topline-edge: 0 solid transparent; --focus: var(--brand);
 }
 html[data-theme=macaron].light {
   color-scheme: light;
-  --bg: #f8eff2; --side: #f3e6eb; --card: #fcf6f8; --card2: #f6eaef; --sunk: #faf2f5; --pop: #fdf8fa;
-  --line: #ead9e0; --line2: #dcc4ce; --muted: #775f69; --dim: #a28c95; --fg: #3d2c33; --fg2: #56434b;
-  --ov: #5a2238; --accent: #b84a72; --accent-soft: #a03f63; --tick-off: #efdfe6; --edge: #5c3b49;
-  --brand: #c95c84; --brand-ink: #fff7fa; --brand-strong: #b84a72; --grain: rgba(110,50,75,.08);
-  --ink: #3d2c33; --danger: #c0443f; --warn: #a06a1c; --hi: #f3d3df; --hi-ink: #6a2643; --pick: #c95c84;
-  --pick-ink: #fff7fa; --nav-bg: #f2d9e3; --nav-ink: #5a2238; --t-amber: #f3e2b4; --t-red: #f3cbcf;
+  --bg: #f9eef2; --side: #f4e3ea; --card: #fdf6f9; --card2: #f8e8ef; --sunk: #fbf1f5; --pop: #fdf8fa;
+  --line: #ecd4de; --line2: #dcb9c7; --muted: #7a5566; --dim: #a5838f; --fg: #3d2430; --fg2: #573a47;
+  --ov: #5e1533; --accent: #c2185b; --accent-soft: #a3134c; --tick-off: #f1dbe4; --edge: #5a1f38;
+  --brand: #d81b60; --brand-ink: #fff5f8; --brand-strong: #c2185b; --grain: rgba(170,30,80,.08);
+  --ink: #3d2430; --danger: #c0392b; --warn: #a06a1c; --hi: #f8c9da; --hi-ink: #5e1533; --pick: #d81b60;
+  --pick-ink: #fff5f8; --nav-bg: #f8d0df; --nav-ink: #5e1533; --t-amber: #f3e2b4; --t-red: #f3c5cd;
   --t-green: #d3e9d6; --t-violet: #e2d8ef; --t-orange: #f3d6be; --t-note: #f7ecd5; --t-ok: #dcefe0;
-  --t-wash: rgba(255,250,252,.75); --t-field: #fcf6f8; --sh-m: rgba(110,50,75,.12);
-  --sh-m2: rgba(110,50,75,.08); --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
-  --ok: #4f8a5e; --ok-strong: #42744f; --amber: #a06a1c; --off: #bfaab3;
-  --c-1: #6f86b8; --c-2: #9a78b4; --c-3: #4f8a5e; --c-4: #4f8f95; --c-5: #b08a35; --c-6: #c95c84; --c-7: #c4784a;
+  --t-wash: rgba(255,250,252,.75); --t-field: #fdf6f9; --sh-m: rgba(110,30,60,.12);
+  --sh-m2: rgba(110,30,60,.08); --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
+  --ok: #4f8a5e; --ok-strong: #42744f; --amber: #a06a1c; --off: #c4a8b4;
+  --c-1: #5f7fc0; --c-2: #9a6cc0; --c-3: #4f8a5e; --c-4: #3f8f98; --c-5: #b08a35; --c-6: #d81b60; --c-7: #d0703a;
 }
 html[data-theme=macaron].dark {
   color-scheme: dark;
-  --bg: #221b1f; --side: #1e181b; --card: #2b2328; --card2: #322930; --sunk: #251e22; --pop: #2e262b;
-  --line: #3b3137; --line2: #4d4148; --muted: #a8949e; --dim: #7f6d76; --fg: #e3d5db; --fg2: #c9b9c0;
-  --ov: #f0e2e8; --accent: #e08aa8; --accent-soft: #e9a3bb; --tick-off: #352b31; --edge: #100b0d;
-  --brand: #d97a9b; --brand-ink: #2a1019; --brand-strong: #e08aa8; --grain: rgba(240,200,215,.05);
-  --ink: #2a1019; --danger: #e0827a; --warn: #d4b06a; --hi: #d97a9b; --hi-ink: #2a1019; --pick: #d97a9b;
-  --pick-ink: #2a1019; --nav-bg: #3e2c35; --nav-ink: #f0e2e8; --t-amber: #e2cc93; --t-red: #e2aaa9;
+  --bg: #231a1e; --side: #1f171b; --card: #2d2228; --card2: #34282f; --sunk: #261d22; --pop: #30252b;
+  --line: #3e3038; --line2: #52404a; --muted: #ab929e; --dim: #826c77; --fg: #e6d3db; --fg2: #ccb6c0;
+  --ov: #f3e0e8; --accent: #f06292; --accent-soft: #f48fb1; --tick-off: #382b32; --edge: #100a0d;
+  --brand: #e94f86; --brand-ink: #2a0a17; --brand-strong: #f06292; --grain: rgba(240,180,205,.05);
+  --ink: #2a0a17; --danger: #e0827a; --warn: #d4b06a; --hi: #e94f86; --hi-ink: #2a0a17; --pick: #e94f86;
+  --pick-ink: #2a0a17; --nav-bg: #462a37; --nav-ink: #f3e0e8; --t-amber: #e2cc93; --t-red: #e2aaa9;
   --t-green: #b8d4bc; --t-violet: #cbbfdd; --t-orange: #e0bb96; --t-note: #e6dabb; --t-ok: #c6dccb;
   --t-wash: rgba(255,255,255,.55); --t-field: #f0e7eb; --sh-m: rgba(0,0,0,.35); --sh-m2: rgba(0,0,0,.2);
   --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
-  --ok: #8fbb98; --ok-strong: #7ca986; --amber: #d4b06a; --off: #574a51;
-  --c-1: #8ea6cc; --c-2: #b49cc8; --c-3: #8fbb98; --c-4: #84b4b6; --c-5: #d1b36e; --c-6: #d97a9b; --c-7: #d6a07a;
+  --ok: #8fbb98; --ok-strong: #7ca986; --amber: #d4b06a; --off: #594a52;
+  --c-1: #8ea6cc; --c-2: #b49cc8; --c-3: #8fbb98; --c-4: #84b4b6; --c-5: #d1b36e; --c-6: #e94f86; --c-7: #d6a07a;
 }
