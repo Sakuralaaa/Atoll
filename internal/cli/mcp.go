@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -337,13 +338,20 @@ func mcpTools(app *App) []server.ServerTool {
 				}
 				return c.ListServices(ctx, p.ID)
 			}),
-		t(tool("service_deploy", "Deploy an image, or build from a GitHub repository, to a project: creates the service or updates its image/source/ports/env and redeploys. Give exactly one of image and repo. "+
+		t(tool("service_deploy", "Deploy an image, or build from a git repository (GitHub, GitLab, Gitea/Forgejo or any git server; with or without a Dockerfile), to a project: creates the service or updates its image/source/ports/env and redeploys. Give exactly one of image and repo. "+
 			"A git service is built on its own server (follow it with deployment_build_logs); an unchanged repo is redeployed, which builds the branch head. "+
-			"Private repositories need a token that can only be set in the panel or with `atoll deploy --git-token-env`, never here. "+
-			"A NEW git service's response contains its GitHub webhook URL and secret once: pass them to the user. Same as `atoll deploy`.", false, false,
+			"Private repositories need a token or SSH deploy key that can only be set in the panel or with `atoll deploy --git-token-env` / `--ssh-key-file`, never here. "+
+			"A NEW git service's response contains its push webhook URL and secret once: pass them to the user (or set poll_interval_sec when the forge cannot reach Atoll). Same as `atoll deploy`.", false, false,
 			mcp.WithString("project", mcp.Required(), mcp.Description("project name or id")),
 			mcp.WithString("image", mcp.Description("image ref, e.g. ghcr.io/me/app:sha-abc (or give repo)")),
-			mcp.WithString("repo", mcp.Description("build from this GitHub repository instead: https://github.com/OWNER/REPO")),
+			mcp.WithString("repo", mcp.Description("build from this git repository instead: https://host/OWNER/REPO or git@host:OWNER/REPO")),
+			mcp.WithString("provider", mcp.Description("github, gitlab, gitea (also Forgejo) or git (default: from the host)")),
+			mcp.WithNumber("poll_interval_sec", mcp.Description("check the branch for new commits every N seconds (60-86400; 0 = off) instead of a webhook")),
+			mcp.WithString("builder", mcp.Description("auto (default: Dockerfile if present, otherwise generated), dockerfile or generated")),
+			mcp.WithString("stack", mcp.Description("stack of a generated build: node, bun, python, go, static (default: detected)")),
+			mcp.WithString("install_command", mcp.Description("install command of a generated build")),
+			mcp.WithString("build_command", mcp.Description("build command of a generated build")),
+			mcp.WithString("start_command", mcp.Description("start command of a generated build")),
 			mcp.WithString("branch", mcp.Description("git branch (default main)")),
 			mcp.WithString("context", mcp.Description("build context: subdirectory of the repository (default root)")),
 			mcp.WithString("dockerfile", mcp.Description("Dockerfile path inside the context (default Dockerfile)")),
@@ -926,7 +934,7 @@ func mcpGitSource(r mcp.CallToolRequest) (*api.GitSource, error) {
 	repo := strings.TrimSpace(r.GetString("repo", ""))
 	args := r.GetArguments()
 	if repo == "" {
-		for _, k := range []string{"branch", "context", "dockerfile", "build_args"} {
+		for _, k := range []string{"branch", "context", "dockerfile", "build_args", "provider", "builder", "stack", "install_command", "build_command", "start_command"} {
 			if v, ok := args[k]; ok && v != nil && v != "" {
 				return nil, fmt.Errorf("%s needs repo", k)
 			}
@@ -936,7 +944,15 @@ func mcpGitSource(r mcp.CallToolRequest) (*api.GitSource, error) {
 	if _, ok := args["token"]; ok {
 		return nil, fmt.Errorf("a git token cannot be passed through MCP; ask the user to set it in the panel or with `atoll deploy --git-token-env`")
 	}
-	g := GitFlags{Repo: repo, Branch: r.GetString("branch", ""), Context: r.GetString("context", ""), Dockerfile: r.GetString("dockerfile", "")}
+	if _, ok := args["ssh_key"]; ok {
+		return nil, fmt.Errorf("an SSH deploy key cannot be passed through MCP; ask the user to set it in the panel or with `atoll deploy --ssh-key-file`")
+	}
+	g := GitFlags{Repo: repo, Branch: r.GetString("branch", ""), Context: r.GetString("context", ""), Dockerfile: r.GetString("dockerfile", ""),
+		Provider: r.GetString("provider", ""), Builder: r.GetString("builder", ""), Stack: r.GetString("stack", ""),
+		InstallCmd: r.GetString("install_command", ""), BuildCmd: r.GetString("build_command", ""), StartCmd: r.GetString("start_command", "")}
+	if n := r.GetInt("poll_interval_sec", 0); n != 0 {
+		g.Poll = strconv.Itoa(n)
+	}
 	src, err := g.Source(func(string) string { return "" })
 	if err != nil {
 		return nil, fmt.Errorf("%s", strings.ReplaceAll(err.Error(), "--git", "repo"))

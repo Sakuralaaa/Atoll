@@ -63,6 +63,7 @@ func (b *Builder) RemoveService(ctx context.Context, serviceID string) {
 	if validID(serviceID) != nil {
 		return
 	}
+	os.Remove(filepath.Join(b.Paths.Root, "build-known-hosts", serviceID)) // TOFU pin (build_git.go)
 	imgs, err := b.RT.ListImages(ctx, BuildImageRepo+strings.ToLower(serviceID))
 	if err != nil {
 		b.Log.Warn("list build images of removed service", "service", serviceID, "err", err)

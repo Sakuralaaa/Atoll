@@ -103,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/deployments/{dep}/logs", lvlRead, s.handleDeploymentLogs)
 	a("GET "+v+"/services/{id}/webhook", lvlRead, s.handleGetWebhook)
 	a("POST "+v+"/services/{id}/webhook/rotate", needDeploySession, s.handleRotateWebhook)
+	a("POST "+v+"/services/{id}/git/detect", lvlDeploy, s.handleGitDetect) // git_detect.go
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", needExec, s.handleExec)
@@ -184,6 +185,8 @@ func (s *Server) Handler() http.Handler {
 
 	// builds from source (git.go): GitHub push webhook, verified by HMAC instead of a login
 	open("POST "+v+"/hooks/github/{service_id}", s.handleGitHubWebhook)
+	open("POST "+v+"/hooks/gitlab/{service_id}", s.handleGitLabWebhook) // git_hooks.go
+	open("POST "+v+"/hooks/gitea/{service_id}", s.handleGiteaWebhook)   // Gitea and Forgejo
 
 	// live events
 	a("GET "+v+"/events", lvlRead, s.handleEvents)

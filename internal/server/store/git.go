@@ -12,18 +12,29 @@ import (
 // GitRow is a service's git source with its secrets decrypted (server-internal only).
 type GitRow struct {
 	api.GitSource
-	Token         string // plaintext GitHub token ("" = none)
+	Token         string // plaintext token ("" = none)
+	SSHKey        string // plaintext private key ("" = none)
 	WebhookSecret string // plaintext
 	LastImage     string
 	LastNode      string
+	LastPollAt    time.Time
+}
+
+// GitSecrets are the write-only parts of a git source for PutServiceGit: nil keeps the
+// stored value, "" clears it.
+type GitSecrets struct {
+	Token  *string
+	SSHKey *string
 }
 
 // GetServiceGit returns the git source of a service, ErrNotFound when it pulls an image.
 func (s *Store) GetServiceGit(ctx context.Context, serviceID string) (*GitRow, error) {
 	var g GitRow
-	var args, tok, hook string
-	err := s.DB.QueryRowContext(ctx, `SELECT repo, branch, context, dockerfile, build_args, token, webhook_secret, last_commit, last_image, last_node
-		FROM service_git WHERE service_id=?`, serviceID).Scan(&g.Repo, &g.Branch, &g.Context, &g.Dockerfile, &args, &tok, &hook, &g.LastCommit, &g.LastImage, &g.LastNode)
+	var args, tok, hook, key, detected, polled string
+	err := s.DB.QueryRowContext(ctx, `SELECT repo, branch, context, dockerfile, build_args, token, webhook_secret, last_commit, last_image, last_node,
+		provider, username, ssh_key, known_hosts, poll_interval_sec, builder, stack, install_cmd, build_cmd, start_cmd, detected, last_poll_at
+		FROM service_git WHERE service_id=?`, serviceID).Scan(&g.Repo, &g.Branch, &g.Context, &g.Dockerfile, &args, &tok, &hook, &g.LastCommit, &g.LastImage, &g.LastNode,
+		&g.Provider, &g.Username, &key, &g.KnownHosts, &g.PollIntervalSec, &g.Builder, &g.Stack, &g.InstallCommand, &g.BuildCommand, &g.StartCommand, &detected, &polled)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -36,26 +47,53 @@ func (s *Store) GetServiceGit(ctx context.Context, serviceID string) (*GitRow, e
 			return nil, err
 		}
 	}
+	if key != "" {
+		if g.SSHKey, err = s.Box.Decrypt(key); err != nil {
+			return nil, err
+		}
+	}
 	if hook != "" {
 		if g.WebhookSecret, err = s.Box.Decrypt(hook); err != nil {
 			return nil, err
 		}
 	}
+	if detected != "" {
+		var d api.GitDetected
+		if json.Unmarshal([]byte(detected), &d) == nil {
+			g.Detected = &d
+		}
+	}
+	if polled != "" {
+		g.LastPollAt = parseTS(polled)
+	}
 	g.HasToken = g.Token != ""
-	g.GitSource.Token = ""
+	g.HasSSHKey = g.SSHKey != ""
+	g.GitSource.Token, g.GitSource.SSHKey = "", ""
 	return &g, nil
 }
 
-// PutServiceGit creates or replaces a service's git source. token: nil keeps the stored one,
-// "" clears it. webhookSecret "" keeps the stored one. The last-build fields are kept.
-func (s *Store) PutServiceGit(ctx context.Context, serviceID string, g api.GitSource, token *string, webhookSecret string) error {
-	tokEnc, hookEnc := "", ""
-	var err error
-	if token != nil && *token != "" {
-		if tokEnc, err = s.Box.Encrypt(*token); err != nil {
-			return err
+// PutServiceGit creates or replaces a service's git source. Secrets: nil keeps the stored
+// one, "" clears it. webhookSecret "" keeps the stored one. The last-build fields are kept.
+func (s *Store) PutServiceGit(ctx context.Context, serviceID string, g api.GitSource, sec GitSecrets, webhookSecret string) error {
+	enc := func(v *string) (string, int, error) {
+		if v == nil {
+			return "", 1, nil
 		}
+		if *v == "" {
+			return "", 0, nil
+		}
+		e, err := s.Box.Encrypt(*v)
+		return e, 0, err
 	}
+	tokEnc, keepTok, err := enc(sec.Token)
+	if err != nil {
+		return err
+	}
+	keyEnc, keepKey, err := enc(sec.SSHKey)
+	if err != nil {
+		return err
+	}
+	hookEnc := ""
 	if webhookSecret != "" {
 		if hookEnc, err = s.Box.Encrypt(webhookSecret); err != nil {
 			return err
@@ -65,19 +103,63 @@ func (s *Store) PutServiceGit(ctx context.Context, serviceID string, g api.GitSo
 	if args == nil {
 		args = map[string]string{}
 	}
-	keepTok := 0
-	if token == nil {
-		keepTok = 1
+	provider, builder := g.Provider, g.Builder
+	if provider == "" {
+		provider = "github"
 	}
-	_, err = s.DB.ExecContext(ctx, `INSERT INTO service_git(service_id, repo, branch, context, dockerfile, build_args, token, webhook_secret, updated_at)
-		VALUES(?,?,?,?,?,?,?,?,?)
+	if builder == "" {
+		builder = "auto"
+	}
+	_, err = s.DB.ExecContext(ctx, `INSERT INTO service_git(service_id, repo, branch, context, dockerfile, build_args, token, webhook_secret, updated_at,
+			provider, username, ssh_key, known_hosts, poll_interval_sec, builder, stack, install_cmd, build_cmd, start_cmd)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(service_id) DO UPDATE SET repo=excluded.repo, branch=excluded.branch, context=excluded.context,
 			dockerfile=excluded.dockerfile, build_args=excluded.build_args,
 			token=CASE WHEN ?=1 THEN service_git.token ELSE excluded.token END,
+			ssh_key=CASE WHEN ?=1 THEN service_git.ssh_key ELSE excluded.ssh_key END,
 			webhook_secret=CASE WHEN excluded.webhook_secret='' THEN service_git.webhook_secret ELSE excluded.webhook_secret END,
+			provider=excluded.provider, username=excluded.username, known_hosts=excluded.known_hosts,
+			poll_interval_sec=excluded.poll_interval_sec, builder=excluded.builder, stack=excluded.stack,
+			install_cmd=excluded.install_cmd, build_cmd=excluded.build_cmd, start_cmd=excluded.start_cmd,
 			updated_at=excluded.updated_at`,
-		serviceID, g.Repo, g.Branch, g.Context, g.Dockerfile, mustJSON(args), tokEnc, hookEnc, TS(time.Now()), keepTok)
+		serviceID, g.Repo, g.Branch, g.Context, g.Dockerfile, mustJSON(args), tokEnc, hookEnc, TS(time.Now()),
+		provider, g.Username, keyEnc, g.KnownHosts, g.PollIntervalSec, builder, g.Stack, g.InstallCommand, g.BuildCommand, g.StartCommand,
+		keepTok, keepKey)
 	return mapErr(err)
+}
+
+// SetGitDetected stores what the last build or detection found (nil clears it).
+func (s *Store) SetGitDetected(ctx context.Context, serviceID string, d *api.GitDetected) error {
+	v := ""
+	if d != nil {
+		v = mustJSON(d)
+	}
+	_, err := s.DB.ExecContext(ctx, `UPDATE service_git SET detected=? WHERE service_id=?`, v, serviceID)
+	return err
+}
+
+// SetGitPolled records when the branch head of a polled service was last checked.
+func (s *Store) SetGitPolled(ctx context.Context, serviceID string, at time.Time) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE service_git SET last_poll_at=? WHERE service_id=?`, TS(at), serviceID)
+	return err
+}
+
+// PolledGitServices lists the ids of services whose git source polls its branch.
+func (s *Store) PolledGitServices(ctx context.Context) ([]string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT service_id FROM service_git WHERE poll_interval_sec>0 ORDER BY service_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // DeleteServiceGit makes the service pull its image again.

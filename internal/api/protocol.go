@@ -29,6 +29,8 @@ const (
 	MsgMesh         = "mesh"          // MeshPayload: full cross-server service mesh of this node; agent persists it and runs forwarders
 	MsgBuild        = "build"         // BuildPayload: clone + docker build on this worker (one at a time); result Output = JSON BuildResult; log via MsgBuildLog
 	MsgUpgrade      = "upgrade"       // UpgradePayload: replace the agent binary (verified) and restart; result Output = JSON UpgradeStarted; outcome via MsgUpgradeResult
+	MsgGitHead      = "git.head"      // GitHeadPayload: ls-remote the branch head (polling); result Output = JSON GitHeadResult (agents with BuildSources)
+	MsgBuildDetect  = "build.detect"  // BuildPayload: fetch and detect the stack only; result Output = JSON GitDetected (agents with BuildSources)
 
 	// agent -> server
 	MsgHello         = "hello"          // HelloPayload, first frame after connect
@@ -82,12 +84,45 @@ type BuildPayload struct {
 	TimeoutSec   int               `json:"timeout_sec"` // the build itself (default 1200)
 	QueueSec     int               `json:"queue_sec"`   // max wait for this server's build slot (default = TimeoutSec)
 	Keep         int               `json:"keep"`        // build images kept per service (default 3)
+
+	// Sources beyond GitHub+token+Dockerfile (agents with HelloPayload.BuildSources). A
+	// payload that uses none of them is what older agents already understand.
+	Provider       string `json:"provider,omitempty"` // github, gitlab, gitea, git
+	Username       string `json:"username,omitempty"`
+	SSHKey         string `json:"ssh_key,omitempty"`     // secret: private key for SSH URLs
+	KnownHosts     string `json:"known_hosts,omitempty"` // "" = TOFU, pinned per service on the node
+	Builder        string `json:"builder,omitempty"`     // auto, dockerfile, generated ("" = dockerfile behaviour of old agents)
+	Stack          string `json:"stack,omitempty"`
+	InstallCommand string `json:"install_command,omitempty"`
+	BuildCommand   string `json:"build_command,omitempty"`
+	StartCommand   string `json:"start_command,omitempty"`
+	Port           int    `json:"port,omitempty"` // the service's first port (generated images listen on it via $PORT)
+}
+
+// GitHeadPayload (MsgGitHead) asks the service's server for the head commit of a branch
+// (git ls-remote, polling). Result Output = JSON GitHeadResult.
+type GitHeadPayload struct {
+	ServiceID  string `json:"service_id"`
+	Repo       string `json:"repo"`
+	Branch     string `json:"branch"`
+	Provider   string `json:"provider,omitempty"`
+	Username   string `json:"username,omitempty"`
+	Token      string `json:"token,omitempty"`
+	SSHKey     string `json:"ssh_key,omitempty"`
+	KnownHosts string `json:"known_hosts,omitempty"`
+}
+
+// GitHeadResult is the Output of MsgGitHead.
+type GitHeadResult struct {
+	Commit string `json:"commit"`
 }
 
 // BuildResult is the Output of MsgBuild.
 type BuildResult struct {
 	Image  string `json:"image"`  // local tag, e.g. atoll-build/svc_abc:0123456789ab
 	Commit string `json:"commit"` // full commit sha built
+	// Detected: how the image was built when the repo had no Dockerfile (new agents).
+	Detected *GitDetected `json:"detected,omitempty"`
 }
 
 // BuildLogEvent carries build output lines of one deployment.
@@ -191,6 +226,9 @@ type HelloPayload struct {
 	// MeshToken: this agent's mesh forwarders understand per-project tokens
 	// (MeshExport.Token/RequireToken, MeshImport.Token).
 	MeshToken bool `json:"mesh_token,omitempty"`
+	// BuildSources: this agent builds from any git server (https/ssh, MsgGitHead,
+	// MsgBuildDetect) and without a Dockerfile (BuildPayload.Builder).
+	BuildSources bool `json:"build_sources,omitempty"`
 }
 
 type ContainerState struct {

@@ -419,6 +419,7 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 	hcancel()
 	hello.SelfUpgrade = a.Upgrades != nil
 	hello.MeshToken = a.MeshToken
+	hello.BuildSources = a.Builds != nil // any git server, ssh, MsgGitHead, MsgBuildDetect, generated builds
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
 		return false, err
 	}
@@ -589,6 +590,28 @@ func (a *Agent) Handle(ctx context.Context, msgType string, raw json.RawMessage)
 			return "", err
 		}
 		res, err := a.Builds.Build(ctx, p)
+		if err != nil {
+			return "", err
+		}
+		b, _ := json.Marshal(res)
+		return string(b), nil
+	case api.MsgGitHead:
+		p, err := decode[api.GitHeadPayload](raw)
+		if err != nil {
+			return "", err
+		}
+		res, err := a.Builds.Head(ctx, p)
+		if err != nil {
+			return "", err
+		}
+		b, _ := json.Marshal(res)
+		return string(b), nil
+	case api.MsgBuildDetect:
+		p, err := decode[api.BuildPayload](raw)
+		if err != nil {
+			return "", err
+		}
+		res, err := a.Builds.Detect(ctx, p)
 		if err != nil {
 			return "", err
 		}

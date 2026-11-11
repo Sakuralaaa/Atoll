@@ -14,7 +14,7 @@ import { parseEnvText, quoteEnvValue } from '../api/dotenv'
 
 type Step = 'pick' | 'image' | 'db'
 const items: { k: Step | 'docker'; i: React.ReactNode; t: string; d: string }[] = [
-  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: L("Docker 容器镜像 / GitHub 仓库"), d: L("从 Docker Hub、GHCR、私有仓库部署，或用 Dockerfile 从 GitHub 源码构建") },
+  { k: 'image', i: <Box size={20} className="text-[#3b9cff]" />, t: L("Docker 容器镜像 / Git 仓库"), d: L("从 Docker Hub、GHCR、私有仓库部署，或从 GitHub、GitLab、Gitea 等 Git 仓库源码构建（无 Dockerfile 也可）") },
   { k: 'db', i: <Database size={20} className="text-[#38bdf8]" />, t: L("数据库"), d: L("PostgreSQL · MySQL · Redis · MongoDB，自动生成密码与连接变量") },
   // not a step here: opens the adoption wizard (/import/docker) on the project's server
   { k: 'docker', i: <Boxes size={20} className="text-[#a78bfa]" />, t: L("从已有 Docker 容器接管"), d: L("服务器上自己用 docker run / compose 跑的容器，原地交给 Atoll 管理，不复制数据") },
@@ -201,7 +201,7 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
   }
   if (created?.webhook) return (
     <div className="p-5">
-      <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex items-center gap-2 mb-1"><Webhook size={17} />{t('配置 GitHub Webhook', 'Set up the GitHub webhook')}</div>
+      <div className="text-[15px] font-extrabold italic tracking-[-0.02em] flex items-center gap-2 mb-1"><Webhook size={17} />{t('配置推送 Webhook', 'Set up the push webhook')}</div>
       <div className="text-[13px] text-muted mb-4 leading-6">{t('服务已创建，正在构建。添加下面的 Webhook 后，推送代码会自动构建并部署。密钥只在这里完整显示一次。', 'The service is created and building. Add this webhook so pushes build and deploy automatically. The secret is shown here once.')}</div>
       <WebhookSetup wh={created.webhook} secret={created.webhook.secret} />
       <div className="flex justify-end gap-2 mt-5"><Button variant="primary" onClick={() => onDone(created)}>{t('我已保存', 'Done')}</Button></div>
@@ -290,7 +290,7 @@ function ImageForm({ projectId, serverId, onDone, onWebhook }: { projectId: stri
         <button type="button" className={addBtn} onClick={() => setCfgs(r => [...r, { path: '', content: '' }])}><Plus size={14} />{L("添加配置文件")}</button>
       </Section>
 
-      {source === 'git' && <div className="text-[12px] text-dim mt-2 mb-3">{t('在服务所在的服务器上执行 docker build，需要仓库里有 Dockerfile（不支持自动识别）。', "Runs docker build on the service's server; the repo needs a Dockerfile (no auto-detection).")}</div>}
+      {source === 'git' && <div className="text-[12px] text-dim mt-2 mb-3">{t('在服务所在的服务器上执行 docker build；仓库没有 Dockerfile 时自动识别 Node / Bun / Python / Go / 静态站点并生成。', "Runs docker build on the service's server; without a Dockerfile the stack (Node, Bun, Python, Go, static site) is detected and one is generated.")}</div>}
       <div className="flex items-center justify-end gap-2 mt-3">
         {(formErr || (source === 'git' && git.repo && gitErr)) && <span className="mr-auto text-[12.5px] text-danger">{formErr || gitErr}</span>}
         <Button variant="primary" disabled={!ready || busy} onClick={submit}>{busy && <Loader2 size={14} className="animate-spin" />}{source === 'git' ? t('构建并部署', 'Build and deploy') : L("部署")}</Button>

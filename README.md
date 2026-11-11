@@ -33,7 +33,7 @@
 > **状态：pre-alpha。** 构建和测试在 CI 中通过（含 `-race`），但还没有在大规模生产环境中验证。先在不重要的业务上试用，并开启备份。
 
 > [!TIP]
-> 手感参考 Zeabur：从镜像或 GitHub 仓库部署，图形化管理域名、环境变量、卷、备份和迁移。已经在用 Zeabur 或自己 `docker run` 的服务，可以[原地接管](#迁移与接管)。
+> 手感参考 Zeabur：从镜像或 Git 仓库部署，图形化管理域名、环境变量、卷、备份和迁移。已经在用 Zeabur 或自己 `docker run` 的服务，可以[原地接管](#迁移与接管)。
 
 ## 目录
 
@@ -115,7 +115,7 @@ flowchart TB
 
 | 模块 | 能力 |
 | :-- | :-- |
-| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub 仓库源码构建（push webhook 自动部署）；环境变量跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署；新服务默认内存上限 1024 MB |
+| 部署 | Docker Hub / GHCR / 私有仓库镜像；GitHub / GitLab / Gitea / 任意 Git 仓库源码构建（push webhook 或轮询自动部署，无 Dockerfile 自动识别）；环境变量跨服务引用；卷、端口、域名；一键回滚；无卷、无宿主机端口的服务零停机部署；新服务默认内存上限 1024 MB |
 | 模板 | PostgreSQL / MySQL / Redis / MongoDB |
 | 流量 | 每台机器自己的 Caddy 入口；多根域名；绑定子域名时自动建 Cloudflare 记录，橙云 / 灰云一键切换，Origin CA 或 ACME 证书 |
 | 迁移 | 服务在机器之间迁移（卷 + 数据库导出恢复）；Zeabur 原地接管；接管 `docker run` / compose 启动的容器 |
@@ -206,10 +206,16 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 ```bash
 atoll deploy --git https://github.com/OWNER/REPO [--branch main] [--context DIR] [--dockerfile F] \
   [--build-arg K=V] [--git-token-env GH_TOKEN] -p PROJECT
+GL_TOKEN=... atoll deploy --git https://gitlab.com/group/app --git-token-env GL_TOKEN -p PROJECT
+atoll deploy --git git@git.example.com:me/app.git --ssh-key-file ~/.ssh/deploy_key --poll 5m -p PROJECT
 atoll logs SERVICE --build -f
 ```
 
-构建在服务所在的机器上进行，不在中控上。新服务只在创建时打印一次 GitHub webhook 的 URL 和 secret（`atoll services webhook SERVICE` 可再查看 URL）。同一个 push 重复投递（GitHub 重试或重放）只会构建一次。
+支持 GitHub、GitLab、Gitea / Forgejo 和任意 Git 服务器（https 或 SSH）。私有仓库用 Token（https）或只读部署密钥（SSH）；都只写不读、加密保存。SSH 不填 known_hosts 时，第一次构建记住主机密钥，之后变了会拒绝。仓库地址指向本机、内网链路本地或云元数据地址（如 `169.254.169.254`）会被拒绝，构建机先解析域名再把 git 固定到检查过的地址。
+
+构建在服务所在的机器上进行，不在中控上；中控本身不连接你的仓库。新服务只在创建时打印一次推送 webhook 的 URL 和 secret（`atoll services webhook SERVICE` 可再查看 URL），GitHub、GitLab、Gitea/Forgejo 各有对应地址。Webhook 到不了面板时（内网 Git 服务器），用 `--poll` 让服务所在机器定时检查分支。同一个 push 重复投递只会构建一次。
+
+**没有 Dockerfile 也能构建**：默认 `--builder auto`，仓库有 Dockerfile 就用，没有就自动识别 Node（npm / pnpm / yarn）、Bun、Python、Go 或静态站点并生成 Dockerfile（构建日志里能看到生成的内容，面板「检测构建方式」可预览）。识别不准时用 `--stack` 和 `--install-cmd` / `--build-cmd` / `--start-cmd` 覆盖；程序监听 `$PORT`（服务的第一个端口）。暂不集成 Railpack / Nixpacks：它们需要在每台机器上额外安装 BuildKit 前端和较大的二进制，内置识别已覆盖常见技术栈。用到这些新能力需要把节点的 atoll-agent 升级到同一版本，旧 agent 会得到「升级 agent」的提示，原有的 GitHub + Dockerfile 服务不受影响。
 
 **资源限制**：构建默认在一个独立的 BuildKit 容器里运行（buildx `docker-container` driver），内存上限为本机内存的 75%，CPU 权重是普通容器的 1/4，空闲时能用满，忙时让给业务。磁盘剩余不足 3 GiB 时拒绝开始构建，每次构建后把构建缓存修剪到 10 GB。机器上没有 buildx，或拉不到 `moby/buildkit` 镜像时，会自动退回普通 `docker build`，并在构建日志里说明。
 

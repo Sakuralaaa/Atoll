@@ -50,7 +50,7 @@ export const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('sv
 export const dateTime = (iso?: string) => (iso ? new Date(iso).toLocaleString('sv-SE', { hour12: false }).slice(0, 16) : '—')
 export const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-export const triggerText: Record<string, string> = { create: L("创建服务"), redeploy: L("重新部署"), env: L("修改环境变量"), rollback: L("回滚"), import: L("从 Zeabur 导入"), migrate: L("迁移服务器"), 'image-update': L("镜像更新"), webhook: L("GitHub 推送") }
+export const triggerText: Record<string, string> = { create: L("创建服务"), redeploy: L("重新部署"), env: L("修改环境变量"), rollback: L("回滚"), import: L("从 Zeabur 导入"), migrate: L("迁移服务器"), 'image-update': L("镜像更新"), webhook: L("代码推送"), poll: L("轮询到新提交") }
 export const deployStatusText: Record<string, string> = { queued: L("排队中"), building: L("构建中"), pulling: L("拉取镜像"), starting: L("启动中"), running: L("运行中"), failed: L("失败"), superseded: L("已替换") }
 export const latestDeploy = (ds?: Deployment[]) => ds?.slice().sort((a, b) => b.started_at.localeCompare(a.started_at))[0]
 

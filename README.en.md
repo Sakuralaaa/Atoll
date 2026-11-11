@@ -33,7 +33,7 @@
 > **Status: pre-alpha.** Builds and tests pass in CI (including `-race`), but Atoll has not been proven in large production deployments. Try it on workloads that don't matter yet, and turn on backups.
 
 > [!TIP]
-> If you know Zeabur, it will feel familiar: deploy from an image or a GitHub repo, and manage domains, environment variables, volumes, backups and migrations in a UI. Services already running on Zeabur, or started with your own `docker run`, can be [adopted in place](#migrate-and-adopt).
+> If you know Zeabur, it will feel familiar: deploy from an image or a git repo, and manage domains, environment variables, volumes, backups and migrations in a UI. Services already running on Zeabur, or started with your own `docker run`, can be [adopted in place](#migrate-and-adopt).
 
 ## Contents
 
@@ -114,7 +114,7 @@ The control plane schedules and records; deploys, builds and backups run on the 
 
 | Area | What you get |
 | :-- | :-- |
-| Deploy | Images from Docker Hub / GHCR / private registries; builds from GitHub repos (auto-deploy on push webhook); env vars that reference other services; volumes, ports, domains; one-click rollback; zero-downtime deploys for services without volumes or host ports; new services default to a 1024 MB memory limit |
+| Deploy | Images from Docker Hub / GHCR / private registries; builds from GitHub / GitLab / Gitea / any git repo (auto-deploy on push webhook or polling; stack detection without a Dockerfile); env vars that reference other services; volumes, ports, domains; one-click rollback; zero-downtime deploys for services without volumes or host ports; new services default to a 1024 MB memory limit |
 | Templates | PostgreSQL / MySQL / Redis / MongoDB |
 | Traffic | Caddy ingress on every machine; multiple root domains; Cloudflare records created when you bind a subdomain, one-click proxied / DNS-only, Origin CA or ACME certificates |
 | Migration | Move services between machines (volumes + database dump and restore); adopt Zeabur projects in place; adopt containers started with `docker run` / compose |
@@ -208,7 +208,16 @@ atoll deploy --git https://github.com/OWNER/REPO [--branch main] [--context DIR]
 atoll logs SERVICE --build -f
 ```
 
-Builds run on the machine that hosts the service, never on the control plane. A new service prints its GitHub webhook URL and secret once, at creation (`atoll services webhook SERVICE` shows the URL again). A push delivered more than once (GitHub retries or redeliveries) builds only once.
+GitHub, GitLab, Gitea / Forgejo and any git server (https or SSH) work. Private repositories use a token (https) or a read-only deploy key (SSH, `--ssh-key-file`); both are write-only and stored encrypted. Without `known_hosts` the first host key seen is pinned and a later change is refused. Repo hosts that point at the machine itself, link-local or cloud metadata addresses (such as `169.254.169.254`) are refused, and the build server resolves the host once and pins git to the checked address.
+
+```bash
+GL_TOKEN=... atoll deploy --git https://gitlab.com/group/app --git-token-env GL_TOKEN -p PROJECT
+atoll deploy --git git@git.example.com:me/app.git --ssh-key-file ~/.ssh/deploy_key --poll 5m -p PROJECT
+```
+
+Builds run on the machine that hosts the service, never on the control plane, and the control plane never connects to your repository. A new service prints its push webhook URL and secret once, at creation (`atoll services webhook SERVICE` shows the URL again); GitHub, GitLab and Gitea/Forgejo each get their own endpoint. When webhooks can't reach the panel (a git server on a private network), `--poll` makes the service's machine check the branch on a schedule. A push delivered more than once builds only once.
+
+**No Dockerfile needed**: with the default `--builder auto` the repo's Dockerfile is used when there is one; otherwise the stack is detected (Node with npm / pnpm / yarn, Bun, Python, Go or a static site) and a Dockerfile is generated (shown in the build log; "Detect build" in the panel previews it). Override with `--stack` and `--install-cmd` / `--build-cmd` / `--start-cmd`; the app listens on `$PORT` (the service's first port). Railpack / Nixpacks are not integrated yet: they need an extra BuildKit frontend and a large binary on every machine, and the built-in detector covers the common stacks. These features need the node's atoll-agent upgraded to the same version; an older agent answers with an upgrade hint, and existing GitHub + Dockerfile services keep working.
 
 **Resource limits**: by default builds run in a dedicated BuildKit container (buildx `docker-container` driver), capped at 75% of the machine's memory with a quarter of a normal container's CPU weight: it can use the whole CPU when idle and yields to services when busy. A build is refused when less than 3 GiB of disk is free, and the build cache is pruned to 10 GB after every build. Without buildx, or when the `moby/buildkit` image can't be pulled, it falls back to plain `docker build` and says so in the build log.
 

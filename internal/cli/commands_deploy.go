@@ -68,10 +68,13 @@ func newDeployCmd(app *App) *cobra.Command {
 	var ports, envs, domains []string
 	var gitFlags GitFlags
 	cmd := &cobra.Command{
-		Use: "deploy [IMAGE] -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER] [--git URL [--branch B] [--context DIR] [--dockerfile F] [--build-arg K=V] [--git-token-env VAR]]",
+		Use: "deploy [IMAGE] -p PROJECT [--name NAME] [--port [name:]PORT[/proto]] [--env K=V] [--domain HOST] [--server SERVER] [--git URL [--branch B] [--context DIR] [--dockerfile F] [--build-arg K=V] [--git-token-env VAR] [--ssh-key-file F] [--poll 5m] [--builder auto|dockerfile|generated] [--stack S] [--start-cmd CMD]]",
 		Example: "  atoll deploy ghcr.io/me/app:v2 -p shop --port web:3000/http --domain app.example.com\n" +
 			"  atoll deploy --git https://github.com/me/app --branch main -p shop --port 3000\n" +
 			"  GH_TOKEN=... atoll deploy --git https://github.com/me/private -p shop --git-token-env GH_TOKEN\n" +
+			"  GL_TOKEN=... atoll deploy --git https://gitlab.com/me/app -p shop --git-token-env GL_TOKEN --port 3000\n" +
+			"  atoll deploy --git git@git.example.com:me/app.git --ssh-key-file ~/.ssh/deploy_key --poll 5m -p shop\n" +
+			"  atoll deploy --git https://codeberg.org/me/site -p shop --builder generated --stack static\n" +
 			"  atoll deploy --template postgres db -p shop\n" +
 			"  atoll deploy --template mongodb -p shop -e MONGO_USERNAME=app",
 		Long: "Creates the service when the project has none by that name, otherwise updates it and redeploys.\n" +
@@ -80,12 +83,15 @@ func newDeployCmd(app *App) *cobra.Command {
 			"to move an existing service use `atoll services migrate`.\n" +
 			"--template creates a database service from a template instead (same as `atoll templates deploy`);\n" +
 			"the optional argument is then the service name (default: the template kind).\n" +
-			"--git builds the service from a GitHub repository on the service's own server instead of\n" +
-			"pulling IMAGE (give one or the other). A new git service prints its GitHub push webhook URL\n" +
-			"and secret once. For an existing service a changed source is updated, an unchanged one is\n" +
-			"redeployed (which builds the branch head). A private repo's token is read from the\n" +
-			"environment variable named by --git-token-env, never from a flag value.",
-		Short: "Deploy an image, a GitHub repo or a database template: create the service, or update it and redeploy",
+			"--git builds the service from a git repository (GitHub, GitLab, Gitea/Forgejo or any git\n" +
+			"server, https or SSH) on the service's own server instead of pulling IMAGE (give one or the\n" +
+			"other). A new git service prints its push webhook URL and secret once; --poll checks the\n" +
+			"branch instead when the forge cannot reach Atoll. Without a Dockerfile the stack (Node, Bun,\n" +
+			"Python, Go, static) is detected and a Dockerfile generated (--builder, --stack, --*-cmd).\n" +
+			"For an existing service a changed source is updated, an unchanged one is redeployed (which\n" +
+			"builds the branch head). A private repo's token is read from the environment variable named\n" +
+			"by --git-token-env and a deploy key from --ssh-key-file, never from a flag value.",
+		Short: "Deploy an image, a git repo or a database template: create the service, or update it and redeploy",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if template != "" || gitFlags.Repo != "" {
 				return cobra.MaximumNArgs(1)(cmd, args)
@@ -136,7 +142,7 @@ func newDeployCmd(app *App) *cobra.Command {
 				}
 			} else {
 				if gitFlags.set(cmd) {
-					return fmt.Errorf("--branch, --context, --dockerfile, --build-arg and --git-token-env need --git URL")
+					return fmt.Errorf("--branch, --context, --dockerfile, --build-arg, --git-token-env and the other git flags need --git URL")
 				}
 				image = args[0]
 				if name == "" {

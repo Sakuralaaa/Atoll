@@ -188,6 +188,44 @@ type GitSource struct {
 	HasToken   bool   `json:"has_token"`
 	ClearToken bool   `json:"clear_token,omitempty"`
 	LastCommit string `json:"last_commit,omitempty"` // read-only: commit of the last successful build
+
+	// Provider is the forge: "github", "gitlab", "gitea" (also Forgejo) or "git" (any other
+	// server). Inferred from the repo host when empty; it picks the webhook and the default
+	// username. Repo may then be any https:// URL or an SSH URL (ssh://git@host/path or
+	// git@host:path).
+	Provider string `json:"provider,omitempty"`
+	// Username for https token auth (default "oauth2" on GitLab, "x-access-token" on GitHub,
+	// "git" otherwise).
+	Username string `json:"username,omitempty"`
+	// SSHKey is a private deploy key for SSH repo URLs. Write-only like Token (HasSSHKey says
+	// whether one is stored; ClearSSHKey removes it).
+	SSHKey      string `json:"ssh_key,omitempty"`
+	HasSSHKey   bool   `json:"has_ssh_key,omitempty"`
+	ClearSSHKey bool   `json:"clear_ssh_key,omitempty"`
+	// KnownHosts pins the SSH host key (known_hosts lines). Empty: the build server trusts the
+	// key it sees first and pins it for this service (TOFU).
+	KnownHosts string `json:"known_hosts,omitempty"`
+	// PollIntervalSec > 0 checks the branch head every so often (60–86400) from the
+	// service's server and builds new commits, for forges whose webhooks cannot reach Atoll.
+	PollIntervalSec int `json:"poll_interval_sec,omitempty"`
+	// Builder: "auto" (default: the Dockerfile when the repo has one, otherwise a generated
+	// one), "dockerfile" (require it) or "generated" (always detect the stack and generate).
+	Builder string `json:"builder,omitempty"`
+	// Stack overrides detection for generated builds: node, bun, python, go, static.
+	Stack          string `json:"stack,omitempty"`
+	InstallCommand string `json:"install_command,omitempty"`
+	BuildCommand   string `json:"build_command,omitempty"`
+	StartCommand   string `json:"start_command,omitempty"`
+	// Detected is read-only: what the last build (or POST .../git/detect) found.
+	Detected *GitDetected `json:"detected,omitempty"`
+}
+
+// GitDetected is the stack detection of a source build without a Dockerfile.
+type GitDetected struct {
+	Stack      string `json:"stack,omitempty"`      // node, bun, python, go, static ("" = a Dockerfile was used)
+	Reason     string `json:"reason,omitempty"`     // why: "package.json with pnpm-lock.yaml"
+	Dockerfile string `json:"dockerfile,omitempty"` // the generated Dockerfile (or the path of the repo's own)
+	Commit     string `json:"commit,omitempty"`     // commit it was detected on
 }
 
 // GitWebhook is GET /api/v1/services/{id}/webhook: configure it on GitHub as a push webhook
@@ -200,6 +238,9 @@ type GitWebhook struct {
 	ContentType string `json:"content_type"` // "application/json"
 	Events      string `json:"events"`       // "push"
 	Branch      string `json:"branch"`       // only pushes to this branch deploy
+	// Provider is the forge the URL is for: github (X-Hub-Signature-256; also any git server
+	// that signs like GitHub), gitlab (secret token: X-Gitlab-Token) or gitea (Gitea/Forgejo HMAC).
+	Provider string `json:"provider,omitempty"`
 }
 
 // DeploymentLogLine is one line of a deployment's build log.
@@ -296,7 +337,7 @@ type Deployment struct {
 	ServerID    string     `json:"server_id"`
 	ImageDigest string     `json:"image_digest,omitempty"`
 	Status      string     `json:"status"`           // "queued" | "building" | "pulling" | "starting" | "running" | "failed" | "superseded"
-	Trigger     string     `json:"trigger"`          // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update" | "webhook"
+	Trigger     string     `json:"trigger"`          // "create" | "redeploy" | "env" | "rollback" | "import" | "migrate" | "image-update" | "webhook" | "poll"
 	Commit      string     `json:"commit,omitempty"` // git services: the commit built (set once the build finished)
 	Message     string     `json:"message,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
