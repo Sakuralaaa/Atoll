@@ -24,24 +24,28 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
     <div>
       <div className="text-[15px] font-semibold mb-1">{L("Zeabur 托管的是哪台服务器？")}</div>
       <div className="text-[13px] text-muted mb-4">{L("选择已经装好 Atoll Agent 的那台 VPS，下一步会读取本机 k3s 里的 Zeabur 项目。只读，不会改动任何东西。")}</div>
-      <div className="grid grid-cols-1 @5xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start [&>*]:min-w-0">
+      <div className="space-y-5 [&>*]:min-w-0">
       <div>
         {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <RowsSkeleton n={3} />}
-        {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={L("还没有连上的服务器")} desc={L("先在右侧生成安装命令，在 Zeabur 托管的 VPS 上运行。")} />}
+        {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={L("还没有连上的服务器")} desc={L("先在下方生成安装命令，在 Zeabur 托管的 VPS 上运行。")} />}
         {!!list.length && <Card className="divide-y divide-line overflow-hidden">
           {list.map(s => <ServerPick key={s.id} s={s} onPick={() => onPick(s.id)} />)}
         </Card>}
       </div>
-      <Card className="p-5">
-        <div className="text-[13px] font-semibold flex items-center gap-2"><Box size={16} />{L("还没装 Agent？")}</div>
-        <div className="text-[13px] text-muted mt-1.5 leading-6">{L("在 Zeabur 托管的 VPS 上以 root 运行安装命令。Agent 与 Zeabur 的 k3s 并存，不占 80/443，直到你确认切换。")}</div>
-        <div className="mt-4">
-          {tok ? <>
-            <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{tok.command}</CodeBlock></div>
-            <div className="mt-3 flex items-center text-[12px] text-dim">{L("一次性令牌 ·")} {new Date(tok.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} {L("前有效")}<span className="ml-auto"><CopyButton text={tok.command} label={L("复制命令")} /></span></div>
-          </> : <Button variant="primary" disabled={busy} onClick={() => wrap(async () => { const t = await run(api.joinToken); if (t) setTok(t) })}>{busy && <Loader2 size={14} className="animate-spin" />}{L("生成安装命令")}</Button>}
+      <Card className="px-4 @2xl:px-5 py-4">
+        <div className="flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-3">
+          <Box size={20} className="text-muted shrink-0" />
+          <div className="flex-1 min-w-[min(100%,240px)]">
+            <div className="text-[14px] font-semibold">{L("还没装 Agent？")}</div>
+            <div className="text-[12.5px] text-muted mt-0.5 leading-5">{L("在 Zeabur 托管的 VPS 上以 root 运行安装命令。Agent 与 Zeabur 的 k3s 并存，不占 80/443，直到你确认切换。")}</div>
+          </div>
+          {!tok && <Button className="shrink-0 ml-auto" disabled={busy} onClick={() => wrap(async () => { const t = await run(api.joinToken); if (t) setTok(t) })}>{busy && <Loader2 size={14} className="animate-spin" />}{L("生成安装命令")}</Button>}
         </div>
+        {tok && <div className="mt-4">
+          <div className="[&>div]:whitespace-pre-wrap [&>div]:break-all"><CodeBlock>{tok.command}</CodeBlock></div>
+          <div className="mt-3 flex items-center text-[12px] text-dim">{L("一次性令牌 ·")} {new Date(tok.expires_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} {L("前有效")}<span className="ml-auto"><CopyButton text={tok.command} label={L("复制命令")} /></span></div>
+        </div>}
       </Card>
       </div>
     </div>

@@ -73,18 +73,18 @@ function PickServer({ onPick }: { onPick: (id: string) => void }) {
       {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
       {!q.data && !q.error && <RowsSkeleton n={3} />}
       {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={t('还没有连上的服务器', 'No servers yet')} desc={t('先在「服务器」页添加一台。', 'Add one on the Servers page first.')} />}
-      <div className="space-y-3">
+      {!!list.length && <Card className="divide-y divide-line overflow-hidden">
         {list.map(s => {
           const on = s.status === 'online'
           return (
-            <button key={s.id} disabled={!on} onClick={() => onPick(s.id)} className={cx('w-full text-left rounded-2xl surface px-4 @2xl:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2', on ? 'surface-hover' : 'opacity-60')}>
+            <button key={s.id} disabled={!on} onClick={() => onPick(s.id)} className={cx('w-full text-left px-4 @2xl:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2', on ? 'hover:bg-ov/[0.03]' : 'opacity-55 cursor-not-allowed')}>
               <Dot status={s.status} />
               <div className="flex-1 min-w-[min(100%,180px)]"><div className="text-[15px] font-semibold truncate">{s.name}</div><div className="text-[13px] text-muted mt-0.5"><IP className="font-mono" v={s.public_ipv4} /></div></div>
               <span className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px] shrink-0 ml-auto">{t('扫描', 'Scan')}<ArrowRight size={14} /></span>
             </button>
           )
         })}
-      </div>
+      </Card>}
     </>
   )
 }
