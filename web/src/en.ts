@@ -1,6 +1,9 @@
 // English strings for L('中文'). Keys are the Chinese source text; generated from the UI and kept in sync by hand.
 // Placeholders {0}, {1}… are filled by L's extra arguments.
 const en: Record<string, string> = {
+ "常规": "General",
+ "域名与证书": "Domains & TLS",
+ "服务默认": "Service defaults",
  "旧中控导出": "Export on the old control plane",
  "新机器恢复": "Restore on the new machine",
  "agent 重连": "Agents reconnect",

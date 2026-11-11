@@ -1,6 +1,5 @@
 import { L } from '../i18n'
-import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import { AlertTriangle, Archive, Check, CheckCircle2, Download, Eye, KeyRound, Loader2, PlugZap, Save, Trash2, XCircle } from 'lucide-react'
 import { Badge, Button, Card, Hint } from './ui'
 import { ConfirmDialog, CopyButton, TextInput } from './feedback'
@@ -17,12 +16,9 @@ type Secret = { password: string; repository: string; first: boolean }
 export default function BackupStorageSettings({ s }: { s: Settings }) {
   // Lives outside the keyed form so the once-only password survives the settings refetch after save.
   const [secret, setSecret] = useState<Secret | undefined>()
-  const ref = useRef<HTMLDivElement>(null)
-  const loc = useLocation()
-  useEffect(() => { if (loc.hash === '#backup') ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [loc.hash])
   const key = [s.backup_endpoint, s.backup_bucket, s.backup_prefix, s.backup_region, s.has_backup_credentials, s.has_backup_password].join('|')
   return (
-    <div ref={ref} id="backup" className="mt-8 mb-8 scroll-mt-6">
+    <div id="backup" className="mt-8 mb-8 scroll-mt-6">
       <div className="text-[15px] font-semibold flex items-center gap-2">
         <Archive size={17} />{L("备份存储")}
         <Hint>{L("任何 S3 兼容存储：Cloudflare R2、Backblaze B2、AWS S3、MinIO。每台服务器的 Agent 用 restic 加密后直接上传，数据不经过中控。密钥只写不读，留空表示保持原值。")}</Hint>

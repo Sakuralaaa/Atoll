@@ -51,3 +51,15 @@ test('control migration shows one step at a time', async ({ page }) => {
   await page.getByTestId('control-migrate-steps').getByRole('button', { name: '关闭旧中控' }).click()
   await expect(step).toContainText('systemctl disable --now atoll-server')
 })
+
+test('settings show one group at a time', async ({ page }) => {
+  await page.goto('/?demo=1#/settings')
+  const group = page.getByTestId('settings-group')
+  await expect(group).toContainText('面板地址')
+  await expect(group).not.toContainText('Zone ID')
+  await page.getByTestId('settings-nav').getByRole('button', { name: '域名与证书' }).click()
+  await expect(group).toContainText('Zone ID')
+  await expect(group).not.toContainText('面板地址')
+  await page.goto('/?demo=1#/settings#backup')
+  await expect(page.getByTestId('settings-nav').getByRole('button', { name: '备份存储' })).toHaveAttribute('aria-current', 'page')
+})

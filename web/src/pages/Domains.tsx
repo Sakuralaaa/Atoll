@@ -49,7 +49,7 @@ export default function Domains() {
                 <div className="text-[13px] text-muted mt-1">{cfOk ? L("Cloudflare · {0} · 绑定根域名下的域名时自动创建 DNS 记录", settings.tls_mode === 'acme' ? L('ACME 证书') : L('Origin CA 证书')) : L("在设置里添加根域名和 Cloudflare API 令牌后，绑定域名时会自动建 DNS 记录。")}</div>
               </div>
               {cfOk ? <div className="@3xl:text-right text-[13px] text-muted shrink-0 tnum @max-3xl:w-full @max-3xl:pl-[68px]">{q.data?.length ?? '—'} {L("条记录由 Atoll 管理")}</div>
-                : <Link to="/settings"><Button><Settings2 size={14} />{L("去设置")}<ArrowRight size={14} /></Button></Link>}
+                : <Link to="/settings#domains"><Button><Settings2 size={14} />{L("去设置")}<ArrowRight size={14} /></Button></Link>}
             </div>
             {cfOk && <TokenPerms c={perms} />}
           </Card>

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import { Check, Moon, Palette, Sun } from 'lucide-react'
 import { Card } from './ui'
 import { cx } from './ui-utils'
@@ -70,9 +69,6 @@ export default function AppearanceSettings() {
   const { t, lang } = useT()
   const { mode, style } = useLook()
   const [saving, setSaving] = useState<Style>()
-  const ref = useRef<HTMLDivElement>(null)
-  const loc = useLocation()
-  useEffect(() => { if (loc.hash === '#appearance') ref.current?.scrollIntoView({ block: 'start' }) }, [loc.hash])
   const i = lang === 'en' ? 1 : 0
 
   const pick = async (s: Style) => {
@@ -89,7 +85,7 @@ export default function AppearanceSettings() {
   }
 
   return (
-    <div ref={ref} id="appearance" className="mb-8 scroll-mt-6">
+    <div id="appearance" className="mb-8 scroll-mt-6">
       <div className="text-[15px] font-semibold flex flex-wrap items-center gap-2 mb-3">
         <span className="shrink-0"><Palette size={17} /></span>{t('外观', 'Appearance')}
         <span className="ml-auto inline-flex rounded-lg field p-[3px] gap-0.5" role="radiogroup" aria-label={t('明暗模式', 'Light or dark')}>

@@ -1,4 +1,7 @@
 import { useRef, useState } from 'react'
+import { SettingsLayout } from '../components/SettingsNav'
+import { useSettingsGroup, type SettingsGroup } from '../components/settings-group'
+import { Palette, MonitorSmartphone, Gauge, Bell } from 'lucide-react'
 import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
@@ -39,22 +42,28 @@ export default function Security() {
   const { t } = useT()
   const me = useQuery('me', api.me)
   const q = useQuery('auth:2fa', api.twoFactor)
+  const member = me.data?.role === 'member'
+  const groups: SettingsGroup[] = [
+    { k: 'profile', l: t('个人资料', 'Profile'), icon: <UserRound /> },
+    { k: 'appearance', l: t('外观', 'Appearance'), icon: <Palette /> },
+    { k: 'login', l: t('密码与两步验证', 'Password & 2FA'), icon: <LockKeyhole /> },
+    { k: 'sessions', l: t('登录会话', 'Sessions'), icon: <MonitorSmartphone /> },
+    ...(member ? [{ k: 'quota', l: t('配额与令牌', 'Quota & tokens'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
+  ]
+  const g = useSettingsGroup(groups)
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
-        <AvatarCard />
-        <AppearanceSettings />
-        <UsernameCard twoFactor={q.data?.enabled} />
-        <ChangePasswordCard twoFactor={q.data?.enabled} />
-        {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
-        {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
-        {q.data && <TwoFactorCard st={q.data} />}
-        <Sessions />
-        {me.data?.role === 'member' && <MyQuotaCard quota={me.data.quota} usage={me.data.usage} />}
-        {me.data?.role === 'member' && <MemberTokens />}
-        {me.data?.role === 'member' && <NotificationSettings mine />}
+        <SettingsLayout groups={groups} active={g}>
+          {g === 'profile' && <><AvatarCard /><UsernameCard twoFactor={q.data?.enabled} /></>}
+          {g === 'appearance' && <AppearanceSettings />}
+          {g === 'login' && <>
+            <ChangePasswordCard twoFactor={q.data?.enabled} />
+            {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
+            {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
+            {q.data && <TwoFactorCard st={q.data} />}
         <Card className="p-5 mt-8 flex gap-3 items-start [overflow-wrap:anywhere]">
           <Terminal size={17} className="text-muted mt-0.5 shrink-0" />
           <div className="text-[12.5px] text-muted leading-6">
@@ -63,6 +72,11 @@ export default function Security() {
             {t('，它会关闭两步验证并退出所有会话，然后用密码登录再重新启用。', ' — it turns 2FA off and signs the user out everywhere; then sign in with the password and enable it again.')}
           </div>
         </Card>
+          </>}
+          {g === 'sessions' && <Sessions />}
+          {g === 'quota' && member && <><MyQuotaCard quota={me.data!.quota} usage={me.data!.usage} /><MemberTokens /></>}
+          {g === 'notify' && member && <NotificationSettings mine />}
+        </SettingsLayout>
       </div>
     </MainShell>
   )

@@ -1,6 +1,8 @@
 import { L } from '../i18n'
 import { useState } from 'react'
-import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save, Sparkles } from 'lucide-react'
+import { Loader2, Globe, ShieldCheck, Link2, Check, KeyRound, Save, Sparkles, Bell, Archive, Network, Cpu, Eye } from 'lucide-react'
+import { SettingsLayout } from '../components/SettingsNav'
+import { useSettingsGroup, type SettingsGroup } from '../components/settings-group'
 import { MainShell } from '../components/Shell'
 import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
@@ -21,10 +23,21 @@ import RootDomainsSettings from '../components/RootDomainsSettings'
 import { SettingsTabs } from './Security'
 import { cx } from '../components/ui-utils'
 
+const GROUPS: SettingsGroup[] = [
+  { k: 'general', l: L("常规"), icon: <Link2 /> },
+  { k: 'domains', l: L("域名与证书"), icon: <Globe /> },
+  { k: 'notify', l: L("通知"), icon: <Bell /> },
+  { k: 'backup', l: L("备份存储"), icon: <Archive /> },
+  { k: 'network', l: L("网络"), icon: <Network /> },
+  { k: 'services', l: L("服务默认"), icon: <Cpu /> },
+  { k: 'display', l: L("显示"), icon: <Eye /> },
+]
+
 export default function Settings() {
   const canSettings = useCan('settings')
   const q = useQuery(canSettings ? 'settings' : null, api.settings)
   // members only have the account tab (notes/subaccounts.md)
+  const g = useSettingsGroup(GROUPS)
   if (!canSettings) return <Navigate replace to="/settings/security" />
   return (
     <MainShell>
@@ -33,16 +46,15 @@ export default function Settings() {
         <SettingsTabs />
         {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
         {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
-        {q.data && <Form key={JSON.stringify(q.data)} s={q.data} />}
-        {q.data && <RootDomainsSettings />}
-        {q.data && <NotificationSettings />}
-        {q.data && <ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} />}
-        {q.data && <GeoIPSettings s={q.data} />}
-        <PrivacySettings />
-        {q.data && <ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} />}
-        {q.data && <BackupStorageSettings s={q.data} />}
-        {q.data && <NetworkSettings s={q.data} />}
-        <ReopenOnboarding />
+        {q.data && <SettingsLayout groups={GROUPS} active={g}>
+          {g === 'general' && <><Form key={JSON.stringify(q.data)} s={q.data} part="panel" /><ReopenOnboarding /></>}
+          {g === 'domains' && <><Form key={JSON.stringify(q.data)} s={q.data} part="domains" /><RootDomainsSettings /></>}
+          {g === 'notify' && <NotificationSettings />}
+          {g === 'backup' && <BackupStorageSettings s={q.data} />}
+          {g === 'network' && <NetworkSettings s={q.data} />}
+          {g === 'services' && <><ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} /><ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} /></>}
+          {g === 'display' && <><GeoIPSettings s={q.data} /><PrivacySettings /></>}
+        </SettingsLayout>}
       </div>
     </MainShell>
   )
@@ -55,7 +67,7 @@ function ReopenOnboarding() {
   if (!me) return null
   return (
     <Section icon={<Sparkles size={17} />} t={L("首次启动向导")}>
-      <Field t={L("重新打开向导")} d={L("按步骤设置中控地址、添加节点、配置域名和备份，并部署第一个服务。进度保存在这个浏览器里。")}>
+      <Field t={L("重新打开向导")}>
         <Button size="sm" onClick={() => { startOnboarding(me.username); nav('/welcome') }}><Sparkles size={14} />{L("打开向导")}</Button>
       </Field>
     </Section>
@@ -80,7 +92,7 @@ function Field({ t, d, children, right }: { t: string; d?: React.ReactNode; chil
 }
 const Saved = ({ on }: { on: boolean }) => on ? <Badge tone="green"><Check size={11} strokeWidth={3} />{L("已保存")}</Badge> : <Badge tone="zinc">{L("未设置")}</Badge>
 
-function Form({ s }: { s: S }) {
+function Form({ s, part }: { s: S; part: 'panel' | 'domains' }) {
   const [v, setV] = useState({ cloudflare_zone_id: s.cloudflare_zone_id, tls_mode: s.tls_mode || 'cloudflare-origin', public_url: s.public_url, acme_email: s.acme_email ?? '' })
   const [token, setToken] = useState(''); const [cert, setCert] = useState(''); const [key, setKey] = useState('')
   const [busy, wrap] = useBusy()
@@ -99,11 +111,12 @@ function Form({ s }: { s: S }) {
   const area = 'w-full rounded-lg field px-3.5 py-3 font-mono text-[12px] leading-5 outline-none text-fg placeholder:text-dim resize-y'
   return (
     <>
-      <Section icon={<Link2 size={17} />} t={L("面板")}>
+      {part === 'panel' && <Section icon={<Link2 size={17} />} t={L("面板")}>
         <Field t={L("面板地址")} d={L("Agent 和 CLI 用它连回中控")}>
           <TextInput mono className="w-full" value={v.public_url} onChange={set('public_url')} placeholder="https://panel.example.com" />
         </Field>
-      </Section>
+      </Section>}
+      {part === 'domains' && <>
       <Section icon={<Globe size={17} />} t="Cloudflare" d={L("服务绑定根域名下的域名时，Atoll 用这个令牌自动创建和删除 DNS 记录。令牌需要 Zone.DNS 编辑权限；要给根域名自动签 Origin 证书，再加 SSL and Certificates 编辑权限。")}>
         <Field t="Zone ID" d={L("可选：默认根域名的 Zone，留空则按域名自动查找")}>
           <TextInput mono className="w-full" value={v.cloudflare_zone_id} onChange={set('cloudflare_zone_id')} placeholder={L("32 位十六进制")} />
@@ -134,7 +147,8 @@ function Form({ s }: { s: S }) {
           </Field>
         </>}
       </Section>
-      <div className={cx('flex flex-wrap items-center justify-end gap-3', changed && 'sticky bottom-6')}>
+      </>}
+      <div className={cx('flex flex-wrap items-center justify-end gap-3 mb-8', changed && 'sticky bottom-6')}>
         {changed && <span className="text-[12.5px] text-muted">{L("有未保存的修改")}</span>}
         <Button variant="primary" size="sm" disabled={!changed || !certPair || !certLooksOk || busy} onClick={save}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{L("保存")}</Button>
       </div>

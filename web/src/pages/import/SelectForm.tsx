@@ -81,7 +81,7 @@ function SelectForm({ p, serverId, base, cfReady, onBack, onCreated }: { p: Zeab
             <Card className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-4 !bg-t-amber text-ink">
               <Settings2 size={20} className="shrink-0" />
               <div className="flex-1 min-w-[min(100%,200px)]"><div className="text-[13.5px] font-bold">{L("先设置主域名和 Cloudflare 令牌")}</div><div className="text-[13px] mt-0.5">{L("这些服务目前只有 zeabur.app 地址，切换后就会失效。需要一个由 Cloudflare 托管的主域名来生成新地址。")}</div></div>
-              <Link to="/settings" className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px]">{L("去设置")}<ArrowRight size={14} /></Link>
+              <Link to="/settings#domains" className="btn-secondary h-9 px-3.5 inline-flex items-center gap-1.5 text-[13px]">{L("去设置")}<ArrowRight size={14} /></Link>
             </Card>
           ) : (
             <Card className="overflow-hidden">

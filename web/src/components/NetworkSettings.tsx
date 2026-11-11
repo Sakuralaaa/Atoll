@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import { AlertTriangle, Check, Loader2, Network, Save } from 'lucide-react'
 import { Badge, Button, Card, Hint } from './ui'
 import { TextInput, Toggle } from './feedback'
@@ -11,13 +10,10 @@ import { useT } from '../i18n'
 /** Settings → 私有网络: Tailscale provider, write-only auth key, tailnet name, agent listener status. */
 export default function NetworkSettings({ s }: { s: Settings }) {
   const { t } = useT()
-  const ref = useRef<HTMLDivElement>(null)
-  const loc = useLocation()
-  useEffect(() => { if (loc.hash === '#network') ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [loc.hash])
   const on = s.network_provider === 'tailscale'
   const key = [s.network_provider, s.has_tailscale_auth_key, s.tailnet_name, s.tailnet_control_url, s.tailnet_listen].join('|')
   return (
-    <div ref={ref} id="network" className="mt-8 mb-8 scroll-mt-6">
+    <div id="network" className="mt-8 mb-8 scroll-mt-6">
       <div className="text-[15px] font-semibold flex items-center gap-2">
         <Network size={17} />{t('私有网络', 'Private network')}
         <Hint>{t(
