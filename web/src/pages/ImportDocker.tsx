@@ -45,9 +45,6 @@ export default function ImportDocker() {
         <div className="flex flex-wrap items-end justify-between gap-3 mt-2 mb-2">
           <div className="min-w-0">
             <h1 className="text-[24px] @2xl:text-[26px] font-extrabold italic tracking-[-0.03em] flex flex-wrap items-center gap-x-3 gap-y-1">{t('接管 Docker 容器', 'Adopt Docker containers')}</h1>
-            <p className="text-[13.5px] text-muted mt-2 max-w-[780px] leading-6">{t(
-              '把你自己用 docker run 或 docker compose 启动的容器交给 Atoll 管理：同样的端口，同样的绑定目录和数据卷原地挂载，不复制数据。旧容器、镜像和卷永远保留，随时可以回滚。',
-              'Hand the containers you started with docker run or docker compose to Atoll: same host ports, the same bind mounts and volumes mounted in place, no data copy. Your old containers, images and volumes are always kept, so you can roll back any time.')}</p>
           </div>
           {(jobId || server) && <Button onClick={() => keep({})}><X size={14} />{t('重新开始', 'Start over')}</Button>}
         </div>
@@ -69,8 +66,7 @@ function PickServer({ onPick }: { onPick: (id: string) => void }) {
   const list = (q.data ?? []).filter(s => s.role !== 'control')
   return (
     <>
-      <div className="text-[15px] font-semibold mb-1">{t('容器在哪台服务器上？', 'Which server runs the containers?')}</div>
-      <div className="text-[13px] text-muted mb-4">{t('选择已装好 Atoll Agent 的服务器。扫描只读，不改动任何东西。', 'Pick a server with the Atoll agent installed. The scan is read-only.')}</div>
+      <div className="text-[15px] font-semibold mb-4">{t('容器在哪台服务器上？', 'Which server runs the containers?')}</div>
       {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
       {!q.data && !q.error && <RowsSkeleton n={3} />}
       {q.data && !list.length && <Empty icon={<ServerIcon size={22} />} title={t('还没有连上的服务器', 'No servers yet')} desc={t('先在「服务器」页添加一台。', 'Add one on the Servers page first.')} />}
@@ -97,7 +93,7 @@ function Scan({ serverId, onCreated }: { serverId: string; onCreated: (id: strin
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div><div className="text-[15px] font-semibold">{t(`${srv?.name ?? serverId} 上 Atoll 之外的容器`, `Containers outside Atoll on ${srv?.name ?? serverId}`)}</div><div className="text-[13px] text-muted mt-0.5">{t('按 compose 项目分组，单独启动的容器各成一组。环境变量中的密钥已隐藏。', 'Grouped by compose project; standalone containers form their own group. Secret env values are hidden.')}</div></div>
+        <div><div className="text-[15px] font-semibold">{t(`${srv?.name ?? serverId} 上 Atoll 之外的容器`, `Containers outside Atoll on ${srv?.name ?? serverId}`)}</div></div>
         <Button onClick={q.refetch}><RotateCcw size={14} />{t('重新扫描', 'Rescan')}</Button>
       </div>
       {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}

@@ -178,7 +178,10 @@ curl -fsSL https://raw.githubusercontent.com/Sakuralaaa/Atoll/main/install/insta
 | Atoll 内机器之间 | 服务迁移：卷 + 数据库导出恢复 | [docs/api.md](docs/api.md) |
 | 中控本身 | 一条命令迁到新机器，业务不停 | [docs/control.md](docs/control.md) |
 
-面板入口在侧栏「迁移」。
+面板入口在侧栏「迁移」。每种方式都先演练再切换，旧的东西一直保留，随时可以回滚。
+
+- **从 Zeabur 迁移**：在 Zeabur 托管的那台 VPS 上以 root 装好 Atoll Agent（与 k3s 并存，切换前不占 80/443）。服务原样搬进本机 Docker：镜像从本机导出，数据卷本机复制，数据库同版本导出恢复。同一台机器、同一个 IP，DNS 不用动；Zeabur 上的东西一样不删。扫描只读取本机 k3s 的 Deployment / StatefulSet / PVC / Ingress，不改动任何东西，环境变量中的密钥会隐藏。
+- **接管 Docker 容器**：把 `docker run` 或 `docker compose` 启动的容器交给 Atoll：同样的端口，同样的绑定目录和数据卷原地挂载，不复制数据。按 compose 项目分组，单独启动的容器各成一组；扫描只读，密钥隐藏。旧容器、镜像和卷永远保留。
 
 ## 管理多台机器
 

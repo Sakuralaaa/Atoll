@@ -177,7 +177,10 @@ To remove a node: `curl -fsSL …/install-agent.sh | sudo sh -s -- --uninstall`.
 | Between machines in Atoll | Service migration: volumes + database dump and restore | [docs/api.md](docs/api.md) |
 | The control plane itself | One command to move it to a new machine, services keep running | [docs/control.md](docs/control.md) |
 
-In the panel, it's Migrate in the sidebar.
+In the panel, it's Migrate in the sidebar. Every path rehearses before it cuts over and keeps the old setup, so you can roll back any time.
+
+- **Move off Zeabur**: install the Atoll agent as root on the VPS Zeabur runs on (it sits beside k3s and leaves 80/443 alone until you cut over). Services move into Docker on the same machine: images exported locally, volumes copied locally, databases dumped and restored at the same version. Same machine, same IP, no DNS change; nothing on Zeabur is deleted. The scan only reads the local k3s Deployments / StatefulSets / PVCs / Ingresses and changes nothing; secret env values are hidden.
+- **Adopt Docker containers**: hand containers started with `docker run` or `docker compose` to Atoll: same host ports, the same bind mounts and volumes mounted in place, no data copy. Grouped by compose project, standalone containers form their own group; the scan is read-only and secrets are hidden. Your old containers, images and volumes are always kept.
 
 ## Running many machines
 

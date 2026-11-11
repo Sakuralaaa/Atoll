@@ -23,8 +23,7 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
   const [tok, setTok] = useState<JoinToken>(); const [busy, wrap] = useBusy()
   return (
     <div>
-      <div className="text-[15px] font-semibold mb-1">{L("Zeabur 托管的是哪台服务器？")}</div>
-      <div className="text-[13px] text-muted mb-4">{L("选择已经装好 Atoll Agent 的那台 VPS，下一步会读取本机 k3s 里的 Zeabur 项目。只读，不会改动任何东西。")}</div>
+      <div className="text-[15px] font-semibold mb-4">{L("Zeabur 托管的是哪台服务器？")}</div>
       <div className="space-y-5 [&>*]:min-w-0">
       <div>
         {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}
@@ -39,7 +38,7 @@ export function StepServer({ onPick }: { onPick: (id: string) => void }) {
           <Box size={20} className="text-muted shrink-0" />
           <div className="flex-1 min-w-[min(100%,240px)]">
             <div className="text-[14px] font-semibold">{L("还没装 Agent？")}</div>
-            <div className="text-[12.5px] text-muted mt-0.5 leading-5">{L("在 Zeabur 托管的 VPS 上以 root 运行安装命令。Agent 与 Zeabur 的 k3s 并存，不占 80/443，直到你确认切换。")}</div>
+            <div className="text-[12.5px] text-muted mt-0.5 leading-5">{L("在 Zeabur 托管的 VPS 上以 root 运行安装命令。")}</div>
           </div>
           {!tok && <Button className="shrink-0 ml-auto" disabled={busy} onClick={() => wrap(async () => { const t = await run(api.joinToken); if (t) setTok(t) })}>{busy && <Loader2 size={14} className="animate-spin" />}{L("生成安装命令")}</Button>}
         </div>
@@ -75,7 +74,7 @@ export function StepScan({ serverId, onPick }: { serverId: string; onPick: (ns: 
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <div><div className="text-[15px] font-semibold">{L("在")} {srv?.name ?? serverId} {L("上找到的 Zeabur 项目")}</div><div className="text-[13px] text-muted mt-0.5">{L("读取本机 k3s 的 Deployment / StatefulSet / PVC / Ingress，环境变量中的密钥已隐藏。")}</div></div>
+        <div><div className="text-[15px] font-semibold">{L("在")} {srv?.name ?? serverId} {L("上找到的 Zeabur 项目")}</div></div>
         <Button onClick={q.refetch}><RotateCcw size={14} />{L("重新扫描")}</Button>
       </div>
       {q.error && <ErrorState error={q.error} onRetry={q.refetch} />}

@@ -1168,7 +1168,7 @@ const en: Record<string, string> = {
  "还没有连上的服务器": "No connected servers yet",
  "先在下方生成安装命令，在 Zeabur 托管的 VPS 上运行。": "Generate the install command below and run it on the VPS Zeabur runs on.",
  "还没装 Agent？": "No agent yet?",
- "在 Zeabur 托管的 VPS 上以 root 运行安装命令。Agent 与 Zeabur 的 k3s 并存，不占 80/443，直到你确认切换。": "Run the install command as root on the VPS Zeabur runs on. The agent coexists with Zeabur's k3s and stays off 80/443 until you confirm cutover.",
+ "在 Zeabur 托管的 VPS 上以 root 运行安装命令。": "Run the install command as root on the VPS Zeabur runs on.",
  "一次性令牌 ·": "One-time token ·",
  "前有效": " valid until",
  "生成安装命令": "Generate install command",
