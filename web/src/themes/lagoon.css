@@ -1,12 +1,12 @@
-/* Lagoon: teal brand, 8px radii, hairline borders, a faint grid and a soft teal glow at the top.
+/* Lagoon: eye-care sage green (low contrast, no pure white), 8px radii, hairline borders.
    Was "zeabur" before v0.1.45: theme.ts and public/theme-boot.js read the old id as this one.
    html[data-theme=lagoon] sets the shape; .light / .dark set the colours. */
 html[data-theme=lagoon] {
   --hover-lift: none; --card-lift: translateY(-1px); --press: translateY(1px); --card-press: none;
   --italic: normal; --bw: 1px; --bw-thin: 1px;
-  --sh-card: 0 1px 2px rgba(8,40,40,.06), 0 6px 20px -10px rgba(13,148,136,.14);
-  --sh-card-hover: 0 2px 4px rgba(8,40,40,.08), 0 12px 32px -10px rgba(13,148,136,.24);
-  --sh-btn: 0 1px 2px rgba(8,40,40,.08); --sh-btn-hover: 0 4px 14px -4px rgba(13,148,136,.3); --sh-tile: none;
+  --sh-card: 0 1px 2px rgba(8,40,40,.06), 0 6px 20px -10px rgba(40,70,45,.10);
+  --sh-card-hover: 0 2px 4px rgba(8,40,40,.08), 0 12px 32px -10px rgba(40,70,45,.16);
+  --sh-btn: 0 1px 2px rgba(8,40,40,.08); --sh-btn-hover: 0 4px 14px -4px rgba(40,70,45,.2); --sh-tile: none;
   --sh-sm: none; --sh-side: none; --sh-pop: 0 16px 40px -12px rgba(6,40,40,.3);
   --btn-font: var(--font-sans); --btn-weight: 600; --btn-track: 0; --r-box: 8px; --r-btn: 8px; --r-chip: 6px;
   --r-field: 8px; --r-tile: 8px; --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 8px;
@@ -17,27 +17,29 @@ html[data-theme=lagoon] {
 }
 html[data-theme=lagoon].light {
   color-scheme: light;
-  --bg: #f6fafa; --side: #eff6f5; --card: #ffffff; --card2: #eef6f5; --sunk: #f7fbfb; --pop: #ffffff;
-  --line: #dcebe9; --line2: #c3dbd8; --muted: #52706d; --dim: #86a19e; --fg: #0f2422; --fg2: #24403d;
-  --ov: #0b2a27; --accent: #0f766e; --accent-soft: #115e59; --tick-off: #e1eeec; --edge: #d6e7e4;
-  --brand: #0f766e; --brand-ink: #ffffff; --brand-strong: #0f766e; --grain: rgba(15,118,110,.06);
-  --ink: #0f2422; --danger: #dc2626; --warn: #b45309; --hi: #d5f5ef; --hi-ink: #134e4a; --pick: #0f766e;
-  --pick-ink: #ffffff; --nav-bg: #e3f3f0; --nav-ink: #134e4a; --t-amber: #fef3c7; --t-red: #fee2e2;
-  --t-green: #dcfce7; --t-violet: #e0f2fe; --t-orange: #ffedd5; --t-note: #fffbeb; --t-ok: #f0fdf4;
-  --t-wash: rgba(255,255,255,.75); --t-field: #ffffff; --glow-l: rgba(20,184,166,.12);
-  --grid-l: rgba(15,118,110,.04);
+  --bg: #e4ede0; --side: #dbe6d6; --card: #edf3e9; --card2: #e2ebdd; --sunk: #e8f0e4; --pop: #eff5ec;
+  --line: #ccdac6; --line2: #b6c8af; --muted: #5d6d5c; --dim: #879685; --fg: #2e3a2f; --fg2: #435043;
+  --ov: #243024; --accent: #4f7f55; --accent-soft: #436d48; --tick-off: #d3dfce; --edge: #c8d7c2;
+  --brand: #5c8c62; --brand-ink: #f4f8f2; --brand-strong: #4f7f55; --grain: transparent;
+  --ink: #2e3a2f; --danger: #b8574d; --warn: #9a6b22; --hi: #d2e3cb; --hi-ink: #2e4a31; --pick: #5c8c62;
+  --pick-ink: #f4f8f2; --nav-bg: #d2e2cc; --nav-ink: #2b3d2d; --t-amber: #efe0b0; --t-red: #ecc8c1;
+  --t-green: #cfe4c6; --t-violet: #d8d6e8; --t-orange: #edd5b8; --t-note: #f1e9cf; --t-ok: #d6e8cf;
+  --t-wash: rgba(250,253,248,.7); --t-field: #edf3e9; --glow-l: transparent; --grid-l: transparent;
+  --ok: #4f8a57; --ok-strong: #427549; --amber: #9a6b22; --off: #a9b5a5;
+  --c-1: #5b7fa8; --c-2: #8a76ad; --c-3: #4f8a57; --c-4: #4b8c8a; --c-5: #a88a35; --c-6: #b8574d; --c-7: #bc7a45;
 }
 html[data-theme=lagoon].dark {
   color-scheme: dark;
-  --bg: #0b1315; --side: #091012; --card: #111c1f; --card2: #162427; --sunk: #0d181a; --pop: #132124;
-  --line: #1f3337; --line2: #2e4a4e; --muted: #95b1ae; --dim: #6c8986; --fg: #e8f3f1; --fg2: #c6dcd9;
-  --ov: #ffffff; --accent: #5eead4; --accent-soft: #99f6e4; --tick-off: #1b2c2f; --edge: #213639;
-  --brand: #14b8a6; --brand-ink: #03201c; --brand-strong: #5eead4; --grain: rgba(94,234,212,.05);
-  --ink: #0f2422; --danger: #f87171; --warn: #fbbf24; --hi: #5eead4; --hi-ink: #042f2e; --pick: #14b8a6;
-  --pick-ink: #03201c; --nav-bg: #14302f; --nav-ink: #e8f3f1; --t-amber: #fde68a; --t-red: #fecaca;
-  --t-green: #bbf7d0; --t-violet: #bae6fd; --t-orange: #fed7aa; --t-note: #fef3c7; --t-ok: #dcfce7;
-  --t-wash: rgba(255,255,255,.7); --t-field: #f6fafa; --glow-l: rgba(20,184,166,.14);
-  --grid-l: rgba(94,234,212,.035);
+  --bg: #1c211d; --side: #191d1a; --card: #232924; --card2: #29302a; --sunk: #1f2420; --pop: #272d28;
+  --line: #313932; --line2: #414b42; --muted: #949f92; --dim: #6f7a6e; --fg: #c3cdc1; --fg2: #a9b4a7;
+  --ov: #dbe3d9; --accent: #9cc29c; --accent-soft: #b0cfaf; --tick-off: #2c332d; --edge: #343c35;
+  --brand: #8db68f; --brand-ink: #182019; --brand-strong: #9cc29c; --grain: transparent;
+  --ink: #182019; --danger: #d38a80; --warn: #ceb06c; --hi: #8db68f; --hi-ink: #182019; --pick: #8db68f;
+  --pick-ink: #182019; --nav-bg: #2e382f; --nav-ink: #dbe3d9; --t-amber: #dcca93; --t-red: #dcaba3;
+  --t-green: #b4d0ae; --t-violet: #c3bfdc; --t-orange: #dbbb95; --t-note: #e0d8bb; --t-ok: #c2d9bb;
+  --t-wash: rgba(255,255,255,.55); --t-field: #e6ece3; --glow-l: transparent; --grid-l: transparent;
+  --ok: #8db68f; --ok-strong: #7aa47c; --amber: #ceb06c; --off: #4c554c;
+  --c-1: #8ea8c8; --c-2: #a99cc6; --c-3: #8db68f; --c-4: #84b3ad; --c-5: #ceb46e; --c-6: #d38a80; --c-7: #d2a079;
 }
 html[data-theme=lagoon] .canvas { background-repeat: no-repeat, repeat, repeat; }
 html[data-theme=lagoon] .btn-primary:hover { filter: brightness(1.08); }

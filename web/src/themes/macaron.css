@@ -1,5 +1,5 @@
-/* Macaron: soft pink on cream, 18px radii, gentle shadows. Since v0.1.45 one accent colour
-   (pink) with neutral borders; mint and lavender stay only as status tints.
+/* Macaron: rose pink on blush, 18px radii, gentle shadows. Since v0.1.45 one accent colour
+   (rose) with neutral borders; mint and lavender stay only as status tints.
    html[data-theme=macaron] sets the shape; .light / .dark set the colours. */
 html[data-theme=macaron] {
   --hover-lift: translateY(-1px); --card-lift: translateY(-2px); --press: translateY(1px); --card-press: none;
@@ -14,30 +14,33 @@ html[data-theme=macaron] {
   --canvas-bg: radial-gradient(700px 380px at 0% -10%, var(--blob-a), transparent 70%);
   --canvas-size: 100% 100%; --canvas-fixed: fixed;
   --topline: transparent; --topline-h: 0px;
-  --topline-edge: 0 solid transparent; --focus: #f472b6;
+  --topline-edge: 0 solid transparent; --focus: var(--brand);
 }
 html[data-theme=macaron].light {
   color-scheme: light;
-  --bg: #fdf6f9; --side: #f9eef4; --card: #fffdfe; --card2: #fdf0f6; --sunk: #fdf7fa; --pop: #fffdfe;
-  --line: #efe3e8; --line2: #dccbd3; --muted: #7d5f76; --dim: #a88ba0; --fg: #3b2638; --fg2: #563f52;
-  --ov: #6b2154; --accent: #db2777; --accent-soft: #be185d; --tick-off: #f4e3ec; --edge: #ecdfe5;
-  --brand: #f9a8d4; --brand-ink: #4a1538; --brand-strong: #db2777; --grain: rgba(219,39,119,.06);
-  --ink: #3b2638; --danger: #e11d48; --warn: #b45309; --hi: #fbd5e7; --hi-ink: #6b2154; --pick: #ec4899;
-  --pick-ink: #ffffff; --nav-bg: #fde4f0; --nav-ink: #6b2154; --t-amber: #fde9b4; --t-red: #fecdd6;
-  --t-green: #c6f1df; --t-violet: #e4d9ff; --t-orange: #ffd9c0; --t-note: #fff4dc; --t-ok: #dcf7ec;
-  --t-wash: rgba(255,255,255,.75); --t-field: #fffdfe; --sh-m: rgba(120,60,90,.16);
-  --sh-m2: rgba(120,60,90,.1); --blob-a: rgba(249,168,212,.22); --blob-b: transparent;
-  --blob-c: transparent;
+  --bg: #f8eff2; --side: #f3e6eb; --card: #fcf6f8; --card2: #f6eaef; --sunk: #faf2f5; --pop: #fdf8fa;
+  --line: #ead9e0; --line2: #dcc4ce; --muted: #775f69; --dim: #a28c95; --fg: #3d2c33; --fg2: #56434b;
+  --ov: #5a2238; --accent: #b84a72; --accent-soft: #a03f63; --tick-off: #efdfe6; --edge: #e6d3db;
+  --brand: #c95c84; --brand-ink: #fff7fa; --brand-strong: #b84a72; --grain: transparent;
+  --ink: #3d2c33; --danger: #c0443f; --warn: #a06a1c; --hi: #f3d3df; --hi-ink: #6a2643; --pick: #c95c84;
+  --pick-ink: #fff7fa; --nav-bg: #f2d9e3; --nav-ink: #5a2238; --t-amber: #f3e2b4; --t-red: #f3cbcf;
+  --t-green: #d3e9d6; --t-violet: #e2d8ef; --t-orange: #f3d6be; --t-note: #f7ecd5; --t-ok: #dcefe0;
+  --t-wash: rgba(255,250,252,.75); --t-field: #fcf6f8; --sh-m: rgba(110,50,75,.12);
+  --sh-m2: rgba(110,50,75,.08); --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
+  --ok: #4f8a5e; --ok-strong: #42744f; --amber: #a06a1c; --off: #bfaab3;
+  --c-1: #6f86b8; --c-2: #9a78b4; --c-3: #4f8a5e; --c-4: #4f8f95; --c-5: #b08a35; --c-6: #c95c84; --c-7: #c4784a;
 }
 html[data-theme=macaron].dark {
   color-scheme: dark;
-  --bg: #211a29; --side: #1c1623; --card: #2b2235; --card2: #342a40; --sunk: #251d2e; --pop: #2f2539;
-  --line: #3a3340; --line2: #504656; --muted: #bba7bd; --dim: #94809a; --fg: #fbeff7; --fg2: #e8d6e3;
-  --ov: #ffd6ec; --accent: #f9a8d4; --accent-soft: #fbcfe8; --tick-off: #3a2f46; --edge: #3f3745;
-  --brand: #f9a8d4; --brand-ink: #3a1230; --brand-strong: #f9a8d4; --grain: rgba(249,168,212,.07);
-  --ink: #2d1d2b; --danger: #fb7185; --warn: #fcd34d; --hi: #f9a8d4; --hi-ink: #3a1230; --pick: #f472b6;
-  --pick-ink: #2d0b22; --nav-bg: #4a2f4a; --nav-ink: #ffe4f2; --t-amber: #fde9b4; --t-red: #fecdd6;
-  --t-green: #c6f1df; --t-violet: #e4d9ff; --t-orange: #ffd9c0; --t-note: #fff1d6; --t-ok: #d4f5e7;
-  --t-wash: rgba(255,255,255,.7); --t-field: #fffafd; --sh-m: rgba(0,0,0,.45); --sh-m2: rgba(0,0,0,.25);
-  --blob-a: rgba(244,114,182,.08); --blob-b: transparent; --blob-c: transparent;
+  --bg: #221b1f; --side: #1e181b; --card: #2b2328; --card2: #322930; --sunk: #251e22; --pop: #2e262b;
+  --line: #3b3137; --line2: #4d4148; --muted: #a8949e; --dim: #7f6d76; --fg: #e3d5db; --fg2: #c9b9c0;
+  --ov: #f0e2e8; --accent: #e08aa8; --accent-soft: #e9a3bb; --tick-off: #352b31; --edge: #3d3239;
+  --brand: #d97a9b; --brand-ink: #2a1019; --brand-strong: #e08aa8; --grain: transparent;
+  --ink: #2a1019; --danger: #e0827a; --warn: #d4b06a; --hi: #d97a9b; --hi-ink: #2a1019; --pick: #d97a9b;
+  --pick-ink: #2a1019; --nav-bg: #3e2c35; --nav-ink: #f0e2e8; --t-amber: #e2cc93; --t-red: #e2aaa9;
+  --t-green: #b8d4bc; --t-violet: #cbbfdd; --t-orange: #e0bb96; --t-note: #e6dabb; --t-ok: #c6dccb;
+  --t-wash: rgba(255,255,255,.55); --t-field: #f0e7eb; --sh-m: rgba(0,0,0,.35); --sh-m2: rgba(0,0,0,.2);
+  --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
+  --ok: #8fbb98; --ok-strong: #7ca986; --amber: #d4b06a; --off: #574a51;
+  --c-1: #8ea6cc; --c-2: #b49cc8; --c-3: #8fbb98; --c-4: #84b4b6; --c-5: #d1b36e; --c-6: #d97a9b; --c-7: #d6a07a;
 }
