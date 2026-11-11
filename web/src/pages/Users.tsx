@@ -38,8 +38,7 @@ export default function Users() {
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[13px] text-muted">{t('子账号只能看到分配给它的服务器，以及这些服务器上的项目。', 'A sub-account sees only the servers assigned to it and the projects on them.')}</p>
+        <div className="flex items-center justify-end mb-4">
           <Button variant="primary" onClick={() => setEdit('new')}><Plus size={15} />{t('新建子账号', 'New sub-account')}</Button>
         </div>
         {q.error ? <ErrorState error={q.error} onRetry={q.refetch} /> : !q.data ? <Skeleton className="h-40" /> : (

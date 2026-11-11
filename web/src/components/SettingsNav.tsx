@@ -12,12 +12,12 @@ export function SettingsLayout({ groups, active, children }: { groups: SettingsG
   useEffect(() => { ref.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [active])
   const go = (k: string) => nav({ pathname: loc.pathname, search: loc.search, hash: k === groups[0]?.k ? '' : k }, { replace: true })
   return (
-    <div className="grid grid-cols-1 @4xl:grid-cols-[200px_minmax(0,1fr)] gap-6 @4xl:gap-10 items-start">
-      <nav ref={ref} data-testid="settings-nav" className="flex @4xl:flex-col gap-1 overflow-x-auto @4xl:overflow-visible @4xl:sticky @4xl:top-6 -mx-1 px-1 pb-1 @4xl:pb-0">
+    <div className="max-w-[960px] mx-auto">
+      <nav ref={ref} data-testid="settings-nav" className="flex justify-start @3xl:justify-center gap-1 overflow-x-auto border-b border-line mb-8 -mx-4 px-4 @2xl:mx-0 @2xl:px-0">
         {groups.map(g => (
           <button key={g.k} type="button" onClick={() => go(g.k)} aria-current={g.k === active ? 'page' : undefined}
-            className={cx('shrink-0 h-9 px-3 rounded-[4px] flex items-center gap-2.5 text-[13px] whitespace-nowrap text-left border-2 transition-colors',
-              g.k === active ? 'border-[var(--edge)] bg-hi text-hi-ink font-bold' : 'border-transparent text-fg2 hover:text-fg hover:bg-sunk')}>
+            className={cx('shrink-0 h-10 px-3.5 -mb-px flex items-center gap-2 text-[13px] whitespace-nowrap border-b-2 transition-colors',
+              g.k === active ? 'border-[var(--fg)] text-fg font-semibold' : 'border-transparent text-muted hover:text-fg')}>
             <span className="shrink-0 [&>svg]:size-[15px]">{g.icon}</span>{g.l}
           </button>
         ))}

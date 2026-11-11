@@ -28,7 +28,7 @@ export function SettingsTabs() {
   const admin = me.data?.role !== 'member'
   const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-hi text-hi-ink' : 'border-transparent text-muted hover:text-fg')
   return (
-    <div className="flex flex-wrap gap-2 mt-5 mb-8">
+    <div className="flex flex-wrap justify-center gap-2 mt-5 mb-6">
       {admin && <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>}
       <NavLink to="/settings/security" className={tab}>{t('账号与安全', 'Account & security')}</NavLink>
       {admin && <NavLink to="/settings/users" className={tab}>{t('子账号', 'Sub-accounts')}</NavLink>}
