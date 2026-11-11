@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { SettingsLayout } from '../components/SettingsNav'
 import { useSettingsGroup, type SettingsGroup } from '../components/settings-group'
-import { MonitorSmartphone, Gauge, Bell } from 'lucide-react'
+import { Gauge, Bell } from 'lucide-react'
 import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
@@ -45,7 +45,6 @@ export default function Security() {
   const groups: SettingsGroup[] = [
     { k: 'profile', l: t('资料', 'Profile'), icon: <UserRound /> },
     { k: 'login', l: t('登录', 'Sign-in'), icon: <LockKeyhole /> },
-    { k: 'sessions', l: t('会话', 'Sessions'), icon: <MonitorSmartphone /> },
     ...(member ? [{ k: 'quota', l: t('配额', 'Quota'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
   ]
   const g = useSettingsGroup(groups)
@@ -55,8 +54,9 @@ export default function Security() {
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{t('设置', 'Settings')}</h1>
         <SettingsTabs />
         <SettingsLayout groups={groups} active={g}>
-          {g === 'profile' && <><AvatarCard /><UsernameCard twoFactor={q.data?.enabled} /></>}
+          {g === 'profile' && <><AvatarCard /><Sessions /></>}
           {g === 'login' && <>
+            <UsernameCard twoFactor={q.data?.enabled} />
             <ChangePasswordCard twoFactor={q.data?.enabled} />
             {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
             {!q.data && !q.error && <Card className="p-6 space-y-4"><Skeleton className="h-7 w-48" /><Skeleton className="h-11 w-full" /></Card>}
@@ -70,7 +70,6 @@ export default function Security() {
           </div>
         </Card>
           </>}
-          {g === 'sessions' && <Sessions />}
           {g === 'quota' && member && <><MyQuotaCard quota={me.data!.quota} usage={me.data!.usage} /><MemberTokens /></>}
           {g === 'notify' && member && <NotificationSettings mine />}
         </SettingsLayout>
