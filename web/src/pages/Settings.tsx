@@ -8,7 +8,7 @@ import { Badge, Button, Card, Hint } from '../components/ui'
 import { ErrorState, Select, Skeleton, TextInput } from '../components/feedback'
 import { api } from '../api/client'
 import { run, useBusy, useQuery } from '../api/hooks'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { startOnboarding } from '../onboarding'
 import { useCan } from '../api/queries'
 import type { Settings as S } from '../api/types'
@@ -21,6 +21,7 @@ import PrivacySettings from '../components/PrivacySettings'
 import NotificationSettings from '../components/NotificationSettings'
 import RootDomainsSettings from '../components/RootDomainsSettings'
 import { SettingsTabs } from './Security'
+import AppearanceSettings from '../components/AppearanceSettings'
 import { cx } from '../components/ui-utils'
 
 const GROUPS: SettingsGroup[] = [
@@ -30,30 +31,30 @@ const GROUPS: SettingsGroup[] = [
   { k: 'backup', l: L("备份"), icon: <Archive /> },
   { k: 'network', l: L("网络"), icon: <Network /> },
   { k: 'services', l: L("服务"), icon: <Cpu /> },
-  { k: 'display', l: L("显示"), icon: <Eye /> },
+  { k: 'appearance', l: L("显示"), icon: <Eye /> },
 ]
 
 export default function Settings() {
   const canSettings = useCan('settings')
   const q = useQuery(canSettings ? 'settings' : null, api.settings)
-  // members only have the account tab (notes/subaccounts.md)
-  const g = useSettingsGroup(GROUPS)
-  if (!canSettings) return <Navigate replace to="/settings/security" />
+  // members only get 显示 here (theme and privacy are per browser); the rest needs settings (notes/subaccounts.md)
+  const groups = canSettings ? GROUPS : GROUPS.filter(x => x.k === 'appearance')
+  const g = useSettingsGroup(groups)
   return (
     <MainShell>
       <div className="max-w-[1240px] mx-auto px-4 pt-6 pb-12 @2xl:px-8 @2xl:pt-10 @5xl:px-14 @5xl:pt-12 @5xl:pb-16">
         <h1 className="text-[26px] font-extrabold italic tracking-[-0.03em]">{L("设置")}</h1>
         <SettingsTabs />
-        {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
-        {!q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
-        {q.data && <SettingsLayout groups={GROUPS} active={g}>
-          {g === 'general' && <><Form key={JSON.stringify(q.data)} s={q.data} part="panel" /><ReopenOnboarding /></>}
-          {g === 'domains' && <><Form key={JSON.stringify(q.data)} s={q.data} part="domains" /><RootDomainsSettings /></>}
-          {g === 'notify' && <NotificationSettings />}
-          {g === 'backup' && <BackupStorageSettings s={q.data} />}
-          {g === 'network' && <NetworkSettings s={q.data} />}
-          {g === 'services' && <><ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} /><ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} /></>}
-          {g === 'display' && <><GeoIPSettings s={q.data} /><PrivacySettings /></>}
+        {canSettings && q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
+        {canSettings && !q.data && !q.error && <Card className="p-6 space-y-5">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-11 w-full" />)}</Card>}
+        {(q.data || !canSettings) && <SettingsLayout groups={groups} active={g}>
+          {q.data && g === 'general' && <><Form key={JSON.stringify(q.data)} s={q.data} part="panel" /><ReopenOnboarding /></>}
+          {q.data && g === 'domains' && <><Form key={JSON.stringify(q.data)} s={q.data} part="domains" /><RootDomainsSettings /></>}
+          {q.data && g === 'notify' && <NotificationSettings />}
+          {q.data && g === 'backup' && <BackupStorageSettings s={q.data} />}
+          {q.data && g === 'network' && <NetworkSettings s={q.data} />}
+          {q.data && g === 'services' && <><ResourceDefaultsSettings key={`res-${q.data.default_mem_limit_mb}-${q.data.default_cpu_limit}`} s={q.data} /><ImageCheckSettings key={`img-${q.data.image_check_interval_hours}`} s={q.data} /></>}
+          {g === 'appearance' && <><AppearanceSettings />{q.data && <GeoIPSettings s={q.data} />}<PrivacySettings /></>}
         </SettingsLayout>}
       </div>
     </MainShell>

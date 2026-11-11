@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('preset theme switches live, survives a reload and keeps light/dark separate', async ({ page }) => {
-  await page.goto('/?demo=1#/settings/security#appearance')
+  await page.goto('/?demo=1#/settings#appearance')
   const html = page.locator('html')
   await expect(page.getByRole('radiogroup', { name: '预设主题' })).toBeVisible()
   await expect(html).toHaveAttribute('data-theme', 'atoll')
@@ -31,7 +31,7 @@ test('?style= pins a theme for the page load', async ({ page }) => {
 })
 
 test('a sub-account can pick a theme too', async ({ page }) => {
-  await page.goto('/?demo=1&member=ro#/settings/security#appearance')
+  await page.goto('/?demo=1&member=ro#/settings#appearance')
   await page.getByTestId('theme-macaron').click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'macaron')
 })

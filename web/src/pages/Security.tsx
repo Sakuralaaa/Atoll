@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { SettingsLayout } from '../components/SettingsNav'
 import { useSettingsGroup, type SettingsGroup } from '../components/settings-group'
-import { Palette, MonitorSmartphone, Gauge, Bell } from 'lucide-react'
+import { MonitorSmartphone, Gauge, Bell } from 'lucide-react'
 import { ScrollRows } from '../components/ScrollRows'
 import { IP } from '../components/IP'
 import { NavLink } from 'react-router-dom'
@@ -19,7 +19,6 @@ import { toast } from '../components/toast'
 import NotificationSettings from '../components/NotificationSettings'
 import MemberTokens from '../components/MemberTokens'
 import { MyQuotaCard } from '../components/MemberQuota'
-import AppearanceSettings from '../components/AppearanceSettings'
 
 /** Tabs shared by the Settings pages. */
 export function SettingsTabs() {
@@ -29,7 +28,7 @@ export function SettingsTabs() {
   const tab = ({ isActive }: { isActive: boolean }) => cx('h-9 px-4 grid place-items-center rounded-[4px] text-[13px] font-bold font-mono border-2', isActive ? 'border-[var(--edge)] bg-hi text-hi-ink' : 'border-transparent text-muted hover:text-fg')
   return (
     <div className="flex flex-wrap justify-center gap-2 mt-5 mb-6">
-      {admin && <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>}
+      <NavLink end to="/settings" className={tab}>{t('通用', 'General')}</NavLink>
       <NavLink to="/settings/security" className={tab}>{t('账号', 'Account')}</NavLink>
       {admin && <NavLink to="/settings/users" className={tab}>{t('团队', 'Team')}</NavLink>}
     </div>
@@ -45,7 +44,6 @@ export default function Security() {
   const member = me.data?.role === 'member'
   const groups: SettingsGroup[] = [
     { k: 'profile', l: t('资料', 'Profile'), icon: <UserRound /> },
-    { k: 'appearance', l: t('外观', 'Appearance'), icon: <Palette /> },
     { k: 'login', l: t('登录', 'Sign-in'), icon: <LockKeyhole /> },
     { k: 'sessions', l: t('会话', 'Sessions'), icon: <MonitorSmartphone /> },
     ...(member ? [{ k: 'quota', l: t('配额', 'Quota'), icon: <Gauge /> }, { k: 'notify', l: t('通知', 'Notifications'), icon: <Bell /> }] : []),
@@ -58,7 +56,6 @@ export default function Security() {
         <SettingsTabs />
         <SettingsLayout groups={groups} active={g}>
           {g === 'profile' && <><AvatarCard /><UsernameCard twoFactor={q.data?.enabled} /></>}
-          {g === 'appearance' && <AppearanceSettings />}
           {g === 'login' && <>
             <ChangePasswordCard twoFactor={q.data?.enabled} />
             {q.error && !q.data && <ErrorState error={q.error} onRetry={q.refetch} />}
