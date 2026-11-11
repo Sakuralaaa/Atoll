@@ -59,3 +59,20 @@ test('the sidebar shows the whole account role', async ({ page }) => {
     expect(await role.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= (el.closest('aside') ?? document.body).getBoundingClientRect().right)).toBe(true)
   }
 })
+
+test('Lagoon and Macaron keep Atoll\'s block shape; Lagoon by day uses Terminal\'s greens', async ({ page }) => {
+  const css = (name: string) => page.evaluate(n => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name)
+  for (const style of ['lagoon', 'macaron']) {
+    for (const mode of ['light', 'dark']) {
+      await page.goto(`/?demo=1&style=${style}&theme=${mode}#/`)
+      expect(await css('--bw')).toBe('2px')
+      expect(await css('--sh-card')).not.toContain('rgba')
+    }
+  }
+  await page.goto('/?demo=1&style=terminal&theme=light#/')
+  const terminal = [await css('--bg'), await css('--brand')]
+  await page.goto('/?demo=1&style=lagoon&theme=light#/')
+  expect([await css('--bg'), await css('--brand')]).toEqual(terminal)
+  await page.goto('/?demo=1&style=macaron&theme=light#/')
+  expect(await css('--brand')).toBe('#d81b60')
+})
