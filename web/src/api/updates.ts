@@ -36,6 +36,12 @@ export function splitImage(image: string): { name: string; tag?: string; digest?
   return i > image.lastIndexOf('/') ? { name: image.slice(0, i), tag: image.slice(i + 1) } : { name: image }
 }
 
+/** GitHub repo page of a GHCR image ("ghcr.io/owner/repo[/sub]:tag" -> https://github.com/owner/repo); undefined for other registries. */
+export function imageRepoUrl(image?: string): string | undefined {
+  const m = /^ghcr\.io\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)/i.exec(splitImage(image ?? '').name)
+  return m ? `https://github.com/${m[1]}/${m[2]}` : undefined
+}
+
 /** Human label for what an image ref runs: "1.2.5 · 5c43b1b" for a digest pin, the tag otherwise. */
 export function imageVersionLabel(image: string, version?: string): string {
   const p = splitImage(image)

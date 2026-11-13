@@ -6,10 +6,10 @@ import { Square, Play, Globe, FolderOpen, ScrollText, SquareTerminal, ExternalLi
 import { Button, Card, Dot, Mini, Spark } from '../../components/ui'
 import { ConfirmDialog, Label, Modal, RowsSkeleton, Select, Skeleton } from '../../components/feedback'
 import ImageUpdateCard from '../../components/ImageUpdateCard'
-import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
+import { imageRepoUrl, imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates'
 import { BuildLogModal, CommitLink, SourceCard } from '../../components/GitSource'
 import { ProviderIcon } from '../../components/GitSourceFields'
-import { commitUrl, hasBuildLog, inferProvider, repoPath, shortSha } from '../../api/git'
+import { commitUrl, hasBuildLog, inferProvider, repoPath, repoUrl, shortSha } from '../../api/git'
 import { api, isDemo } from '../../api/client'
 import { run, useBusy, useQuery } from '../../api/hooks'
 import { ago, dateTime, deployStatusText, latestDeploy, shortDigests, triggerText } from '../../api/view'
@@ -51,10 +51,10 @@ export function StatusTab({ p, s, srv }: { p: Project; s: Service; srv?: Server 
             <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]" title={last?.message}>{last ? <>{L("最近一次部署")} {ago(last.started_at)} {L("· 由「")}{triggerText[last.trigger] ?? last.trigger}{L("」触发")}{last.message ? ` · ${shortDigests(last.message)}` : ''}</> : deps.data ? L("还没有部署记录") : <Skeleton className="h-3.5 w-64" />}</div>
             <div className="mt-6 grid grid-cols-[84px_minmax(0,1fr)] @2xl:grid-cols-[100px_minmax(0,1fr)] gap-y-3.5 text-[13px]">
               {s.git ? <>
-                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><ProviderIcon p={s.git.provider ?? inferProvider(s.git.repo)} size={14} /><span className="truncate" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</span><span className="font-sans text-[12px] text-dim shrink-0">{L("源码构建")}</span></span>
+                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><ProviderIcon p={s.git.provider ?? inferProvider(s.git.repo)} size={14} /><a href={repoUrl(s.git.repo)} target="_blank" rel="noreferrer" data-testid="image-repo" className="truncate hover:underline" title={`${s.git.repo}@${s.git.branch || 'main'}`}>{repoPath(s.git.repo)}@{s.git.branch || 'main'}</a><span className="font-sans text-[12px] text-dim shrink-0">{L("源码构建")}</span></span>
                 <span className="text-muted">{L("提交")}</span><span className="font-mono text-[13px] text-fg2">{s.git.last_commit ? <a href={commitUrl(s.git.repo, s.git.last_commit, s.git.provider)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline"><GitCommitHorizontal size={14} className="text-accent" />{shortSha(s.git.last_commit)}</a> : '—'}</span>
               </> : <>
-                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0"><Box size={14} className="text-c-1 shrink-0" /><ImageRef s={s} /></span>
+                <span className="text-muted">{L("镜像来源")}</span><span className="flex items-center gap-2 font-mono text-[13px] min-w-0">{imageRepoUrl(s.image) ? <ProviderIcon p="github" size={14} /> : <Box size={14} className="text-c-1 shrink-0" />}<ImageRef s={s} /></span>
                 <span className="text-muted">{L("镜像摘要")}</span><span className="font-mono text-[13px] text-fg2 truncate" title={last?.image_digest}>{last?.image_digest ? `${last.image_digest.slice(0, 15)}…${last.image_digest.slice(-4)}` : '—'}</span>
               </>}
               <span className="text-muted">{L("服务器")}</span><span className="flex items-center gap-2 min-w-0">{srv ? <><Mini provider={providerOf(srv)} /><span className="truncate" title={srv.name}>{srv.name}</span></> : '—'}</span>
@@ -195,9 +195,10 @@ function ImageRef({ s }: { s: Service }) {
   const u = useImageUpdate(s.id).data
   if (!s.image) return <span>—</span>
   const p = splitImage(s.image)
+  const gh = imageRepoUrl(s.image)
   return (
     <span className="min-w-0 flex items-center gap-1.5" title={s.image}>
-      <span className="truncate">{p.name}</span>
+      {gh ? <a href={gh} target="_blank" rel="noreferrer" data-testid="image-repo" className="truncate hover:underline">{p.name}</a> : <span className="truncate">{p.name}</span>}
       <span className="shrink-0 text-fg2">{imageVersionLabel(s.image, u?.current_version)}</span>
     </span>
   )
