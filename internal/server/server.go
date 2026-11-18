@@ -251,6 +251,7 @@ func New(cfg Config) (*Server, error) {
 	s.startBackupScheduler() // backups.go
 	s.startProblemWatcher()  // problems.go
 	s.startDiskWatcher()     // disk.go
+	s.interruptDBUpgrades()  // dbupgrade.go
 	s.startGeoIP()           // geoip.go
 	// control*.go: own metrics, daily control backup, panel DNS after a move, update result
 	s.controlSampleLoop()

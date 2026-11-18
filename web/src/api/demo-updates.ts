@@ -11,6 +11,7 @@ const SEED: Record<string, Seed> = {
   'acme-api': { moved: true, policy: 'auto', window: '18:00-21:00', version: '1.8.0', latestVersion: '1.8.2' },
   chat: { major: '2.0.0' },
   redis: { major: '8-alpine' },
+  pg2: { major: '18' },
   cron: { status: 'unknown' },
   flare: { policy: 'off' },
 }
@@ -47,6 +48,7 @@ export function makeDemoUpdates(services: Service[], deployments: Record<string,
     }
     const u = state[s.id]
     u.image = s.image; u.service = s.name
+    if (!pinnedOf(s.image)) { u.current_tag = tagOf(s.image); if (u.major_tag === u.current_tag) u.major_tag = undefined }
     if (s.git) return { ...u, status: 'unsupported', update_available: false, digest_changed: false, newer_tag: undefined, major_tag: undefined, note: 'built from source' }
     if (u.policy === 'off') return { ...u, status: 'disabled', update_available: false, digest_changed: false }
     if (u.status === 'unknown') return u

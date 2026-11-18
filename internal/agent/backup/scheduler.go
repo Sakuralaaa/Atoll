@@ -18,6 +18,7 @@ func (m *Manager) Loop(ctx context.Context) {
 	m.reportInterrupted()
 	m.reportInterruptedVerify()
 	m.cleanupStaleDrills(ctx)
+	m.recoverUpgrades(ctx)
 	m.CheckDue(ctx)
 	t := time.NewTicker(m.Tick)
 	defer t.Stop()

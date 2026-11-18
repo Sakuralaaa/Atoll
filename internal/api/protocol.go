@@ -231,6 +231,8 @@ type HelloPayload struct {
 	BuildSources bool `json:"build_sources,omitempty"`
 	// DiskUsage: this agent sends MsgDiskUsage and handles MsgDiskMeasure (v0.1.48+).
 	DiskUsage bool `json:"disk_usage,omitempty"`
+	// DBUpgrade: this agent handles MsgDBUpgrade, MsgDBUpgradeRollback and MsgDBUpgradeCleanup (v0.1.49+).
+	DBUpgrade bool `json:"db_upgrade,omitempty"`
 }
 
 type ContainerState struct {

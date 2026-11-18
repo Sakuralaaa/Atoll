@@ -47,6 +47,8 @@ type agentConn struct {
 	buildSources atomic.Bool
 	// diskUsage: the agent sends MsgDiskUsage and handles MsgDiskMeasure (disk.go).
 	diskUsage atomic.Bool
+	// dbUpgrade: the agent runs database major upgrades (dbupgrade.go).
+	dbUpgrade atomic.Bool
 	// latency: round-trip times of control→agent pings (latency.go).
 	latency latencyRing
 }
@@ -258,6 +260,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	c.selfUpgrade = hello.SelfUpgrade
 	c.buildSources.Store(hello.BuildSources)
 	c.diskUsage.Store(hello.DiskUsage)
+	c.dbUpgrade.Store(hello.DBUpgrade)
 	if err := s.st.UpdateNodeHello(ctx, nodeID, hello); err != nil {
 		s.log.Error("hello", "err", err)
 		return
@@ -375,6 +378,7 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 			s.st.UpdateNodeHello(ctx, c.nodeID, hello)
 			c.buildSources.Store(hello.BuildSources)
 			c.diskUsage.Store(hello.DiskUsage)
+			c.dbUpgrade.Store(hello.DBUpgrade)
 			s.setMeshCap(ctx, c.nodeID, hello.MeshToken)
 			s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 		}

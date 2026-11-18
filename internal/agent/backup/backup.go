@@ -124,7 +124,8 @@ func (m *Manager) asideDir(svc string) string { return filepath.Join(m.dir(), "p
 
 func (m *Manager) Handles(t string) bool {
 	switch t {
-	case api.MsgBackupConfig, api.MsgBackupRun, api.MsgBackupRestore, api.MsgBackupSnapshots, api.MsgBackupTest, api.MsgBackupVerify:
+	case api.MsgBackupConfig, api.MsgBackupRun, api.MsgBackupRestore, api.MsgBackupSnapshots, api.MsgBackupTest, api.MsgBackupVerify,
+		api.MsgDBUpgrade, api.MsgDBUpgradeRollback, api.MsgDBUpgradeCleanup:
 		return true
 	}
 	return false
@@ -175,6 +176,9 @@ func (m *Manager) Handle(ctx context.Context, t string, raw json.RawMessage) (st
 			return "", fmt.Errorf("bad payload: %w", err)
 		}
 		return m.QueueVerify(p)
+	}
+	if out, ok, err := m.handleUpgrade(ctx, t, raw); ok {
+		return out, err
 	}
 	return "", fmt.Errorf("unsupported message type %q", t)
 }

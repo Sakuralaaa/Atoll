@@ -425,6 +425,9 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 	hello.MeshToken = a.MeshToken
 	hello.BuildSources = a.Builds != nil // any git server, ssh, MsgGitHead, MsgBuildDetect, generated builds
 	hello.DiskUsage = a.Disk != nil
+	for _, e := range a.Ext {
+		hello.DBUpgrade = hello.DBUpgrade || e.Handles(api.MsgDBUpgrade)
+	}
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
 		return false, err
 	}

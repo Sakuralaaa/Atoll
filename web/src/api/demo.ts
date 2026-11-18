@@ -10,6 +10,7 @@ import { makeDemoGit } from './demo-git'
 import { demoAgentUpgrade, makeDemoControl } from './demo-control'
 import { makeDemoProblems } from './demo-problems'
 import { makeDemoDisk } from './demo-disk'
+import { makeDemoDBUpgrade } from './demo-dbupgrade'
 import { makeDemoTokens } from './demo-tokens'
 import { makeDemoUsers } from './demo-users'
 import { CONFIG, exec } from './demo-exec'
@@ -302,6 +303,7 @@ const demoUsers = makeDemoUsers(servers, now)
 const demoTokens = makeDemoTokens(tokens, demoUsers, nid)
 const demoProblems = makeDemoProblems(servers, now, () => demoUsers.member()?.servers)
 const demoDisk = makeDemoDisk(now, id => svc(id), (st, msg) => fail(st, msg))
+const demoDBUpgrade = makeDemoDBUpgrade(id => svc(id), (st, msg) => fail(st, msg))
 const demoAuth = makeDemoAuth(demoUsers)
 const demoControl = makeDemoControl({ now, servers, settings, stress: stressEnabled(), twoFactor: demoAuth.twoFactor })
 function fail(status: number, msg: string): never { throw new ApiError(status, msg) }
@@ -331,6 +333,7 @@ function route(method: string, path: string, body: any): unknown {
   { const r = demoUsers.route(method, m, body); if (r !== undefined) return r }
   { const r = demoProblems.route(method, m, body); if (r !== undefined) return r }
   { const r = demoDisk.route(method, m, body, q, () => !demoUsers.member() || !!demoUsers.member()?.permissions?.includes('deploy')); if (r !== undefined) return r }
+  { const r = demoDBUpgrade(method, m, body, () => !demoUsers.member() || !!demoUsers.member()?.permissions?.includes('deploy')); if (r !== undefined) return r }
   if (G && m('servers')) return demoUsers.servers(servers)
   if (G && m('me/project-prefs')) return projectPrefs
   if (U && m('me/project-prefs')) {

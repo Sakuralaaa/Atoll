@@ -107,6 +107,10 @@ func (s *Server) Handler() http.Handler {
 	a("GET "+v+"/services/{id}/metrics", lvlRead, s.handleServiceMetrics)
 	a("GET "+v+"/services/{id}/disk", lvlRead, s.handleServiceDisk)
 	a("PUT "+v+"/services/{id}/volumes/{name}/limit", lvlDeploy, s.handlePutVolumeLimit)
+	a("GET "+v+"/services/{id}/db-upgrade", lvlRead, s.handleGetDBUpgrade) // dbupgrade.go
+	a("POST "+v+"/services/{id}/db-upgrade", lvlDeploy, s.handleStartDBUpgrade)
+	a("POST "+v+"/services/{id}/db-upgrade/rollback", lvlDeploy, s.handleDBUpgradeRollback)
+	a("DELETE "+v+"/services/{id}/db-upgrade/old", lvlDeploy, s.handleDBUpgradeCleanup)
 	a("GET "+v+"/services/{id}/logs", lvlRead, s.handleLogs)
 	a("POST "+v+"/services/{id}/exec", needExec, s.handleExec)
 

@@ -10,6 +10,8 @@ import { isGit } from '../api/git'
 import { L, useT } from '../i18n'
 import { useCan } from '../api/queries'
 import { cx } from './ui-utils'
+import { DBUpgradeButton, DBUpgradeStatus } from './DBUpgrade'
+import { DB_UPGRADE_KINDS } from '../api/dbupgrade'
 
 const STATUS: Record<string, [string, 'amber' | 'green' | 'red' | 'zinc']> = {
   update_available: [L("有更新"), 'amber'],
@@ -102,10 +104,13 @@ function RegistryUpdateCard({ s }: { s: Service }) {
         <span className={cx('font-mono truncate', u.digest_changed ? 'text-accent font-semibold' : 'text-fg2')} title={u.latest_digest}>{shortDigest(u.latest_digest)}</span>
         {u.major_tag && <>
           <span className="text-muted">{L("大版本")}</span>
-          <span className="col-span-2 flex flex-wrap items-center gap-2 text-fg2 min-w-0"><TriangleAlert size={14} className="text-warn shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">{L("主版本号变化，可能不兼容，请先看更新日志")}</span>
-            {canDeploy && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ tag: u.major_tag })}>{L("切换")}</Button>}</span>
+          <span className="col-span-2 flex flex-wrap items-center gap-2 text-fg2 min-w-0"><TriangleAlert size={14} className="text-warn shrink-0" /><span className="font-mono font-semibold">{u.major_tag}</span><span className="text-muted">{DB_UPGRADE_KINDS.has(s.kind) ? L("数据格式不同，不能直接换标签，可一键升级") : L("主版本号变化，可能不兼容，请先看更新日志")}</span>
+            {canDeploy && (DB_UPGRADE_KINDS.has(s.kind) ? <DBUpgradeButton s={s} tag={u.major_tag} current={u.current_tag} />
+              : <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ tag: u.major_tag })}>{L("切换")}</Button>)}</span>
         </>}
       </div>}
+
+      <DBUpgradeStatus s={s} />
 
       {(u.error || u.note) && <div className={cx('mt-4 text-[12.5px] leading-5 [overflow-wrap:anywhere]', u.error ? 'text-danger' : 'text-muted')}>{u.error || u.note}</div>}
 

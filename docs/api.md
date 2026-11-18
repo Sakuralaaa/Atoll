@@ -88,6 +88,10 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | GET | /services/{id}/metrics?range= | []ContainerMetrics |
 | GET | /services/{id}/disk?range=1h\|24h\|7d | ServiceDisk: newest disk usage per volume and writable layer, limits, history (read) |
 | PUT | /services/{id}/volumes/{name}/limit | `{limit_mb, over_limit: stop\|alert}` → ServiceDisk; `limit_mb` 0 removes the limit (deploy) |
+| GET | /services/{id}/db-upgrade | DBUpgradeInfo `{supported, reason?, last?}` |
+| POST | /services/{id}/db-upgrade | `{tag}` → 202 DBUpgrade; PostgreSQL major upgrade (deploy) |
+| POST | /services/{id}/db-upgrade/rollback | back to the image and data from before the last upgrade (deploy) |
+| DELETE | /services/{id}/db-upgrade/old | delete the data kept by the last upgrade (deploy) |
 | GET (WS) | /services/{id}/logs?tail=200&follow=1 | stream of LogLine JSON frames |
 | POST | /services/{id}/exec | {cmd: []string} → ResultPayload |
 | GET | /image-updates?available=1 | []ImageUpdate for every service (see "Image updates") |
@@ -451,6 +455,17 @@ The control server managing itself: `internal/server/control*.go`, types in `int
 
 **Agents and the public URL.** On every agent connect, when the panel's public URL is domain-based (not an IP) and the agent has it neither as its control URL nor as a fallback, the server sends `network` `{control_url: <the URL the agent uses>, fallback_url: <public URL>}` (an agent connected through a fallback gets `control_url: ""`, which only adds the fallback). Agents that lose their primary URL (e.g. the old control's tailnet IP) fail over to it, and the tailnet reconcile then moves them to the new control's tailnet URL.
 
+
+## Database major upgrades (v0.1.49)
+
+PostgreSQL stores data differently in each major version, so changing `postgres:17` to `postgres:18` alone leaves the service unable to start. `POST /services/{id}/db-upgrade {"tag": "18"}` (deploy permission) does it safely:
+
+1. The control server resolves the tag's digest and asks the agent (`db.upgrade`) to convert. The agent pulls the new image, checks there is free disk for about twice the data, stops the service and moves its volumes dir aside.
+2. A temporary container of the **old** image, with no network, starts on the old data; the agent counts databases and tables and dumps everything with `pg_dumpall` (roles included).
+3. A temporary container of the **new** image initialises fresh volume dirs with the service's env and loads the dump. The counts must match, and `data_directory` must lie inside a volume (otherwise an image whose `PGDATA` moved would write to an anonymous volume).
+4. The converted dirs move into place and the server deploys the new image. If that deployment fails, the server rolls back on its own (`db.upgrade.rollback`) and redeploys the old image.
+
+Any failure in steps 1–3 puts the old data back and starts the old version: nothing changes. The old data stays on the node (`old_kept: true`) until `DELETE .../db-upgrade/old`; until then `POST .../db-upgrade/rollback` returns to it (losing what was written since), and a new upgrade is refused. Only `kind: postgres` services built from an image, with no host-directory volumes, on an agent that reports `db_upgrade` in its hello can be upgraded. `status` is `running`, `done`, `failed` (nothing changed) or `rolled_back`; `steps` are `convert` and `deploy`.
 
 ## Disk usage and volume limits (v0.1.48)
 

@@ -399,7 +399,7 @@ func (m *Manager) ensureSpace(need int64) error {
 		return nil // unknown: let restic fail if it does not fit
 	}
 	if have < uint64(need) {
-		return fmt.Errorf("not enough free disk for the drill: needs about %s, %s free", humanBytes(uint64(need)), humanBytes(have))
+		return fmt.Errorf("not enough free disk: needs about %s, %s free", humanBytes(uint64(need)), humanBytes(have))
 	}
 	return nil
 }
