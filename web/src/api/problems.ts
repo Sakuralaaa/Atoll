@@ -5,6 +5,7 @@ import type { Problem } from './types'
 const LABEL: Record<string, string> = {
   node_offline: L("服务器离线"), disk_high: L("磁盘空间不足"), service_down: L("服务异常"),
   deploy_failed: L("部署失败"), backup_failed: L("备份失败"), backup_verify_failed: L("备份校验失败"), domain_error: L("域名异常"),
+  volume_full: L("卷容量告警"),
 }
 export const problemLabel = (k: string) => LABEL[k] ?? k
 
@@ -13,6 +14,7 @@ export function problemHref(p: Problem) {
   if (p.kind === 'node_offline' || p.kind === 'disk_high') return `/servers/${p.subject_id}`
   if (p.kind === 'domain_error') return '/domains'
   if (p.kind === 'backup_verify_failed' && p.subject_id === 'backup_repo') return '/settings#backup'
+  if (p.kind === 'volume_full' && p.project_id) return `/projects/${p.project_id}/services/${p.subject_id}?tab=disk`
   return p.project_id ? `/projects/${p.project_id}/services/${p.subject_id}` : '/'
 }
 

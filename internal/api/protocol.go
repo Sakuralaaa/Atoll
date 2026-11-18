@@ -229,6 +229,8 @@ type HelloPayload struct {
 	// BuildSources: this agent builds from any git server (https/ssh, MsgGitHead,
 	// MsgBuildDetect) and without a Dockerfile (BuildPayload.Builder).
 	BuildSources bool `json:"build_sources,omitempty"`
+	// DiskUsage: this agent sends MsgDiskUsage and handles MsgDiskMeasure (v0.1.48+).
+	DiskUsage bool `json:"disk_usage,omitempty"`
 }
 
 type ContainerState struct {

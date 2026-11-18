@@ -456,6 +456,9 @@ func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
+	if req.Action != "stop" {
+		s.diskGraceOnStart(r.Context(), svc)
+	}
 	s.st.Audit(r.Context(), principalFrom(r.Context()).actor(), "service."+req.Action, svc.ID, nil)
 	writeJSON(w, 200, out)
 	return nil

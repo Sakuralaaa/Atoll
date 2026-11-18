@@ -34,8 +34,9 @@ type Agent struct {
 	Mgr      *Manager
 	Ingress  *Ingress
 	Volumes  *VolumeTransfer
-	Builds   *Builder  // builds from source (MsgBuild)
-	Upgrades *Upgrader // self-upgrade from the panel (MsgUpgrade); nil = unsupported
+	Disk     *DiskMeter // nil = no disk usage reports
+	Builds   *Builder   // builds from source (MsgBuild)
+	Upgrades *Upgrader  // self-upgrade from the panel (MsgUpgrade); nil = unsupported
 	// MeshToken: the mesh extension handles per-project tokens (announced in the hello).
 	MeshToken bool
 	Firewall  interface {
@@ -49,6 +50,7 @@ type Agent struct {
 	StatusEvery  time.Duration // forced status frame
 	StatusCheck  time.Duration // change detection poll
 	MetricsEvery time.Duration
+	DiskEvery    time.Duration // disk usage report interval (default api.DiskUsageEvery)
 	// ImagePruneEvery is how often unused images older than ImagePruneAge are removed
 	// (default 24h, first run 10 minutes after start; negative disables).
 	ImagePruneEvery time.Duration
@@ -108,6 +110,7 @@ func New(cfg *Config, rt Runtime, fw interface {
 		a.Ingress.Image = cfg.CaddyImage
 	}
 	a.Volumes = NewVolumeTransfer(rt, p, cfg.NodeToken)
+	a.Disk = &DiskMeter{Paths: p, RT: rt, Specs: func() []api.ResolvedSpec { specs, _ := a.Mgr.Store().List(); return specs }}
 	a.Builds = NewBuilder(rt, p, a.Emit, log)
 	a.Builds.CurrentImage = func(serviceID string) string {
 		if spec, err := a.Mgr.Store().Load(serviceID); err == nil {
@@ -163,6 +166,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	go a.statusLoop(ctx)
 	go a.metricsLoop(ctx)
 	go a.imagePruneLoop(ctx, 10*time.Minute)
+	go a.diskLoop(ctx, 2*time.Minute)
 	if a.Builds != nil {
 		go a.Builds.IdleLoop(ctx)
 	}
@@ -420,6 +424,7 @@ func (a *Agent) session(ctx context.Context, server string) (connected bool, err
 	hello.SelfUpgrade = a.Upgrades != nil
 	hello.MeshToken = a.MeshToken
 	hello.BuildSources = a.Builds != nil // any git server, ssh, MsgGitHead, MsgBuildDetect, generated builds
+	hello.DiskUsage = a.Disk != nil
 	if err := a.write(c, api.Envelope{Type: api.MsgHello, Payload: hello}); err != nil {
 		return false, err
 	}
@@ -623,6 +628,18 @@ func (a *Agent) Handle(ctx context.Context, msgType string, raw json.RawMessage)
 			return "", err
 		}
 		return a.handleUpgrade(ctx, p)
+	case api.MsgDiskMeasure:
+		if a.Disk == nil {
+			break
+		}
+		var p api.DiskMeasurePayload
+		if len(raw) > 0 && string(raw) != "null" {
+			if err := json.Unmarshal(raw, &p); err != nil {
+				return "", fmt.Errorf("bad payload: %w", err)
+			}
+		}
+		b, _ := json.Marshal(a.Disk.Measure(ctx, p.ServiceIDs))
+		return string(b), nil
 	case api.MsgVolumeExport, api.MsgVolumeImport:
 		p, err := decode[api.VolumeTransferPayload](raw)
 		if err != nil {

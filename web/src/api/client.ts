@@ -1,7 +1,7 @@
 import { L } from '../i18n'
 import { applyAccountStyle } from '../theme'
 import type { PanelUser, PanelUserInput,
-  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
+  AgentUpgrade, AgentUpgradeRow, APIToken, AuthStatus, Confirmation, ContainerMetrics, ContainerState, ServiceDisk, Deployment, Domain, CloudflareTokenCheck, RootDomain, EnvReference, EnvVar,
   ImportJob, ImportPlan, InstallCommand, JoinToken, NetworkResult, ServerNetworkRequest, TokenRequest, TokenUpdate, LoginChallenge, RecoveryCodes, ChangePasswordRequest, ChangePasswordResponse, SessionInfo, TwoFactorEnrollment, TwoFactorStatus, MigrationJob, ZeaburInventory, ZeaburLocalImportRequest, DockerInventory, DockerAdoptRequest, ZeaburCleanupRequest, ZeaburNodeCutoverRequest, ZeaburNodeOp, Me, NodeMetrics, Port, Project, ResultPayload, Server, Service, Settings, Template, AppTemplate, AppTemplateResult, Volume, Problem, NotificationSettings, NotificationChannel, ProjectPrefs,
 } from './types'
 
@@ -158,6 +158,9 @@ export const api = {
   deleteRootDomain: (name: string) => del<void>(`/root-domains/${e(name)}`),
   deployments: (id: string) => get<Deployment[]>(`/services/${e(id)}/deployments`),
   serviceMetrics: (id: string, range: Range = '24h') => get<ContainerMetrics[]>(`/services/${e(id)}/metrics?range=${range}`),
+  serviceDisk: (id: string, range: Range = '24h') => get<ServiceDisk>(`/services/${e(id)}/disk?range=${range}`),
+  /** soft volume limit; limit_mb 0 removes it */
+  setVolumeLimit: (id: string, volume: string, b: { limit_mb: number; over_limit?: 'stop' | 'alert' }) => put<ServiceDisk>(`/services/${e(id)}/volumes/${e(volume)}/limit`, b),
   /** move one service (container + volumes) to another server; siblings reach it over the tailnet mesh */
   migrateService: (id: string, server_id: string) => post<MigrationJob | Confirmation>(`/services/${e(id)}/migrate`, { server_id }),
   exec: (id: string, cmd: string[]) => post<ResultPayload>(`/services/${e(id)}/exec`, { cmd }),

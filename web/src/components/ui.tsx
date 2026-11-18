@@ -204,11 +204,11 @@ function smooth(pts: number[][]) {
   return d
 }
 
-export function Chart({ title, icon, data, color = 'var(--pick)', unit = '%', labels = ['12:24', '14:48', '17:12', '19:36', '22:00', '00:24'], h = 160, max }: { title: string; icon?: React.ReactNode; data: number[]; color?: string; unit?: string; labels?: string[]; h?: number; max?: number }) {
+export function Chart({ title, icon, data, color = 'var(--pick)', unit = '%', labels = ['12:24', '14:48', '17:12', '19:36', '22:00', '00:24'], h = 160, max, empty }: { title: string; icon?: React.ReactNode; data: number[]; color?: string; unit?: string; labels?: string[]; h?: number; max?: number; empty?: string }) {
   const w = 600
   if (data.length < 2) return (
     <Card className="overflow-hidden"><div className="px-5 pt-4 flex items-center gap-1.5 text-[12.5px] text-muted">{icon}{title}</div>
-      <div className="px-5 pb-5 pt-3"><div style={{ height: h + 50 }} className="rounded-lg border-2 border-dashed border-line2 grid place-items-center text-[13px] text-dim">{L("暂无数据，Agent 每 15 秒上报一次")}</div></div></Card>
+      <div className="px-5 pb-5 pt-3"><div style={{ height: h + 50 }} className="rounded-lg border-2 border-dashed border-line2 grid place-items-center text-[13px] text-dim">{empty ?? L("暂无数据，Agent 每 15 秒上报一次")}</div></div></Card>
   )
   const top = max ?? (Math.ceil(Math.max(...data) * 1.3) || 1)
   const step = w / (data.length - 1)

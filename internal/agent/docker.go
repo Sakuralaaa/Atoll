@@ -578,3 +578,16 @@ func (d *DockerRuntime) RemoveImage(ctx context.Context, ref string) error {
 	_, err := d.cli.ImageRemove(ctx, ref, image.RemoveOptions{PruneChildren: true})
 	return mapErr(err)
 }
+
+// ContainerSizeRw is the size of the container's writable layer (docker ps --size). Docker
+// computes it on demand, which can take a moment on a large layer.
+func (d *DockerRuntime) ContainerSizeRw(ctx context.Context, name string) (int64, error) {
+	ins, _, err := d.cli.ContainerInspectWithRaw(ctx, name, true)
+	if err != nil {
+		return 0, mapErr(err)
+	}
+	if ins.ContainerJSONBase == nil || ins.SizeRw == nil {
+		return -1, nil
+	}
+	return *ins.SizeRw, nil
+}

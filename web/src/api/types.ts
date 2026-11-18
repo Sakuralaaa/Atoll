@@ -216,6 +216,9 @@ export interface ServiceMigrateRequest { server_id: string }
 export interface ErrorBody { error: string; code?: string }
 
 export interface ContainerMetrics { service_id: string; at: string; cpu_pct: number; mem_mb: number; net_rx_bps: number; net_tx_bps: number }
+/** GET /services/{id}/disk: newest measurement (agents measure every 10 minutes) and history */
+export interface VolumeDisk { name: string; mount_path?: string; bytes: number; measured: boolean; limit_mb?: number; over_limit?: 'stop' | 'alert'; host_path?: boolean; orphan?: boolean }
+export interface ServiceDisk { supported: boolean; measured_at?: string; total_bytes: number; rootfs_bytes: number; volumes: VolumeDisk[]; history?: { at: string; bytes: number }[] }
 export interface LogLine { service_id: string; at: string; stream: 'stdout' | 'stderr' | string; line: string }
 export interface ContainerState {
   service_id: string; deployment_id: string; state: string; health?: string
@@ -440,7 +443,7 @@ export interface AuditPage { entries: AuditEntry[]; next_before?: number }
 /** A condition the control server watches (GET /problems). Only firing ones are listed. */
 export interface Problem {
   id: string
-  kind: 'node_offline' | 'disk_high' | 'service_down' | 'deploy_failed' | 'backup_failed' | 'backup_verify_failed' | 'domain_error' | string
+  kind: 'node_offline' | 'disk_high' | 'service_down' | 'deploy_failed' | 'backup_failed' | 'backup_verify_failed' | 'domain_error' | 'volume_full' | string
   /** server id for node_offline / disk_high, domain id for domain_error, "backup_repo" for a failed repository check, service id otherwise */ subject_id: string
   subject_name: string; project_id?: string; server_id?: string
   message: string; since: string; firing_at?: string; resolved_at?: string

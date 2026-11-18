@@ -8,6 +8,7 @@ import { useT } from '../i18n'
 const ICON: Record<string, React.ReactNode> = {
   node_offline: <ServerOff size={15} />, disk_high: <HardDrive size={15} />, service_down: <Siren size={15} />,
   deploy_failed: <Rocket size={15} />, backup_failed: <ArchiveX size={15} />, backup_verify_failed: <ShieldAlert size={15} />, domain_error: <Globe size={15} />,
+  volume_full: <HardDrive size={15} />,
 }
 
 const COLLAPSE_KEY = 'atoll.problems.collapsed.'

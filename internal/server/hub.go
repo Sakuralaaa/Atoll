@@ -45,6 +45,8 @@ type agentConn struct {
 	selfUpgrade bool
 	// buildSources: the agent said in its hello that it builds any git source (git_source.go).
 	buildSources atomic.Bool
+	// diskUsage: the agent sends MsgDiskUsage and handles MsgDiskMeasure (disk.go).
+	diskUsage atomic.Bool
 	// latency: round-trip times of control→agent pings (latency.go).
 	latency latencyRing
 }
@@ -255,6 +257,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(env.Payload, &hello)
 	c.selfUpgrade = hello.SelfUpgrade
 	c.buildSources.Store(hello.BuildSources)
+	c.diskUsage.Store(hello.DiskUsage)
 	if err := s.st.UpdateNodeHello(ctx, nodeID, hello); err != nil {
 		s.log.Error("hello", "err", err)
 		return
@@ -328,6 +331,11 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		if json.Unmarshal(env.Payload, &m) == nil {
 			s.handleMetrics(ctx, c.nodeID, m)
 		}
+	case api.MsgDiskUsage:
+		var du api.DiskUsagePayload
+		if json.Unmarshal(env.Payload, &du) == nil {
+			s.goBG(func(bg context.Context) { s.handleDiskUsage(bg, c.nodeID, du) })
+		}
 	case api.MsgBackupEvent:
 		var ev api.BackupEvent
 		if json.Unmarshal(env.Payload, &ev) == nil {
@@ -366,6 +374,7 @@ func (s *Server) handleAgentFrame(ctx context.Context, c *agentConn, env inEnvel
 		if json.Unmarshal(env.Payload, &hello) == nil {
 			s.st.UpdateNodeHello(ctx, c.nodeID, hello)
 			c.buildSources.Store(hello.BuildSources)
+			c.diskUsage.Store(hello.DiskUsage)
 			s.setMeshCap(ctx, c.nodeID, hello.MeshToken)
 			s.goBG(func(bg context.Context) { s.pushMeshAll(bg) })
 		}

@@ -142,7 +142,33 @@ func (s *Store) ProblemSignals(ctx context.Context, now time.Time) ([]api.Proble
 		out = append(out, api.Problem{Kind: api.ProblemDomainError, SubjectID: id, SubjectName: host, ProjectID: pid, ServerID: node,
 			Message: firstLine("域名配置失败", msg)})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	// volumes at or above VolumeWarnRatio of their limit (one problem per service)
+	vols, err := s.MountedVolumesNearLimit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < len(vols); {
+		v := vols[i]
+		var parts []string
+		for ; i < len(vols) && vols[i].ServiceID == v.ServiceID; i++ {
+			w := vols[i]
+			parts = append(parts, fmt.Sprintf("卷 %s 已用 %s / %d MB（%.0f%%）", w.Volume, HumanMB(w.Bytes), w.LimitMB, float64(w.Bytes)/float64(int64(w.LimitMB)<<20)*100))
+			if w.Bytes > int64(w.LimitMB)<<20 && w.OverLimit == api.OverLimitStop && w.Stopped {
+				parts[len(parts)-1] += "，超过上限，服务已停止"
+			}
+		}
+		if offline[v.ServerID] {
+			continue
+		}
+		out = append(out, api.Problem{Kind: api.ProblemVolumeFull, SubjectID: v.ServiceID, SubjectName: v.ServiceName, ProjectID: v.ProjectID,
+			ServerID: v.ServerID, Message: strings.Join(parts, "；")})
+	}
+	return out, nil
 }
 
 func firstLine(prefix, msg string) string {

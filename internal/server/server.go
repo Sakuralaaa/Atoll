@@ -250,6 +250,7 @@ func New(cfg Config) (*Server, error) {
 	go s.gitPollLoop()       // git_poll.go
 	s.startBackupScheduler() // backups.go
 	s.startProblemWatcher()  // problems.go
+	s.startDiskWatcher()     // disk.go
 	s.startGeoIP()           // geoip.go
 	// control*.go: own metrics, daily control backup, panel DNS after a move, update result
 	s.controlSampleLoop()
@@ -310,6 +311,9 @@ func (s *Server) housekeeping() {
 		case <-prune.C:
 			if err := s.st.PruneMetrics(s.bg, 7*24*time.Hour, 24*time.Hour); err != nil {
 				s.log.Warn("prune metrics", "err", err)
+			}
+			if err := s.st.PruneDiskHistory(s.bg, time.Now()); err != nil {
+				s.log.Warn("prune disk history", "err", err)
 			}
 			s.st.ExpireConfirmations(s.bg, 24*time.Hour)
 			if time.Since(lastRetention) > 6*time.Hour {

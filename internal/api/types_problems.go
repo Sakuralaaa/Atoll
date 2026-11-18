@@ -14,6 +14,8 @@ const (
 	// ProblemBackupVerifyFailed: the newest repository check (subject BackupRepoSubjectID) or
 	// the newest restore drill of a service (subject = service id) failed.
 	ProblemBackupVerifyFailed = "backup_verify_failed"
+	// ProblemVolumeFull: a volume of the service (subject) uses >= VolumeWarnRatio of its limit.
+	ProblemVolumeFull = "volume_full"
 )
 
 // ProblemThreshold is how long a condition must hold before it fires.

@@ -193,6 +193,13 @@ func (s *Store) SetServiceStatus(ctx context.Context, id, status, replicas strin
 }
 
 // SetDesiredStopped records whether the user wants the service stopped.
+// DesiredStopped reports whether the service was stopped on purpose.
+func (s *Store) DesiredStopped(ctx context.Context, id string) (bool, error) {
+	var v bool
+	err := s.r.QueryRowContext(ctx, `SELECT desired_stopped FROM services WHERE id=?`, id).Scan(&v)
+	return v, err
+}
+
 func (s *Store) SetDesiredStopped(ctx context.Context, id string, stopped bool) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE services SET desired_stopped=? WHERE id=?`, b2i(stopped), id)
 	return err
@@ -238,6 +245,7 @@ func (s *Store) ListServices(ctx context.Context, projectID string) ([]api.Servi
 func (s *Store) DeleteService(ctx context.Context, id string) error {
 	s.DB.ExecContext(ctx, `DELETE FROM container_states WHERE service_id=?`, id)
 	s.DB.ExecContext(ctx, `DELETE FROM container_metrics WHERE service_id=?`, id)
+	s.DB.ExecContext(ctx, `DELETE FROM disk_usage_history WHERE service_id=?`, id)
 	s.DB.ExecContext(ctx, `DELETE FROM mesh_ports WHERE service_id=?`, id)
 	// its own registry credential (POST .../services registry_auth), if not shared
 	s.DB.ExecContext(ctx, `DELETE FROM settings WHERE key = 'registry_cred:' || (SELECT registry_cred_id FROM services WHERE id=? AND registry_cred_id LIKE 'reg\_%' ESCAPE '\')

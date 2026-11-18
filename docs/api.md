@@ -86,6 +86,8 @@ The client IP is the TCP peer, except when the peer is a trusted proxy: then it 
 | POST | /hooks/gitea/{service_id} | Gitea / Forgejo push webhook, no login: verified by `X-Gitea-Signature` / `X-Forgejo-Signature` |
 | POST | /services/{id}/git/detect | `deploy`. Preview how a git service builds: the service's server fetches the branch head and returns GitDetected (body may override `builder`, `stack`, `*_command`) |
 | GET | /services/{id}/metrics?range= | []ContainerMetrics |
+| GET | /services/{id}/disk?range=1h\|24h\|7d | ServiceDisk: newest disk usage per volume and writable layer, limits, history (read) |
+| PUT | /services/{id}/volumes/{name}/limit | `{limit_mb, over_limit: stop\|alert}` → ServiceDisk; `limit_mb` 0 removes the limit (deploy) |
 | GET (WS) | /services/{id}/logs?tail=200&follow=1 | stream of LogLine JSON frames |
 | POST | /services/{id}/exec | {cmd: []string} → ResultPayload |
 | GET | /image-updates?available=1 | []ImageUpdate for every service (see "Image updates") |
@@ -448,3 +450,26 @@ The control server managing itself: `internal/server/control*.go`, types in `int
 **Offline CLI** (on the control host): `atoll-server export --out FILE --passphrase-file F [--data DIR]`, `atoll-server restore --bundle FILE --passphrase-file F [--data DIR] [--env-file /etc/atoll/server.env] [--force] [--adopt-public-ip] [--keep-tailnet-url]`; `install-server.sh --restore FILE --restore-passphrase-file F [--adopt-public-ip]`. `atoll-server serve --adopt-public-ip` (or `ATOLL_ADOPT_PUBLIC_IP=1`; `ATOLL_PUBLIC_IP` overrides detection) points the public URL host's A record at this host when it is under the Cloudflare `base_domain` (proxied flag kept). `atoll control` (CLI, `read`) prints the status.
 
 **Agents and the public URL.** On every agent connect, when the panel's public URL is domain-based (not an IP) and the agent has it neither as its control URL nor as a fallback, the server sends `network` `{control_url: <the URL the agent uses>, fallback_url: <public URL>}` (an agent connected through a fallback gets `control_url: ""`, which only adds the fallback). Agents that lose their primary URL (e.g. the old control's tailnet IP) fail over to it, and the tailnet reconcile then moves them to the new control's tailnet URL.
+
+
+## Disk usage and volume limits (v0.1.48)
+
+Agents that announce `disk_usage` in their hello measure every service every 10 minutes and send
+`disk.usage` frames: the size of each dir under `/var/lib/atoll/volumes/<service_id>/` (allocated
+blocks, hard links once, symlinks not followed, other filesystems not entered) and the container's
+writable layer (`docker inspect --size`). Host-path volumes (Docker adoption) are not measured or
+limited. The control server keeps the newest numbers (`volume_usage`) and a total per 10-minute
+bucket for 8 days (`disk_usage_history`). Older agents send nothing; `GET .../disk` then answers
+`supported: false` and the panel says to upgrade the agent.
+
+`ServiceDisk`: `supported`, `measured_at`, `total_bytes` (mounted volumes + writable layer),
+`rootfs_bytes` (-1 unknown), `volumes[]` (`name`, `mount_path`, `bytes`, `measured`, `limit_mb`,
+`over_limit`, `host_path`, `orphan` = data of a volume no longer mounted), `history[]` (`at`, `bytes`).
+
+Limits are soft (migration 0032, tables `volume_limits`, `disk_enforcement`); the filesystem
+enforces nothing. At 80% of a limit the `volume_full` problem fires (notifications as for other
+problems) and the control server measures that service every minute (`disk.measure` request). Over
+the limit with `over_limit: stop` (the default) the service is stopped (audit `service.stop` by
+`system`, detail `reason: volume_full`). A manual start, restart or redeploy through
+`POST /services/{id}/actions` while still over the limit gives one hour before it is stopped again,
+so the owner can clean up. Existing volumes have no limit after the upgrade.

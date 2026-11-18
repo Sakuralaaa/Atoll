@@ -2,21 +2,23 @@ import { L } from '../../i18n'
 import { useState } from 'react'
 import { IP } from '../../components/IP'
 import { Link, useParams } from 'react-router-dom'
-import { HardDrive, Globe, FolderOpen, ExternalLink, Trash2, Plus, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, ShieldCheck } from 'lucide-react'
+import { HardDrive, Globe, FolderOpen, ExternalLink, Trash2, Plus, Cpu, MemoryStick, ArrowDownUp, Copy, Cloud, Box, ShieldCheck, Gauge } from 'lucide-react'
 import { Button, Card, Chart, Dot } from '../../components/ui'
 import { ConfirmDialog, Empty, ErrorState, Label, Modal, Select, TextInput } from '../../components/feedback'
-import { api, isDemo, type Range } from '../../api/client'
+import { api, type Range } from '../../api/client'
 import { run, useQuery } from '../../api/hooks'
-import { bytesRate, primaryPort, timeLabels } from '../../api/view'
-import type { Domain, Server, Service } from '../../api/types'
+import { bytes, bytesRate, primaryPort, timeLabels } from '../../api/view'
+import type { Domain, Server, Service, VolumeDisk } from '../../api/types'
 import { RangePicker } from '../ServerDetail'
 import { DomainBadge } from '../../components/DomainStatus'
 import { BindDomain } from './StatusTab'
 import { useCan } from '../../api/queries'
+import { DiskUsageChart, VolumeLimitModal, VolumeUsageBar } from './DiskParts'
 
 export function UsageTab({ s }: { s: Service }) {
   const [range, setRange] = useState<Range>('24h')
   const q = useQuery(`svc-metrics:${s.id}:${range}`, () => api.serviceMetrics(s.id, range), { interval: 60000 })
+  const dq = useQuery(`svc-disk:${s.id}:${range}`, () => api.serviceDisk(s.id, range), { interval: 60000 })
   const d = q.data ?? []
   const labels = timeLabels(d.map(x => x.at))
   const tx = d.reduce((a, x, i) => a + (i ? x.net_tx_bps * ((new Date(x.at).getTime() - new Date(d[i - 1].at).getTime()) / 1000) : 0), 0)
@@ -30,6 +32,7 @@ export function UsageTab({ s }: { s: Service }) {
       </div>
       <div className="mt-5"><Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="var(--c-3)" unit=" MB/s" h={150} labels={labels} /></div>
       <div className="text-[12.5px] text-dim mt-3">{s.name} {L("所选时段出站约")} {(tx / 1073741824).toFixed(1)} GB{d.length ? L(" · 当前 {0} 出站", bytesRate(d[d.length - 1].net_tx_bps)) : ''}</div>
+      <div className="mt-5"><DiskUsageChart d={dq.data} /></div>
     </>
   )
 }
@@ -96,25 +99,31 @@ function AddPort({ s, onClose }: { s: Service; onClose: () => void }) {
 }
 
 export function DiskTab({ s }: { s: Service }) {
-  const [add, setAdd] = useState(false); const [del, setDel] = useState<string>()
+  const [add, setAdd] = useState(false); const [del, setDel] = useState<string>(); const [lim, setLim] = useState<VolumeDisk>()
   const vols = s.volumes ?? []
   const p = useParams()
   const canDeploy = useCan('deploy'), canExec = useCan('exec')
+  const dq = useQuery(vols.length ? `svc-disk:${s.id}:1h` : null, () => api.serviceDisk(s.id, '1h'), { interval: 60000 })
+  const usage = (name: string) => dq.data?.volumes.find(x => x.name === name && !x.orphan)
+  const orphans = dq.data?.volumes.filter(x => x.orphan) ?? []
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4"><div className="min-w-[min(100%,260px)] flex-1"><div className="text-[15px] font-semibold">{L("硬盘")}</div><div className="text-[13px] text-muted mt-0.5">{L("卷保存在服务器本地 /var/lib/atoll/volumes，迁移时随服务一起搬走。")}</div></div>{canDeploy && <Button variant="primary" onClick={() => setAdd(true)}><Plus size={15} />{L("挂载卷")}</Button>}</div>
       {!vols.length ? <Empty icon={<HardDrive size={22} />} title={L("没有挂载卷")} desc={L("不挂载卷时，容器重新部署后文件会丢失。")} /> : (
         <Card className="divide-y divide-line">
-          {vols.map((v, i) => (
+          {vols.map(v => (
             <div key={v.name} className="px-4 @2xl:px-6 py-3.5 min-h-16 flex flex-wrap @3xl:flex-nowrap items-center gap-x-4 gap-y-2.5">
               <HardDrive size={18} className="text-accent shrink-0" />
               <div className="flex-1 min-w-0"><div className="font-mono text-[13px] [overflow-wrap:anywhere]">{v.mount_path}</div><div className="text-[12.5px] text-muted mt-0.5 font-mono [overflow-wrap:anywhere]">/var/lib/atoll/volumes/{s.id}/{v.name}</div></div>
-              {isDemo() && <div className="w-56 @max-3xl:order-last @max-3xl:w-full @max-3xl:pl-[34px]"><div className="flex justify-between text-[12.5px] mb-1.5"><span className="text-muted">{L("已用")}</span><span>{i ? '86 MB' : '1.4 GB'}</span></div><div className="h-2.5 rounded-[4px] field"><div className="h-full bg-pick" style={{ width: i ? '6%' : '28%' }} /></div></div>}
-              <span className="flex gap-3 text-muted @3xl:ml-4 shrink-0">{canExec && <Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link>}{canDeploy && <button onClick={() => setDel(v.name)} className="hover:text-danger"><Trash2 size={15} /></button>}</span>
+              {dq.data && (dq.data.supported || dq.data.measured_at) && <div className="w-56 @max-3xl:order-last @max-3xl:w-full @max-3xl:pl-[34px]"><VolumeUsageBar v={usage(v.name)} /></div>}
+              <span className="flex gap-3 text-muted @3xl:ml-4 shrink-0">{canDeploy && !v.host_path && usage(v.name) && <button title={L("容量上限")} aria-label={L("容量上限")} onClick={() => setLim(usage(v.name))} className="hover:text-fg"><Gauge size={15} /></button>}{canExec && <Link to={`/projects/${p.pid}/services/${s.id}/files?path=${encodeURIComponent(v.mount_path)}`} className="hover:text-fg"><FolderOpen size={15} /></Link>}{canDeploy && <button onClick={() => setDel(v.name)} className="hover:text-danger"><Trash2 size={15} /></button>}</span>
             </div>
           ))}
         </Card>
       )}
+      {orphans.length > 0 && <div className="text-[12.5px] text-dim mt-3">{L("已卸载的卷仍占用空间：")}{orphans.map(o => `${o.name} ${bytes(o.bytes)}`).join(L("、"))}</div>}
+      {dq.data && !dq.data.supported && !dq.data.measured_at && vols.length > 0 && <div className="text-[12.5px] text-dim mt-3">{L("该服务器的 Agent 版本较旧，升级 Agent 后显示卷的占用和上限。")}</div>}
+      {lim && <VolumeLimitModal s={s} v={lim} onClose={() => setLim(undefined)} onSaved={r => dq.set(r)} />}
       {add && <AddVolume s={s} onClose={() => setAdd(false)} />}
       {del && <ConfirmDialog title={L("卸载卷")} name={del} onClose={() => setDel(undefined)} description={<>{L("卸载卷")} <span className="font-mono">{del}</span> {L("并重新部署。服务器上的数据目录不会立即删除。")}</>}
         onConfirm={() => run(() => api.updateService(s.id, { volumes: vols.filter(v => v.name !== del) }), { ok: L("已卸载，正在重新部署"), invalidate: [`project:${s.project_id}`] })} />}
