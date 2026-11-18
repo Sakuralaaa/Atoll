@@ -30,9 +30,13 @@ export function UsageTab({ s }: { s: Service }) {
         <Chart title="CPU" icon={<Cpu size={15} />} data={d.map(x => x.cpu_pct)} color="var(--pick)" labels={labels} />
         <Chart title={L("内存")} icon={<MemoryStick size={15} />} data={d.map(x => x.mem_mb)} color="var(--c-4)" unit=" MB" labels={labels} />
       </div>
-      <div className="mt-5"><Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="var(--c-3)" unit=" MB/s" h={150} labels={labels} /></div>
-      <div className="text-[12.5px] text-dim mt-3">{s.name} {L("所选时段出站约")} {(tx / 1073741824).toFixed(1)} GB{d.length ? L(" · 当前 {0} 出站", bytesRate(d[d.length - 1].net_tx_bps)) : ''}</div>
-      <div className="mt-5"><DiskUsageChart d={dq.data} /></div>
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 mt-5 [&>*]:min-w-0">
+        <div>
+          <Chart title={L("网络用量")} icon={<ArrowDownUp size={15} />} data={d.map(x => (x.net_rx_bps + x.net_tx_bps) / 1048576)} color="var(--c-3)" unit=" MB/s" labels={labels} />
+          <div className="text-[12.5px] text-dim mt-3">{s.name} {L("所选时段出站约")} {(tx / 1073741824).toFixed(1)} GB{d.length ? L(" · 当前 {0} 出站", bytesRate(d[d.length - 1].net_tx_bps)) : ''}</div>
+        </div>
+        <div><DiskUsageChart d={dq.data} /></div>
+      </div>
     </>
   )
 }

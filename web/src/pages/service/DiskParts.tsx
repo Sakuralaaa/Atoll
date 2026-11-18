@@ -26,7 +26,7 @@ export function DiskUsageChart({ d }: { d?: ServiceDisk }) {
   ]
   return (
     <>
-      <Chart title={L("磁盘")} icon={<HardDrive size={15} />} data={h.map(x => x.bytes / div)} color="var(--c-5)" unit={gb ? ' GB' : ' MB'} h={150}
+      <Chart title={L("磁盘")} icon={<HardDrive size={15} />} data={h.map(x => x.bytes / div)} color="var(--c-5)" unit={gb ? ' GB' : ' MB'}
         labels={timeLabels(h.map(x => x.at))} empty={L("暂无数据，Agent 每 10 分钟统计一次")} />
       {d.measured_at && <div className="text-[12.5px] text-dim mt-3">{parts.join(' · ')}{parts.length ? ' · ' : ''}{L("统计于 {0}", ago(d.measured_at))}</div>}
     </>
