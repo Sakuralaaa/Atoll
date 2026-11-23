@@ -153,7 +153,12 @@ type Service struct {
 	RegistryCredID string       `json:"registry_cred_id,omitempty"`
 	// User overrides the image's USER (docker run --user): "uid", "uid:gid" or a user name.
 	// Empty runs the image's own user. Imports from Zeabur set it from the pod's runAsUser.
-	User      string    `json:"user,omitempty"`
+	User string `json:"user,omitempty"`
+	// Devices are host devices mapped into the container at the same path (docker --device),
+	// e.g. "/dev/kvm" for an Android emulator. Only api.AllowedDevice paths (agents v0.1.50+).
+	Devices []string `json:"devices,omitempty"`
+	// ShmSizeMB is the size of /dev/shm in MiB (docker --shm-size; 0 = Docker's 64 MiB).
+	ShmSizeMB int       `json:"shm_size_mb,omitempty"`
 	Status    string    `json:"status"`   // "running" | "deploying" | "stopped" | "failed" | "unknown"
 	Replicas  string    `json:"replicas"` // e.g. "1/1"
 	CreatedAt time.Time `json:"created_at"`

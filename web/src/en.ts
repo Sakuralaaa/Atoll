@@ -1433,6 +1433,17 @@ const en: Record<string, string> = {
  "部署 {0}；新版本起不来时自动回到 {1} 和原来的数据": "Deploy {0}; if it does not start, go back to {1} and the original data automatically",
  "部署新版本": "Deploy the new version",
  "，备份不受影响。": ". Backups are not affected.",
- "，换回升级前的数据，并部署": ", puts the pre-upgrade data back and deploys"
+ "，换回升级前的数据，并部署": ", puts the pre-upgrade data back and deploys",
+ "共享内存": "Shared memory",
+ "MB，即 /dev/shm；留空用 Docker 默认的 64 MB。浏览器、安卓模拟器一般要 1024–2048": "MB of /dev/shm; empty keeps Docker's 64 MB. Browsers and Android emulators usually need 1024–2048",
+ "硬件设备": "Host devices",
+ "KVM 虚拟化": "KVM virtualization",
+ "安卓模拟器、虚拟机要用；服务器本身要支持 KVM，否则部署会失败并说明原因": "For Android emulators and VMs; the server itself must support KVM, otherwise the deploy fails and says why",
+ "TUN 网卡": "TUN interface",
+ "WireGuard、OpenVPN 等 VPN 要用": "For VPNs such as WireGuard or OpenVPN",
+ "FUSE": "FUSE",
+ "在容器里挂载 rclone、sshfs 等文件系统": "Mount rclone, sshfs and other file systems inside the container",
+ "GPU（DRI）": "GPU (DRI)",
+ "Jellyfin、Plex 等用核显或独显转码": "Hardware transcoding for Jellyfin, Plex and the like"
 }
 export default en

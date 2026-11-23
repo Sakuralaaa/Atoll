@@ -146,6 +146,16 @@ func BuildContainerSpec(p Paths, s api.ResolvedSpec) (ContainerSpec, error) {
 		cs.MemoryBytes = int64(s.MemLimitMB) * 1024 * 1024
 	}
 	cs.User = s.User
+	for _, d := range s.Devices {
+		if !api.AllowedDevice(d) {
+			return cs, fmt.Errorf("device %q cannot be mapped (allowed: %s)", d, api.AllowedDevices)
+		}
+		cs.Devices = append(cs.Devices, d)
+	}
+	if s.ShmSizeMB < 0 || s.ShmSizeMB > api.MaxShmSizeMB {
+		return cs, fmt.Errorf("shm_size_mb %d is out of range (0-%d)", s.ShmSizeMB, api.MaxShmSizeMB)
+	}
+	cs.ShmSizeBytes = int64(s.ShmSizeMB) << 20
 	cs.PidsLimit = DefaultPidsLimit
 	cs.Health = buildHealth(s)
 	return cs, nil

@@ -86,6 +86,8 @@ export interface Service {
   image: string; command?: string[]; args?: string[]
   ports: Port[]; volumes: Volume[]; configs?: ConfigFile[]; health?: HealthCheck
   cpu_limit?: number; mem_limit_mb?: number; registry_cred_id?: string
+  /** host devices mapped at the same path, e.g. /dev/kvm (agents v0.1.50+) */ devices?: string[]
+  /** /dev/shm size in MB (0 = Docker's 64 MB) */ shm_size_mb?: number
   status: 'running' | 'deploying' | 'stopped' | 'failed' | 'unknown' | string
   replicas: string; created_at: string; domains?: Domain[]
   /** server the service runs on (read-only); usually the project's server */ server_id?: string

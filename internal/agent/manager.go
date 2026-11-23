@@ -155,6 +155,11 @@ func (m *Manager) prepareHost(ctx context.Context, spec api.ResolvedSpec) error 
 			return fmt.Errorf("network %s: %w", n.Name, err)
 		}
 	}
+	for _, d := range cs.Devices {
+		if err := checkDevice(d); err != nil {
+			return err
+		}
+	}
 	for _, v := range spec.Volumes {
 		if v.HostPath != "" {
 			// mounted in place: it must exist already, Atoll never creates it

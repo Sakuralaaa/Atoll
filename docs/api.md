@@ -456,6 +456,12 @@ The control server managing itself: `internal/server/control*.go`, types in `int
 **Agents and the public URL.** On every agent connect, when the panel's public URL is domain-based (not an IP) and the agent has it neither as its control URL nor as a fallback, the server sends `network` `{control_url: <the URL the agent uses>, fallback_url: <public URL>}` (an agent connected through a fallback gets `control_url: ""`, which only adds the fallback). Agents that lose their primary URL (e.g. the old control's tailnet IP) fail over to it, and the tailnet reconcile then moves them to the new control's tailnet URL.
 
 
+## Host devices and /dev/shm (v0.1.50)
+
+`POST /projects/{id}/services` and `PATCH /services/{id}` take `devices` (host devices mapped into the container at the same path, like `docker --device`) and `shm_size_mb` (size of `/dev/shm`, like `docker --shm-size`; 0 = Docker's 64 MiB, at most 65536). Only these devices are accepted, anything else is a 400: `/dev/kvm` (Android emulators, VMs), `/dev/net/tun` (VPNs), `/dev/fuse`, `/dev/dri` (or a single `/dev/dri/renderD*` / `/dev/dri/card*`, GPU transcoding). Duplicates are dropped; `"devices": []` removes them all. Both fields are returned on Service (omitted when empty) and restored by a rollback.
+
+Agents before v0.1.50 would ignore both fields, so creating or editing a service with them on an online server whose agent is older answers 409 `agent_outdated` (nothing is saved), and a deployment queued while the server was offline fails with the same reason when it reconnects. A device that does not exist on the server fails the deployment with a plain reason (for `/dev/kvm`: KVM is not available on that machine).
+
 ## Database major upgrades (v0.1.49)
 
 PostgreSQL stores data differently in each major version, so changing `postgres:17` to `postgres:18` alone leaves the service unable to start. `POST /services/{id}/db-upgrade {"tag": "18"}` (deploy permission) does it safely:

@@ -60,7 +60,9 @@ type ResolvedSpec struct {
 	Health       *HealthCheck      `json:"health,omitempty"`
 	CPULimit     float64           `json:"cpu_limit,omitempty"`
 	MemLimitMB   int               `json:"mem_limit_mb,omitempty"`
-	User         string            `json:"user,omitempty"` // docker --user ("" = image default)
+	User         string            `json:"user,omitempty"`        // docker --user ("" = image default)
+	Devices      []string          `json:"devices,omitempty"`     // host devices, same path in the container (agents with HelloPayload.Devices)
+	ShmSizeMB    int               `json:"shm_size_mb,omitempty"` // /dev/shm size (agents with HelloPayload.Devices)
 	RegistryAuth *RegistryAuth     `json:"registry_auth,omitempty"`
 	// LocalImage: Image only exists on this server (built from source); never pull it.
 	LocalImage bool `json:"local_image,omitempty"`
@@ -233,6 +235,9 @@ type HelloPayload struct {
 	DiskUsage bool `json:"disk_usage,omitempty"`
 	// DBUpgrade: this agent handles MsgDBUpgrade, MsgDBUpgradeRollback and MsgDBUpgradeCleanup (v0.1.49+).
 	DBUpgrade bool `json:"db_upgrade,omitempty"`
+	// Devices: this agent maps ResolvedSpec.Devices and sets ResolvedSpec.ShmSizeMB (v0.1.50+).
+	// Older agents ignore both, so the server refuses such a deployment to them.
+	Devices bool `json:"devices,omitempty"`
 }
 
 type ContainerState struct {

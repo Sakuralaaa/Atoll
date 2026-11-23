@@ -131,8 +131,10 @@ type ContainerSpec struct {
 	RestartPolicy string        // "unless-stopped"
 	NanoCPUs      int64
 	MemoryBytes   int64
-	PidsLimit     int64 // 0 = no limit
-	OomScoreAdj   int   // <0 makes the kernel OOM killer pick this container last
+	PidsLimit     int64    // 0 = no limit
+	OomScoreAdj   int      // <0 makes the kernel OOM killer pick this container last
+	Devices       []string // host devices mapped at the same path (docker --device, rwm)
+	ShmSizeBytes  int64    // /dev/shm size; 0 = Docker's default
 	Health        *HealthSpec
 }
 

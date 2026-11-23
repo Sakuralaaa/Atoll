@@ -278,6 +278,10 @@ func (d *DockerRuntime) CreateContainer(ctx context.Context, s ContainerSpec) er
 		host.PidsLimit = &s.PidsLimit
 	}
 	host.OomScoreAdj = s.OomScoreAdj
+	host.ShmSize = s.ShmSizeBytes
+	for _, d := range s.Devices {
+		host.Devices = append(host.Devices, container.DeviceMapping{PathOnHost: d, PathInContainer: d, CgroupPermissions: "rwm"})
+	}
 	for _, p := range s.ExposedPorts {
 		cfg.ExposedPorts[nat.Port(fmt.Sprintf("%d/%s", p.ContainerPort, protoOr(p.Protocol)))] = struct{}{}
 	}

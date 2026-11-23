@@ -156,7 +156,7 @@ func validateServiceSpecKeeping(v *api.Service, keep []api.Port) error {
 	if v.User != "" && !userRe.MatchString(v.User) {
 		return badRequest("user must be a uid, uid:gid or a user name (like docker --user)")
 	}
-	return nil
+	return validateDevices(v) // devices.go
 }
 
 // checkHostPaths refuses volume host paths (api.Volume.HostPath) the API caller sets or

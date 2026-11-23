@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -81,6 +82,9 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) err
 		}
 	}
 	if err := checkHostPaths(req.Service.Volumes, nil); err != nil {
+		return err
+	}
+	if err := s.checkDeviceCaps(cmp.Or(placement, p.ServerID), req.Service.Devices, req.Service.ShmSizeMB); err != nil { // devices.go
 		return err
 	}
 	req.Service.RegistryCredID = "" // only set from registry_auth below
@@ -351,6 +355,9 @@ func (s *Server) handlePatchService(w http.ResponseWriter, r *http.Request) erro
 	if err := validateServiceSpecKeeping(&next, svc.Ports); err != nil {
 		return err
 	}
+	if err := s.checkServiceDeviceCaps(r.Context(), svc, next); err != nil { // devices.go
+		return err
+	}
 	if next.CPULimit != svc.CPULimit || next.MemLimitMB != svc.MemLimitMB { // quotas.go
 		if err := s.quotaLimits(r.Context(), next); err != nil {
 			return err
@@ -502,6 +509,7 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) error {
 	svc.Image = spec.Image
 	svc.Ports, svc.Volumes, svc.Configs, svc.Health = spec.Ports, spec.Volumes, spec.Configs, spec.Health
 	svc.CPULimit, svc.MemLimitMB, svc.User = spec.CPULimit, spec.MemLimitMB, spec.User
+	svc.Devices, svc.ShmSizeMB = spec.Devices, spec.ShmSizeMB
 	if err := s.st.UpdateServiceSpec(r.Context(), *svc); err != nil {
 		return err
 	}

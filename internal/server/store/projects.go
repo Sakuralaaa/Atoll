@@ -93,7 +93,7 @@ func (s *Store) DeleteProject(ctx context.Context, id string) error {
 // ---------- services ----------
 
 const svcCols = `id, project_id, name, kind, image, command, args, ports, volumes, configs, health,
-	cpu_limit, mem_limit_mb, registry_cred_id, status, replicas, created_at, run_as, display_name`
+	cpu_limit, mem_limit_mb, registry_cred_id, status, replicas, created_at, run_as, display_name, devices, shm_size_mb`
 
 // svcNode is a service's effective server: its own placement, else the project's server.
 const svcNode = `COALESCE(NULLIF(services.server_id, ''), (SELECT p.server_id FROM projects p WHERE p.id = services.project_id), '')`
@@ -123,10 +123,10 @@ func (s *Store) CountServicesOnNode(ctx context.Context, nodeID string) (int, er
 
 func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error) {
 	var v api.Service
-	var cmd, args, ports, vols, cfgs, health, c string
+	var cmd, args, ports, vols, cfgs, health, c, devs string
 	var stopped int
 	err := row.Scan(&v.ID, &v.ProjectID, &v.Name, &v.Kind, &v.Image, &cmd, &args, &ports, &vols, &cfgs, &health,
-		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &v.User, &v.DisplayName, &stopped, &v.ServerID)
+		&v.CPULimit, &v.MemLimitMB, &v.RegistryCredID, &v.Status, &v.Replicas, &c, &v.User, &v.DisplayName, &devs, &v.ShmSizeMB, &stopped, &v.ServerID)
 	if err != nil {
 		return nil, false, mapErr(err)
 	}
@@ -136,6 +136,7 @@ func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error
 	json.Unmarshal([]byte(vols), &v.Volumes)
 	json.Unmarshal([]byte(cfgs), &v.Configs)
 	json.Unmarshal([]byte(health), &v.Health)
+	json.Unmarshal([]byte(devs), &v.Devices)
 	if v.Ports == nil {
 		v.Ports = []api.Port{}
 	}
@@ -148,10 +149,17 @@ func scanService(row interface{ Scan(...any) error }) (*api.Service, bool, error
 
 // CreateService inserts a service.
 func (s *Store) CreateService(ctx context.Context, v api.Service) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO services(`+svcCols+`, desired_stopped) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO services(`+svcCols+`, desired_stopped) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
 		v.ID, v.ProjectID, v.Name, v.Kind, v.Image, mustJSON(v.Command), mustJSON(v.Args), mustJSON(nz(v.Ports)), mustJSON(nzv(v.Volumes)),
-		mustJSON(v.Configs), mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.Status, v.Replicas, TS(v.CreatedAt), v.User, v.DisplayName)
+		mustJSON(v.Configs), mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.Status, v.Replicas, TS(v.CreatedAt), v.User, v.DisplayName, devicesJSON(v.Devices), v.ShmSizeMB)
 	return mapErr(err)
+}
+
+func devicesJSON(d []string) string {
+	if d == nil {
+		d = []string{}
+	}
+	return mustJSON(d)
 }
 
 func nz(p []api.Port) []api.Port {
@@ -170,9 +178,9 @@ func nzv(p []api.Volume) []api.Volume {
 // UpdateServiceSpec writes the editable spec fields of v.
 func (s *Store) UpdateServiceSpec(ctx context.Context, v api.Service) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE services SET name=?, image=?, command=?, args=?, ports=?, volumes=?, configs=?, health=?,
-		cpu_limit=?, mem_limit_mb=?, registry_cred_id=?, run_as=? WHERE id=?`,
+		cpu_limit=?, mem_limit_mb=?, registry_cred_id=?, run_as=?, devices=?, shm_size_mb=? WHERE id=?`,
 		v.Name, v.Image, mustJSON(v.Command), mustJSON(v.Args), mustJSON(nz(v.Ports)), mustJSON(nzv(v.Volumes)), mustJSON(v.Configs),
-		mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.User, v.ID)
+		mustJSON(v.Health), v.CPULimit, v.MemLimitMB, v.RegistryCredID, v.User, devicesJSON(v.Devices), v.ShmSizeMB, v.ID)
 	return mapErr(err)
 }
 

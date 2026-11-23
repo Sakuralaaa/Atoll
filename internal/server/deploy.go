@@ -78,6 +78,8 @@ func (s *Server) buildSpecWith(ctx context.Context, svc *api.Service, deployment
 		CPULimit:     svc.CPULimit,
 		MemLimitMB:   svc.MemLimitMB,
 		User:         svc.User,
+		Devices:      svc.Devices,
+		ShmSizeMB:    svc.ShmSizeMB,
 	}
 	if strings.HasPrefix(spec.Image, adoptImageRepo) {
 		spec.LocalImage = true // adopted local image (docker_adopt.go): never pulled
@@ -158,6 +160,9 @@ func (s *Server) deploySpecBuild(ctx context.Context, svc *api.Service, spec api
 		return nil, err
 	}
 	online := s.hub.Online(node)
+	if err := s.checkDeviceCaps(node, spec.Devices, spec.ShmSizeMB); err != nil { // devices.go
+		return nil, err
+	}
 	if build != nil && !online {
 		return nil, errf(409, "server_offline", "%v; builds from source run on the service's server, deploy again once it is back", ErrNodeOffline)
 	}
@@ -252,6 +257,10 @@ func (s *Server) sendApply(ctx context.Context, p pendingApply) {
 			return
 		}
 		p.spec = spec
+	}
+	if usesDevices(p.spec.Devices, p.spec.ShmSizeMB) && !s.agentDevices(p.nodeID) { // devices.go
+		s.failDeployment(ctx, p.depID, p.serviceID, "devices and shm_size_mb need atoll-agent v0.1.50 or newer on this server; upgrade the agent and deploy again")
+		return
 	}
 	res, err := s.hub.Request(ctx, p.nodeID, api.MsgApply, api.ApplyPayload{Spec: p.spec}, s.cfg.TransferTimeout)
 	if err == nil && res.OK {

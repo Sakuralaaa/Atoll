@@ -4,7 +4,7 @@ import { useMask } from '../../api/privacy'
 import { Link } from 'react-router-dom'
 import { Pencil, Check, X, Loader2, GitBranch } from 'lucide-react'
 import { Button, Card } from '../../components/ui'
-import { ConfirmDialog, Modal, Select, TextInput } from '../../components/feedback'
+import { ConfirmDialog, Modal, Select, TextInput, Toggle } from '../../components/feedback'
 import { EditGitModal } from '../../components/GitSource'
 import { isGit, repoPath } from '../../api/git'
 import { api } from '../../api/client'
@@ -16,21 +16,40 @@ import { imageVersionLabel, splitImage, useImageUpdate } from '../../api/updates
 export const Row = ({ t, d, children }: { t: string; d?: string; children: React.ReactNode }) => <div className="px-4 @2xl:px-6 py-5 flex flex-wrap items-center gap-x-6 gap-y-3"><div className="flex-1 min-w-[min(100%,220px)]"><div className="text-[13px] font-semibold">{t}</div>{d && <div className="text-[13px] text-muted mt-1 [overflow-wrap:anywhere]">{d}</div>}</div>{children}</div>
 export const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div className="mb-8"><div className="text-[13px] font-semibold mb-3">{t}</div><Card className="divide-y divide-line">{children}</Card></div>
 
+// Host devices a service may map (api.AllowedDevice); others set through the API are kept as they are.
+const DEVICES: [string, string, string][] = [
+  ['/dev/kvm', 'KVM 虚拟化', '安卓模拟器、虚拟机要用；服务器本身要支持 KVM，否则部署会失败并说明原因'],
+  ['/dev/net/tun', 'TUN 网卡', 'WireGuard、OpenVPN 等 VPN 要用'],
+  ['/dev/fuse', 'FUSE', '在容器里挂载 rclone、sshfs 等文件系统'],
+  ['/dev/dri', 'GPU（DRI）', 'Jellyfin、Plex 等用核显或独显转码'],
+]
+const devList = (k: string) => k ? k.split(',') : []
+const devKey = (d: string[]) => [...new Set(d)].sort().join(',')
+const initForm = (s: Service) => ({
+  display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '',
+  cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '',
+  shm: s.shm_size_mb ? String(s.shm_size_mb) : '', devices: devKey(s.devices ?? []),
+})
+
 export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDeleted: () => void }) {
   const canMigrate = useCan('migrate'), canDelete = useCan('delete'), canDeploy = useCan('deploy')
   const upd = useImageUpdate(s.id).data
   const pinnedHint = splitImage(s.image ?? '').digest ? L("已固定到 {0}；改回 :latest 即跟随最新", imageVersionLabel(s.image, upd?.current_version)) : undefined
-  const [f, setF] = useState({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })
+  const [f, setF] = useState(() => initForm(s))
   const [del, setDel] = useState(false); const [move, setMove] = useState(false); const [gitEdit, setGitEdit] = useState(false)
   const { t } = useT()
   const git = isGit(s)
   const [busy, wrap] = useBusy()
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
-  const onlyLabel = f.display.trim() !== (s.display_name ?? '') && f.name === s.name && f.image === s.image && f.command === (s.command ?? []).join(' ') && f.health === (s.health?.http_path ?? '') && f.cpu === (s.cpu_limit ? String(s.cpu_limit) : '') && f.mem === (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
-  const dirty = f.display.trim() !== (s.display_name ?? '') || f.name !== s.name || f.image !== s.image || f.command !== (s.command ?? []).join(' ') || f.health !== (s.health?.http_path ?? '') || f.cpu !== (s.cpu_limit ? String(s.cpu_limit) : '') || f.mem !== (s.mem_limit_mb ? String(s.mem_limit_mb) : '')
+  const i0 = initForm(s)
+  const specDirty = (Object.keys(i0) as (keyof typeof f)[]).some(k => k !== 'display' && f[k] !== i0[k])
+  const onlyLabel = f.display.trim() !== i0.display && !specDirty
+  const dirty = f.display.trim() !== i0.display || specDirty
+  const toggleDev = (d: string) => (on: boolean) => setF(x => ({ ...x, devices: devKey(on ? [...devList(x.devices), d] : devList(x.devices).filter(y => y !== d)) }))
   const save = () => wrap(() => run(() => onlyLabel ? api.updateService(s.id, { display_name: f.display.trim() }) : api.updateService(s.id, {
     display_name: f.display.trim(), name: f.name, ...(git ? {} : { image: f.image }), command: f.command.trim() ? f.command.trim().split(/\s+/) : [],
     health: f.health ? { ...s.health, http_path: f.health } : undefined, cpu_limit: +f.cpu || 0, mem_limit_mb: +f.mem || 0,
+    ...(f.devices !== i0.devices ? { devices: devList(f.devices) } : {}), ...(f.shm !== i0.shm ? { shm_size_mb: +f.shm || 0 } : {}),
   }), { ok: onlyLabel ? L("显示名称已保存") : L("已保存，正在重新部署"), invalidate: [`project:${p.id}`, 'projects'] }))
   return (
     <>
@@ -51,9 +70,13 @@ export function SettingsTab({ p, s, onDeleted }: { p: Project; s: Service; onDel
       <Sec t={L("资源限制")}>
         <Row t="CPU" d={L("核，留空不限")}><TextInput className="w-full @4xl:w-[420px]" value={f.cpu} onChange={set('cpu')} placeholder={L("不限")} /></Row>
         <Row t={L("内存")} d={L("MB，超出后容器会被 OOM 重启。建议填写：不限时一个服务泄漏内存可能拖垮整台机器")}><TextInput className="w-full @4xl:w-[420px]" value={f.mem} onChange={set('mem')} placeholder={L("不限")} /></Row>
+        <Row t={L("共享内存")} d={L("MB，即 /dev/shm；留空用 Docker 默认的 64 MB。浏览器、安卓模拟器一般要 1024–2048")}><TextInput className="w-full @4xl:w-[420px]" value={f.shm} onChange={set('shm')} placeholder="64" /></Row>
+      </Sec>
+      <Sec t={L("硬件设备")}>
+        {DEVICES.map(([d, name, hint]) => <Row key={d} t={`${L(name)} · ${d}`} d={L(hint)}><Toggle on={devList(f.devices).includes(d)} onChange={toggleDev(d)} /></Row>)}
       </Sec>
       </fieldset>
-      {dirty && canDeploy && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">{onlyLabel ? L("有未保存的修改") : L("有未保存的修改，保存后会重新部署")}</span><Button size="sm" onClick={() => setF({ display: s.display_name ?? '', name: s.name, image: s.image, command: (s.command ?? []).join(' '), health: s.health?.http_path ?? '', cpu: s.cpu_limit ? String(s.cpu_limit) : '', mem: s.mem_limit_mb ? String(s.mem_limit_mb) : '' })}><X size={13} />{L("放弃")}</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}{onlyLabel ? L("保存") : L("保存并部署")}</Button></div>}
+      {dirty && canDeploy && <div className="sticky bottom-4 z-10 mb-8 surface px-5 py-3 flex flex-wrap items-center gap-3 text-[13px]"><span className="flex-1 min-w-[min(100%,200px)] font-semibold">{onlyLabel ? L("有未保存的修改") : L("有未保存的修改，保存后会重新部署")}</span><Button size="sm" onClick={() => setF(initForm(s))}><X size={13} />{L("放弃")}</Button><Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}{onlyLabel ? L("保存") : L("保存并部署")}</Button></div>}
       {(canMigrate || canDelete) && <Sec t={L("危险区域")}>
         {canMigrate && <Row t={t('迁移到其他服务器', 'Move to another server')} d={t('只搬这个服务（容器与卷），项目其他服务经 tailnet 用同一个服务名访问它；迁移期间服务会停止。', 'Moves only this service (container and volumes); the rest of the project reaches it over the tailnet under the same name. It stops during the copy.')}>
           <Link to={`/projects/${p.id}/settings`}><Button variant="ghost" size="sm">{t('迁移整个项目', 'Move whole project')}</Button></Link>
