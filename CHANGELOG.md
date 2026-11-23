@@ -2,6 +2,7 @@
 
 每个版本的说明和升级步骤在 [docs/releases/](docs/releases/)，发布时自动附在 GitHub Release 上。
 
+- [v0.1.50](docs/releases/v0.1.50.md)：服务硬件设备映射（KVM、TUN、FUSE、GPU，白名单）和共享内存（/dev/shm）设置，可在面板部署安卓模拟器等需要 /dev/kvm 的镜像。含迁移 0034，升级中控前先备份；需升级 agent。
 - [v0.1.49](docs/releases/v0.1.49.md)：PostgreSQL 大版本一键升级（导出、用新版本导入、核对后换入，失败自动回到旧版，旧数据保留可回滚）。含迁移 0033，升级中控前先备份；需升级 agent。
 - [v0.1.48](docs/releases/v0.1.48.md)：服务磁盘占用（用量页曲线，卷与可写层分开）和卷容量软上限（超限停止服务或仅告警，80% 告警）。含迁移 0032，升级中控前先备份；需升级 agent。
 - [v0.1.47](docs/releases/v0.1.47.md)：服务页「镜像来源」可点击跳到 GitHub 仓库（ghcr.io 镜像和 Git 来源），其他 registry 不变。只需升级中控，无迁移。
